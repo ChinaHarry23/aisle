@@ -24,6 +24,11 @@ type Store = {
   settings: WorkspaceSettings;
   runTokens: Record<string, number>;
   setHydrated: () => void;
+  hydrateFromServer: (data: {
+    brand: BrandProfile;
+    campaigns: Campaign[];
+    settings: WorkspaceSettings;
+  }) => void;
   updateBrand: (partial: Partial<BrandProfile>) => void;
   updateSettings: (partial: Partial<WorkspaceSettings>) => void;
   createCampaign: (input: CampaignInput) => string;
@@ -79,6 +84,14 @@ export const useAisle = create<Store>()(
       settings: defaultSettings(),
       runTokens: {},
       setHydrated: () => set({ hydrated: true }),
+      hydrateFromServer: (data) =>
+        set({
+          brand: data.brand,
+          campaigns: data.campaigns,
+          settings: withSettingsDefaults(data.settings),
+          runTokens: {},
+          hydrated: true,
+        }),
       updateBrand: (partial) => set((s) => ({ brand: { ...s.brand, ...partial } })),
       updateSettings: (partial) =>
         set((s) => ({
@@ -387,7 +400,7 @@ export const useAisle = create<Store>()(
       },
     }),
     {
-      name: "aisle-draft-v2",
+      name: "aisle-ws-pending",
       skipHydration: true,
       partialize: (s) => ({ brand: s.brand, campaigns: s.campaigns, settings: s.settings }),
       merge: (persisted, current) => {
