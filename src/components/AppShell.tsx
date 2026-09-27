@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   LogOut,
   Megaphone,
+  MessagesSquare,
   ShieldAlert,
   Sparkles,
   Store,
@@ -17,6 +18,7 @@ import {
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { WorkspaceSync } from "@/components/WorkspaceSync";
+import { DeveloperContact } from "@/components/DeveloperContact";
 import { cn } from "@/lib/cn";
 import type { PublicUser } from "@/lib/auth/types";
 import { applyTheme, isUiTheme } from "@/lib/theme";
@@ -24,6 +26,7 @@ import { useAisle } from "@/lib/store";
 
 const nav = [
   { href: "/", label: "Overview", icon: LayoutDashboard },
+  { href: "/whatsapp", label: "WhatsApp", icon: MessagesSquare },
   { href: "/campaigns", label: "Campaigns", icon: Megaphone },
   { href: "/studio", label: "Studio", icon: Clapperboard },
   { href: "/approvals", label: "Approvals", icon: ShieldAlert },
@@ -85,7 +88,12 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   if (isAuthPath(pathname)) {
-    return children;
+    return (
+      <div className="flex min-h-screen flex-col">
+        {children}
+        <DeveloperContact />
+      </div>
+    );
   }
 
   if (!sessionReady || !user) {
@@ -178,6 +186,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </aside>
             <div className="min-w-0">
               <div className="shell-page">{children}</div>
+              <DeveloperContact />
             </div>
           </div>
         </div>

@@ -87,6 +87,22 @@ export default function OverviewPage() {
         </div>
       </header>
 
+      <section className="hairline bg-surface p-5">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.16em] text-signal">Group mates</p>
+            <h2 className="font-serif text-2xl">WhatsApp tasks and goals</h2>
+            <p className="mt-2 max-w-xl text-sm text-ink-soft">
+              Drop a WhatsApp group export to pull Task / Goal lines from the class chat. Aisle
+              cannot log into a personal WhatsApp account.
+            </p>
+          </div>
+          <Link href="/whatsapp" className="text-sm text-signal hover:underline">
+            Open WhatsApp desk
+          </Link>
+        </div>
+      </section>
+
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="Awaiting you" value={String(awaiting.length)} hint="Human-in-the-loop" />
         <Stat label="Agents running" value={String(live.length)} hint="Active handoffs" />

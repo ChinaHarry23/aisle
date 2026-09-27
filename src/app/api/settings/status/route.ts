@@ -16,6 +16,11 @@ const media = {
   runway: Boolean(process.env.RUNWAYML_API_SECRET),
 };
 
+const whatsapp = {
+  live: Boolean(process.env.WHATSAPP_VERIFY_TOKEN),
+  displayNumber: process.env.WHATSAPP_DISPLAY_NUMBER || null,
+};
+
 export async function GET() {
-  return Response.json({ llm, media });
+  return Response.json({ llm, media, whatsapp });
 }

@@ -600,7 +600,8 @@ select {
 }
 
 .auth-screen {
-  min-height: 100vh;
+  flex: 1;
+  min-height: 0;
   display: grid;
   place-items: center;
   padding: 2rem 1.25rem;
@@ -657,4 +658,49 @@ select {
   padding: 0;
   cursor: pointer;
   text-align: left;
+}
+
+.dev-contact {
+  margin-top: auto;
+  padding: 1.5rem var(--page-pad) 2rem;
+  border-top: 1px solid var(--line);
+  background: color-mix(in srgb, var(--paper-2) 55%, var(--paper));
+}
+
+.dev-contact-kicker {
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--signal);
+}
+
+.dev-contact-name {
+  margin-top: 0.35rem;
+  font-family: var(--font-serif);
+  font-size: 1.25rem;
+  color: var(--ink);
+}
+
+.dev-contact-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem 1.1rem;
+  margin-top: 0.85rem;
+}
+
+.dev-contact-list a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+  text-decoration: none;
+}
+
+.dev-contact-list a:hover {
+  color: var(--signal);
+}
+
+.auth-screen + .dev-contact {
+  margin-top: 0;
 }

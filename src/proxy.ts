@@ -5,6 +5,7 @@ import { readSession, SESSION_COOKIE } from "@/lib/auth/session";
 function isPublicPath(pathname: string) {
   if (pathname === "/login" || pathname === "/signup") return true;
   if (pathname.startsWith("/api/auth/")) return true;
+  if (pathname.startsWith("/api/whatsapp/webhook")) return true;
   return false;
 }
 

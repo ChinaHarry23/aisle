@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { LlmPicker } from "@/components/settings/LlmPicker";
 import { ModelPicker } from "@/components/studio/ModelPicker";
 import { formatUsd } from "@/lib/ids";
@@ -14,6 +15,7 @@ import { useEffect, useState } from "react";
 type KeyStatus = {
   llm: Record<string, boolean>;
   media: Record<string, boolean>;
+  whatsapp?: { live: boolean; displayNumber: string | null };
 };
 
 export default function SettingsPage() {
@@ -71,6 +73,23 @@ export default function SettingsPage() {
             );
           })}
         </ul>
+      </section>
+
+      <section>
+        <p className="text-[11px] uppercase tracking-wider text-mute">WhatsApp</p>
+        <div className="mt-3 hairline bg-surface p-5">
+          <p className="font-serif text-2xl">Group tasks from chat export.</p>
+          <p className="mt-2 max-w-xl text-sm leading-relaxed text-ink-soft">
+            Personal WhatsApp cannot be linked. Import the class group export on the WhatsApp desk,
+            or later point a Cloud API webhook at this site.
+          </p>
+          <p className={`mt-3 text-[11px] uppercase tracking-wider ${status?.whatsapp?.live ? "text-emerald-800" : "text-mute"}`}>
+            {status?.whatsapp?.live ? "Webhook verify token configured" : "Import only until Cloud API is keyed"}
+          </p>
+          <Link href="/whatsapp" className="mt-4 inline-block text-sm text-signal hover:underline">
+            Open WhatsApp desk
+          </Link>
+        </div>
       </section>
 
       <section>

@@ -13,6 +13,7 @@
     "@vercel/blob": "^2.8.0",
     "@vercel/speed-insights": "^2.0.0",
     "bcryptjs": "^3.0.3",
+    "botid": "^1.5.11",
     "jose": "^6.2.10",
     "lucide-react": "^1.33.0",
     "next": "16.3.2",
