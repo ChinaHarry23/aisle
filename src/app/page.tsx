@@ -26,20 +26,26 @@ export default function OverviewPage() {
   const settings = useAisle((s) => s.settings);
   const createCampaign = useAisle((s) => s.createCampaign);
   const launch = useAisle((s) => s.launch);
+  const collectFeedback = useAisle((s) => s.collectFeedback);
+  const busy = useAisle((s) => s.busy);
 
   const awaiting = campaigns.filter((c) => c.status === "awaiting_approval");
+  const conflictCount = campaigns.reduce(
+    (n, c) => n + c.scheduleConflicts.filter((x) => !x.resolved).length,
+    0,
+  );
+  const blockedTotal = campaigns.reduce((n, c) => n + c.spend.blockedAttempts, 0);
   const live = campaigns.filter((c) =>
     ["analysing", "generating", "compliance", "revising", "scheduling"].includes(c.status),
   );
   const published = campaigns.filter((c) => c.status === "published");
-  const scheduled = campaigns.filter((c) => c.status === "scheduled");
   const hero = published.find((c) => c.creatives.length > 0);
   const recentLog = campaigns.flatMap((c) =>
     c.log.map((e) => ({ ...e, campaign: c.name, campaignId: c.id })),
   );
   recentLog.sort((a, b) => (a.at < b.at ? 1 : -1));
 
-  function watchLiveRun() {
+  async function watchLiveRun() {
     const id = createCampaign({
       name: "Trail Parka — mid-semester restock",
       product: "Northline Trail Parka (navy)",
@@ -53,8 +59,8 @@ export default function OverviewPage() {
       country: "AU",
       notes: "Keep it campus, not wilderness. Watch the compliance loop.",
     });
-    launch(id);
     router.push(`/campaigns/${id}`);
+    await launch(id);
   }
 
   return (
@@ -73,7 +79,7 @@ export default function OverviewPage() {
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={watchLiveRun}
+            onClick={() => void watchLiveRun()}
             className="rounded-full bg-ink px-4 py-2 text-sm text-paper hover:bg-ink-soft"
           >
             Watch a live agent run
@@ -104,13 +110,23 @@ export default function OverviewPage() {
       </section>
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="Awaiting you" value={String(awaiting.length)} hint="Human-in-the-loop" />
-        <Stat label="Agents running" value={String(live.length)} hint="Active handoffs" />
-        <Stat label="Scheduled" value={String(scheduled.length)} hint="Ready to publish" />
         <Stat
-          label="Published impressions"
-          value={formatNumber(published.reduce((n, c) => n + (c.performance?.impressions ?? 0), 0))}
-          hint="This cycle"
+          label="Awaiting you"
+          value={String(awaiting.length)}
+          hint={conflictCount > 0 ? `${conflictCount} schedule conflict(s)` : "Human-in-the-loop"}
+        />
+        <Stat label="Agents running" value={String(live.length)} hint="Active handoffs" />
+        <Stat
+          label="Blocked attempts"
+          value={String(blockedTotal)}
+          hint="Refused by the policy guard"
+        />
+        <Stat
+          label="Reporting impressions"
+          value={formatNumber(
+            published.reduce((n, c) => n + (c.performanceReport?.totals?.impressions ?? 0), 0),
+          )}
+          hint="Collected channels only"
         />
       </section>
 
@@ -141,6 +157,42 @@ export default function OverviewPage() {
         </p>
       </section>
 
+      {campaigns.some((c) => c.status === "published" && !c.performanceReport) ? (
+        <section>
+          <SectionTitle
+            kicker="AHR-06"
+            title="Results waiting to be collected"
+            aside={
+              <Link href="/performance" className="text-sm text-signal hover:underline">
+                Open performance
+              </Link>
+            }
+          />
+          <ul className="mt-4 flex flex-col gap-2">
+            {campaigns
+              .filter((c) => c.status === "published" && !c.performanceReport)
+              .map((c) => (
+                <li key={c.id} className="hairline flex flex-wrap items-center justify-between gap-3 bg-surface p-4">
+                  <div>
+                    <p className="font-medium">{c.name}</p>
+                    <p className="text-sm text-ink-soft">
+                      Published on {c.channels.join(", ")} — collect authorised channel results.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={busy[c.id]}
+                    onClick={() => void collectFeedback(c.id)}
+                    className="rounded-full border border-ink px-4 py-2 text-sm disabled:opacity-50"
+                  >
+                    {busy[c.id] ? "Collecting…" : "Collect results"}
+                  </button>
+                </li>
+              ))}
+          </ul>
+        </section>
+      ) : null}
+
       {awaiting.length > 0 ? (
         <section>
           <SectionTitle
@@ -155,10 +207,16 @@ export default function OverviewPage() {
           <ul className="mt-4 grid gap-3">
             {awaiting.map((c) => {
               const report = c.complianceReports.at(-1);
+              const manual = c.complianceAttempts.at(-1)?.outcome === "manual_review";
               return (
                 <li key={c.id} className="hairline flex flex-wrap items-center justify-between gap-3 bg-surface p-4">
                   <div>
-                    <p className="font-medium">{c.name}</p>
+                    <p className="font-medium">
+                      {c.name}
+                      {manual ? (
+                        <span className="ml-2 status-chip risk-high">manual review</span>
+                      ) : null}
+                    </p>
                     <p className="text-sm text-ink-soft">{report?.summary}</p>
                   </div>
                   <Link
@@ -213,10 +271,7 @@ export default function OverviewPage() {
           <div>
             <SectionTitle kicker="Collaboration" title="Latest handoffs" />
             <div className="mt-4 max-h-[360px] overflow-y-auto pr-1 scrollbar-thin">
-              <AgentLog
-                events={recentLog.slice(0, 8).map(({ campaign: _c, campaignId: _id, ...e }) => e)}
-                dense
-              />
+              <AgentLog events={recentLog.slice(0, 8)} dense />
             </div>
           </div>
         </div>

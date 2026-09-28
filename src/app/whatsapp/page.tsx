@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Empty, SectionTitle, Stat } from "@/components/ui";
 import { formatDate } from "@/lib/ids";
+import { useAisle } from "@/lib/store";
 import type { WhatsappInbox, WhatsappItem } from "@/lib/whatsapp/types";
 import { emptyInbox } from "@/lib/whatsapp/types";
 
@@ -21,9 +23,11 @@ type WhatsappStatus = {
 function ItemList({
   items,
   onToggle,
+  onBrief,
 }: {
   items: WhatsappItem[];
   onToggle: (id: string, done: boolean) => void;
+  onBrief?: (item: WhatsappItem) => void;
 }) {
   if (items.length === 0) {
     return <p className="text-sm text-mute">Nothing extracted yet.</p>;
@@ -46,6 +50,15 @@ function ItemList({
             <p className="mt-1 text-[11px] uppercase tracking-wider text-mute">
               {item.author} · {formatDate(item.at, true)}
             </p>
+            {onBrief ? (
+              <button
+                type="button"
+                onClick={() => onBrief(item)}
+                className="mt-1 text-[11px] uppercase tracking-wider text-signal hover:underline"
+              >
+                Turn into campaign brief →
+              </button>
+            ) : null}
           </div>
         </li>
       ))}
@@ -54,6 +67,8 @@ function ItemList({
 }
 
 export default function WhatsappPage() {
+  const router = useRouter();
+  const setIntakeDraft = useAisle((s) => s.setIntakeDraft);
   const [inbox, setInbox] = useState<WhatsappInbox>(emptyInbox());
   const [shared, setShared] = useState(false);
   const [status, setStatus] = useState<WhatsappStatus | null>(null);
@@ -61,8 +76,12 @@ export default function WhatsappPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
-  const [webhookUrl, setWebhookUrl] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+
+  /* Derived at render time (this is a client component) so no state has to be
+     written from an effect just to display the URL. */
+  const webhookUrl = () =>
+    typeof window === "undefined" ? "/api/whatsapp/webhook" : `${window.location.origin}/api/whatsapp/webhook`;
 
   const apply = useCallback((json: InboxResponse) => {
     if (json.inbox) setInbox(json.inbox);
@@ -77,21 +96,27 @@ export default function WhatsappPage() {
   }, [apply]);
 
   useEffect(() => {
-    setWebhookUrl(`${window.location.origin}/api/whatsapp/webhook`);
     let cancelled = false;
-    void Promise.all([
-      refresh().catch((err: Error) => {
-        if (!cancelled) setError(err.message);
-      }),
-      fetch("/api/settings/status")
-        .then((r) => r.json())
-        .then((json: { whatsapp?: WhatsappStatus }) => {
-          if (!cancelled) setStatus(json.whatsapp ?? null);
-        })
-        .catch(() => {
-          if (!cancelled) setStatus(null);
+
+    async function load() {
+      await Promise.all([
+        refresh().catch((err: Error) => {
+          if (!cancelled) setError(err.message);
         }),
-    ]);
+        fetch("/api/settings/status")
+          .then((r) => r.json())
+          .then((json: { whatsapp?: WhatsappStatus }) => {
+            if (!cancelled) setStatus(json.whatsapp ?? null);
+          })
+          .catch(() => {
+            if (!cancelled) setStatus(null);
+          }),
+      ]);
+    }
+
+    // Kicked off from a microtask so the effect body itself only subscribes.
+    void Promise.resolve().then(load);
+
     const timer = setInterval(() => {
       void refresh().catch(() => undefined);
     }, 20000);
@@ -167,6 +192,27 @@ export default function WhatsappPage() {
     });
     const json = (await res.json()) as InboxResponse;
     if (res.ok) apply(json);
+  }
+
+  /**
+   * Hand a WhatsApp line to the campaign brief as a starting point only.
+   *
+   * This is an intake front door, not an agent: nothing is launched here, and the
+   * founder still supplies product, audience, budget, channels, dates and market
+   * because AHR-01 forbids the system inventing them.
+   */
+  function startBriefFrom(item: WhatsappItem) {
+    const headline = item.text.replace(/^(goal|task|need)\s*[:\-–]\s*/i, "").trim();
+    const short = headline.length > 60 ? `${headline.slice(0, 57)}…` : headline;
+    setIntakeDraft({
+      source: `a WhatsApp ${item.kind} from ${item.author}`,
+      input: {
+        name: short || "New campaign",
+        objective: headline,
+        notes: `${item.kind === "goal" ? "Goal" : "Task"} from the group chat (${item.author}): ${headline}`,
+      },
+    });
+    router.push("/campaigns/new");
   }
 
   const goals = useMemo(() => inbox.items.filter((i) => i.kind === "goal"), [inbox.items]);
@@ -270,7 +316,7 @@ export default function WhatsappPage() {
             <span className="text-[11px] uppercase tracking-wider text-mute">Callback URL</span>
             <input
               readOnly
-              value={webhookUrl}
+              value={webhookUrl()}
               onFocus={(e) => e.currentTarget.select()}
               className="mt-1 w-full border border-line bg-paper px-3 py-2 text-sm outline-none"
             />
@@ -295,7 +341,11 @@ export default function WhatsappPage() {
                 />
               </div>
             ) : (
-              <ItemList items={goals} onToggle={(id, done) => void toggle(id, done)} />
+              <ItemList
+                items={goals}
+                onToggle={(id, done) => void toggle(id, done)}
+                onBrief={startBriefFrom}
+              />
             )}
           </div>
         </div>
@@ -310,7 +360,11 @@ export default function WhatsappPage() {
                 />
               </div>
             ) : (
-              <ItemList items={tasks} onToggle={(id, done) => void toggle(id, done)} />
+              <ItemList
+                items={tasks}
+                onToggle={(id, done) => void toggle(id, done)}
+                onBrief={startBriefFrom}
+              />
             )}
           </div>
         </div>

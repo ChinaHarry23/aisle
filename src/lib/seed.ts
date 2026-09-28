@@ -1,6 +1,7 @@
 import { uid } from "./ids";
 import { DEFAULT_IMAGE_MODEL, DEFAULT_VIDEO_MODEL } from "./media/catalog";
 import { stubGenerate } from "./media/stub";
+import { withRuntimeDefaults } from "./runtime/defaults";
 import type { WorkspaceSettings } from "./settings";
 import type {
   AgentEvent,
@@ -66,6 +67,7 @@ export function makeContext(
   >,
   brand: BrandProfile,
   previousPerformanceNote: string | null,
+  previousPerformanceFrom: string | null = null,
 ): SharedContext {
   return {
     retailer: brand.retailerName,
@@ -76,6 +78,7 @@ export function makeContext(
     brandTone: brand.tone,
     approvedClaims: [],
     previousPerformanceNote,
+    previousPerformanceFrom: previousPerformanceNote ? previousPerformanceFrom : null,
     founderNotes: input.notes ? [input.notes] : [],
   };
 }
@@ -85,9 +88,10 @@ export function blankCampaign(
   brand: BrandProfile,
   previousPerformanceNote: string | null,
   settings?: Pick<WorkspaceSettings, "imageModelId" | "videoModelId" | "videoDurationSec">,
+  previousPerformanceFrom: string | null = null,
 ): Campaign {
   const createdAt = new Date().toISOString();
-  return {
+  return withRuntimeDefaults({
     ...input,
     id: uid("cmp"),
     status: "draft",
@@ -101,7 +105,7 @@ export function blankCampaign(
     videos: [],
     studioHistory: [],
     studioBusy: null,
-    sharedContext: makeContext(input, brand, previousPerformanceNote),
+    sharedContext: makeContext(input, brand, previousPerformanceNote, previousPerformanceFrom),
     trends: [],
     opportunities: [],
     personas: [],
@@ -121,11 +125,35 @@ export function blankCampaign(
       ),
     ],
     founderDecision: null,
-  };
+    internalDataAuthorised: true,
+    evidence: [],
+    trendFindings: [],
+    trendGaps: [],
+    complianceAttempts: [],
+    channelVersions: [],
+    scheduleConflicts: [],
+    runSchedule: [],
+    performanceReport: null,
+    recommendationDecision: null,
+    policyDecisions: [],
+    runSteps: [],
+    toolCalls: [],
+    spend: {
+      inferenceUsd: 0,
+      mediaUsd: 0,
+      capUsd: 0,
+      blockedAttempts: 0,
+    },
+    run: null,
+    validationProblems: [],
+    collectorOverrides: {},
+  });
 }
 
 export function seedCampaigns(brand: BrandProfile): Campaign[] {
-  const parka: Campaign = {
+  // Seeded campaigns carry only what the demo needs; `withRuntimeDefaults`
+  // fills the rest of the runtime contract at the end of this function.
+  const parka = {
     id: "cmp_parka",
     name: "Trail Parka — campus winter drop",
     product: "Northline Trail Parka (navy)",
@@ -184,10 +212,133 @@ export function seedCampaigns(brand: BrandProfile): Campaign[] {
         "Cut for commuting, not the summit",
       ],
       previousPerformanceNote: null,
+      previousPerformanceFrom: null,
       founderNotes: [
         "Keep it campus, not outdoorsy-macho. No mountain-peak clichés.",
       ],
     },
+    internalDataAuthorised: true,
+    evidence: [
+      {
+        id: "ev_parka_1",
+        claim: "Outerwear demand is campus-local",
+        detail:
+          "POS velocity for outerwear is +34% week-on-week in stores within 2 km of a university campus, across 14 weeks of store data.",
+        sourceName: "Lane & Co. POS warehouse",
+        sourceRef: "internal://pos/outerwear/2026-08-16",
+        sourceKind: "internal_retail",
+        observedAt: "2026-08-15",
+        fetchedAt: "2026-08-16T09:12:20.000Z",
+        status: "verified",
+        confidence: 88,
+        raisedBy: "trend",
+        usedFor: "Demand signal",
+      },
+      {
+        id: "ev_parka_2",
+        claim: "Search intent is about rain and lectures",
+        detail:
+          "Internal search: “uni jacket rain” up 41% across NSW and VIC against the same weeks last year.",
+        sourceName: "Internal search log",
+        sourceRef: "internal://search/uni-jacket-rain/2026-08-16",
+        sourceKind: "internal_retail",
+        observedAt: "2026-08-14",
+        fetchedAt: "2026-08-16T09:12:22.000Z",
+        status: "verified",
+        confidence: 82,
+        raisedBy: "trend",
+        usedFor: "Angle selection",
+      },
+      {
+        id: "ev_parka_3",
+        claim: "Category advertising still leads with absolutes",
+        detail:
+          "Public index for the category in AU returns multiple pages using “best” and “guaranteed” framing.",
+        sourceName: "DuckDuckGo Instant Answer API",
+        sourceRef: "https://api.duckduckgo.com/?q=outerwear+AU+retail+promotion",
+        sourceKind: "external_public",
+        observedAt: "2026-08-16",
+        fetchedAt: "2026-08-16T09:12:24.000Z",
+        status: "verified",
+        confidence: 64,
+        raisedBy: "trend",
+        usedFor: "Competitor pattern",
+      },
+      {
+        id: "ev_parka_4",
+        claim: "Channel attention windows are modelled",
+        detail:
+          "Posting windows come from documented channel behaviour, not from measured impressions for this retailer.",
+        sourceName: "Assumption register",
+        sourceRef: "assumption://channel-behaviour/instagram",
+        sourceKind: "model_inference",
+        observedAt: "2026-08-16",
+        fetchedAt: "2026-08-16T09:12:26.000Z",
+        status: "assumed",
+        confidence: 55,
+        raisedBy: "trend",
+        usedFor: "Channel timing",
+      },
+    ],
+    trendFindings: [
+      {
+        id: "tf_parka_1",
+        topic: "Campus southerlies, not ski trips",
+        finding:
+          "Outerwear velocity is concentrated in campus-adjacent stores, and search intent is about rain and lectures rather than alpine conditions.",
+        basis: "supported",
+        relevance: 96,
+        confidence: 88,
+        country: "AU",
+        channelRelevance: ["instagram", "web", "email", "digital_signage"],
+        themeSuggestion: "Campus weather, not wilderness.",
+        visualDirection: "Navy field, cream type, cropped urban rain — no alpine peaks.",
+        evidenceIds: ["ev_parka_1", "ev_parka_2"],
+      },
+      {
+        id: "tf_parka_2",
+        topic: "Quiet utility over logo-heavy streetwear",
+        finding:
+          "Shoppers respond to garments described as doing a job. This is a modelled read of category behaviour, not surveyed preference.",
+        basis: "assumption",
+        relevance: 84,
+        confidence: 62,
+        country: "AU",
+        channelRelevance: ["instagram", "web"],
+        themeSuggestion: "Name the fact, skip the shout.",
+        evidenceIds: [],
+      },
+      {
+        id: "tf_parka_3",
+        topic: "Absolute claims are the open risk",
+        finding:
+          "Competing category advertising leans on “best” and “guaranteed”. The retailer's own banned-terms list forbids following it.",
+        basis: "supported",
+        relevance: 88,
+        confidence: 90,
+        country: "AU",
+        channelRelevance: ["instagram", "web", "email", "print", "digital_signage"],
+        risk: "An unsubstantiated superlative would fail AU advertising standards.",
+        themeSuggestion: "Quiet proof over swagger.",
+        evidenceIds: ["ev_parka_3"],
+      },
+    ],
+    trendGaps: [
+      {
+        id: "gap_parka_1",
+        kind: "low_confidence",
+        detail: "No customer-level survey or panel data is connected for this cycle.",
+        effect: "Personas are modelled from category behaviour, not interviewed shoppers.",
+        needsFounder: false,
+      },
+      {
+        id: "gap_parka_2",
+        kind: "outdated",
+        detail: "Social-listening sample for this category is three weeks old.",
+        effect: "Tone conclusions carry reduced confidence.",
+        needsFounder: false,
+      },
+    ],
     trends: [
       {
         id: "tr_1",
@@ -530,7 +681,7 @@ export function seedCampaigns(brand: BrandProfile): Campaign[] {
     },
   };
 
-  const fruit: Campaign = {
+  const fruit = {
     id: "cmp_stonefruit",
     name: "Week 34 catalogue — stone fruit & yoghurt",
     product: "Seasonal stone fruit + Lane & Co. pot-set yoghurt",
@@ -564,8 +715,112 @@ export function seedCampaigns(brand: BrandProfile): Campaign[] {
       approvedClaims: ["In season this week", "Pot-set yoghurt", "Australian grown where labelled"],
       previousPerformanceNote:
         "Trail Parka: commuting angle beat fashion framing. Shoppers respond to specific, honest use-cases.",
+      previousPerformanceFrom: "cmp_parka",
       founderNotes: ["Keep it edible, not wellness-cult."],
     },
+    internalDataAuthorised: true,
+    evidence: [
+      {
+        id: "ev_fruit_1",
+        claim: "Stone fruit is landing early",
+        detail:
+          "Buyer notes: yellow peaches and plums landing six days ahead of last year; early trays are +22% against last year's first week.",
+        sourceName: "Buyer notes + POS",
+        sourceRef: "internal://pos/stone-fruit/2026-08-23",
+        sourceKind: "internal_retail",
+        observedAt: "2026-08-22",
+        fetchedAt: "2026-08-23T04:11:00.000Z",
+        status: "verified",
+        confidence: 86,
+        raisedBy: "trend",
+        usedFor: "Seasonal timing",
+      },
+      {
+        id: "ev_fruit_2",
+        claim: "Fruit and dairy pairs lift attach rate",
+        detail:
+          "The last three catalogues pairing fruit with a dairy line outsold hero-fruit-only covers on basket attach.",
+        sourceName: "Catalogue history",
+        sourceRef: "internal://catalogue/history/2026-08-23",
+        sourceKind: "internal_retail",
+        observedAt: "2026-08-21",
+        fetchedAt: "2026-08-23T04:11:02.000Z",
+        status: "verified",
+        confidence: 83,
+        raisedBy: "trend",
+        usedFor: "Basket build",
+      },
+      {
+        id: "ev_fruit_3",
+        claim: "Prior campaign recommendation accepted by the founder",
+        detail:
+          "Trail Parka: the commuting angle beat fashion framing. Shoppers respond to specific, honest use-cases.",
+        sourceName: "Founder decision on cmp_parka",
+        sourceRef: "workspace://campaign/cmp_parka/recommendation",
+        sourceKind: "founder_input",
+        observedAt: "2026-08-23",
+        fetchedAt: "2026-08-23T04:11:04.000Z",
+        status: "verified",
+        confidence: 92,
+        raisedBy: "trend",
+        usedFor: "Angle selection",
+      },
+      {
+        id: "ev_fruit_4",
+        claim: "Competitor wellness framing draws sarcasm",
+        detail:
+          "Comment sample on competitor “healthiest breakfast” advertising is negative; the brand banned-terms list already blocks the language.",
+        sourceName: "Social listening sample",
+        sourceRef: "assumption://social-sample/stone-fruit",
+        sourceKind: "model_inference",
+        observedAt: "2026-08-02",
+        fetchedAt: "2026-08-23T04:11:06.000Z",
+        status: "stale",
+        confidence: 48,
+        raisedBy: "trend",
+        usedFor: "Tone guidance",
+      },
+    ],
+    trendFindings: [
+      {
+        id: "tf_fruit_1",
+        topic: "Stone fruit arriving a week early",
+        finding:
+          "Peaches and plums are landing six days ahead of last year, so the catalogue's timing advantage is real this week only.",
+        basis: "supported",
+        relevance: 93,
+        confidence: 86,
+        country: "AU",
+        channelRelevance: ["print", "email"],
+        themeSuggestion: "This week's fruit. This week's breakfast.",
+        evidenceIds: ["ev_fruit_1"],
+      },
+      {
+        id: "tf_fruit_2",
+        topic: "Breakfast bundles beat single-SKU shouts",
+        finding: "Pairing fruit with pot-set yoghurt lifts attach rate against hero-fruit-only covers.",
+        basis: "supported",
+        relevance: 88,
+        confidence: 83,
+        country: "AU",
+        channelRelevance: ["print", "email", "instagram"],
+        themeSuggestion: "Peaches are in. Yoghurt is waiting.",
+        evidenceIds: ["ev_fruit_2"],
+      },
+      {
+        id: "tf_fruit_3",
+        topic: "Wellness language is fatigued",
+        finding:
+          "The comment sample pointing this out is nine weeks old and thin, so it is reported as a stale signal rather than a finding.",
+        basis: "assumption",
+        relevance: 74,
+        confidence: 48,
+        country: "AU",
+        channelRelevance: ["instagram", "print"],
+        risk: "Any health superlative is both fatigued and non-compliant here.",
+        evidenceIds: [],
+      },
+    ],
     trends: [
       {
         id: "tr_f1",
@@ -707,29 +962,108 @@ export function seedCampaigns(brand: BrandProfile): Campaign[] {
         ],
         countryProfile: "AU",
       },
-      {
-        id: "cp_fruit_2",
-        creativeId: "cr_fruit_a",
-        version: 2,
-        risk: "medium",
-        score: 62,
-        verdict: "escalate",
-        summary:
-          "Health claim removed. Remaining issue: implied everyday pricing on catalogue cover without a condition line. Escalating to the founder — promotional catalogues are high-visibility.",
-        findings: [
-          {
-            id: "ff2",
-            severity: "medium",
-            type: "Promotional completeness",
-            excerpt: "Catalogue cover with product pairing, no 'see in-store for price' line",
-            explanation:
-              "Week-34 specials are region-specific. Cover should not imply a national price. Founder to confirm the condition line before print lock.",
-            rule: "AU · ACL + Lane & Co. catalogue policy",
-          },
-        ],
-        countryProfile: "AU",
-      },
-    ],
+        {
+          id: "cp_fruit_2",
+          creativeId: "cr_fruit_a",
+          version: 2,
+          risk: "high",
+          score: 62,
+          verdict: "revise",
+          summary:
+            "Health claim removed. Remaining issue: implied everyday pricing on the catalogue cover without a condition line. This attempt was the third submission, so the case escalated to manual review rather than looping again.",
+          findings: [
+            {
+              id: "ff2",
+              severity: "medium",
+              type: "Promotional completeness",
+              excerpt: "Catalogue cover with product pairing, no 'see in-store for price' line",
+              explanation:
+                "Week-34 specials are region-specific. The cover should not imply a national price. Founder to confirm the condition line before print lock.",
+              rule: "AU · ACL + Lane & Co. catalogue policy",
+            },
+          ],
+          countryProfile: "AU",
+        },
+      ],
+      complianceAttempts: [
+        {
+          id: "ca_fruit_1",
+          at: "2026-08-23T04:14:00.000Z",
+          attempt: 1,
+          creativeVersion: 1,
+          creativeIds: ["cr_fruit_a", "cr_fruit_b"],
+          inputDigest: "3f2a91cc · Stone fruit + pot-set yoghurt · Grocery · Householders 28–45",
+          modelId: "openai:gpt-4.1-mini",
+          outcome: "changes_required",
+          risk: "high",
+          score: 34,
+          summary: "v1 used 'Australia's healthiest breakfast' — a health superlative with no substantiation.",
+          issues: [
+            {
+              id: "ci_fruit_1",
+              category: "unsupported_claim",
+              basis: "confirmed_breach",
+              severity: "high",
+              excerpt: "Australia's healthiest breakfast",
+              explanation:
+                "A health superlative requires substantiation the retailer does not hold, and the term is on the brand banned list.",
+              rule: "ACL s18/s29 + brand banned terms",
+              policySource: "AU regulator guidance + brand rules",
+              policyDate: "2026-08-23",
+              recommendedCorrection: "Replace with a verifiable product fact, e.g. 'in season this week'.",
+            },
+          ],
+          policyRefs: ["AU advertising and consumer law", "Brand banned and approved terms", "Retailer catalogue policy"],
+          policyComplete: true,
+        },
+        {
+          id: "ca_fruit_2",
+          at: "2026-08-23T04:18:00.000Z",
+          attempt: 2,
+          creativeVersion: 2,
+          creativeIds: ["cr_fruit_a", "cr_fruit_b"],
+          inputDigest: "91bd47e0 · Stone fruit + pot-set yoghurt · Grocery · Householders 28–45",
+          modelId: "openai:gpt-4.1-mini",
+          outcome: "manual_review",
+          risk: "high",
+          score: 62,
+          summary:
+            "Health claim cleared. The catalogue cover still needs a regional price condition line, which is a founder decision because print is high-visibility.",
+          issues: [
+            {
+              id: "ci_fruit_2",
+              category: "missing_condition",
+              basis: "human_judgement",
+              severity: "medium",
+              excerpt: "Catalogue cover without a regional price condition line",
+              explanation:
+                "Special pricing varies by region; the cover should not imply a national price without the condition line.",
+              rule: "AU catalogue policy",
+              policySource: "Retailer catalogue policy",
+              policyDate: "2026-08-23",
+              recommendedCorrection: "Add “see in-store for regional prices”, or confirm the line before print lock.",
+            },
+          ],
+          policyRefs: ["AU advertising and consumer law", "Retailer catalogue policy"],
+          policyComplete: true,
+        },
+      ],
+      trendGaps: [
+        {
+          id: "gap_fruit_1",
+          kind: "low_confidence",
+          detail: "No customer-level survey data is connected for this cycle.",
+          effect: "Personas are modelled from category behaviour, not interviewed shoppers.",
+          needsFounder: false,
+        },
+        {
+          id: "gap_fruit_2",
+          kind: "outdated",
+          detail: "Competitor scan for the category is 9 weeks old.",
+          effect: "Competitor claims are reported with reduced confidence.",
+          needsFounder: false,
+        },
+      ],
     adaptations: [],
     schedule: [],
     performance: null,
@@ -787,5 +1121,8 @@ export function seedCampaigns(brand: BrandProfile): Campaign[] {
     founderDecision: null,
   };
 
-  return [fruit, parka];
+  return [
+    withRuntimeDefaults(fruit as unknown as Campaign),
+    withRuntimeDefaults(parka as unknown as Campaign),
+  ];
 }

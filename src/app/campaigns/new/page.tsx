@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { validateIntake } from "@/lib/runtime/intake";
 import type { CampaignInput, Channel, Country } from "@/lib/types";
 import { channelLabel } from "@/lib/status";
 import { useAisle } from "@/lib/store";
@@ -28,12 +29,27 @@ export default function NewCampaignPage() {
   const createCampaign = useAisle((s) => s.createCampaign);
   const launch = useAisle((s) => s.launch);
   const brand = useAisle((s) => s.brand);
-  const [form, setForm] = useState<CampaignInput>(empty);
   const [error, setError] = useState("");
+
+  /* A brief handed over from the WhatsApp desk pre-fills the form once, at mount.
+     Reading the handover during the initial render (rather than in an effect)
+     keeps this to a single render and leaves no stale draft behind for the next
+     visit. The founder still completes and launches it: intake never starts the
+     bench on its own. */
+  const [handoff] = useState(() => {
+    const draft = useAisle.getState().intakeDraft;
+    if (!draft) return null;
+    useAisle.getState().setIntakeDraft(null);
+    return draft;
+  });
+  const [form, setForm] = useState<CampaignInput>(() => ({ ...empty, ...(handoff?.input ?? {}) }));
 
   function update<K extends keyof CampaignInput>(key: K, value: CampaignInput[K]) {
     setForm((f) => ({ ...f, [key]: value }));
   }
+
+  /** UC-01 steps 4–5 run in the form too, so a launch is never a surprise. */
+  const problems = validateIntake(form, brand);
 
   function toggleChannel(ch: Channel) {
     setForm((f) => ({
@@ -44,15 +60,19 @@ export default function NewCampaignPage() {
     }));
   }
 
-  function submit(run: boolean) {
-    if (!form.name || !form.product || !form.targetAudience || !form.objective || form.channels.length === 0) {
-      setError("Name, product, audience, objective, and at least one channel are required.");
+  async function submit(run: boolean) {
+    if (problems.length > 0) {
+      setError(
+        run
+          ? `The pipeline will not start: ${problems.map((p) => p.message).join(" ")}`
+          : "Fix the brief before saving.",
+      );
       return;
     }
     setError("");
     const id = createCampaign(form);
-    if (run) launch(id);
     router.push(`/campaigns/${id}`);
+    if (run) await launch(id);
   }
 
   return (
@@ -65,11 +85,28 @@ export default function NewCampaignPage() {
         {brand.retailerName} brand rules.
       </p>
 
+      {handoff ? (
+        <p className="mt-4 border-l-2 border-signal pl-3 text-sm text-ink-soft">
+          Started from {handoff.source}. Check every field before launching — Aisle never invents a
+          product, audience, budget, country or channel you did not provide.
+        </p>
+      ) : null}
+
+      {problems.length > 0 ? (
+        <ul className="mt-4 flex flex-col gap-1 text-xs text-mute">
+          {problems.map((p) => (
+            <li key={`${p.field}-${p.message}`}>
+              {p.field}: {p.message} <span className="opacity-70">({p.clause})</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
       <form
         className="mt-8 flex flex-col gap-5"
         onSubmit={(e) => {
           e.preventDefault();
-          submit(true);
+          void submit(true);
         }}
       >
         <label className="block">
@@ -208,7 +245,7 @@ export default function NewCampaignPage() {
           </button>
           <button
             type="button"
-            onClick={() => submit(false)}
+            onClick={() => void submit(false)}
             className="rounded-full border border-ink px-5 py-2.5 text-sm"
           >
             Save draft

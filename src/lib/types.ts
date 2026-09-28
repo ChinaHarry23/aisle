@@ -1,6 +1,22 @@
 import type { AdVideo, MediaGeneration, StudioRun } from "./media/types";
+import type {
+  AgentRun,
+  ChannelResultStatus,
+  ChannelVersion,
+  ComplianceAttempt,
+  Evidence,
+  PerformanceReport,
+  PolicyDecision,
+  RecommendationDecision,
+  RunScheduleItem,
+  RunStep,
+  ScheduleConflict,
+  ToolCall,
+  TrendBriefGap,
+  TrendFinding,
+} from "./runtime/types";
 
-export type AgentId = "founder" | "trend" | "creative" | "compliance" | "media";
+export type AgentId = "founder" | "trend" | "creative" | "compliance" | "media" | "intake";
 
 export type Channel =
   | "instagram"
@@ -40,6 +56,8 @@ export type CampaignInput = {
   notes: string;
   imageModelId?: string;
   videoModelId?: string;
+  /** Ceiling the founder sets on automated spend for this campaign. */
+  spendCapUsd?: number;
 };
 
 export type Trend = {
@@ -122,6 +140,8 @@ export type ComplianceReport = {
   summary: string;
   findings: ComplianceFinding[];
   countryProfile: string;
+  /** AHR-04 policy detail: issue basis, rule source, revision attempt. */
+  attempt?: ComplianceAttempt;
 };
 
 export type ChannelAdaptation = {
@@ -166,9 +186,18 @@ export type AgentEvent = {
     | "escalation"
     | "decision"
     | "schedule"
-    | "feedback";
+    | "feedback"
+    | "policy"
+    | "tool"
+    | "gap"
+    | "intake";
   title: string;
   detail: string;
+  /** Links the line back to the run step, guard decision or tool call. */
+  runStepId?: string;
+  policyDecisionId?: string;
+  toolCallId?: string;
+  evidenceIds?: string[];
 };
 
 export type SharedContext = {
@@ -180,6 +209,8 @@ export type SharedContext = {
   brandTone: string;
   approvedClaims: string[];
   previousPerformanceNote: string | null;
+  /** Campaign the attached note came from, for traceability (UC-06 step 12). */
+  previousPerformanceFrom: string | null;
   founderNotes: string[];
 };
 
@@ -205,6 +236,7 @@ export type Campaign = CampaignInput & {
   complianceReports: ComplianceReport[];
   adaptations: ChannelAdaptation[];
   schedule: ScheduleItem[];
+  /** @deprecated superseded by `performanceReport`; kept for seeded history. */
   performance: PerformanceMetrics | null;
   log: AgentEvent[];
   founderDecision: {
@@ -212,6 +244,47 @@ export type Campaign = CampaignInput & {
     note: string;
     at: string;
   } | null;
+
+  /* ---- agent runtime (AHR-01 … AHR-06) ---- */
+  /**
+   * UC-02 ext 4.b: internal retail data (POS, catalogue history) is only read
+   * when the retailer has authorised it. Defaults to true for the demo tenant.
+   */
+  internalDataAuthorised: boolean;
+  /** Every factual claim the bench used, with its source and date. */
+  evidence: Evidence[];
+  /** AHR-02 findings, each linked to evidence. */
+  trendFindings: TrendFinding[];
+  /** What the analysis could not establish, and whether a human is needed. */
+  trendGaps: TrendBriefGap[];
+  /** Every version submitted to AHR-04, kept for audit. */
+  complianceAttempts: ComplianceAttempt[];
+  /** AHR-05 channel-ready versions, claim-frozen. */
+  channelVersions: ChannelVersion[];
+  /** AHR-05 conflicts flagged rather than silently resolved. */
+  scheduleConflicts: ScheduleConflict[];
+  runSchedule: RunScheduleItem[];
+  /** AHR-06 structured collection, gaps and sourced recommendation. */
+  performanceReport: PerformanceReport | null;
+  recommendationDecision: RecommendationDecision | null;
+  /** Declared per-channel report outcomes. See `ChannelResultStatus`. */
+  collectorOverrides: Partial<Record<Channel, ChannelResultStatus>>;
+  /** Every guard evaluation, allowed or blocked. */
+  policyDecisions: PolicyDecision[];
+  /** Step-by-step trace of the current/last bench run. */
+  runSteps: RunStep[];
+  /** Tool calls the agents actually made. */
+  toolCalls: ToolCall[];
+  /** Model + media spend incurred by agents. */
+  spend: {
+    inferenceUsd: number;
+    mediaUsd: number;
+    capUsd: number;
+    blockedAttempts: number;
+  };
+  run: AgentRun | null;
+  /** Set when a launch was refused, so the brief can show what to fix. */
+  validationProblems: { field: string; message: string; clause: string }[];
 };
 
 export type BrandProfile = {

@@ -44,17 +44,15 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [user, setUser] = useState<PublicUser | null>(null);
-  const [sessionReady, setSessionReady] = useState(false);
+  // Auth pages render straight away; every other route waits for /api/auth/me.
+  const [sessionReady, setSessionReady] = useState(() => isAuthPath(pathname));
   const campaigns = useAisle((s) => s.campaigns);
   const brand = useAisle((s) => s.brand);
   const theme = useAisle((s) => s.settings.theme);
   const hydrated = useAisle((s) => s.hydrated);
 
   useEffect(() => {
-    if (isAuthPath(pathname)) {
-      setSessionReady(true);
-      return;
-    }
+    if (isAuthPath(pathname)) return;
     let cancelled = false;
     void fetch("/api/auth/me")
       .then((res) => (res.ok ? res.json() : { user: null }))
