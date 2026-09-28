@@ -1,25 +1,14 @@
-import { get, put } from "@vercel/blob";
+/**
+ * Workspace and inbox documents.
+ *
+ * This module used to be the Vercel Blob client: every read and save was a network
+ * call authenticated by `BLOB_READ_WRITE_TOKEN`. When that token stopped working,
+ * signup failed outright and every page save quietly failed with it. Storage is
+ * now rows in the database (see `@/lib/db/kv`), behind the same two functions, so
+ * the rest of the app was unchanged and there is one fewer credential to get
+ * wrong.
+ *
+ * `kvGet` / `kvSet` remain the application's only storage seam.
+ */
 
-const PREFIX = "aisle-auth/";
-
-function pathname(key: string) {
-  return `${PREFIX}${key}.json`;
-}
-
-export async function kvGet<T>(key: string): Promise<T | null> {
-  const result = await get(pathname(key), { access: "private", useCache: false });
-  if (!result || result.statusCode !== 200) return null;
-  const text = await new Response(result.stream).text();
-  if (!text) return null;
-  return JSON.parse(text) as T;
-}
-
-export async function kvSet(key: string, value: unknown) {
-  await put(pathname(key), JSON.stringify(value), {
-    access: "private",
-    addRandomSuffix: false,
-    allowOverwrite: true,
-    contentType: "application/json",
-    cacheControlMaxAge: 60,
-  });
-}
+export { kvGet, kvSet, kvDelete, kvKeys } from "@/lib/db/kv";

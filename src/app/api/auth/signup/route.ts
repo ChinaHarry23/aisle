@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createUser } from "@/lib/auth/users";
 import { normalizeEmail, validEmail, validPassword } from "@/lib/auth/password";
 import { sessionCookieOptions, signSession, SESSION_COOKIE } from "@/lib/auth/session";
+import { describeStorageFailure } from "@/lib/auth/storage-errors";
 
 export const runtime = "nodejs";
 
@@ -30,7 +31,15 @@ export async function POST(request: Request) {
     response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions());
     return response;
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Could not create that account.";
-    return NextResponse.json({ error: message }, { status: 409 });
+    const failure = describeStorageFailure(error, `signup ${email}`);
+    if (failure.unavailable) {
+      // Operator problem, not a user problem: log the detail, say something useful.
+      console.error(`[auth] ${failure.detail}`);
+      return NextResponse.json(
+        { error: failure.message, code: "storage_unavailable" },
+        { status: 503 },
+      );
+    }
+    return NextResponse.json({ error: failure.message }, { status: 409 });
   }
 }
