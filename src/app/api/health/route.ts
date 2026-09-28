@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { countUsers, listUsers } from "@/lib/auth/users";
+import { countUsers, ensureSeedAccounts, listUsers } from "@/lib/auth/users";
 import { getDatabase, isDatabaseUnavailable } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -12,16 +12,20 @@ export const dynamic = "force-dynamic";
  * guess. It reports which backend is configured, whether it answered, and how many
  * accounts exist — the three facts needed to tell a missing database apart from a
  * bad password.
+ *
+ * It also runs the seed, so the team desks exist as soon as the database is
+ * reachable rather than only once somebody has tried to sign in.
  */
 export async function GET() {
   try {
     const db = await getDatabase();
+    const seeded = await ensureSeedAccounts();
     const users = await countUsers();
     return NextResponse.json({
       ok: true,
       database: { kind: db.kind, label: db.label },
       accounts: users,
-      seededAccounts: users === 5,
+      seededAccounts: seeded.seeded || users >= 5,
     });
   } catch (error) {
     if (isDatabaseUnavailable(error)) {
