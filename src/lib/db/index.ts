@@ -22,6 +22,32 @@ import { DatabaseUnavailableError } from "./types";
 export { DatabaseUnavailableError, isDatabaseUnavailable } from "./types";
 export type { Database, DatabaseKind } from "./types";
 
+/**
+ * Connection-string variables we accept, in priority order.
+ *
+ * Vercel's storage integrations name their own variables rather than using a
+ * convention: the Neon integration can write `DATABASE_URL`, and some setups write
+ * `POSTGRES_URL` or a store-prefixed name. Accepting the common spellings means
+ * connecting a database in the dashboard is enough, with no code change and no
+ * guessing about which variable the provider chose.
+ */
+const URL_VARS = [
+  "DATABASE_URL",
+  "POSTGRES_URL",
+  "POSTGRES_PRISMA_URL",
+  "AISLE_DATABASE_URL",
+  "NEON_DATABASE_URL",
+  "STORAGE_URL",
+] as const;
+
+export function databaseUrl(): { name: string; url: string } | null {
+  for (const name of URL_VARS) {
+    const value = process.env[name];
+    if (value && /^postgres(ql)?:\/\//.test(value)) return { name, url: value };
+  }
+  return null;
+}
+
 let cached: Database | null = null;
 let opening: Promise<Database> | null = null;
 let failure: DatabaseUnavailableError | null = null;
@@ -29,17 +55,19 @@ let failure: DatabaseUnavailableError | null = null;
 export function configuredKind(): DatabaseKind {
   const forced = process.env.AISLE_DB?.trim().toLowerCase();
   if (forced === "postgres" || forced === "sqlite") return forced;
-  return process.env.DATABASE_URL ? "postgres" : "sqlite";
+  return databaseUrl() ? "postgres" : "sqlite";
 }
 
 /** Where the database lives, without opening it. Used by the health endpoint. */
 export function databaseLabel(): string {
   const kind = configuredKind();
   if (kind === "postgres") {
+    const found = databaseUrl();
+    if (!found) return "postgres (no connection string found)";
     try {
-      return `postgres ${new URL(process.env.DATABASE_URL ?? "").host}`;
+      return `postgres ${new URL(found.url).host} via ${found.name}`;
     } catch {
-      return "postgres (DATABASE_URL unreadable)";
+      return `postgres (${found.name} unreadable)`;
     }
   }
   return `sqlite file ${defaultSqliteFile()}`;
@@ -48,15 +76,15 @@ export function databaseLabel(): string {
 async function open(): Promise<Database> {
   const kind = configuredKind();
   if (kind === "postgres") {
-    const url = process.env.DATABASE_URL;
-    if (!url) {
+    const found = databaseUrl();
+    if (!found) {
       throw new DatabaseUnavailableError(
-        "AISLE_DB=postgres but DATABASE_URL is empty — set it, or unset AISLE_DB to use the local SQLite file",
+        `AISLE_DB=postgres but no connection string was found in ${URL_VARS.join(", ")} — set one, or unset AISLE_DB to use the local SQLite file`,
       );
     }
     // `createPostgresDatabase` reports its own connection failures as
     // DatabaseUnavailableError, so there is nothing to translate here.
-    return createPostgresDatabase(url);
+    return createPostgresDatabase(found.url);
   }
   return createSqliteDatabase(defaultSqliteFile());
 }
