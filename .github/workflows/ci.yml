@@ -24,6 +24,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint
+      - run: npx next typegen
       - run: npm run typecheck
       - run: npm run auth
       - run: npm run bench
