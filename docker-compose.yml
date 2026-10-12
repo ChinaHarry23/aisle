@@ -1,0 +1,17 @@
+services:
+  aisle:
+    build: .
+    image: aisle
+    ports:
+      - "3000:3000"
+    env_file:
+      - path: .env.local
+        required: false
+    environment:
+      PORT: "3000"
+    volumes:
+      - aisle-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  aisle-data:
