@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { cn } from "@/lib/cn";
+import { ChecksPanel } from "@/components/ChecksPanel";
 import { GUIDELINES_INTRO, GuidelinesPanel } from "@/components/GuidelinesPanel";
 import { Empty, PageHeader, RiskBadge, SectionTitle } from "@/components/ui";
 import { useAisle } from "@/lib/store";
@@ -96,15 +96,7 @@ export default function ApprovalsPage() {
                 const report = c.complianceReports.at(-1);
                 const attempt = c.complianceAttempts.at(-1);
                 const note = notes[c.id] ?? "";
-                const issues = attempt?.issues ?? [];
-                const confirmed = issues.filter(
-                  (i) => i.basis === "confirmed_breach",
-                );
-                const judgement = issues.filter(
-                  (i) => i.basis === "human_judgement",
-                );
                 const manual = attempt?.outcome === "manual_review";
-                const disabled = busy[c.id];
                 return (
                   <li key={c.id} className="hairline flex flex-col gap-4 p-5">
                     <div className="flex flex-wrap items-start justify-between gap-3">
@@ -129,122 +121,23 @@ export default function ApprovalsPage() {
                       </div>
                     </div>
 
-                    {report?.summary ? (
-                      <p className="text-base leading-relaxed">
-                        {report.summary}
-                      </p>
-                    ) : null}
-
-                    {attempt ? (
-                      <p className="text-sm text-mute">
-                        Attempt {attempt.attempt} of 3 · creative v
-                        {attempt.creativeVersion} · {confirmed.length} confirmed
-                        · {judgement.length} for your judgement
-                        {attempt.policyRefs.length
-                          ? ` · ${attempt.policyRefs.join(", ")}`
-                          : ""}
-                      </p>
-                    ) : null}
-
-                    {issues.length > 0 ||
-                    (!attempt && report?.findings.length) ? (
-                      <ul className="flex flex-col gap-3 text-base text-ink-soft">
-                        {[...confirmed, ...judgement].map((issue) => (
-                          <li
-                            key={issue.id}
-                            className={cn(
-                              "border-l-2 pl-3",
-                              issue.basis === "confirmed_breach"
-                                ? "border-danger"
-                                : "border-line",
-                            )}
-                          >
-                            <span
-                              className={cn(
-                                "status-chip",
-                                issue.basis === "confirmed_breach"
-                                  ? "risk-high"
-                                  : "risk-mid",
-                              )}
-                            >
-                              {issue.basis === "confirmed_breach"
-                                ? "confirmed breach"
-                                : "judgement"}
-                            </span>
-                            <span className="ml-2">
-                              &ldquo;{issue.excerpt}&rdquo;
-                            </span>
-                            <span className="mt-1 block text-sm text-mute">
-                              {issue.rule} — fix: {issue.recommendedCorrection}
-                            </span>
-                          </li>
-                        ))}
-                        {!attempt
-                          ? report?.findings.map((f) => (
-                              <li
-                                key={f.id}
-                                className="border-l-2 border-line pl-3"
-                              >
-                                {f.type}: {f.excerpt}
-                              </li>
-                            ))
-                          : null}
-                      </ul>
-                    ) : null}
-
-                    <div className="flex flex-col gap-3 border-t border-line pt-4">
-                      <label className="flex flex-col gap-1.5">
-                        <span className="text-sm text-mute">
-                          Your note (optional)
-                        </span>
-                        <textarea
-                          value={note}
-                          onChange={(e) =>
-                            setNotes((n) => ({ ...n, [c.id]: e.target.value }))
-                          }
-                          placeholder="Why you decided this. Your agents will read it next time."
-                          rows={2}
-                          className="w-full border border-line px-3 py-2.5 text-base outline-none focus:border-signal"
-                        />
-                      </label>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <button
-                          type="button"
-                          disabled={disabled}
-                          onClick={() => void approve(c.id, note)}
-                          className="rounded-full btn-primary px-4 py-2 text-sm font-medium disabled:opacity-50"
-                        >
-                          Approve
-                        </button>
-                        <button
-                          type="button"
-                          disabled={disabled}
-                          onClick={() =>
-                            void requestChanges(
-                              c.id,
-                              note || "Please revise using my notes.",
-                            )
-                          }
-                          className="rounded-full border border-line px-4 py-2 text-sm font-medium hover:bg-paper-2 disabled:opacity-50"
-                        >
-                          Request changes
-                        </button>
-                        <button
-                          type="button"
-                          disabled={disabled}
-                          onClick={() => void reject(c.id, note || "Rejected.")}
-                          className="rounded-full border border-signal px-4 py-2 text-sm font-medium text-signal hover:bg-signal-soft disabled:opacity-50"
-                        >
-                          Reject
-                        </button>
-                        <Link
-                          href={`/campaigns/${c.id}`}
-                          className="ml-auto px-3 py-2 text-sm text-mute hover:text-ink"
-                        >
-                          Open campaign
-                        </Link>
-                      </div>
-                    </div>
+                    <ChecksPanel
+                      campaign={c}
+                      inline
+                      note={note}
+                      onNote={(v) => setNotes((n) => ({ ...n, [c.id]: v }))}
+                      onApprove={() => void approve(c.id, note)}
+                      onRequestChanges={() =>
+                        void requestChanges(c.id, note || "Please revise using my notes.")
+                      }
+                      onReject={() => void reject(c.id, note || "Rejected.")}
+                    />
+                    <Link
+                      href={`/campaigns/${c.id}`}
+                      className="self-start text-sm text-mute hover:text-ink"
+                    >
+                      Open campaign
+                    </Link>
                   </li>
                 );
               })}

@@ -38,7 +38,7 @@ export const agentLabel: Record<AgentId, string> = {
 };
 
 export const channelLabel: Record<Channel, string> = {
-  instagram: "Instagram",
+  instagram: "Social media",
   web: "Website",
   email: "Email",
   print: "Print catalogue",

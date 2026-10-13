@@ -41,7 +41,7 @@ function emptyBrief(): CampaignInput {
     objective: "",
     // Not asked for: the engine still needs a figure, so every brief carries this default.
     budget: 8000,
-    channels: ["instagram", "web", "email"],
+    channels: ["instagram"],
     startDate: isoDay(7),
     endDate: isoDay(21),
     country: "AU",

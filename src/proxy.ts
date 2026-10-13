@@ -3,6 +3,8 @@ import type { NextRequest } from "next/server";
 import { readSession, SESSION_COOKIE } from "@/lib/auth/session";
 
 function isPublicPath(pathname: string) {
+  // The landing page; the page itself shows the dashboard instead when signed in.
+  if (pathname === "/") return true;
   if (pathname === "/login" || pathname === "/signup") return true;
   if (pathname.startsWith("/api/auth/")) return true;
   // Storage health must be readable when sign-in is what is broken: it reports

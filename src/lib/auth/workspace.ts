@@ -36,11 +36,34 @@ export function demoWorkspace(): WorkspaceSnapshot {
   };
 }
 
+/** Samples added after a workspace was first saved are prepended once, so older accounts see them too. */
+const LATE_SAMPLE_IDS = ["cmp_spring_produce"];
+
+/** createdAt stamps of earlier drafts of the produce sample (scheduled, then published). */
+const OLD_PRODUCE_VERSIONS = ["2026-10-12T22:30", "2026-09-28T22:30"];
+
+const RETIRED_SAMPLE_IDS = new Set(["cmp_parka", "cmp_stonefruit"]);
+
+function withSampleCampaigns(all: Campaign[]): Campaign[] {
+  // The first version of the produce sample was four-channel and scheduled; swap an
+  // untouched copy of it for the current one.
+  const campaigns = all.filter(
+    (c) =>
+      !RETIRED_SAMPLE_IDS.has(c.id) &&
+      !(c.id === "cmp_spring_produce" && OLD_PRODUCE_VERSIONS.some((v) => c.createdAt.startsWith(v))),
+  );
+  const have = new Set(campaigns.map((c) => c.id));
+  const missing = seedCampaigns(defaultBrand).filter(
+    (c) => LATE_SAMPLE_IDS.includes(c.id) && !have.has(c.id),
+  );
+  return missing.length ? [...missing, ...campaigns] : campaigns;
+}
+
 export function normalizeWorkspace(raw: Partial<WorkspaceSnapshot> | null): WorkspaceSnapshot {
   const fallback = emptyWorkspace();
   return {
     brand: { ...fallback.brand, ...(raw?.brand ? migrateLegacyBrand(raw.brand) : {}) },
-    campaigns: raw?.campaigns ?? fallback.campaigns,
+    campaigns: withSampleCampaigns(raw?.campaigns ?? fallback.campaigns),
     settings: withSettingsDefaults(raw?.settings),
   };
 }

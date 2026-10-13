@@ -56,12 +56,14 @@ function isAuthPath(pathname: string) {
   return pathname === "/login" || pathname === "/signup";
 }
 
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({ children, signedIn }: { children: ReactNode; signedIn: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
   const [user, setUser] = useState<PublicUser | null>(null);
-  // Auth pages render straight away; every other route waits for /api/auth/me.
-  const [sessionReady, setSessionReady] = useState(() => isAuthPath(pathname));
+  // Auth pages and the signed-out landing page render straight away; every other route waits for /api/auth/me.
+  const [sessionReady, setSessionReady] = useState(
+    () => isAuthPath(pathname) || (pathname === "/" && !signedIn),
+  );
   const campaigns = useAisle((s) => s.campaigns);
   const hydrated = useAisle((s) => s.hydrated);
 
@@ -73,7 +75,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       .then((json: { user?: PublicUser | null }) => {
         if (cancelled) return;
         if (!json.user) {
-          router.replace("/login");
+          // "/" is the public landing page when signed out.
+          if (pathname !== "/") router.replace("/login");
           return;
         }
         setUser(json.user);
@@ -104,6 +107,10 @@ export function AppShell({ children }: { children: ReactNode }) {
         {children}
       </div>
     );
+  }
+
+  if (pathname === "/" && !user && !signedIn) {
+    return <>{children}</>;
   }
 
   if (!sessionReady || !user) {
