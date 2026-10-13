@@ -18,7 +18,7 @@ import type { AgentSlot } from "@/lib/llm/types";
 import type { CompleteRequest } from "@/lib/llm/types";
 import { guidelinesPrompt } from "@/lib/guidelines";
 import type { WorkspaceSettings } from "@/lib/settings";
-import type { BrandProfile, Campaign, Channel } from "@/lib/types";
+import type { BrandProfile, Campaign } from "@/lib/types";
 import type { ChannelResult, ComplianceIssue, RecommendationPoint } from "./types";
 
 export type LlmRuntime = {
@@ -460,8 +460,4 @@ function mergeIssues(baseline: ComplianceIssue[], extra: ComplianceIssue[]): Com
     merged.push(issue);
   }
   return merged;
-}
-
-export function channelsLabel(channels: Channel[]) {
-  return channels.join(", ");
 }

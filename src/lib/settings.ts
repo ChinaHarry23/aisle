@@ -1,5 +1,5 @@
 import { DEFAULT_IMAGE_MODEL, DEFAULT_VIDEO_MODEL } from "./media/catalog";
-import { DEFAULT_LLM, getLlmOrDefault } from "./llm/catalog";
+import { DEFAULT_LLM } from "./llm/catalog";
 import type { AgentSlot, LlmAssignment } from "./llm/types";
 
 export type TrendSourceKind = "url" | "feed" | "document" | "keyword";
@@ -63,9 +63,4 @@ export function withSettingsDefaults(partial?: Partial<WorkspaceSettings> | null
       ...partial.agents,
     },
   };
-}
-
-export function describeAssignment(assignment: LlmAssignment) {
-  const model = getLlmOrDefault(assignment.modelId);
-  return `${model.provider} · ${model.name}`;
 }

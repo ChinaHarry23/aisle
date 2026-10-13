@@ -537,9 +537,3 @@ export function modelsOf(kind: MediaModel["kind"]) {
       m.kind === kind && (kind !== "image" || ENABLED_IMAGE_PROVIDERS.includes(m.providerId)),
   );
 }
-
-export function modelsByProvider(kind: MediaModel["kind"], providerId: ProviderId | "all") {
-  const list = modelsOf(kind);
-  if (providerId === "all") return list;
-  return list.filter((m) => m.providerId === providerId);
-}

@@ -19,10 +19,6 @@ export type Actor = "founder" | "trend" | "creative" | "compliance" | "media" | 
 export const agentActors = ["trend", "creative", "compliance", "media"] as const;
 export type AgentActor = (typeof agentActors)[number];
 
-export function isAgent(actor: Actor): actor is AgentActor {
-  return (agentActors as readonly string[]).includes(actor);
-}
-
 /* ------------------------------------------------------------------ evidence */
 
 /** How a finding was obtained. Used to separate fact from inference (AHR-02). */
@@ -125,16 +121,6 @@ export type PolicyDecision = {
   /** What a human has to do instead, when blocked. */
   remedy?: string;
   triggeredBy?: string;
-};
-
-export type BudgetLedger = {
-  /** Founder-set ceiling for automated spend (UC-01 ext 13.a). */
-  mediaCapUsd: number;
-  /** Ceiling for model + media spend incurred by agents. */
-  spendCapUsd: number;
-  mediaCommittedUsd: number;
-  inferenceSpendUsd: number;
-  blockedAttempts: number;
 };
 
 /* --------------------------------------------------------------- compliance */

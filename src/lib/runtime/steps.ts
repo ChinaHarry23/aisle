@@ -1919,11 +1919,3 @@ export async function runFeedbackCollection(
   setRun(w, { awaiting: "approval", awaitingDetail: "Accept, edit or discard the next-campaign recommendation.", status: "awaiting_human", step: "feedback.summarise" });
   return { message: "Performance collected.", blocked: false };
 }
-
-export function parseSeedDate(value: string) {
-  return new Date(value).toISOString();
-}
-
-/** Exported for the workspace view: the guard rule text shown to the founder. */
-export const GUARD_CLAUSE_HINT =
-  "Agents may research, draft and check. They may not publish, exceed the spend threshold, change scope, or send a print piece live.";

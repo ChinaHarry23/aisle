@@ -7,33 +7,9 @@
  * `withRuntimeDefaults` before the engine or a view touches it.
  */
 
-import { uid } from "@/lib/ids";
 import type { Campaign } from "@/lib/types";
 import { defaultSpendCap } from "./engine";
-import type { AgentRun, Evidence, PolicyDecision, RunStep, ToolCall } from "./types";
-
-export function emptyEvidence(): Evidence[] {
-  return [];
-}
-
-export function blankRun(campaignId: string): AgentRun {
-  const now = new Date().toISOString();
-  return {
-    id: uid("run"),
-    campaignId,
-    startedAt: now,
-    updatedAt: now,
-    status: "idle",
-    step: "intake.validate",
-    stepsTaken: 0,
-    maxSteps: 36,
-    revisionAttempts: 0,
-    toolsUsed: [],
-    haltedReason: null,
-    awaiting: null,
-    awaitingDetail: null,
-  };
-}
+import type { Evidence, PolicyDecision, RunStep, ToolCall } from "./types";
 
 export function withRuntimeDefaults(campaign: Campaign): Campaign {
   const internalDataAuthorised = campaign.internalDataAuthorised !== false;

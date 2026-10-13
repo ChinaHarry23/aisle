@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { makeCreatives } from "./agents";
+import { makeCreatives } from "./creatives";
 import { uid } from "./ids";
 import { requestGenerate } from "./media/client";
 import { fallbackBrief, posterPrompt, videoPrompt } from "./media/prompts";

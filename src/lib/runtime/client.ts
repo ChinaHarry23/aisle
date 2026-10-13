@@ -11,7 +11,7 @@
 
 import type { BrandProfile, Campaign } from "@/lib/types";
 import type { WorkspaceSettings } from "@/lib/settings";
-import type { Command, EngineResult, GuardedAction } from "./types";
+import type { Command, EngineResult } from "./types";
 
 export type WorkspaceContext = {
   campaigns: Campaign[];
@@ -80,32 +80,4 @@ function emptyResult(campaign: Campaign): EngineResult {
     canAdvance: false,
     message: "Engine route unavailable.",
   };
-}
-
-export type GuardCheck = {
-  verdict: "allow" | "allow_with_note" | "block";
-  rule: string;
-  clause: string;
-  reason: string;
-  remedy?: string;
-};
-
-/** Ask the policy layer what would happen — used by the boundary check panel. */
-export async function checkGuard(
-  campaign: Campaign,
-  action: GuardedAction,
-  target: string,
-  amountUsd?: number,
-): Promise<GuardCheck | null> {
-  try {
-    const res = await fetch("/api/engine/guard", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ campaign, action, target, amountUsd, actor: "media" }),
-    });
-    if (!res.ok) return null;
-    return (await res.json()) as GuardCheck;
-  } catch {
-    return null;
-  }
 }

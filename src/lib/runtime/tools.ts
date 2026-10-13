@@ -498,10 +498,6 @@ export function toolByName(name: string): ToolDefinition | undefined {
   return TOOL_REGISTRY.find((t) => t.name === name);
 }
 
-export function toolsForAgent(agent: ToolAgent): ToolDefinition[] {
-  return TOOL_REGISTRY.filter((t) => t.agent === agent);
-}
-
 /** Channel behaviour is a documented assumption, not a measurement. */
 export function channelBehaviourNote(channel: Channel): { note: string; ref: string } {
   const table: Record<Channel, { note: string; ref: string }> = {
