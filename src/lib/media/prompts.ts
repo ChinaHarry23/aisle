@@ -15,7 +15,7 @@ export function fallbackBrief(campaign: Campaign): CampaignBrief {
 
 export function posterPrompt(campaign: Campaign, creative: Creative) {
   return [
-    "Retail advertising poster, 4:5, print quality.",
+    "Retail advertisement, 4:5, print quality.",
     `Brand: ${campaign.sharedContext.retailer}.`,
     `Product: ${campaign.product}.`,
     `Headline: ${creative.headline}.`,

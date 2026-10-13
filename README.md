@@ -92,7 +92,7 @@ The sidebar groups the pages:
 | | `/campaigns/new` | New brief (AHR-01 starting point) |
 | | `/campaigns/[id]` | Workspace: brief, research, studio, compliance, channels, feedback, runtime, log |
 | | `/trends` | Trend sources: websites, feeds and uploaded documents |
-| | `/studio` | **Content Generation**: ad workbench for posters and videos |
+| | `/studio` | **Content Generation**: workbench for ads and videos |
 | Publish & Track | `/approvals` | Founder approval queue (human-in-the-loop) |
 | | `/schedule` | Channel posting times |
 | | `/performance` | Results and next-campaign recommendation (AHR-06) |
@@ -177,7 +177,7 @@ See `docs/STAGE2-IMPLEMENTATION.md` for the Stage 1 → code → test traceabili
 6. **Channels** shows a version per channel with the cleared wording frozen. A channel whose format would drop a cleared claim is blocked and flagged.
 7. **Publish**, then **Collect results** on **Performance**. Silent channels are marked as gaps; the recommendation is one you accept, edit or discard.
 8. The accepted note is attached to the next brief you create.
-9. **Content Generation** builds posters and videos from templates using the model you picked in Settings.
+9. **Content Generation** builds ads and videos from templates using the model you picked in Settings.
 
 ### Proving the guardrails
 
@@ -215,7 +215,7 @@ npx ngrok http 3000
 
 ## Common problems
 
-**"That email already has a desk"**: that address has an account. Sign in, or use another. To start over locally, delete `data/aisle.db` and reload; the team desks are recreated.
+**"That email already has an account"**: that address has an account. Sign in, or use another. To start over locally, delete `data/aisle.db` and reload; the team desks are recreated.
 
 **Signup says it could not reach its database**: run `curl localhost:3000/api/health`. Locally it means `./data/aisle.db` couldn't be created (check the folder is writable). In production it means no Postgres URL is set.
 

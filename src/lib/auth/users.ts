@@ -123,7 +123,7 @@ export async function createUser(input: {
   } catch (error) {
     // A duplicate is a domain answer, not a crash: the caller shows it on the form.
     if (isUniqueViolation(error)) {
-      throw new Error("That email already has a desk. Sign in instead.");
+      throw new Error("That email already has an account. Sign in instead.");
     }
     throw error;
   }

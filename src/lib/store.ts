@@ -328,7 +328,7 @@ export const useAisle = create<Store>()(
                           at: new Date().toISOString(),
                           kind: "image" as const,
                           modelId,
-                          label: "Studio posters",
+                          label: "Studio ads",
                           costUsd: cost,
                           totalTokens: tokens,
                         },
@@ -338,7 +338,7 @@ export const useAisle = create<Store>()(
                         makeLog(
                           "creative",
                           "output",
-                          `Posters on ${modelId}`,
+                          `Ads on ${modelId}`,
                           `est. $${cost.toFixed(3)} · ${tokens} tokens`,
                         ),
                       ],

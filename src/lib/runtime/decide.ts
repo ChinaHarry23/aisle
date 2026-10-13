@@ -186,7 +186,7 @@ export async function decideCopy(input: {
   const assignment = assignmentFor(input.campaign, input.settings, "creative");
   const brief = input.campaign.brief;
   const prompt = [
-    `Write two poster variants (A and B) for ${input.brand.retailerName}, ${input.campaign.country}.`,
+    `Write two ad variants (A and B) for ${input.brand.retailerName}, ${input.campaign.country}.`,
     `Product: ${input.campaign.product}. Audience: ${input.campaign.targetAudience}.`,
     brief ? `Angle: ${brief.angle}. Key message: ${brief.keyMessage}.` : "",
     brief ? `Claims allowed: ${brief.claimsAllowed.join(", ")}.` : "",

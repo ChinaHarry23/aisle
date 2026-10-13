@@ -76,7 +76,7 @@ export type StepEnv = {
   /** Every campaign in the workspace, for cross-campaign scheduling checks. */
   allCampaigns: Campaign[];
   /**
-   * Render the poster for a creative. Injected so the engine stays independent of
+   * Render the ad for a creative. Injected so the engine stays independent of
    * the transport: the app passes a function that calls the studio, a test passes
    * a stub, and the agent spend meter sees the same usage either way.
    */
@@ -886,7 +886,7 @@ export async function runCreativeGeneration(
       at: w.now,
       kind: "image",
       modelId,
-      label: `v${version} posters`,
+      label: `v${version} ads`,
       costUsd: mediaCost,
       totalTokens: withGen.reduce((n, cr) => n + (cr.generation?.usage.totalTokens ?? 0), 0),
     },

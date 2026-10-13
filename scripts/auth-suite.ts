@@ -122,7 +122,7 @@ let createdId = "";
   // case-insensitive so the same person cannot hold two desks.
   await assert.rejects(
     () => users.createUser({ name: "Duplicate", email: "FOUNDER@Example.test", password: "another-pass-1" }),
-    /already has a desk/,
+    /already has an account/,
     "a second account for the same address must be refused",
   );
   assert.equal(await users.countUsers(), seeds.SEED_ACCOUNTS.length + 1);

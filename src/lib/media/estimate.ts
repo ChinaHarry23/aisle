@@ -18,7 +18,7 @@ export function estimateUsage(
     const costUsd =
       (inputTokens / 1_000_000) * model.billing.textInPerM +
       (outputTokens / 1_000_000) * model.billing.imageOutPerM;
-    return meter(inputTokens, outputTokens, 1, "poster", costUsd, `${model.name} · 1024² · token-billed`, latencyMs);
+    return meter(inputTokens, outputTokens, 1, "ad", costUsd, `${model.name} · 1024² · token-billed`, latencyMs);
   }
 
   if (model.billing.mode === "per_image") {
@@ -26,7 +26,7 @@ export function estimateUsage(
       inputTokens,
       model.billing.estOutTokens,
       1,
-      "poster",
+      "ad",
       model.billing.usd,
       `${model.name} · 1 image`,
       latencyMs,
@@ -84,7 +84,7 @@ function meter(
 export function quoteModel(modelId: string, opts: { prompt?: string; durationSec?: number } = {}) {
   const model = getModel(modelId);
   return estimateUsage(model, {
-    prompt: opts.prompt ?? "retail poster brief",
+    prompt: opts.prompt ?? "retail ad brief",
     durationSec: opts.durationSec,
   });
 }

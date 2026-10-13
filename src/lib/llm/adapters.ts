@@ -19,7 +19,7 @@ export function systemFor(agent: CompleteRequest["agent"]) {
     trend:
       "You are the Trend Analyser for a neighbourhood retailer. Return JSON: trends, opportunities, personas, brief.",
     creative:
-      "You are the Image Generation agent. Return JSON for two poster variants (A/B): headline, subhead, cta, caption, prompt.",
+      "You are the Image Generation agent. Return JSON for two ad variants (A/B): headline, subhead, cta, caption, prompt.",
     compliance:
       "You are the Compliance Checker. Score copy against country advertising law and a banned-terms list. Return JSON findings.",
     media:

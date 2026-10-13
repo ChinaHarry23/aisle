@@ -35,7 +35,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
       router.replace(next.startsWith("/") ? next : "/");
       router.refresh();
     } catch {
-      setError("Could not reach the desk. Try again.");
+      setError("Could not reach the server. Try again.");
     } finally {
       setPending(false);
     }
@@ -56,7 +56,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
         <p className="mt-2 text-sm text-ink-soft">
           {mode === "login"
             ? "Each account keeps its own campaigns, studio history, and brand settings."
-            : "Create a desk and run a campaign. Your work stays on this account."}
+            : "Set up your workspace and run your first campaign. Your work stays on this account."}
         </p>
 
         <form className="mt-8 flex flex-col gap-4" onSubmit={onSubmit}>
@@ -95,7 +95,9 @@ export function AuthForm({ mode }: { mode: Mode }) {
           </label>
           {error ? <p className="auth-error">{error}</p> : null}
           <button className="auth-submit" type="submit" disabled={pending}>
-            {pending ? "Opening…" : mode === "login" ? "Enter the desk" : "Create account"}
+            {mode === "login"
+              ? pending ? "Signing in…" : "Sign in"
+              : pending ? "Creating account…" : "Create account"}
           </button>
         </form>
 
@@ -109,7 +111,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
             </>
           ) : (
             <>
-              Already have a desk?{" "}
+              Already have an account?{" "}
               <Link href="/login" className="text-signal">
                 Sign in
               </Link>

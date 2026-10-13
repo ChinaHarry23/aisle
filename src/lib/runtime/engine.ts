@@ -41,7 +41,7 @@ export type EngineOptions = {
   llm?: LlmRuntime;
   /** Bounded work per ADVANCE so one HTTP call cannot run away. */
   maxSteps?: number;
-  /** Poster renderer. Defaults to the studio route; tests pass a stub. */
+  /** Ad renderer. Defaults to the studio route; tests pass a stub. */
   renderPoster?: (input: {
     campaign: Campaign;
     creative: Creative;

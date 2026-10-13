@@ -191,7 +191,7 @@ function ModelsTab({ conn }: { conn: Conn }) {
 
       <Section
         title="Image generation"
-        description="Creates the poster and ad visuals. Estimates are per ad."
+        description="Creates the ad visuals. Estimates are per ad."
       >
         <ModelTable
           label="Image generation model"

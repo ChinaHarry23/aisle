@@ -258,7 +258,7 @@ export const AGENT_SLOTS: {
   {
     id: "creative",
     label: "Image Generation",
-    help: "Copy and prompts. Poster pixels still use the image model below.",
+    help: "Copy and prompts. Ad pixels still use the image model below.",
   },
   {
     id: "compliance",
