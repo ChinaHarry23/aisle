@@ -7,6 +7,9 @@ export const LLM_PROVIDERS: { id: LlmProviderId; name: string; blurb: string }[]
   { id: "cursor", name: "Cursor", blurb: "Cursor API / cloud agent gateway." },
 ];
 
+/** Providers offered in Settings. Cursor stays in the catalog (so saved assignments still resolve) but has no gateway yet. */
+export const OFFERED_LLM_PROVIDERS: LlmProviderId[] = ["local", "openai", "anthropic"];
+
 export const LLM_MODELS: LlmModel[] = [
   {
     id: "local:llama3.3",

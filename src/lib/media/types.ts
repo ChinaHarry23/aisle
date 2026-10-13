@@ -99,6 +99,11 @@ export type GenerateRequest = {
   aspectRatio?: AspectRatio;
   durationSec?: number;
   quality?: "low" | "medium" | "high";
+  format?: "png" | "jpg";
+  /** How closely the model should keep the supplied images (logo, products). */
+  inputFidelity?: "low" | "high";
+  /** Reference images (data URLs or https URLs) the model should build on. */
+  contextImages?: string[];
 };
 
 export type GenerateResult = MediaGeneration;

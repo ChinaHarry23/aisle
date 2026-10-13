@@ -1,55 +1,87 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
+import { Check, ChevronDown } from "lucide-react";
 import { validateIntake } from "@/lib/runtime/intake";
 import type { CampaignInput, Channel, Country } from "@/lib/types";
 import { channelLabel } from "@/lib/status";
+import { PageHeader } from "@/components/ui";
+import { cn } from "@/lib/cn";
 import { useAisle } from "@/lib/store";
 
 const channels: Channel[] = ["instagram", "web", "email", "print", "digital_signage"];
-const countries: Country[] = ["AU", "NZ", "UK", "US"];
+const countries: { id: Country; label: string }[] = [
+  { id: "AU", label: "Australia" },
+  { id: "NZ", label: "New Zealand" },
+  { id: "UK", label: "United Kingdom" },
+  { id: "US", label: "United States" },
+];
+const categories = ["Grocery", "Apparel", "Pantry", "Home", "Beauty"];
+const goals = ["Drive sales", "Build awareness", "Promote a new product", "Clear stock"];
+/** Fields that live under "More options", so a problem there opens the panel. */
+const advancedFields = ["category", "startDate", "endDate", "country"];
 
-const empty: CampaignInput = {
-  name: "",
-  product: "",
-  category: "Grocery",
-  targetAudience: "",
-  objective: "",
-  budget: 8000,
-  channels: ["instagram", "web", "email"],
-  startDate: "2026-08-26",
-  endDate: "2026-09-08",
-  country: "AU",
-  notes: "",
-};
+const input =
+  "w-full border border-line bg-surface px-3 py-2.5 text-[15px] outline-none transition focus:border-signal focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--signal)_18%,transparent)]";
+
+function isoDay(offsetDays: number) {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  return d.toISOString().slice(0, 10);
+}
+
+function emptyBrief(): CampaignInput {
+  return {
+    name: "",
+    product: "",
+    category: "Grocery",
+    targetAudience: "",
+    objective: "",
+    // Not asked for: the engine still needs a figure, so every brief carries this default.
+    budget: 8000,
+    channels: ["instagram", "web", "email"],
+    startDate: isoDay(7),
+    endDate: isoDay(21),
+    country: "AU",
+    notes: "",
+  };
+}
+
+function Field({
+  label,
+  hint,
+  error,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  error?: string;
+  children: ReactNode;
+}) {
+  return (
+    <label className="block">
+      <span className="text-sm font-medium">{label}</span>
+      {hint ? <span className="ml-2 text-xs text-mute">{hint}</span> : null}
+      <div className="mt-1.5">{children}</div>
+      {error ? <p className="mt-1 text-xs text-signal">{error}</p> : null}
+    </label>
+  );
+}
 
 export default function NewCampaignPage() {
   const router = useRouter();
   const createCampaign = useAisle((s) => s.createCampaign);
   const launch = useAisle((s) => s.launch);
   const brand = useAisle((s) => s.brand);
-  const [error, setError] = useState("");
-
-  /* A brief handed over from the WhatsApp desk pre-fills the form once, at mount.
-     Reading the handover during the initial render (rather than in an effect)
-     keeps this to a single render and leaves no stale draft behind for the next
-     visit. The founder still completes and launches it: intake never starts the
-     bench on its own. */
-  const [handoff] = useState(() => {
-    const draft = useAisle.getState().intakeDraft;
-    if (!draft) return null;
-    useAisle.getState().setIntakeDraft(null);
-    return draft;
-  });
-  const [form, setForm] = useState<CampaignInput>(() => ({ ...empty, ...(handoff?.input ?? {}) }));
+  const [form, setForm] = useState<CampaignInput>(emptyBrief);
+  const [attempted, setAttempted] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
 
   function update<K extends keyof CampaignInput>(key: K, value: CampaignInput[K]) {
     setForm((f) => ({ ...f, [key]: value }));
   }
-
-  /** UC-01 steps 4–5 run in the form too, so a launch is never a surprise. */
-  const problems = validateIntake(form, brand);
 
   function toggleChannel(ch: Channel) {
     setForm((f) => ({
@@ -60,196 +92,237 @@ export default function NewCampaignPage() {
     }));
   }
 
+  /** The name is optional: it falls back to the product, so most people never type it. */
+  const brief: CampaignInput = {
+    ...form,
+    name: form.name.trim() || (form.product.trim() ? `${form.product.trim()} campaign` : ""),
+  };
+
+  /** The same checks the engine runs at launch, so a launch is never a surprise. */
+  const problems = validateIntake(brief, brand);
+  const errorFor = (...fields: string[]) =>
+    attempted ? problems.find((p) => fields.includes(p.field))?.message : undefined;
+  const hiddenProblems = problems.filter((p) => advancedFields.includes(p.field));
+  const moreVisible = moreOpen || (attempted && hiddenProblems.length > 0);
+
   async function submit(run: boolean) {
+    setAttempted(true);
     if (problems.length > 0) {
-      setError(
-        run
-          ? `The pipeline will not start: ${problems.map((p) => p.message).join(" ")}`
-          : "Fix the brief before saving.",
+      requestAnimationFrame(() =>
+        document
+          .querySelector("[data-invalid]")
+          ?.scrollIntoView({ block: "center", behavior: "smooth" }),
       );
       return;
     }
-    setError("");
-    const id = createCampaign(form);
+    const id = createCampaign(brief);
     router.push(`/campaigns/${id}`);
     if (run) await launch(id);
   }
 
   return (
-    <div className="mx-auto max-w-2xl">
-      <p className="text-[11px] uppercase tracking-[0.2em] text-signal">Campaign management</p>
-      <h1 className="mt-1 font-serif text-4xl">Write the brief.</h1>
-      <p className="mt-3 text-sm leading-relaxed text-ink-soft">
-        You specify product, audience, objective, budget, channels, and market. Aisle turns that
-        into tasks for Trend Analyser, Image Generation, Compliance, and Media Manager — using{" "}
-        {brand.retailerName} brand rules.
-      </p>
-
-      {handoff ? (
-        <p className="mt-4 border-l-2 border-signal pl-3 text-sm text-ink-soft">
-          Started from {handoff.source}. Check every field before launching — Aisle never invents a
-          product, audience, budget, country or channel you did not provide.
-        </p>
-      ) : null}
-
-      {problems.length > 0 ? (
-        <ul className="mt-4 flex flex-col gap-1 text-xs text-mute">
-          {problems.map((p) => (
-            <li key={`${p.field}-${p.message}`}>
-              {p.field}: {p.message} <span className="opacity-70">({p.clause})</span>
-            </li>
-          ))}
-        </ul>
-      ) : null}
+    <div className="flex max-w-2xl flex-col gap-8 pb-28">
+      <PageHeader
+        title="New campaign"
+        description="Describe what you're promoting and who it's for. Your AI agents research the market, design the creative and run compliance checks, then send the finished campaign to you for approval. Nothing is published until you say so."
+      />
 
       <form
-        className="mt-8 flex flex-col gap-5"
+        noValidate
+        className="flex flex-col gap-3"
         onSubmit={(e) => {
           e.preventDefault();
           void submit(true);
         }}
       >
-        <label className="block">
-          <span className="text-[11px] uppercase tracking-wider text-mute">Campaign name</span>
-          <input
-            required
-            value={form.name}
-            onChange={(e) => update("name", e.target.value)}
-            placeholder="Week 35 catalogue — citrus"
-            className="mt-1 w-full border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-ink"
-          />
-        </label>
-        <div className="grid gap-5 sm:grid-cols-2">
-          <label className="block">
-            <span className="text-[11px] uppercase tracking-wider text-mute">Product</span>
+        <section className="hairline flex flex-col gap-6 p-4">
+          <Field label="What are you promoting?" error={errorFor("product", "name")}>
             <input
-              required
+              autoFocus
               value={form.product}
               onChange={(e) => update("product", e.target.value)}
-              placeholder="Navel oranges + Lane & Co. juice"
-              className="mt-1 w-full border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-ink"
+              placeholder="Fresh oranges and juice"
+              data-invalid={errorFor("product", "name") ? "" : undefined}
+              className={input}
             />
-          </label>
-          <label className="block">
-            <span className="text-[11px] uppercase tracking-wider text-mute">Category</span>
-            <select
-              value={form.category}
-              onChange={(e) => update("category", e.target.value)}
-              className="mt-1 w-full border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-ink"
-            >
-              {["Grocery", "Apparel", "Pantry", "Home", "Beauty"].map((c) => (
-                <option key={c}>{c}</option>
-              ))}
-            </select>
-          </label>
-        </div>
-        <label className="block">
-          <span className="text-[11px] uppercase tracking-wider text-mute">Target audience</span>
-          <input
-            required
-            value={form.targetAudience}
-            onChange={(e) => update("targetAudience", e.target.value)}
-            placeholder="Household shoppers, 28–45"
-            className="mt-1 w-full border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-ink"
-          />
-        </label>
-        <label className="block">
-          <span className="text-[11px] uppercase tracking-wider text-mute">Objective</span>
-          <input
-            required
-            value={form.objective}
-            onChange={(e) => update("objective", e.target.value)}
-            placeholder="Lift catalogue engagement and basket attach"
-            className="mt-1 w-full border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-ink"
-          />
-        </label>
-        <div className="grid gap-5 sm:grid-cols-3">
-          <label className="block">
-            <span className="text-[11px] uppercase tracking-wider text-mute">Budget (AUD)</span>
+          </Field>
+          <Field label="Who is it for?" error={errorFor("targetAudience")}>
             <input
-              type="number"
-              min={500}
-              value={form.budget}
-              onChange={(e) => update("budget", Number(e.target.value))}
-              className="mt-1 w-full border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-ink"
+              value={form.targetAudience}
+              onChange={(e) => update("targetAudience", e.target.value)}
+              placeholder="Families doing the weekly shop"
+              data-invalid={errorFor("targetAudience") ? "" : undefined}
+              className={input}
             />
-          </label>
-          <label className="block">
-            <span className="text-[11px] uppercase tracking-wider text-mute">Starts</span>
+          </Field>
+          <Field label="What should it achieve?" error={errorFor("objective")}>
             <input
-              type="date"
-              value={form.startDate}
-              onChange={(e) => update("startDate", e.target.value)}
-              className="mt-1 w-full border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-ink"
+              value={form.objective}
+              onChange={(e) => update("objective", e.target.value)}
+              placeholder="Sell more over the next two weeks"
+              data-invalid={errorFor("objective") ? "" : undefined}
+              className={input}
             />
-          </label>
-          <label className="block">
-            <span className="text-[11px] uppercase tracking-wider text-mute">Ends</span>
-            <input
-              type="date"
-              value={form.endDate}
-              onChange={(e) => update("endDate", e.target.value)}
-              className="mt-1 w-full border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-ink"
-            />
-          </label>
-        </div>
-        <fieldset>
-          <legend className="text-[11px] uppercase tracking-wider text-mute">Channels</legend>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {channels.map((ch) => {
-              const on = form.channels.includes(ch);
-              return (
+            <p className="mt-3 text-xs text-mute">Or pick one:</p>
+            <div className="mt-1.5 flex flex-wrap gap-2">
+              {goals.map((g) => (
                 <button
-                  key={ch}
+                  key={g}
                   type="button"
-                  onClick={() => toggleChannel(ch)}
-                  className={`rounded-full px-3 py-1.5 text-sm ${on ? "bg-ink text-paper" : "border border-line bg-surface"}`}
+                  onClick={() => update("objective", g)}
+                  className="border border-line bg-surface px-3 py-1.5 text-sm text-ink hover:border-signal hover:text-signal-dark"
                 >
-                  {channelLabel[ch]}
+                  {g}
                 </button>
-              );
-            })}
-          </div>
-        </fieldset>
-        <fieldset>
-          <legend className="text-[11px] uppercase tracking-wider text-mute">
-            Market (country-specific compliance)
-          </legend>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {countries.map((c) => (
-              <button
-                key={c}
-                type="button"
-                onClick={() => update("country", c)}
-                className={`rounded-full px-3 py-1.5 text-sm ${form.country === c ? "bg-signal text-paper" : "border border-line bg-surface"}`}
-              >
-                {c}
-              </button>
-            ))}
-          </div>
-        </fieldset>
-        <label className="block">
-          <span className="text-[11px] uppercase tracking-wider text-mute">Founder notes</span>
-          <textarea
-            value={form.notes}
-            onChange={(e) => update("notes", e.target.value)}
-            rows={3}
-            placeholder="Keep it edible, not wellness-cult."
-            className="mt-1 w-full border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-ink"
-          />
-        </label>
-        <div className="flex flex-wrap gap-2 pt-2">
-          {error ? <p className="w-full text-sm text-signal">{error}</p> : null}
-          <button type="submit" className="rounded-full bg-ink px-5 py-2.5 text-sm text-paper">
-            Launch agents
-          </button>
+              ))}
+            </div>
+          </Field>
+          <fieldset>
+            <legend className="text-sm font-medium">Where should it run?</legend>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {channels.map((ch) => {
+                const on = form.channels.includes(ch);
+                return (
+                  <button
+                    key={ch}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => toggleChannel(ch)}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 border px-3 py-1.5 text-sm transition",
+                      on
+                        ? "border-signal bg-signal/10 font-medium text-signal-dark"
+                        : "border-line bg-surface text-ink-soft hover:border-mute",
+                    )}
+                  >
+                    {on ? <Check size={14} strokeWidth={2.5} /> : null}
+                    {channelLabel[ch]}
+                  </button>
+                );
+              })}
+            </div>
+            {errorFor("channels") ? (
+              <p data-invalid className="mt-1.5 text-xs text-signal">
+                {errorFor("channels")}
+              </p>
+            ) : null}
+          </fieldset>
+        </section>
+
+        <section className="hairline">
           <button
             type="button"
-            onClick={() => void submit(false)}
-            className="rounded-full border border-ink px-5 py-2.5 text-sm"
+            aria-expanded={moreVisible}
+            onClick={() => setMoreOpen((v) => !v)}
+            className="flex w-full items-center justify-between gap-3 p-4 text-left"
           >
-            Save draft
+            <span>
+              <span className="block text-sm font-medium">More options</span>
+              <span className="block text-xs text-mute">
+                {form.startDate} to {form.endDate} ·{" "}
+                {countries.find((c) => c.id === form.country)?.label} · {form.category}
+              </span>
+            </span>
+            <ChevronDown
+              size={16}
+              className={cn("shrink-0 text-mute transition", moreVisible && "rotate-180")}
+            />
           </button>
+          {moreVisible ? (
+            <div className="flex flex-col gap-5 border-t border-line p-4">
+              <Field label="Campaign name" hint="Optional">
+                <input
+                  value={form.name}
+                  onChange={(e) => update("name", e.target.value)}
+                  placeholder={brief.name || "Leave blank to use the product name"}
+                  className={input}
+                />
+              </Field>
+              <div className="grid gap-5 sm:grid-cols-2">
+                <Field label="Category" error={errorFor("category")}>
+                  <select
+                    value={form.category}
+                    onChange={(e) => update("category", e.target.value)}
+                    className={input}
+                  >
+                    {categories.map((c) => (
+                      <option key={c}>{c}</option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Market" hint="Sets compliance rules" error={errorFor("country")}>
+                  <select
+                    value={form.country}
+                    onChange={(e) => update("country", e.target.value as Country)}
+                    className={input}
+                  >
+                    {countries.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.label}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              </div>
+              <div className="grid gap-5 sm:grid-cols-2">
+                <Field label="Starts" error={errorFor("startDate")}>
+                  <input
+                    type="date"
+                    value={form.startDate}
+                    onChange={(e) => update("startDate", e.target.value)}
+                    data-invalid={errorFor("startDate") ? "" : undefined}
+                    className={input}
+                  />
+                </Field>
+                <Field label="Ends" error={errorFor("endDate")}>
+                  <input
+                    type="date"
+                    value={form.endDate}
+                    onChange={(e) => update("endDate", e.target.value)}
+                    data-invalid={errorFor("endDate") ? "" : undefined}
+                    className={input}
+                  />
+                </Field>
+              </div>
+              <Field label="Notes for the agents" hint="Optional">
+                <textarea
+                  value={form.notes}
+                  onChange={(e) => update("notes", e.target.value)}
+                  rows={3}
+                  placeholder="Anything the agents should know, like tone or things to avoid"
+                  className={input}
+                />
+              </Field>
+            </div>
+          ) : null}
+        </section>
+
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface/90 px-4 py-3 backdrop-blur lg:left-60">
+          <div className="mx-auto flex max-w-2xl flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-mute">
+              {attempted && problems.length > 0
+                ? `${problems.length} thing${problems.length === 1 ? "" : "s"} to fix above.`
+                : "You'll review everything before it goes live."}
+            </p>
+            <div className="flex items-center gap-2">
+              <Link href="/campaigns" className="px-3 py-2 text-sm text-ink-soft hover:text-ink">
+                Cancel
+              </Link>
+              <button
+                type="button"
+                onClick={() => void submit(false)}
+                className="rounded-full border border-line bg-surface px-4 py-2 text-sm font-medium hover:bg-paper-2"
+              >
+                Save draft
+              </button>
+              <button
+                type="submit"
+                className="rounded-full bg-signal px-5 py-2 text-sm font-semibold text-white hover:bg-signal-dark"
+              >
+                Launch agents
+              </button>
+            </div>
+          </div>
         </div>
       </form>
     </div>

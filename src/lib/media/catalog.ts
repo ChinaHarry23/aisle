@@ -7,7 +7,7 @@ export const PROVIDERS: { id: ProviderId; name: string }[] = [
   { id: "ideogram", name: "Ideogram" },
   { id: "recraft", name: "Recraft" },
   { id: "xai", name: "xAI" },
-  { id: "bytedance", name: "ByteDance" },
+  { id: "bytedance", name: "BytePlus" },
   { id: "alibaba", name: "Alibaba" },
   { id: "stability", name: "Stability AI" },
   { id: "luma", name: "Luma" },
@@ -31,7 +31,7 @@ export const MEDIA_MODELS: MediaModel[] = [
     bestFor: "Campaign heroes, complex layouts",
     envKeys: ["OPENAI_API_KEY"],
     endpoint: "https://api.openai.com/v1/images/generations",
-    estimateLabel: "~$0.053 / poster",
+    estimateLabel: "~$0.053 / ad",
     billing: { mode: "tokens", textInPerM: 5, imageOutPerM: 30, estOutTokens: 1650 },
   },
   {
@@ -45,7 +45,7 @@ export const MEDIA_MODELS: MediaModel[] = [
     bestFor: "Catalogue covers, print",
     envKeys: ["OPENAI_API_KEY"],
     endpoint: "https://api.openai.com/v1/images/generations",
-    estimateLabel: "~$0.21 / poster",
+    estimateLabel: "~$0.21 / ad",
     billing: { mode: "tokens", textInPerM: 5, imageOutPerM: 30, estOutTokens: 6800 },
   },
   {
@@ -59,7 +59,7 @@ export const MEDIA_MODELS: MediaModel[] = [
     bestFor: "Drafting, A/B volume",
     envKeys: ["OPENAI_API_KEY"],
     endpoint: "https://api.openai.com/v1/images/generations",
-    estimateLabel: "~$0.009 / poster",
+    estimateLabel: "~$0.009 / ad",
     billing: { mode: "per_image", usd: 0.009, estOutTokens: 900 },
   },
   {
@@ -73,7 +73,7 @@ export const MEDIA_MODELS: MediaModel[] = [
     bestFor: "Product photography speed",
     envKeys: ["GOOGLE_AI_API_KEY"],
     endpoint: "https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-fast-generate-001:predict",
-    estimateLabel: "$0.02 / poster",
+    estimateLabel: "$0.02 / ad",
     billing: { mode: "per_image", usd: 0.02, estOutTokens: 1200 },
   },
   {
@@ -87,7 +87,7 @@ export const MEDIA_MODELS: MediaModel[] = [
     bestFor: "Type-in-image, banners",
     envKeys: ["GOOGLE_AI_API_KEY"],
     endpoint: "https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict",
-    estimateLabel: "$0.04 / poster",
+    estimateLabel: "$0.04 / ad",
     billing: { mode: "per_image", usd: 0.04, estOutTokens: 1400 },
   },
   {
@@ -101,7 +101,7 @@ export const MEDIA_MODELS: MediaModel[] = [
     bestFor: "Hero product shots",
     envKeys: ["GOOGLE_AI_API_KEY"],
     endpoint: "https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-ultra-generate-001:predict",
-    estimateLabel: "$0.06 / poster",
+    estimateLabel: "$0.06 / ad",
     billing: { mode: "per_image", usd: 0.06, estOutTokens: 1800 },
   },
   {
@@ -115,7 +115,7 @@ export const MEDIA_MODELS: MediaModel[] = [
     bestFor: "Iterate + edit from a still",
     envKeys: ["GOOGLE_AI_API_KEY"],
     endpoint: "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-preview-image:generateContent",
-    estimateLabel: "~$0.08 / poster",
+    estimateLabel: "~$0.08 / ad",
     billing: { mode: "per_image", usd: 0.08, estOutTokens: 2000 },
   },
   {
@@ -129,7 +129,7 @@ export const MEDIA_MODELS: MediaModel[] = [
     bestFor: "Draft stills",
     envKeys: ["BFL_API_KEY"],
     endpoint: "https://api.bfl.ai/v1/flux-2-klein",
-    estimateLabel: "$0.015 / poster",
+    estimateLabel: "$0.015 / ad",
     billing: { mode: "per_mp", usdPerMp: 0.015, megapixels: 1, estOutTokens: 800 },
   },
   {
@@ -143,7 +143,7 @@ export const MEDIA_MODELS: MediaModel[] = [
     bestFor: "Apparel and product photos",
     envKeys: ["BFL_API_KEY"],
     endpoint: "https://api.bfl.ai/v1/flux-2-pro",
-    estimateLabel: "$0.03 / poster",
+    estimateLabel: "$0.03 / ad",
     billing: { mode: "per_mp", usdPerMp: 0.03, megapixels: 1, estOutTokens: 1100 },
   },
   {
@@ -157,7 +157,7 @@ export const MEDIA_MODELS: MediaModel[] = [
     bestFor: "Premium product",
     envKeys: ["BFL_API_KEY"],
     endpoint: "https://api.bfl.ai/v1/flux-2-max",
-    estimateLabel: "$0.07 / poster",
+    estimateLabel: "$0.07 / ad",
     billing: { mode: "per_mp", usdPerMp: 0.07, megapixels: 1, estOutTokens: 1600 },
   },
   {
@@ -171,7 +171,7 @@ export const MEDIA_MODELS: MediaModel[] = [
     bestFor: "Headlines on the image",
     envKeys: ["IDEOGRAM_API_KEY"],
     endpoint: "https://api.ideogram.ai/v1/ideogram-v3/generate",
-    estimateLabel: "$0.03 / poster",
+    estimateLabel: "$0.03 / ad",
     billing: { mode: "per_image", usd: 0.03, estOutTokens: 1000 },
   },
   {
@@ -185,7 +185,7 @@ export const MEDIA_MODELS: MediaModel[] = [
     bestFor: "Print posters, in-store",
     envKeys: ["IDEOGRAM_API_KEY"],
     endpoint: "https://api.ideogram.ai/v1/ideogram-v3/generate",
-    estimateLabel: "$0.10 / poster",
+    estimateLabel: "$0.10 / ad",
     billing: { mode: "per_image", usd: 0.1, estOutTokens: 1500 },
   },
   {
@@ -199,7 +199,7 @@ export const MEDIA_MODELS: MediaModel[] = [
     bestFor: "Brand-clean layouts",
     envKeys: ["RECRAFT_API_KEY"],
     endpoint: "https://external.api.recraft.ai/v1/images/generations",
-    estimateLabel: "$0.035 / poster",
+    estimateLabel: "$0.035 / ad",
     billing: { mode: "per_image", usd: 0.035, estOutTokens: 1100 },
   },
   {
@@ -213,13 +213,13 @@ export const MEDIA_MODELS: MediaModel[] = [
     bestFor: "Alternate look when others feel samey",
     envKeys: ["XAI_API_KEY"],
     endpoint: "https://api.x.ai/v1/images/generations",
-    estimateLabel: "~$0.05 / poster",
+    estimateLabel: "~$0.05 / ad",
     billing: { mode: "per_image", usd: 0.05, estOutTokens: 1300 },
   },
   {
     id: "bytedance:seedream-4.5",
     providerId: "bytedance",
-    provider: "ByteDance",
+    provider: "BytePlus",
     name: "Seedream 4.5",
     apiModel: "seedream-4.5",
     kind: "image",
@@ -227,7 +227,7 @@ export const MEDIA_MODELS: MediaModel[] = [
     bestFor: "Lifestyle stills",
     envKeys: ["ARK_API_KEY"],
     endpoint: "https://ark.ap-southeast.bytepluses.com/api/v3/images/generations",
-    estimateLabel: "$0.04 / poster",
+    estimateLabel: "$0.04 / ad",
     billing: { mode: "per_image", usd: 0.04, estOutTokens: 1200 },
   },
   {
@@ -241,7 +241,7 @@ export const MEDIA_MODELS: MediaModel[] = [
     bestFor: "Bilingual posters later",
     envKeys: ["DASHSCOPE_API_KEY"],
     endpoint: "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation",
-    estimateLabel: "$0.03 / poster",
+    estimateLabel: "$0.03 / ad",
     billing: { mode: "per_image", usd: 0.03, estOutTokens: 1000 },
   },
   {
@@ -255,7 +255,7 @@ export const MEDIA_MODELS: MediaModel[] = [
     bestFor: "Custom brand LoRAs",
     envKeys: ["STABILITY_API_KEY"],
     endpoint: "https://api.stability.ai/v2beta/stable-image/generate/sd3",
-    estimateLabel: "$0.065 / poster",
+    estimateLabel: "$0.065 / ad",
     billing: { mode: "per_image", usd: 0.065, estOutTokens: 1400 },
   },
   {
@@ -269,7 +269,7 @@ export const MEDIA_MODELS: MediaModel[] = [
     bestFor: "Volume drafts",
     envKeys: ["LUMA_API_KEY"],
     endpoint: "https://api.lumalabs.ai/dream-machine/v1/generations/image",
-    estimateLabel: "$0.004 / poster",
+    estimateLabel: "$0.004 / ad",
     billing: { mode: "per_image", usd: 0.004, estOutTokens: 600 },
   },
   {
@@ -283,7 +283,7 @@ export const MEDIA_MODELS: MediaModel[] = [
     bestFor: "Moodier campaigns",
     envKeys: ["KREA_API_KEY"],
     endpoint: "https://api.krea.ai/v1/generate",
-    estimateLabel: "~$0.06 / poster",
+    estimateLabel: "~$0.06 / ad",
     billing: { mode: "per_image", usd: 0.06, estOutTokens: 1400 },
   },
   {
@@ -297,7 +297,7 @@ export const MEDIA_MODELS: MediaModel[] = [
     bestFor: "Enterprise AWS shops",
     envKeys: ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"],
     endpoint: "bedrock-runtime (InvokeModel)",
-    estimateLabel: "$0.008 / poster",
+    estimateLabel: "$0.008 / ad",
     billing: { mode: "per_image", usd: 0.008, estOutTokens: 700 },
   },
 
@@ -528,8 +528,14 @@ export function getModelOrDefault(id: string | undefined, kind: MediaModel["kind
   return MEDIA_MODELS.find((m) => m.id === id && m.kind === kind) ?? modelsOf(kind)[0];
 }
 
+/** Image models offered for now: OpenAI GPT Image and BytePlus Seedream. Everything else stays in the catalog but is hidden. */
+export const ENABLED_IMAGE_PROVIDERS: ProviderId[] = ["openai", "bytedance"];
+
 export function modelsOf(kind: MediaModel["kind"]) {
-  return MEDIA_MODELS.filter((m) => m.kind === kind);
+  return MEDIA_MODELS.filter(
+    (m) =>
+      m.kind === kind && (kind !== "image" || ENABLED_IMAGE_PROVIDERS.includes(m.providerId)),
+  );
 }
 
 export function modelsByProvider(kind: MediaModel["kind"], providerId: ProviderId | "all") {

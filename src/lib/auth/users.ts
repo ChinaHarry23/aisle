@@ -156,6 +156,17 @@ export async function setPassword(email: string, password: string): Promise<bool
   return true;
 }
 
+export async function updateUserName(id: string, name: string): Promise<PublicUser | null> {
+  const db = await getDatabase();
+  await db.execute("update users set name = $1, updated_at = $2 where id = $3", [
+    name,
+    new Date().toISOString(),
+    id,
+  ]);
+  const user = await findUserById(id);
+  return user ? publicUser(user) : null;
+}
+
 export async function listUsers(): Promise<PublicUser[]> {
   const db = await getDatabase();
   const rows = await db.query<UserRow>("select * from users order by created_at");

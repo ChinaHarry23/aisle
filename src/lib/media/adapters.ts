@@ -32,6 +32,8 @@ export function buildProviderBody(model: MediaModel, req: GenerateRequest): Reco
         n: 1,
         size: req.aspectRatio === "9:16" ? "1024x1536" : "1024x1024",
         quality: req.quality ?? "medium",
+        output_format: req.format === "jpg" ? "jpeg" : "png",
+        ...(req.contextImages?.length ? { input_fidelity: req.inputFidelity ?? "high" } : {}),
       };
     case "google":
       return {
@@ -59,14 +61,16 @@ export function buildProviderBody(model: MediaModel, req: GenerateRequest): Reco
   }
 }
 
-export async function callProvider(model: MediaModel, req: GenerateRequest): Promise<{ url: string; raw?: unknown }> {
-  if (!isProviderConfigured(model.envKeys)) {
+export async function callProvider(
+  model: MediaModel,
+  req: GenerateRequest,
+  userKey?: string,
+): Promise<{ url: string; raw?: unknown }> {
+  const apiKey = userKey || process.env[model.envKeys[0]];
+  if (!apiKey) {
     throw new AdapterNotWiredError(model.provider);
   }
-  const body = buildProviderBody(model, req);
-  void body;
-  void req;
-  // Wire here, e.g.:
-  // const res = await fetch(model.endpoint, { method: "POST", headers: { Authorization: `Bearer ${process.env[model.envKeys[0]]}` }, body: JSON.stringify(body) })
+  // No provider is wired to a live endpoint yet; build the body so the mapping stays exercised.
+  void buildProviderBody(model, req);
   throw new AdapterNotWiredError(model.provider);
 }

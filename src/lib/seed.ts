@@ -12,18 +12,22 @@ import type {
 } from "./types";
 
 export const defaultBrand: BrandProfile = {
-  retailerName: "Lane & Co.",
-  tagline: "Neighbourhood retail, properly done.",
-  tone: "Warm, direct, never shouty. Australian English. Speak like a good local shop, not a holding company.",
+  retailerName: "Woolworths",
+  logoUrl: "/woolworths-logo.jpg",
+  website: "https://www.woolworths.com.au/",
+  about:
+    "One of Australia's leading retailers, founded in 1924 and headquartered in Bella Vista, NSW. Supermarkets, liquor and general merchandise across Australia and New Zealand, with a fast-growing online grocery business and a focus on fresh food, sustainability and food-waste reduction.",
+  tagline: "The fresh food people.",
+  tone: "Friendly, helpful and down to earth. Australian English. Focus on fresh food, everyday value and helping families eat well, without hype.",
   visualStyle:
-    "Paper catalogue meets modern grocery: cream stock, ink type, a single signal red. Photography is honest. No neon, no stock-smile families.",
+    "Clean and bright: white space, Apple green (#008446) as the lead colour with a Sulu lime accent. Fresh, well-lit produce photography and real food. No neon, no clutter.",
   approvedTerms: [
+    "fresh",
     "seasonal",
-    "neighbourhood",
+    "Australian grown",
+    "everyday low price",
     "quality",
     "value",
-    "Australian",
-    "made to last",
   ],
   bannedTerms: [
     "guaranteed",
@@ -34,7 +38,7 @@ export const defaultBrand: BrandProfile = {
     "risk-free",
     "number one",
   ],
-  colors: { ink: "#1c1917", paper: "#f3eee5", signal: "#c4342a" },
+  colors: { ink: "#25251f", paper: "#ffffff", signal: "#008446", accent: "#c8f170", deep: "#024a1f" },
   countryRules: {
     AU: "Australian Consumer Law. No absolute superiority claims without substantiation. Health claims need evidence. Prices include GST unless stated. Promotional statements must not mislead a reasonable consumer.",
     NZ: "Fair Trading Act. Similar to ACL: no misleading or unsubstantiated claims. Comparative advertising needs a fair basis.",
@@ -42,6 +46,20 @@ export const defaultBrand: BrandProfile = {
     US: "FTC truth-in-advertising. Endorsements and typicality claims need evidence. Avoid unsubstantiated superlatives.",
   },
 };
+
+/** Saved workspaces from before the Woolworths palette still hold the old default
+ *  colours (red on cream). Swap that untouched palette for the current one and keep
+ *  every other field the user may have edited. */
+const LEGACY_COLORS = { ink: "#1c1917", paper: "#f3eee5", signal: "#c4342a" };
+
+export function migrateLegacyBrand<T extends Partial<BrandProfile>>(brand: T): T {
+  const c = brand.colors;
+  const legacy =
+    c?.signal?.toLowerCase() === LEGACY_COLORS.signal &&
+    c.ink?.toLowerCase() === LEGACY_COLORS.ink &&
+    c.paper?.toLowerCase() === LEGACY_COLORS.paper;
+  return legacy ? { ...brand, colors: defaultBrand.colors } : brand;
+}
 
 export function makeLog(
   agent: AgentEvent["agent"],
@@ -155,17 +173,17 @@ export function seedCampaigns(brand: BrandProfile): Campaign[] {
   // fills the rest of the runtime contract at the end of this function.
   const parka = {
     id: "cmp_parka",
-    name: "Trail Parka — campus winter drop",
+    name: "Sample: Winter jacket for students (finished)",
     product: "Northline Trail Parka (navy)",
     category: "Apparel",
     targetAudience: "Australian university students, 18–24",
-    objective: "Drive awareness and add-to-cart for the new winter jacket",
+    objective: "Get students to notice the new winter jacket and add it to their cart",
     budget: 18000,
     channels: ["instagram", "web", "email", "digital_signage"],
     startDate: "2026-08-18",
     endDate: "2026-09-07",
     country: "AU",
-    notes: "Promote our new winter jacket to Australian university students.",
+    notes: "Sample campaign: already published, so you can see the results. Promote our new winter jacket to Australian university students.",
     status: "published",
     createdAt: "2026-08-16T09:12:00.000Z",
     updatedAt: "2026-08-18T07:40:00.000Z",
@@ -683,17 +701,17 @@ export function seedCampaigns(brand: BrandProfile): Campaign[] {
 
   const fruit = {
     id: "cmp_stonefruit",
-    name: "Week 34 catalogue — stone fruit & yoghurt",
+    name: "Sample: Weekly fruit & yoghurt promo (needs your approval)",
     product: "Seasonal stone fruit + Lane & Co. pot-set yoghurt",
     category: "Grocery",
     targetAudience: "Household shoppers, 28–45, inner-city and suburban",
-    objective: "Lift weekly catalogue engagement and attach yoghurt to fruit baskets",
+    objective: "Get more people opening the weekly catalogue and buying yoghurt with their fruit",
     budget: 9000,
     channels: ["print", "email", "web", "instagram"],
     startDate: "2026-08-26",
     endDate: "2026-09-01",
     country: "AU",
-    notes: "Catalogue cover + social. Keep it edible, not wellness-cult.",
+    notes: "Sample campaign: the agents have finished and it is waiting for you. Open it, read the checks, then approve. Keep it edible, not wellness-cult.",
     status: "awaiting_approval",
     createdAt: "2026-08-23T04:10:00.000Z",
     updatedAt: "2026-08-23T04:18:00.000Z",

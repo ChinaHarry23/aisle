@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, type FormEvent } from "react";
+import { BrandLogo } from "@/components/BrandLogo";
 
 type Mode = "login" | "signup";
 
@@ -43,19 +44,14 @@ export function AuthForm({ mode }: { mode: Mode }) {
   return (
     <div className="auth-screen">
       <div className="auth-card">
-        <div className="shell-brand mb-6">
-          <span className="shell-brand-mark" aria-hidden>
-            <span className="h-5 w-[3px] bg-signal" />
-            <span className="h-6 w-[3px] bg-signal/50" />
-            <span className="h-4 w-[3px] bg-signal" />
-          </span>
-          <span className="shell-brand-name">Aisle</span>
+        <div className="mb-6">
+          <BrandLogo size="lg" />
         </div>
         <p className="text-[11px] uppercase tracking-[0.2em] text-signal">
-          {mode === "login" ? "Founder desk" : "Beta access"}
+          {mode === "login" ? "Welcome back" : "Get started"}
         </p>
         <h1 className="mt-2 font-serif text-4xl">
-          {mode === "login" ? "Sign in." : "Try the beta."}
+          {mode === "login" ? "Sign in." : "Create your account."}
         </h1>
         <p className="mt-2 text-sm text-ink-soft">
           {mode === "login"
@@ -108,7 +104,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
             <>
               New here?{" "}
               <Link href="/signup" className="text-signal">
-                Sign up for the beta
+                Sign up
               </Link>
             </>
           ) : (

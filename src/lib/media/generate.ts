@@ -3,9 +3,12 @@ import { getModel } from "./catalog";
 import { stubGenerate } from "./stub";
 import type { GenerateRequest, GenerateResult } from "./types";
 
-export async function runGeneration(req: GenerateRequest): Promise<GenerateResult> {
+export async function runGeneration(
+  req: GenerateRequest,
+  userKey?: string,
+): Promise<GenerateResult> {
   const model = getModel(req.modelId);
-  const configured = isProviderConfigured(model.envKeys);
+  const configured = Boolean(userKey) || isProviderConfigured(model.envKeys);
 
   if (!configured) {
     return stubGenerate(
@@ -15,7 +18,7 @@ export async function runGeneration(req: GenerateRequest): Promise<GenerateResul
   }
 
   try {
-    const live = await callProvider(model, req);
+    const live = await callProvider(model, req, userKey);
     const stub = stubGenerate(req, "Live URL attached.");
     return {
       ...stub,

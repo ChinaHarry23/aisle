@@ -1,4 +1,4 @@
-import { defaultBrand, seedCampaigns } from "@/lib/seed";
+import { defaultBrand, migrateLegacyBrand, seedCampaigns } from "@/lib/seed";
 import { defaultSettings, withSettingsDefaults, type WorkspaceSettings } from "@/lib/settings";
 import type { BrandProfile, Campaign } from "@/lib/types";
 import { kvGet, kvSet } from "./kv";
@@ -21,7 +21,9 @@ export function emptyWorkspace(): WorkspaceSnapshot {
       retailerName: "Your shop",
       tagline: "Set this on Brand to make it yours.",
     },
-    campaigns: [],
+    // Every new account starts with the two sample campaigns so the flow is
+    // visible straight away: one finished, one waiting for approval.
+    campaigns: seedCampaigns(defaultBrand),
     settings: defaultSettings(),
   };
 }
@@ -37,7 +39,7 @@ export function demoWorkspace(): WorkspaceSnapshot {
 export function normalizeWorkspace(raw: Partial<WorkspaceSnapshot> | null): WorkspaceSnapshot {
   const fallback = emptyWorkspace();
   return {
-    brand: { ...fallback.brand, ...raw?.brand },
+    brand: { ...fallback.brand, ...(raw?.brand ? migrateLegacyBrand(raw.brand) : {}) },
     campaigns: raw?.campaigns ?? fallback.campaigns,
     settings: withSettingsDefaults(raw?.settings),
   };

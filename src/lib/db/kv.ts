@@ -1,7 +1,7 @@
 /**
  * The key/value table, on SQL.
  *
- * Workspaces and WhatsApp inboxes are whole JSON documents, so they want a
+ * Workspaces are whole JSON documents, so they want a
  * document store, not a schema. Replacing the old Vercel Blob calls with two rows
  * in SQL keeps that shape while removing a network dependency (and a credential)
  * from every page save.

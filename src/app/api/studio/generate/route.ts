@@ -1,5 +1,5 @@
 import { runGeneration } from "@/lib/media/generate";
-import { MEDIA_MODELS } from "@/lib/media/catalog";
+import { modelsOf } from "@/lib/media/catalog";
 import type { GenerateRequest } from "@/lib/media/types";
 
 export async function POST(req: Request) {
@@ -7,9 +7,9 @@ export async function POST(req: Request) {
   if (!body?.modelId || !body.kind || !body.prompt) {
     return Response.json({ error: "modelId, kind, and prompt are required" }, { status: 400 });
   }
-  if (!MEDIA_MODELS.some((m) => m.id === body.modelId && m.kind === body.kind)) {
+  if (!modelsOf(body.kind).some((m) => m.id === body.modelId)) {
     return Response.json({ error: "Unknown model for this kind" }, { status: 400 });
   }
-  const result = await runGeneration(body);
+  const result = await runGeneration(body, req.headers.get("x-provider-key") ?? undefined);
   return Response.json(result);
 }

@@ -6,8 +6,13 @@ import { makeCreatives } from "./agents";
 import { uid } from "./ids";
 import { requestGenerate } from "./media/client";
 import { fallbackBrief, posterPrompt, videoPrompt } from "./media/prompts";
-import { blankCampaign, defaultBrand, makeLog, seedCampaigns } from "./seed";
-import { defaultSettings, withSettingsDefaults, type WorkspaceSettings } from "./settings";
+import { blankCampaign, defaultBrand, makeLog, migrateLegacyBrand, seedCampaigns } from "./seed";
+import {
+  defaultSettings,
+  withSettingsDefaults,
+  type TrendSource,
+  type WorkspaceSettings,
+} from "./settings";
 import { sendCommand, type EngineResponse } from "./runtime/client";
 import { attachableRecommendation, withRuntimeDefaults } from "./runtime/defaults";
 import type {
@@ -25,12 +30,6 @@ type Store = {
   settings: WorkspaceSettings;
   /** Last message the engine returned, surfaced on the desk. */
   engineMessage: string | null;
-  /**
-   * A brief handed over from another front door — today the WhatsApp desk turns
-   * a Task/Goal line into a pre-filled brief. It is a starting point only: the
-   * founder still completes and launches it (AHR-01).
-   */
-  intakeDraft: { input: Partial<CampaignInput>; source: string } | null;
   busy: Record<string, boolean>;
   setHydrated: () => void;
   hydrateFromServer: (data: {
@@ -40,8 +39,13 @@ type Store = {
   }) => void;
   updateBrand: (partial: Partial<BrandProfile>) => void;
   updateSettings: (partial: Partial<WorkspaceSettings>) => void;
+  /** Adds sources, skipping any whose value is already in the list. Returns how many were new. */
+  addTrendSources: (
+    sources: Pick<TrendSource, "kind" | "value" | "label" | "content" | "size" | "truncated">[],
+  ) => number;
+  toggleTrendSource: (id: string) => void;
+  removeTrendSource: (id: string) => void;
   createCampaign: (input: CampaignInput) => string;
-  setIntakeDraft: (draft: Store["intakeDraft"]) => void;
   /** AHR-01 → AHR-02. Validates the brief, then runs the bench to the next gate. */
   launch: (id: string) => Promise<void>;
   pause: (id: string) => Promise<void>;
@@ -134,11 +138,9 @@ export const useAisle = create<Store>()(
         campaigns: seedCampaigns(defaultBrand),
         settings: defaultSettings(),
         engineMessage: null,
-        intakeDraft: null,
         busy: {},
         setHydrated: () => set({ hydrated: true }),
-        setIntakeDraft: (draft) => set({ intakeDraft: draft }),
-        hydrateFromServer: (data) =>
+              hydrateFromServer: (data) =>
           set({
             brand: data.brand,
             campaigns: (data.campaigns ?? []).map(withRuntimeDefaults),
@@ -153,6 +155,49 @@ export const useAisle = create<Store>()(
               ...s.settings,
               ...partial,
               agents: partial.agents ? { ...s.settings.agents, ...partial.agents } : s.settings.agents,
+            },
+          })),
+        addTrendSources: (sources) => {
+          const known = new Set(get().settings.trendSources.map((t) => t.value.toLowerCase()));
+          const fresh = sources.filter((src) => {
+            const key = src.value.toLowerCase();
+            if (known.has(key)) return false;
+            known.add(key);
+            return true;
+          });
+          if (fresh.length === 0) return 0;
+          const addedAt = new Date().toISOString();
+          set((s) => ({
+            settings: {
+              ...s.settings,
+              trendSources: [
+                ...s.settings.trendSources,
+                ...fresh.map((src) => ({
+                  ...src,
+                  id: uid("src"),
+                  enabled: true,
+                  addedAt,
+                  lastFetchedAt: null,
+                })),
+              ],
+            },
+          }));
+          return fresh.length;
+        },
+        toggleTrendSource: (id) =>
+          set((s) => ({
+            settings: {
+              ...s.settings,
+              trendSources: s.settings.trendSources.map((t) =>
+                t.id === id ? { ...t, enabled: !t.enabled } : t,
+              ),
+            },
+          })),
+        removeTrendSource: (id) =>
+          set((s) => ({
+            settings: {
+              ...s.settings,
+              trendSources: s.settings.trendSources.filter((t) => t.id !== id),
             },
           })),
 
@@ -385,7 +430,6 @@ export const useAisle = create<Store>()(
         brand: s.brand,
         campaigns: s.campaigns,
         settings: s.settings,
-        intakeDraft: s.intakeDraft,
       }),
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<Store> & {
@@ -393,8 +437,14 @@ export const useAisle = create<Store>()(
         };
         return {
           ...current,
-          brand: { ...current.brand, ...p.brand },
-          intakeDraft: p.intakeDraft ?? null,
+          brand: (() => {
+            const saved = p.brand ? migrateLegacyBrand(p.brand) : undefined;
+            return {
+              ...current.brand,
+              ...saved,
+              colors: { ...current.brand.colors, ...saved?.colors },
+            };
+          })(),
           campaigns: (p.campaigns ?? current.campaigns).map(withRuntimeDefaults),
           settings: withSettingsDefaults(
             p.settings ??

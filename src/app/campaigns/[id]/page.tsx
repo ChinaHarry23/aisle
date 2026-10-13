@@ -15,7 +15,7 @@ import {
   StatusBadge,
 } from "@/components/ui";
 import { cn } from "@/lib/cn";
-import { formatDate, formatMoney, formatNumber } from "@/lib/ids";
+import { formatDate, formatNumber } from "@/lib/ids";
 import { channelLabel } from "@/lib/status";
 import { useAisle } from "@/lib/store";
 
@@ -73,7 +73,7 @@ export default function CampaignWorkspace() {
 
   if (!campaign) {
     return (
-      <Empty title="Campaign not found" body="It may have been cleared with a demo reset.">
+      <Empty title="Campaign not found" body="It may have been deleted or cleared.">
         <Link href="/campaigns" className="text-sm text-signal">
           Back to board
         </Link>
@@ -88,26 +88,26 @@ export default function CampaignWorkspace() {
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <Link href="/campaigns" className="text-xs uppercase tracking-wider text-mute hover:text-ink">
+        <Link href="/campaigns" className="text-sm text-mute hover:text-signal">
           ← Board
         </Link>
-        <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
-          <div>
+        <div className="mt-1 flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-[18rem] flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="font-serif text-4xl tracking-tight">{campaign.name}</h1>
+              <h1 className="font-serif text-2xl tracking-tight md:text-3xl">{campaign.name}</h1>
               <StatusBadge status={campaign.status} />
             </div>
-            <p className="mt-2 text-sm text-ink-soft">
-              {campaign.product} · {campaign.targetAudience} · {formatMoney(campaign.budget)} ·{" "}
+            <p className="mt-2 text-[15px] leading-relaxed text-ink-soft">
+              {campaign.product} · {campaign.targetAudience} ·{" "}
               {campaign.country}
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2 md:pt-1">
             {canLaunch ? (
               <button
                 type="button"
                 onClick={() => void launch(campaign.id)}
-                className="rounded-full bg-ink px-4 py-2 text-sm text-paper"
+                className="rounded-full btn-primary px-4 py-2 text-sm font-medium"
               >
                 Launch agents
               </button>
@@ -116,7 +116,7 @@ export default function CampaignWorkspace() {
               <button
                 type="button"
                 onClick={() => void pause(campaign.id)}
-                className="rounded-full border border-ink px-4 py-2 text-sm"
+                className="rounded-full border border-line px-4 py-2 text-sm font-medium hover:bg-paper-2"
               >
                 Pause
               </button>
@@ -126,7 +126,7 @@ export default function CampaignWorkspace() {
                 type="button"
                 disabled={busy}
                 onClick={() => void publish(campaign.id)}
-                className="rounded-full bg-signal px-4 py-2 text-sm text-paper disabled:opacity-50"
+                className="rounded-full btn-primary px-4 py-2 text-sm font-medium disabled:opacity-50"
               >
                 {busy ? "Working…" : "Publish now"}
               </button>
@@ -136,14 +136,14 @@ export default function CampaignWorkspace() {
                 type="button"
                 disabled={busy}
                 onClick={() => void collectFeedback(campaign.id)}
-                className="rounded-full border border-ink px-4 py-2 text-sm disabled:opacity-50"
+                className="rounded-full border border-line px-4 py-2 text-sm font-medium hover:bg-paper-2 disabled:opacity-50"
               >
                 {busy ? "Collecting…" : "Collect results"}
               </button>
             ) : null}
           </div>
         </div>
-        <div className="mt-6">
+        <div className="mt-5">
           <AgentPipeline status={campaign.status} />
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-mute">
@@ -174,25 +174,23 @@ export default function CampaignWorkspace() {
           ) : null}
         </div>
         {campaign.validationProblems.length > 0 ? (
-          <ul className="mt-4 border border-signal/40 bg-surface p-4 text-sm">
-            <li className="text-[11px] uppercase tracking-wider text-signal">
-              Launch refused — the pipeline did not start
-            </li>
-            {campaign.validationProblems.map((p) => (
-              <li key={`${p.field}-${p.message}`} className="mt-1 text-ink-soft">
-                {p.field}: {p.message} <span className="text-mute">({p.clause})</span>
-              </li>
-            ))}
-          </ul>
+          <div className="mt-4 border border-signal/40 bg-surface p-4 text-sm">
+            <p className="font-medium text-signal">This campaign can&apos;t launch yet</p>
+            <ul className="mt-1.5 list-disc pl-5 text-ink-soft">
+              {campaign.validationProblems.map((p) => (
+                <li key={`${p.field}-${p.message}`}>{p.message}</li>
+              ))}
+            </ul>
+          </div>
         ) : null}
       </div>
 
       {needsYou ? (
-        <section className="border border-signal/30 bg-surface p-5">
-          <p className="text-[11px] uppercase tracking-[0.18em] text-signal">
+        <section className="hairline hairline-accent p-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-signal">
             Human-in-the-loop
           </p>
-          <h2 className="mt-1 font-serif text-2xl">This cannot publish without you.</h2>
+          <h2 className="mt-1 font-serif text-lg md:text-xl">This cannot publish without you.</h2>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-ink-soft">
             {latestAttempt?.outcome === "manual_review"
               ? `Manual review: ${latestAttempt.attempt} compliance attempts were spent without clearing the copy. Every version, input and rejection reason is retained.`
@@ -209,22 +207,22 @@ export default function CampaignWorkspace() {
           <textarea
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder="Founder note — this is written back into shared context for the next agent."
+            placeholder="Add a note. Your agents will read it on the next step."
             rows={2}
-            className="mt-4 w-full border border-line px-3 py-2 text-sm outline-none focus:border-ink"
+            className="mt-4 w-full border border-line px-3 py-2 text-sm outline-none focus:border-signal"
           />
           <div className="mt-3 flex flex-wrap gap-2">
             <button
               type="button"
               onClick={() => void approve(campaign.id, note)}
-              className="rounded-full bg-ink px-4 py-2 text-sm text-paper"
+              className="rounded-full btn-primary px-4 py-2 text-sm font-medium"
             >
               Approve
             </button>
             <button
               type="button"
               onClick={() => void requestChanges(campaign.id, note || "Please revise to founder notes.")}
-              className="rounded-full border border-ink px-4 py-2 text-sm"
+              className="rounded-full border border-line px-4 py-2 text-sm font-medium hover:bg-paper-2"
             >
               Request changes
             </button>
@@ -247,7 +245,7 @@ export default function CampaignWorkspace() {
             onClick={() => setTab(t)}
             className={cn(
               "px-3 py-2 text-sm capitalize",
-              tab === t ? "border-b-2 border-ink text-ink" : "text-mute hover:text-ink",
+              tab === t ? "border-b-2 border-signal text-ink" : "text-mute hover:text-ink",
             )}
           >
             {t}
@@ -257,8 +255,8 @@ export default function CampaignWorkspace() {
 
       {tab === "brief" ? (
         <section className="grid gap-6 lg:grid-cols-2">
-          <div className="hairline bg-surface p-5">
-            <SectionTitle kicker="Shared campaign context" title="What every agent sees" />
+          <div className="hairline p-4">
+            <SectionTitle kicker="Shared context" title="What every agent can see" />
             <dl className="mt-4 grid gap-3 text-sm">
               <Row k="Retailer" v={campaign.sharedContext.retailer} />
               <Row k="Product" v={campaign.sharedContext.product} />
@@ -279,7 +277,7 @@ export default function CampaignWorkspace() {
                 v={campaign.sharedContext.previousPerformanceNote ?? "No previous cycle fed in."}
               />
               <Row
-                k="Founder notes"
+                k="Your notes"
                 v={
                   campaign.sharedContext.founderNotes.length
                     ? campaign.sharedContext.founderNotes.join(" / ")
@@ -288,7 +286,7 @@ export default function CampaignWorkspace() {
               />
             </dl>
           </div>
-          <div className="hairline bg-surface p-5">
+          <div className="hairline p-4">
             <SectionTitle kicker="Campaign brief" title={campaign.brief?.angle ?? "Waiting on Trend Analyser"} />
             {campaign.brief ? (
               <div className="mt-4 space-y-3 text-sm leading-relaxed">
@@ -327,9 +325,9 @@ export default function CampaignWorkspace() {
             <SectionTitle kicker="Market trend analysis" title="What is worth promoting this cycle" />
             <ul className="mt-4 grid gap-3 md:grid-cols-2">
               {campaign.trends.map((t) => (
-                <li key={t.id} className="hairline bg-surface p-4">
+                <li key={t.id} className="hairline p-4">
                   <p className="text-[11px] uppercase tracking-wider text-mute">{t.source}</p>
-                  <h3 className="mt-1 font-serif text-xl">{t.topic}</h3>
+                  <h3 className="mt-1 font-serif text-lg md:text-xl">{t.topic}</h3>
                   <p className="mt-2 text-sm leading-relaxed text-ink-soft">{t.evidence}</p>
                   <div className="mt-4 flex gap-6">
                     <Confidence value={t.relevance} label="Relevance" />
@@ -351,7 +349,7 @@ export default function CampaignWorkspace() {
               />
               <ul className="mt-4 grid gap-3">
                 {campaign.trendFindings.map((f) => (
-                  <li key={f.id} className="hairline bg-surface p-4">
+                  <li key={f.id} className="hairline p-4">
                     <div className="flex flex-wrap items-center gap-2">
                       <span
                         className={cn(
@@ -365,7 +363,7 @@ export default function CampaignWorkspace() {
                         relevance {f.relevance}% · confidence {f.confidence}%
                       </span>
                     </div>
-                    <h3 className="mt-2 font-serif text-xl">{f.topic}</h3>
+                    <h3 className="mt-2 font-serif text-lg md:text-xl">{f.topic}</h3>
                     <p className="mt-1 text-sm leading-relaxed text-ink-soft">{f.finding}</p>
                     {f.risk ? <p className="mt-2 text-sm text-signal">Risk: {f.risk}</p> : null}
                     {f.evidenceIds.length > 0 ? (
@@ -412,13 +410,13 @@ export default function CampaignWorkspace() {
                 title="What the analysis could not establish"
                 aside={
                   campaign.trendGaps.some((g) => g.needsFounder) ? (
-                    <span className="status-chip status-wait">founder asked</span>
+                    <span className="status-chip status-wait">needs your input</span>
                   ) : null
                 }
               />
               <ul className="mt-4 flex flex-col gap-2">
                 {campaign.trendGaps.map((g) => (
-                  <li key={g.id} className="hairline bg-surface p-3 text-sm">
+                  <li key={g.id} className="hairline p-3 text-sm">
                     <span className="text-[10px] uppercase tracking-wider text-signal">
                       {g.kind.replace(/_/g, " ")}
                     </span>
@@ -489,7 +487,7 @@ export default function CampaignWorkspace() {
             <SectionTitle kicker="Opportunities" title="Ranked for this retailer" />
             <ol className="mt-4 flex flex-col gap-3">
               {campaign.opportunities.map((o) => (
-                <li key={o.id} className="hairline flex gap-4 bg-surface p-4">
+                <li key={o.id} className="hairline flex gap-4 p-4">
                   <span className="font-serif text-2xl text-signal">{o.rank}</span>
                   <div>
                     <h3 className="font-medium">{o.title}</h3>
@@ -506,8 +504,8 @@ export default function CampaignWorkspace() {
             <SectionTitle kicker="Optional · personas" title="Who the other agents should write for" />
             <ul className="mt-4 grid gap-3 md:grid-cols-2">
               {campaign.personas.map((p) => (
-                <li key={p.id} className="hairline bg-surface p-4">
-                  <h3 className="font-serif text-xl">{p.name}</h3>
+                <li key={p.id} className="hairline p-4">
+                  <h3 className="font-serif text-lg md:text-xl">{p.name}</h3>
                   <p className="text-xs text-mute">{p.age}</p>
                   <p className="mt-2 text-sm text-ink-soft">{p.summary}</p>
                   <p className="mt-3 text-xs text-mute">
@@ -526,10 +524,10 @@ export default function CampaignWorkspace() {
         <section className="flex flex-col gap-4">
           <SectionTitle
             kicker="Automated review + revision loop"
-            title="Why it was flagged — not just pass/fail"
+            title="Why it was flagged"
           />
           {latestAttempt ? (
-            <article className="hairline border-l-4 border-signal bg-surface p-5">
+            <article className="hairline border-l-4 border-signal p-4">
               <div className="flex flex-wrap items-center gap-2">
                 <span
                   className={cn(
@@ -591,7 +589,7 @@ export default function CampaignWorkspace() {
           ) : null}
 
           {campaign.complianceAttempts.length > 1 ? (
-            <div className="hairline bg-surface p-4">
+            <div className="hairline p-4">
               <p className="text-[11px] uppercase tracking-wider text-mute">
                 Revision trail (every submitted version is retained)
               </p>
@@ -610,7 +608,7 @@ export default function CampaignWorkspace() {
             <p className="text-sm text-mute">No reports yet.</p>
           ) : (
             [...campaign.complianceReports].reverse().map((r) => (
-              <article key={r.id} className="hairline bg-surface p-5">
+              <article key={r.id} className="hairline p-4">
                 <div className="flex flex-wrap items-center gap-2">
                   <RiskBadge risk={r.risk} />
                   <span className="text-xs uppercase tracking-wider text-mute">
@@ -638,7 +636,7 @@ export default function CampaignWorkspace() {
       ) : null}
 
       {tab === "channels" ? (
-        <section className="flex flex-col gap-6">
+        <section className="flex flex-col gap-4">
           <SectionTitle kicker="Media manager" title="Adapt, schedule, distribute" />
           {campaign.adaptations.length === 0 ? (
             <p className="text-sm text-mute">
@@ -648,9 +646,9 @@ export default function CampaignWorkspace() {
           ) : (
             <ul className="grid gap-3">
               {campaign.adaptations.map((a) => (
-                <li key={a.channel} className="hairline bg-surface p-4">
+                <li key={a.channel} className="hairline p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h3 className="font-serif text-xl">{channelLabel[a.channel]}</h3>
+                    <h3 className="font-serif text-lg md:text-xl">{channelLabel[a.channel]}</h3>
                     <span className="text-xs uppercase tracking-wider text-signal">{a.postingTime}</span>
                   </div>
                   <p className="mt-2 font-medium">{a.headline}</p>
@@ -669,7 +667,7 @@ export default function CampaignWorkspace() {
               </h3>
               <ul className="mt-2 flex flex-col gap-2">
                 {campaign.channelVersions.map((v) => (
-                  <li key={v.id} className="hairline bg-surface p-3 text-sm">
+                  <li key={v.id} className="hairline p-3 text-sm">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-medium">{channelLabel[v.channel]}</span>
                       <span
@@ -708,7 +706,7 @@ export default function CampaignWorkspace() {
               </h3>
               <ul className="mt-2 flex flex-col gap-2">
                 {campaign.scheduleConflicts.map((c) => (
-                  <li key={c.id} className="hairline bg-surface p-3 text-sm">
+                  <li key={c.id} className="hairline p-3 text-sm">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="status-chip risk-mid">{c.kind.replace(/_/g, " ")}</span>
                       <span className="font-medium">{channelLabel[c.channel]}</span>
@@ -716,7 +714,7 @@ export default function CampaignWorkspace() {
                       {c.resolved ? (
                         <span className="status-chip risk-low">resolved</span>
                       ) : (
-                        <span className="status-chip status-wait">needs founder</span>
+                        <span className="status-chip status-wait">needs your input</span>
                       )}
                     </div>
                     <p className="mt-1 text-ink-soft">{c.detail}</p>
@@ -730,7 +728,7 @@ export default function CampaignWorkspace() {
                             note || "Accepted as-is by the founder.",
                           )
                         }
-                        className="mt-2 rounded-full border border-ink px-3 py-1 text-xs"
+                        className="mt-2 rounded-full border border-line font-medium hover:bg-paper-2 px-3 py-1 text-xs"
                       >
                         Accept and continue
                       </button>
@@ -762,7 +760,7 @@ export default function CampaignWorkspace() {
             <button
               type="button"
               onClick={() => setTab("feedback")}
-              className="hairline bg-ink p-5 text-left text-paper"
+              className="hairline bg-ink p-4 text-left text-paper"
             >
               <p className="text-[11px] uppercase tracking-[0.16em] text-signal">
                 Feedback loop — open the results
@@ -779,17 +777,17 @@ export default function CampaignWorkspace() {
       ) : null}
 
       {tab === "feedback" ? (
-        <section className="flex flex-col gap-6">
+        <section className="flex flex-col gap-4">
           <SectionTitle
             kicker="AHR-06 · performance"
-            title="What actually ran, and what it supports"
+            title="What ran, and what it tells us"
             aside={
               campaign.status === "published" ? (
                 <button
                   type="button"
                   disabled={busy}
                   onClick={() => void collectFeedback(campaign.id)}
-                  className="rounded-full border border-ink px-3 py-1.5 text-sm disabled:opacity-50"
+                  className="rounded-full border border-line font-medium hover:bg-paper-2 px-3 py-1.5 text-sm disabled:opacity-50"
                 >
                   {campaign.performanceReport ? "Collect again" : "Collect results"}
                 </button>
@@ -841,7 +839,7 @@ export default function CampaignWorkspace() {
                 />
               </div>
 
-              <div className="hairline bg-surface p-5">
+              <div className="hairline p-4">
                 <p className="text-[11px] uppercase tracking-wider text-mute">Summary</p>
                 <p className="mt-2 text-sm leading-relaxed">{campaign.performanceReport.summary}</p>
               </div>
@@ -852,7 +850,7 @@ export default function CampaignWorkspace() {
                 </h3>
                 <ul className="mt-2 flex flex-col gap-2">
                   {campaign.performanceReport.results.map((r) => (
-                    <li key={r.channel} className="hairline bg-surface p-3 text-sm">
+                    <li key={r.channel} className="hairline p-3 text-sm">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-medium">{channelLabel[r.channel]}</span>
                         <span
@@ -884,7 +882,7 @@ export default function CampaignWorkspace() {
                 </ul>
               </div>
 
-              <div className="hairline bg-surface p-5">
+              <div className="hairline p-4">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="text-[11px] uppercase tracking-wider text-mute">
                     Next-campaign recommendation
@@ -939,7 +937,7 @@ export default function CampaignWorkspace() {
                       value={recommendText}
                       onChange={(e) => setRecommendationDraft(e.target.value)}
                       rows={3}
-                      className="w-full border border-line px-3 py-2 text-sm outline-none focus:border-ink"
+                      className="w-full border border-line px-3 py-2 text-sm outline-none focus:border-signal"
                     />
                     <div className="mt-2 flex flex-wrap gap-2">
                       <button
@@ -948,7 +946,7 @@ export default function CampaignWorkspace() {
                         onClick={() =>
                           void decideRecommendation(campaign.id, "accepted", recommendText)
                         }
-                        className="rounded-full bg-ink px-4 py-2 text-sm text-paper disabled:opacity-50"
+                        className="rounded-full btn-primary px-4 py-2 text-sm font-medium disabled:opacity-50"
                       >
                         Accept
                       </button>
@@ -958,7 +956,7 @@ export default function CampaignWorkspace() {
                         onClick={() =>
                           void decideRecommendation(campaign.id, "edited", recommendText)
                         }
-                        className="rounded-full border border-ink px-4 py-2 text-sm disabled:opacity-50"
+                        className="rounded-full border border-line px-4 py-2 text-sm font-medium hover:bg-paper-2 disabled:opacity-50"
                       >
                         Save edit
                       </button>
@@ -984,10 +982,10 @@ export default function CampaignWorkspace() {
       ) : null}
 
       {tab === "runtime" ? (
-        <section className="flex flex-col gap-6">
+        <section className="flex flex-col gap-4">
           <SectionTitle
             kicker="Agent bench"
-            title="What the agents did, what they were allowed to do"
+            title="What the agents did, and what they were allowed to do"
           />
 
           <div className="grid gap-3 sm:grid-cols-4">
@@ -1014,7 +1012,7 @@ export default function CampaignWorkspace() {
           </div>
 
           {run?.awaiting ? (
-            <div className="hairline border-l-4 border-signal bg-surface p-4 text-sm">
+            <div className="hairline border-l-4 border-signal p-4 text-sm">
               <p className="text-[11px] uppercase tracking-wider text-signal">
                 Waiting on {run.awaiting.replace(/_/g, " ")}
               </p>
@@ -1029,7 +1027,7 @@ export default function CampaignWorkspace() {
             ) : (
               <ol className="mt-2 flex flex-col gap-2">
                 {campaign.runSteps.map((step) => (
-                  <li key={step.id} className="hairline flex flex-wrap items-baseline gap-x-3 bg-surface p-3 text-sm">
+                  <li key={step.id} className="hairline flex flex-wrap items-baseline gap-x-3 p-3 text-sm">
                     <span
                       className={cn(
                         "status-chip",
@@ -1060,7 +1058,7 @@ export default function CampaignWorkspace() {
             ) : (
               <ul className="mt-2 flex flex-col gap-2">
                 {[...campaign.policyDecisions].reverse().map((d) => (
-                  <li key={d.id} className="hairline bg-surface p-3 text-sm">
+                  <li key={d.id} className="hairline p-3 text-sm">
                     <div className="flex flex-wrap items-center gap-2">
                       <span
                         className={cn(
@@ -1132,7 +1130,7 @@ export default function CampaignWorkspace() {
             ) : (
               <ul className="mt-2 flex flex-col gap-2 text-sm">
                 {[...campaign.toolCalls].reverse().map((t) => (
-                  <li key={t.id} className="hairline bg-surface p-3">
+                  <li key={t.id} className="hairline p-3">
                     <div className="flex flex-wrap items-center gap-2">
                       <span
                         className={cn(

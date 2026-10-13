@@ -16,6 +16,7 @@ import { getLlmOrDefault } from "@/lib/llm/catalog";
 import type { CompleteResult } from "@/lib/llm/types";
 import type { AgentSlot } from "@/lib/llm/types";
 import type { CompleteRequest } from "@/lib/llm/types";
+import { guidelinesPrompt } from "@/lib/guidelines";
 import type { WorkspaceSettings } from "@/lib/settings";
 import type { BrandProfile, Campaign, Channel } from "@/lib/types";
 import type { ChannelResult, ComplianceIssue, RecommendationPoint } from "./types";
@@ -191,6 +192,7 @@ export async function decideCopy(input: {
     brief ? `Claims allowed: ${brief.claimsAllowed.join(", ")}.` : "",
     `Never use these banned terms: ${input.brand.bannedTerms.join(", ")}.`,
     `Brand tone: ${input.brand.tone}`,
+    guidelinesPrompt(input.brand),
     input.version > 1
       ? `This is revision ${input.version}. Compliance returned the last draft with: ${input.complianceNotes.join(" | ") || "no notes"}. Fix exactly those problems and keep the angle.`
       : "",
@@ -263,6 +265,7 @@ export async function decideCompliance(input: {
     `Brand banned terms: ${input.brand.bannedTerms.join(", ")}.`,
     `Brand approved terms: ${input.brand.approvedTerms.join(", ")}.`,
     `Channels: ${input.campaign.channels.join(", ")}. Audience: ${input.campaign.targetAudience}.`,
+    guidelinesPrompt(input.brand),
     "",
     "Advertisement under review:",
     input.copy,

@@ -43,7 +43,7 @@ export const agentRole: Record<AgentId, string> = {
   creative: "Creative studio",
   compliance: "Legal & brand risk",
   media: "Distribution",
-  intake: "WhatsApp and inbound briefs",
+  intake: "Inbound briefs",
 };
 
 export const channelLabel: Record<Channel, string> = {

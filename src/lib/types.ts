@@ -287,6 +287,18 @@ export type Campaign = CampaignInput & {
   validationProblems: { field: string; message: string; clause: string }[];
 };
 
+/** A brand-guideline document the founder uploaded; only its extracted text is kept. */
+export type GuidelineDoc = {
+  id: string;
+  name: string;
+  /** Size of the original upload in bytes. */
+  size: number;
+  uploadedAt: string;
+  text: string;
+  /** True when the document was longer than we store and the text was cut. */
+  truncated: boolean;
+};
+
 export type BrandProfile = {
   retailerName: string;
   tagline: string;
@@ -294,6 +306,13 @@ export type BrandProfile = {
   visualStyle: string;
   approvedTerms: string[];
   bannedTerms: string[];
-  colors: { ink: string; paper: string; signal: string };
+  /** Path or URL of the brand logo. */
+  logoUrl?: string;
+  /** Public website of the brand. */
+  website?: string;
+  about?: string;
+  colors: { ink: string; paper: string; signal: string; accent?: string; deep?: string };
   countryRules: Record<Country, string>;
+  /** Uploaded guideline documents the agents must follow. Absent on older workspaces. */
+  guidelines?: GuidelineDoc[];
 };
