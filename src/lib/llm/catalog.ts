@@ -1,16 +1,46 @@
 import type { AgentSlot, LlmModel, LlmProviderId } from "./types";
 
+/** Every cloud call is capped, so its worst-case cost (and credit hold) is known up front. */
+const OPENAI_MAX_OUTPUT = 2000;
+/**
+ * Claude 5.x thinking counts toward `max_tokens`. At effort "low" a decision
+ * thinks briefly and answers in a few hundred tokens, so 3,000 leaves room for
+ * the JSON while keeping the credit hold near 7 (Sonnet) / 13 (Opus) credits.
+ */
+const ANTHROPIC_MAX_OUTPUT = 3000;
+/** gpt-5, gpt-5-mini and o3 have one snapshot each, all on OpenAI's deprecation list. */
+const OPENAI_GPT5_SUNSET = "2026-12-11";
+
 export const LLM_PROVIDERS: { id: LlmProviderId; name: string; blurb: string }[] = [
-  { id: "local", name: "Local", blurb: "Ollama, LM Studio, or any OpenAI-compatible server. $0 API bill." },
-  { id: "openai", name: "OpenAI", blurb: "GPT family via api.openai.com." },
-  { id: "anthropic", name: "Claude", blurb: "Anthropic Messages API." },
-  { id: "cursor", name: "Cursor", blurb: "Cursor API / cloud agent gateway." },
+  {
+    id: "local",
+    name: "Local",
+    blurb: "Qwen3.8 on MTPLX by default; Ollama or LM Studio through Custom tag. Free, never uses credits.",
+  },
+  { id: "openai", name: "OpenAI", blurb: "GPT family on Aisle's OpenAI key, paid in credits." },
+  { id: "anthropic", name: "Claude", blurb: "Anthropic Messages API on Aisle's key, paid in credits." },
 ];
 
-/** Providers offered in Settings. Cursor stays in the catalog (so saved assignments still resolve) but has no gateway yet. */
-export const OFFERED_LLM_PROVIDERS: LlmProviderId[] = ["local", "openai", "anthropic"];
+/** Shown greyed out in pickers so nobody wonders where they went. */
+export const UNAVAILABLE_LLM_PROVIDERS: { id: string; name: string; reason: string }[] = [
+  { id: "cursor", name: "Cursor", reason: "Cursor has no public completions API, so Aisle cannot call it." },
+];
 
 export const LLM_MODELS: LlmModel[] = [
+  {
+    id: "local:qwen3.8-mtplx",
+    providerId: "local",
+    provider: "Local",
+    name: "Qwen3.8 Flash-Next",
+    apiModel: "mtplx-flash-next-optimized-speed",
+    blurb: "Qwen 3.8 Flash-Next served by MTPLX on this Mac.",
+    bestFor: "Agentic reasoning and code",
+    envKeys: ["LOCAL_LLM_BASE_URL"],
+    endpoint: "/chat/completions",
+    estimateLabel: "$0 / call",
+    billing: { inputPerM: 0, outputPerM: 0 },
+    notes: "MTPLX · mtplx quickstart --port 8000",
+  },
   {
     id: "local:llama3.3",
     providerId: "local",
@@ -78,6 +108,55 @@ export const LLM_MODELS: LlmModel[] = [
     notes: "Uses the model name field on Settings",
   },
   {
+    id: "openai:gpt-6.1-sol",
+    providerId: "openai",
+    provider: "OpenAI",
+    name: "GPT-6.1 Sol",
+    apiModel: "gpt-6.1-sol",
+    blurb: "Current mid-size GPT-6. Strong reasoning at an everyday price.",
+    bestFor: "Default for every seat",
+    envKeys: ["OPENAI_API_KEY"],
+    endpoint: "/chat/completions",
+    estimateLabel: "~$0.017 / call",
+    billing: { inputPerM: 2, outputPerM: 10 },
+    maxOutputTokens: OPENAI_MAX_OUTPUT,
+    reasoning: true,
+    // Sol rejects reasoning_effort "none" and "minimal"; "low" is its floor.
+    effort: "low",
+  },
+  {
+    id: "openai:gpt-6-astra",
+    providerId: "openai",
+    provider: "OpenAI",
+    name: "GPT-6 Astra",
+    apiModel: "gpt-6-astra",
+    blurb: "OpenAI's flagship. Deepest reasoning, five times Sol's price.",
+    bestFor: "Hero campaigns, legally close claims",
+    envKeys: ["OPENAI_API_KEY"],
+    endpoint: "/chat/completions",
+    estimateLabel: "~$0.087 / call",
+    billing: { inputPerM: 10, outputPerM: 50 },
+    maxOutputTokens: OPENAI_MAX_OUTPUT,
+    reasoning: true,
+    effort: "low",
+  },
+  {
+    id: "openai:gpt-6-luna",
+    providerId: "openai",
+    provider: "OpenAI",
+    name: "GPT-6 Luna",
+    apiModel: "gpt-6-luna",
+    blurb: "Current small GPT-6. Cheapest cloud brain, with light reasoning.",
+    bestFor: "Whole-bench volume on credits",
+    envKeys: ["OPENAI_API_KEY"],
+    endpoint: "/chat/completions",
+    estimateLabel: "~$0.001 / call",
+    billing: { inputPerM: 0.1, outputPerM: 0.5 },
+    maxOutputTokens: OPENAI_MAX_OUTPUT,
+    reasoning: true,
+    effort: "low",
+  },
+  {
     id: "openai:gpt-5",
     providerId: "openai",
     provider: "OpenAI",
@@ -86,9 +165,14 @@ export const LLM_MODELS: LlmModel[] = [
     blurb: "Flagship reasoning for briefs and tricky compliance.",
     bestFor: "Hero campaigns",
     envKeys: ["OPENAI_API_KEY"],
-    endpoint: "https://api.openai.com/v1/chat/completions",
-    estimateLabel: "~$0.007 / call",
+    endpoint: "/chat/completions",
+    estimateLabel: "~$0.017 / call",
     billing: { inputPerM: 1.25, outputPerM: 10 },
+    maxOutputTokens: OPENAI_MAX_OUTPUT,
+    reasoning: true,
+    effort: "low",
+    sunset: OPENAI_GPT5_SUNSET,
+    notes: `Retires ${OPENAI_GPT5_SUNSET}`,
   },
   {
     id: "openai:gpt-5-mini",
@@ -96,12 +180,17 @@ export const LLM_MODELS: LlmModel[] = [
     provider: "OpenAI",
     name: "GPT-5 mini",
     apiModel: "gpt-5-mini",
-    blurb: "Cheap enough to run the whole bench.",
-    bestFor: "Default company brain",
+    blurb: "Cheap reasoning. GPT-6 Luna is cheaper and current.",
+    bestFor: "Budget reasoning",
     envKeys: ["OPENAI_API_KEY"],
-    endpoint: "https://api.openai.com/v1/chat/completions",
-    estimateLabel: "~$0.001 / call",
+    endpoint: "/chat/completions",
+    estimateLabel: "~$0.003 / call",
     billing: { inputPerM: 0.25, outputPerM: 2 },
+    maxOutputTokens: OPENAI_MAX_OUTPUT,
+    reasoning: true,
+    effort: "low",
+    sunset: OPENAI_GPT5_SUNSET,
+    notes: `Retires ${OPENAI_GPT5_SUNSET}`,
   },
   {
     id: "openai:gpt-4.1",
@@ -112,9 +201,10 @@ export const LLM_MODELS: LlmModel[] = [
     blurb: "Long-context workhorse. Strong instruction following.",
     bestFor: "Media adaptations",
     envKeys: ["OPENAI_API_KEY"],
-    endpoint: "https://api.openai.com/v1/chat/completions",
-    estimateLabel: "~$0.006 / call",
+    endpoint: "/chat/completions",
+    estimateLabel: "~$0.008 / call",
     billing: { inputPerM: 2, outputPerM: 8 },
+    maxOutputTokens: OPENAI_MAX_OUTPUT,
   },
   {
     id: "openai:gpt-4.1-mini",
@@ -122,12 +212,13 @@ export const LLM_MODELS: LlmModel[] = [
     provider: "OpenAI",
     name: "GPT-4.1 mini",
     apiModel: "gpt-4.1-mini",
-    blurb: "Fast, cheap, good JSON. Sensible default.",
+    blurb: "Fast, cheap, good JSON, no reasoning.",
     bestFor: "Trend + copy volume",
     envKeys: ["OPENAI_API_KEY"],
-    endpoint: "https://api.openai.com/v1/chat/completions",
-    estimateLabel: "~$0.001 / call",
+    endpoint: "/chat/completions",
+    estimateLabel: "~$0.002 / call",
     billing: { inputPerM: 0.4, outputPerM: 1.6 },
+    maxOutputTokens: OPENAI_MAX_OUTPUT,
   },
   {
     id: "openai:o3",
@@ -138,111 +229,88 @@ export const LLM_MODELS: LlmModel[] = [
     blurb: "Heavier reasoning. Use when a claim is legally close.",
     bestFor: "Compliance edge cases",
     envKeys: ["OPENAI_API_KEY"],
-    endpoint: "https://api.openai.com/v1/chat/completions",
-    estimateLabel: "~$0.006 / call",
+    endpoint: "/chat/completions",
+    estimateLabel: "~$0.015 / call",
     billing: { inputPerM: 2, outputPerM: 8 },
+    maxOutputTokens: OPENAI_MAX_OUTPUT,
+    reasoning: true,
+    effort: "low",
+    sunset: OPENAI_GPT5_SUNSET,
+    notes: `Retires ${OPENAI_GPT5_SUNSET}`,
   },
   {
-    id: "anthropic:claude-opus-4.1",
+    id: "anthropic:claude-opus-5-5",
     providerId: "anthropic",
     provider: "Claude",
-    name: "Opus 4.1",
-    apiModel: "claude-opus-4-1",
-    blurb: "Highest-judgment Claude. Expensive, careful.",
+    name: "Opus 5.5",
+    apiModel: "claude-opus-5-5",
+    blurb: "Highest-judgment Claude. Always thinks; careful and pricier.",
     bestFor: "Compliance, founder-grade copy",
     envKeys: ["ANTHROPIC_API_KEY"],
-    endpoint: "https://api.anthropic.com/v1/messages",
-    estimateLabel: "~$0.048 / call",
-    billing: { inputPerM: 15, outputPerM: 75 },
+    endpoint: "/messages",
+    estimateLabel: "~$0.036 / call",
+    billing: { inputPerM: 4, outputPerM: 20 },
+    maxOutputTokens: ANTHROPIC_MAX_OUTPUT,
+    effort: "low",
   },
   {
-    id: "anthropic:claude-sonnet-4",
+    id: "anthropic:claude-sonnet-5-5",
     providerId: "anthropic",
     provider: "Claude",
-    name: "Sonnet 4",
-    apiModel: "claude-sonnet-4-0",
+    name: "Sonnet 5.5",
+    apiModel: "claude-sonnet-5-5",
     blurb: "Best everyday Claude. Strong at policy language.",
     bestFor: "Compliance + Trend",
     envKeys: ["ANTHROPIC_API_KEY"],
-    endpoint: "https://api.anthropic.com/v1/messages",
-    estimateLabel: "~$0.010 / call",
-    billing: { inputPerM: 3, outputPerM: 15 },
+    endpoint: "/messages",
+    estimateLabel: "~$0.018 / call",
+    billing: { inputPerM: 2, outputPerM: 10 },
+    maxOutputTokens: ANTHROPIC_MAX_OUTPUT,
+    effort: "low",
   },
   {
-    id: "anthropic:claude-haiku-3.5",
+    id: "anthropic:claude-haiku-4-5",
     providerId: "anthropic",
     provider: "Claude",
-    name: "Haiku 3.5",
-    apiModel: "claude-3-5-haiku-latest",
+    name: "Haiku 4.5",
+    apiModel: "claude-haiku-4-5",
     blurb: "Fast Claude for volume passes.",
     bestFor: "Media Manager rewrites",
     envKeys: ["ANTHROPIC_API_KEY"],
-    endpoint: "https://api.anthropic.com/v1/messages",
-    estimateLabel: "~$0.003 / call",
-    billing: { inputPerM: 0.8, outputPerM: 4 },
-  },
-  {
-    id: "cursor:composer",
-    providerId: "cursor",
-    provider: "Cursor",
-    name: "Composer",
-    apiModel: "composer-1",
-    blurb: "Cursor’s coding/planning model, used here as a company brain.",
-    bestFor: "Structured agent JSON",
-    envKeys: ["CURSOR_API_KEY"],
-    endpoint: "https://api.cursor.com/v1/chat/completions",
-    estimateLabel: "~$0.004 / call",
-    billing: { inputPerM: 1.25, outputPerM: 6 },
-    notes: "Wire the Cursor gateway in llm/adapters.ts",
-  },
-  {
-    id: "cursor:auto",
-    providerId: "cursor",
-    provider: "Cursor",
-    name: "Auto",
-    apiModel: "auto",
-    blurb: "Lets Cursor pick the underlying model.",
-    bestFor: "Default Cursor backend",
-    envKeys: ["CURSOR_API_KEY"],
-    endpoint: "https://api.cursor.com/v1/chat/completions",
-    estimateLabel: "~$0.006 / call",
-    billing: { inputPerM: 2, outputPerM: 8 },
-  },
-  {
-    id: "cursor:gpt-5",
-    providerId: "cursor",
-    provider: "Cursor",
-    name: "GPT-5 via Cursor",
-    apiModel: "gpt-5",
-    blurb: "OpenAI through Cursor usage, not a separate OpenAI key.",
-    bestFor: "When you already pay Cursor",
-    envKeys: ["CURSOR_API_KEY"],
-    endpoint: "https://api.cursor.com/v1/chat/completions",
-    estimateLabel: "~$0.008 / call",
-    billing: { inputPerM: 1.4, outputPerM: 11 },
-  },
-  {
-    id: "cursor:claude-sonnet-4",
-    providerId: "cursor",
-    provider: "Cursor",
-    name: "Sonnet 4 via Cursor",
-    apiModel: "claude-sonnet-4-0",
-    blurb: "Claude through Cursor usage.",
-    bestFor: "Compliance without a separate Anthropic key",
-    envKeys: ["CURSOR_API_KEY"],
-    endpoint: "https://api.cursor.com/v1/chat/completions",
-    estimateLabel: "~$0.011 / call",
-    billing: { inputPerM: 3.3, outputPerM: 16.5 },
+    endpoint: "/messages",
+    estimateLabel: "~$0.005 / call",
+    billing: { inputPerM: 1, outputPerM: 5 },
+    maxOutputTokens: ANTHROPIC_MAX_OUTPUT,
   },
 ];
 
-export const DEFAULT_LLM = "openai:gpt-4.1-mini";
+/** GPT-6.1 Sol: OpenAI's current recommended mid-size model (released 2026-04-30). */
+export const DEFAULT_LLM = "openai:gpt-6.1-sol";
+
+/** What `mtplx quickstart` serves: Qwen3.8 Flash-Next, Optimized Speed pack. */
+export const LOCAL_DEFAULT_LLM = "local:qwen3.8-mtplx";
 
 export const PROVIDER_DEFAULT_MODEL: Record<LlmProviderId, string> = {
-  local: "local:llama3.3",
-  openai: "openai:gpt-4.1-mini",
-  anthropic: "anthropic:claude-sonnet-4",
-  cursor: "cursor:composer",
+  local: LOCAL_DEFAULT_LLM,
+  openai: DEFAULT_LLM,
+  anthropic: "anthropic:claude-sonnet-5-5",
+};
+
+/**
+ * Ids saved by older builds, mapped to the direct model that replaces them, so
+ * a stored seat keeps its provider and price class instead of silently
+ * becoming the global default. Anthropic retired every 4.x id listed here;
+ * Cursor has no public completions API, so its seats move to the same model
+ * called directly.
+ */
+export const LLM_ALIASES: Record<string, string> = {
+  "anthropic:claude-opus-4.1": "anthropic:claude-opus-5-5",
+  "anthropic:claude-sonnet-4": "anthropic:claude-sonnet-5-5",
+  "anthropic:claude-haiku-3.5": "anthropic:claude-haiku-4-5",
+  "cursor:composer": DEFAULT_LLM,
+  "cursor:auto": DEFAULT_LLM,
+  "cursor:gpt-5": "openai:gpt-5",
+  "cursor:claude-sonnet-4": "anthropic:claude-sonnet-5-5",
 };
 
 export const AGENT_SLOTS: {
@@ -258,7 +326,7 @@ export const AGENT_SLOTS: {
   {
     id: "creative",
     label: "Image Generation",
-    help: "Copy and prompts. Ad pixels still use the image model below.",
+    help: "Copy and prompts. Poster pixels still use the image model below.",
   },
   {
     id: "compliance",
@@ -272,14 +340,34 @@ export const AGENT_SLOTS: {
   },
 ];
 
+/** The id a stored or requested model id refers to today. */
+export function canonicalLlmId(id: string | undefined): string | undefined {
+  if (!id) return id;
+  return LLM_ALIASES[id] ?? id;
+}
+
 export function getLlmModel(id: string): LlmModel {
-  const found = LLM_MODELS.find((m) => m.id === id);
+  const canonical = canonicalLlmId(id);
+  const found = LLM_MODELS.find((m) => m.id === canonical);
   if (!found) throw new Error(`Unknown LLM: ${id}`);
   return found;
 }
 
+export function findLlm(id: string | undefined): LlmModel | undefined {
+  const canonical = canonicalLlmId(id);
+  return LLM_MODELS.find((m) => m.id === canonical);
+}
+
+/**
+ * Unknown ids stay with their provider's default rather than jumping to
+ * another provider (and another price) without anyone choosing it.
+ */
 export function getLlmOrDefault(id: string | undefined): LlmModel {
-  return LLM_MODELS.find((m) => m.id === id) ?? getLlmModel(DEFAULT_LLM);
+  const found = findLlm(id);
+  if (found) return found;
+  const provider = id?.split(":")[0];
+  const fallback = LLM_PROVIDERS.find((p) => p.id === provider);
+  return getLlmModel(fallback ? PROVIDER_DEFAULT_MODEL[fallback.id] : DEFAULT_LLM);
 }
 
 export function llmsByProvider(providerId: LlmProviderId | "all") {
@@ -289,6 +377,7 @@ export function llmsByProvider(providerId: LlmProviderId | "all") {
 
 export function assignmentFor(provider: LlmProviderId, modelId?: string) {
   const models = llmsByProvider(provider);
-  const id = models.some((m) => m.id === modelId) ? modelId! : PROVIDER_DEFAULT_MODEL[provider];
+  const canonical = canonicalLlmId(modelId);
+  const id = models.some((m) => m.id === canonical) ? canonical! : PROVIDER_DEFAULT_MODEL[provider];
   return { provider, modelId: id };
 }

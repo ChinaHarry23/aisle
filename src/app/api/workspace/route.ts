@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/current";
 import { loadWorkspace, saveWorkspace, type WorkspaceSnapshot } from "@/lib/auth/workspace";
+import { workflowEnabled, mergeWorkflowCampaigns } from "@/lib/workflow/gateway";
 
 export const runtime = "nodejs";
 
@@ -8,6 +9,10 @@ export async function GET() {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
   const workspace = await loadWorkspace(user.id, user.role);
+  if (workflowEnabled()) {
+    try { return NextResponse.json({ ...workspace, ...await mergeWorkflowCampaigns(user.id, workspace.campaigns), workflow: true }); }
+    catch { return NextResponse.json({ error: "Workflow unavailable. Saved campaigns were not overwritten." }, { status: 503 }); }
+  }
   return NextResponse.json(workspace);
 }
 
@@ -16,6 +21,11 @@ export async function PUT(request: Request) {
   if (!user) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
   const body = (await request.json().catch(() => null)) as Partial<WorkspaceSnapshot> | null;
   if (!body) return NextResponse.json({ error: "Missing workspace." }, { status: 400 });
+  if (!Array.isArray(body.campaigns) || !body.brand || !body.settings) return NextResponse.json({ error: "Brand, campaigns and settings are required." }, { status: 400 });
+  if (workflowEnabled()) {
+    try { body.campaigns = (await mergeWorkflowCampaigns(user.id, body.campaigns)).campaigns; }
+    catch { return NextResponse.json({ error: "Workflow unavailable. Save refused to protect durable progress." }, { status: 503 }); }
+  }
   await saveWorkspace(user.id, {
     brand: body.brand as WorkspaceSnapshot["brand"],
     campaigns: body.campaigns as WorkspaceSnapshot["campaigns"],

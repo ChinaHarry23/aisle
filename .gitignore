@@ -40,6 +40,12 @@ yarn-error.log*
 # local auth db fallback
 /data
 
+# local render experiments (keep the workflow doc linked from README.md)
+/codex/*
+!/codex/ltx-2.5/
+/codex/ltx-2.5/*
+!/codex/ltx-2.5/STORY-AD-WORKFLOW.md
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

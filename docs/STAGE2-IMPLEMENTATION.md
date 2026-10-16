@@ -110,7 +110,7 @@ revise on rejection; escalate after three failed cycles.
   the allowed and banned terms, and — on revisions — the previous compliance
   corrections. It falls back to deterministic copy whenever no model is wired, so
   the loop is demonstrable with a fresh clone.
-- Every version is generated as two variants (A/B) with ad renderings, and the
+- Every version is generated as two variants (A/B) with poster renderings, and the
   draft is explicitly marked *unpublished, not sent to any distribution channel*.
 - Version numbering is the audit spine: v1 is written to carry unsupported claims
   so the revision loop is visible, v2+ are clean. `creativeVersion` on each
@@ -220,7 +220,7 @@ is bounded server-side, so the loop cannot spin.
 
 The engine is a pure function of `(workspace, campaign, command)`. That is what
 makes `npm run bench` possible: the same code path the browser exercises is
-driven directly in Node, with a stub model and a stub ad renderer, in about a
+driven directly in Node, with a stub model and a stub poster renderer, in about a
 second.
 
 ### "Advanced technologies" (Stage 2 criterion 4)

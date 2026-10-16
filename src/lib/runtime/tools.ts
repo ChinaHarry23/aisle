@@ -73,7 +73,7 @@ async function getJson<T>(url: string): Promise<{ ok: true; json: T } | { ok: fa
   }
 }
 
-function evidence(input: {
+export function toolEvidence(input: {
   claim: string;
   detail: string;
   sourceName: string;
@@ -155,7 +155,7 @@ export const internalRetailTool: ToolDefinition = {
         status: "skipped",
         data: null,
         evidence: [
-          evidence({
+          toolEvidence({
             claim: "Internal retail data not included",
             detail:
               "The retailer has not authorised internal retail data for this campaign, so POS and catalogue history were excluded from the analysis.",
@@ -180,14 +180,15 @@ export const internalRetailTool: ToolDefinition = {
     const s = retailSignal(campaign);
     const observedAt = at.slice(0, 10);
     return {
-      summary: `Category velocity +${s.lift}% for ${campaign.category}; basket attach +${s.attach}% over ${s.weeksTracked} weeks.`,
+      summary: `SIMULATED internal signals: category velocity +${s.lift}%, basket attach +${s.attach}%. Demonstration values, not measured POS data.`,
       status: "ok",
       data: s,
       evidence: [
-        evidence({
+        toolEvidence({
           claim: `${campaign.category} demand is running above last cycle`,
-          detail: `Weekly POS velocity for ${campaign.category} is +${s.lift}% against the same weeks last year, measured across ${s.weeksTracked} weeks of store data for ${campaign.country}.`,
-          sourceName: "Lane & Co. POS warehouse",
+          detail: `Synthetic demonstration: ${campaign.category} velocity +${s.lift}% over ${s.weeksTracked} fictional weeks. No POS warehouse was queried.`,
+          sourceName: "Simulated retail signals (not measured)",
+          status: "assumed",
           sourceRef: `internal://pos/${campaign.category.toLowerCase().replace(/\s+/g, "-")}/${observedAt}`,
           sourceKind: "internal_retail",
           observedAt,
@@ -196,10 +197,11 @@ export const internalRetailTool: ToolDefinition = {
           raisedBy: "trend",
           usedFor: "Demand signal",
         }),
-        evidence({
+        toolEvidence({
           claim: "Pairing lifts basket attach",
-          detail: `Catalogue history shows paired lines lifting attach rate by ${s.attach}% against hero-only covers.`,
-          sourceName: "Catalogue history",
+          detail: `Synthetic demonstration: paired lines lift attach by ${s.attach}%. No catalogue history was queried.`,
+          sourceName: "Simulated catalogue history (not measured)",
+          status: "assumed",
           sourceRef: `internal://catalogue/history/${observedAt}`,
           sourceKind: "internal_retail",
           observedAt,
@@ -239,7 +241,7 @@ export const marketContextTool: ToolDefinition = {
         status: "empty",
         data: null,
         evidence: [
-          evidence({
+          toolEvidence({
             claim: `No public reference retrieved for "${topic}"`,
             detail: `The public reference lookup failed (${result.reason}). No public record was used for this part of the brief.`,
             sourceName: "Wikipedia REST API",
@@ -282,7 +284,7 @@ export const marketContextTool: ToolDefinition = {
       status: "ok",
       data: { topic, extract, page, observedAt },
       evidence: [
-        evidence({
+        toolEvidence({
           claim: `Public reference: ${json.title ?? topic}`,
           detail: extract.slice(0, 420),
           sourceName: "Wikipedia REST API",
@@ -324,7 +326,7 @@ export const competitorScanTool: ToolDefinition = {
         status: "empty",
         data: null,
         evidence: [
-          evidence({
+          toolEvidence({
             claim: "Public competitor scan not completed",
             detail: `The public search endpoint did not answer (${result.reason}); no competitor pattern is claimed.`,
             sourceName: "DuckDuckGo Instant Answer API",
@@ -364,7 +366,7 @@ export const competitorScanTool: ToolDefinition = {
       status: related.length === 0 && !abstract ? "empty" : "ok",
       data: { abstract, related, hits, ref },
       evidence: [
-        evidence({
+        toolEvidence({
           claim: "Competitor/public promotion language in market",
           detail:
             (abstract || related.map((t) => `${t.Text} (${t.FirstURL})`).join(" · ")).slice(0, 420) ||
@@ -424,7 +426,7 @@ export const seasonWeatherTool: ToolDefinition = {
         status: "empty",
         data: null,
         evidence: [
-          evidence({
+          toolEvidence({
             claim: "Seasonal window not verified",
             detail: `The forecast endpoint did not answer (${result.reason}). Seasonal framing is an assumption, not a verified fact.`,
             sourceName: "Open-Meteo forecast API",
@@ -468,7 +470,7 @@ export const seasonWeatherTool: ToolDefinition = {
       status: "ok",
       data: { avgMax, avgMin, wetDays, start, end },
       evidence: [
-        evidence({
+        toolEvidence({
           claim: `Campaign-window conditions in ${c.label}`,
           detail: `Forecast for ${start}–${end}: daily maxima averaging ${avgMax.toFixed(1)}°C, minima ${avgMin.toFixed(1)}°C, ${wetDays} day(s) with ≥1 mm precipitation.`,
           sourceName: "Open-Meteo forecast API",
@@ -496,6 +498,10 @@ export const TOOL_REGISTRY: ToolDefinition[] = [
 
 export function toolByName(name: string): ToolDefinition | undefined {
   return TOOL_REGISTRY.find((t) => t.name === name);
+}
+
+export function toolsForAgent(agent: ToolAgent): ToolDefinition[] {
+  return TOOL_REGISTRY.filter((t) => t.agent === agent);
 }
 
 /** Channel behaviour is a documented assumption, not a measurement. */

@@ -1,708 +1,335 @@
 "use client";
 
-import { ModelTable, type ModelRow } from "@/components/settings/ModelTable";
-import { ProfileSection } from "@/components/settings/ProfileSection";
-import {
-  MediaKeyEditor,
-  ProviderRow,
-  WorkspaceKeyField,
-  type TestControl,
-} from "@/components/settings/ProviderRow";
-import { PageHeader } from "@/components/ui";
-import { cn } from "@/lib/cn";
-import {
-  canTest,
-  connectionState,
-  isConnected,
-  readDeviceKeys,
-  rowId,
-  testConnection,
-  type ConnectionKind,
-  type ConnectionState,
-  type ConnectionTestResult,
-  type ServerStatus,
-} from "@/lib/connections";
+import { LlmPicker, seatCostLabel } from "@/components/settings/LlmPicker";
+import { ModelPicker } from "@/components/studio/ModelPicker";
+import { BACKENDS, applyBackend, currentBackend, getBackend, type BackendId } from "@/lib/backends";
+import { creditsForCost } from "@/lib/billing/plan";
 import { formatUsd } from "@/lib/ids";
-import {
-  AGENT_SLOTS,
-  getLlmOrDefault,
-  LLM_MODELS,
-  LLM_PROVIDERS,
-  OFFERED_LLM_PROVIDERS,
-} from "@/lib/llm/catalog";
-import {
-  matchPreset,
-  PRESET_PROVIDERS,
-  presetAssignments,
-  PRESETS,
-  textCostPerRun,
-} from "@/lib/llm/presets";
-import type { AgentSlot, LlmProviderId } from "@/lib/llm/types";
-import { getByoKey } from "@/lib/media/byo-key";
-import {
-  ENABLED_IMAGE_PROVIDERS,
-  getModelOrDefault,
-  modelsOf,
-  PROVIDERS,
-} from "@/lib/media/catalog";
+import { AGENT_SLOTS, LLM_PROVIDERS, LOCAL_DEFAULT_LLM, UNAVAILABLE_LLM_PROVIDERS, getLlmOrDefault } from "@/lib/llm/catalog";
+import { campaignVideoDurations, getModel, getModelOrDefault, snapCampaignDuration } from "@/lib/media/catalog";
 import { quoteModel } from "@/lib/media/estimate";
-import type { MediaModel, ProviderId } from "@/lib/media/types";
 import { useAisle } from "@/lib/store";
-import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 
-const TABS = [
-  { id: "models", label: "Models" },
-  { id: "connections", label: "Connections" },
-  { id: "account", label: "Profile" },
-] as const;
-type TabId = (typeof TABS)[number]["id"];
-
-/* ---- Tab and deep link live in the URL hash: #connections or #connections/llm:openai ---- */
-
-function subscribeHash(onChange: () => void) {
-  window.addEventListener("hashchange", onChange);
-  return () => window.removeEventListener("hashchange", onChange);
-}
-
-function parseHash(hash: string): { tab: TabId; row: string | null } {
-  const [head, target] = hash.split("/");
-  const tab = TABS.find((t) => t.id === head)?.id ?? "models";
-  const [kind, provider] = (target ?? "").split(":");
-  const row = (kind === "llm" || kind === "image") && provider ? rowId(kind, provider) : null;
-  return { tab, row };
-}
-
-/* ---- Shared connection state, read by both tabs ---- */
-
-type Conn = {
-  /** False until the server status and device keys have loaded, so we never flash "Not connected". */
-  ready: boolean;
-  stateOf: (kind: ConnectionKind, providerId: string) => ConnectionState;
-  /** True when a step using this provider can be expected to work (or we do not know yet). */
-  ok: (kind: ConnectionKind, providerId: string) => boolean;
-  goConnect: (kind: ConnectionKind, providerId: string) => void;
+type KeyStatus = {
+  llm: Record<string, boolean>;
+  media: Record<string, boolean>;
+  runtime?: { localBase: string; localModel: string | null; comfy: boolean };
 };
 
-const IMAGE_PROVIDER_IDS = PROVIDERS.filter((p) => ENABLED_IMAGE_PROVIDERS.includes(p.id)).map((p) => p.id);
+// Stray whitespace is trimmed by the adapter too, so it is not a mismatch.
+const trimUrl = (url: string) => url.trim().replace(/\/$/, "");
+const hostOf = (url: string) => trimUrl(url).replace(/^https?:\/\//, "").replace(/\/v1$/, "");
 
-function mediaRows(kind: MediaModel["kind"], conn: Conn): ModelRow[] {
-  return modelsOf(kind).map((m) => ({
-    id: m.id,
-    name: m.name,
-    providerId: m.providerId,
-    provider: m.provider,
-    bestFor: m.bestFor,
-    cost: m.estimateLabel,
-    connected: conn.ok("image", m.providerId),
-    note: m.notes,
-  }));
-}
-
-function Section({
-  title,
-  description,
-  children,
-}: {
-  title: string;
-  description: string;
-  children: ReactNode;
-}) {
-  return (
-    <section className="flex flex-col gap-4">
-      <div>
-        <h2 className="font-serif text-lg">{title}</h2>
-        <p className="mt-1 text-sm text-ink-soft">{description}</p>
-      </div>
-      {children}
-    </section>
-  );
-}
-
-function Disclosure({
-  title,
-  description,
-  children,
-}: {
-  title: string;
-  description: string;
-  children: ReactNode;
-}) {
-  return (
-    <details className="group hairline">
-      <summary className="flex cursor-pointer list-none items-start justify-between gap-4 px-4 py-3">
-        <span>
-          <span className="block text-sm font-semibold">{title}</span>
-          <span className="block text-xs text-mute">{description}</span>
-        </span>
-        <span aria-hidden className="mt-0.5 text-xs text-mute transition group-open:rotate-90">
-          ▸
-        </span>
-      </summary>
-      <div className="border-t border-line">{children}</div>
-    </details>
-  );
-}
-
-function ConnectLink({ conn, kind, providerId, name }: { conn: Conn; kind: ConnectionKind; providerId: string; name: string }) {
-  return (
-    <button
-      type="button"
-      onClick={() => conn.goConnect(kind, providerId)}
-      className="font-medium text-signal underline-offset-2 hover:underline"
-    >
-      Connect {name}
-    </button>
-  );
-}
-
-/* ------------------------------ Models tab ------------------------------ */
-
-function ModelsTab({ conn }: { conn: Conn }) {
-  const settings = useAisle((s) => s.settings);
-  const updateSettings = useAisle((s) => s.updateSettings);
-  const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [pickedProvider, setPickedProvider] = useState<LlmProviderId | null>(null);
-
-  const imageRows = useMemo(() => mediaRows("image", conn), [conn]);
-  const image = getModelOrDefault(settings.imageModelId, "image");
-  const imageProviderName = PROVIDERS.find((p) => p.id === image.providerId)?.name ?? image.provider;
-
-  const presetProvider: LlmProviderId =
-    pickedProvider ??
-    (PRESET_PROVIDERS.includes(settings.agents.trend.provider) ? settings.agents.trend.provider : "openai");
-  const activePreset = matchPreset(presetProvider, settings.agents);
-  const presetProviderOk = conn.ok("llm", presetProvider);
-  const presetProviderName = LLM_PROVIDERS.find((p) => p.id === presetProvider)?.name ?? presetProvider;
-
-  const textCost = textCostPerRun(settings.agents);
-  const imageCost = quoteModel(image.id).costUsd;
-
-  return (
-    <div className="flex flex-col gap-10">
-      <div className="hairline flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 px-4 py-3">
-        <p className="text-sm">
-          <span className="text-ink-soft">Estimated cost per campaign </span>
-          <strong className="tabular-nums">~{formatUsd(textCost + imageCost)}</strong>
-        </p>
-        <p className="text-xs text-mute">
-          Text agents {formatUsd(textCost)} + one image {formatUsd(imageCost)}. One call per agent; real usage varies.
-        </p>
-      </div>
-
-      <Section
-        title="Image generation"
-        description="Creates the ad visuals. Estimates are per ad."
-      >
-        <ModelTable
-          label="Image generation model"
-          rows={imageRows}
-          value={image.id}
-          onChange={(id) => updateSettings({ imageModelId: id })}
-        />
-        {!conn.ok("image", image.providerId) ? (
-          <p className="text-sm text-ink-soft">
-            {imageProviderName} isn&rsquo;t connected.{" "}
-            <ConnectLink conn={conn} kind="image" providerId={image.providerId} name={imageProviderName} />
-          </p>
-        ) : null}
-      </Section>
-
-      <Section
-        title="Agent assignments"
-        description="The language model behind each agent in the campaign pipeline. Pick a preset, or fine-tune each agent under Advanced."
-      >
-        <div className="hairline flex flex-col gap-4 p-4">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-            <label htmlFor="preset-provider" className="text-xs font-medium text-ink-soft">
-              Provider
-            </label>
-            <select
-              id="preset-provider"
-              value={presetProvider}
-              onChange={(e) => setPickedProvider(e.target.value as LlmProviderId)}
-              className="border px-3 py-1.5 text-sm"
-            >
-              {PRESET_PROVIDERS.filter((p) => OFFERED_LLM_PROVIDERS.includes(p)).map((p) => (
-                <option key={p} value={p}>
-                  {LLM_PROVIDERS.find((x) => x.id === p)?.name}
-                  {conn.ok("llm", p) ? "" : " (not connected)"}
-                </option>
-              ))}
-            </select>
-            {!presetProviderOk ? (
-              <span className="text-xs text-ink-soft">
-                <ConnectLink conn={conn} kind="llm" providerId={presetProvider} name={presetProviderName} /> to use
-                presets.
-              </span>
-            ) : null}
-          </div>
-
-          <div role="radiogroup" aria-label="Model preset" className="grid gap-2 md:grid-cols-3">
-            {PRESETS.map((p) => {
-              const next = presetAssignments(presetProvider, p.id);
-              const selected = activePreset === p.id;
-              return (
-                <button
-                  key={p.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={selected}
-                  disabled={!presetProviderOk || !next}
-                  onClick={() => next && updateSettings({ agents: next })}
-                  className={cn(
-                    "flex flex-col gap-1 rounded-[var(--r-card)] border px-3 py-3 text-left transition disabled:opacity-50",
-                    selected ? "border-signal bg-signal-soft" : "border-line bg-surface hover:bg-paper-2",
-                  )}
-                >
-                  <span className="flex items-baseline justify-between gap-2">
-                    <span className="text-sm font-semibold">{p.label}</span>
-                    {next ? (
-                      <span className="text-xs tabular-nums text-ink-soft">~{formatUsd(textCostPerRun(next))}</span>
-                    ) : null}
-                  </span>
-                  <span className="text-xs text-mute">{p.help}</span>
-                </button>
-              );
-            })}
-          </div>
-          <p className="text-xs text-mute">
-            {activePreset ? `Using the ${PRESETS.find((p) => p.id === activePreset)?.label} preset.` : "Custom mix of models."}{" "}
-            Text cost per campaign is shown on each preset.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          aria-expanded={advancedOpen}
-          onClick={() => setAdvancedOpen((o) => !o)}
-          className="self-start text-sm font-medium text-signal underline-offset-2 hover:underline"
-        >
-          {advancedOpen ? "Hide advanced" : "Advanced: choose a model per agent"}
-        </button>
-
-        {advancedOpen ? (
-          <div className="hairline divide-y divide-line">
-            {AGENT_SLOTS.map((slot) => {
-              const assigned = getLlmOrDefault(settings.agents[slot.id].modelId);
-              const connected = conn.ok("llm", assigned.providerId);
-              const providerName = LLM_PROVIDERS.find((p) => p.id === assigned.providerId)?.name ?? assigned.provider;
-              const groups = LLM_PROVIDERS.filter(
-                (p) => OFFERED_LLM_PROVIDERS.includes(p.id) || p.id === assigned.providerId,
-              );
-              return (
-                <div
-                  key={slot.id}
-                  className="flex flex-col gap-3 px-4 py-4 md:grid md:grid-cols-[1fr_20rem] md:items-start md:gap-6"
-                >
-                  <div>
-                    <label htmlFor={`agent-${slot.id}`} className="text-sm font-semibold">
-                      {slot.label}
-                    </label>
-                    <p className="text-xs text-mute">{slot.help}</p>
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <select
-                      id={`agent-${slot.id}`}
-                      value={assigned.id}
-                      onChange={(e) => {
-                        const next = getLlmOrDefault(e.target.value);
-                        updateSettings({
-                          agents: {
-                            ...settings.agents,
-                            [slot.id as AgentSlot]: { provider: next.providerId, modelId: next.id },
-                          },
-                        });
-                      }}
-                      className="w-full border px-3 py-2 text-sm"
-                    >
-                      {groups.map((p) => {
-                        const groupOk = conn.ok("llm", p.id);
-                        return (
-                          <optgroup key={p.id} label={groupOk ? p.name : `${p.name} (not connected)`}>
-                            {LLM_MODELS.filter((m) => m.providerId === p.id).map((m) => (
-                              <option key={m.id} value={m.id} disabled={!groupOk && m.id !== assigned.id}>
-                                {m.name} · {m.estimateLabel}
-                              </option>
-                            ))}
-                          </optgroup>
-                        );
-                      })}
-                    </select>
-                    <p className="text-xs text-mute">
-                      {assigned.bestFor}
-                    </p>
-                    {!connected ? (
-                      <p className="text-xs text-ink-soft">
-                        {providerName} isn&rsquo;t connected.{" "}
-                        <ConnectLink conn={conn} kind="llm" providerId={assigned.providerId} name={providerName} />
-                      </p>
-                    ) : null}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : null}
-      </Section>
-    </div>
-  );
-}
-
-/* ---------------------------- Connections tab ---------------------------- */
-
-type TestState = { busy: boolean; result: ConnectionTestResult | null };
-
-function ConnectionsTab({
-  conn,
-  status,
-  setDeviceKey,
-  highlightRow,
-}: {
-  conn: Conn;
-  status: ServerStatus | null;
-  setDeviceKey: (provider: ProviderId, has: boolean) => void;
-  highlightRow: string | null;
-}) {
-  const settings = useAisle((s) => s.settings);
-  const updateSettings = useAisle((s) => s.updateSettings);
-  const [tests, setTests] = useState<Record<string, TestState>>({});
-
-  const [baseUrl, setBaseUrl] = useState(settings.localBaseUrl);
-  const [localModel, setLocalModel] = useState(settings.localModel);
-  const [justSaved, setJustSaved] = useState(false);
-  const endpointDirty = baseUrl.trim() !== settings.localBaseUrl || localModel.trim() !== settings.localModel;
-  const customInUse = AGENT_SLOTS.some((s) => settings.agents[s.id].modelId === "local:custom");
-
-  const imageProviders = PROVIDERS.filter((p) => ENABLED_IMAGE_PROVIDERS.includes(p.id));
-  const textProviders = LLM_PROVIDERS.filter((p) => OFFERED_LLM_PROVIDERS.includes(p.id) && p.id !== "local");
-  const planned = [
-    ...LLM_PROVIDERS.filter((p) => !OFFERED_LLM_PROVIDERS.includes(p.id)).map((p) => p.name),
-    ...PROVIDERS.filter((p) => !ENABLED_IMAGE_PROVIDERS.includes(p.id)).map((p) => p.name),
-  ].filter((name, i, all) => all.indexOf(name) === i);
-
-  function agentsUsingLlm(providerId: string) {
-    return AGENT_SLOTS.filter((s) => settings.agents[s.id].provider === providerId).map((s) => s.label);
-  }
-  function imageUsedBy(providerId: string) {
-    return getModelOrDefault(settings.imageModelId, "image").providerId === providerId ? ["Image generation"] : [];
-  }
-
-  function runTest(
-    id: string,
-    kind: ConnectionKind,
-    providerId: string,
-    opts: { key?: string; baseUrl?: string } = {},
-  ) {
-    setTests((t) => ({ ...t, [id]: { busy: true, result: null } }));
-    void testConnection(kind, providerId, opts).then((result) =>
-      setTests((t) => ({ ...t, [id]: { busy: false, result } })),
-    );
-  }
-
-  function controlFor(
-    kind: ConnectionKind,
-    providerId: string,
-    opts: () => { key?: string; baseUrl?: string } = () => ({}),
-  ): TestControl | undefined {
-    if (!canTest(kind, providerId)) return undefined;
-    const id = rowId(kind, providerId);
-    return {
-      busy: tests[id]?.busy ?? false,
-      result: tests[id]?.result ?? null,
-      onRun: () => runTest(id, kind, providerId, opts()),
-    };
-  }
-
-  const localTest = controlFor("llm", "local", () => ({ baseUrl: baseUrl.trim() }));
-
-  return (
-    <div className="flex flex-col gap-10">
-      <Section
-        title="Image providers"
-        description="Add your own key to use a provider. Your keys stay in this browser and are never stored on our servers."
-      >
-        <div className="hairline divide-y divide-line">
-          {imageProviders.map((p) => {
-            const id = rowId("image", p.id);
-            const state = conn.stateOf("image", p.id);
-            return (
-              <ProviderRow
-                key={id}
-                id={id}
-                name={p.name}
-                kinds="Image"
-                state={state}
-                usedBy={imageUsedBy(p.id)}
-                highlighted={highlightRow === id}
-                test={controlFor("image", p.id, () => ({
-                  key: state === "device" ? getByoKey(p.id) : undefined,
-                }))}
-              >
-                {status?.media[p.id] ? (
-                  <WorkspaceKeyField label={p.name} />
-                ) : (
-                  <MediaKeyEditor
-                    provider={p.id}
-                    onChange={(has) => {
-                      setDeviceKey(p.id, has);
-                      setTests((t) => ({ ...t, [id]: { busy: false, result: null } }));
-                    }}
-                  />
-                )}
-              </ProviderRow>
-            );
-          })}
-        </div>
-      </Section>
-
-      <Section
-        title="Language model providers"
-        description="These run on the server while a campaign is being made, so keys can't be added here. Your workspace administrator sets them up."
-      >
-        <div className="hairline divide-y divide-line">
-          {textProviders.map((p) => {
-            const id = rowId("llm", p.id);
-            const envKeys = LLM_MODELS.find((m) => m.providerId === p.id)?.envKeys ?? [];
-            return (
-              <ProviderRow
-                key={id}
-                id={id}
-                name={p.name}
-                kinds="Text"
-                state={conn.stateOf("llm", p.id)}
-                usedBy={agentsUsingLlm(p.id)}
-                highlighted={highlightRow === id}
-                test={controlFor("llm", p.id)}
-              >
-                {status?.llm[p.id] ? (
-                  <WorkspaceKeyField label={p.name} />
-                ) : (
-                  <p className="text-xs text-mute">
-                    {p.blurb} Set <code className="rounded bg-paper-2 px-1">{envKeys.join(", ")}</code> on the
-                    server, then restart.
-                  </p>
-                )}
-              </ProviderRow>
-            );
-          })}
-        </div>
-      </Section>
-
-      <Disclosure
-        title="Advanced: local and custom endpoint"
-        description="Ollama, LM Studio, vLLM or a LiteLLM gateway. The way to add a model that isn't listed."
-      >
-        <form
-          id={rowId("llm", "local")}
-          tabIndex={-1}
-          className={cn(
-            "grid gap-4 p-4 outline-none md:grid-cols-2",
-            highlightRow === rowId("llm", "local") && "bg-signal-soft",
-          )}
-          onSubmit={(e) => {
-            e.preventDefault();
-            updateSettings({ localBaseUrl: baseUrl.trim(), localModel: localModel.trim() });
-            setJustSaved(true);
-          }}
-        >
-          <div>
-            <label htmlFor="local-base" className="text-xs font-medium text-ink-soft">
-              Base URL
-            </label>
-            <input
-              id="local-base"
-              type="url"
-              value={baseUrl}
-              onChange={(e) => {
-                setBaseUrl(e.target.value);
-                setJustSaved(false);
-              }}
-              placeholder="http://127.0.0.1:11434/v1"
-              className="mt-1.5 w-full border px-3 py-2 text-sm outline-none focus:border-signal"
-            />
-          </div>
-          <div>
-            <label htmlFor="local-model" className="text-xs font-medium text-ink-soft">
-              Model name
-            </label>
-            <input
-              id="local-model"
-              value={localModel}
-              onChange={(e) => {
-                setLocalModel(e.target.value);
-                setJustSaved(false);
-              }}
-              placeholder="llama3.1"
-              className="mt-1.5 w-full border px-3 py-2 text-sm outline-none focus:border-signal"
-            />
-          </div>
-          <p className="max-w-xl text-xs text-mute md:col-span-2">
-            Requests are made by the server, so the URL must be reachable from where Aisle runs. The model name is
-            used by the &ldquo;Custom tag&rdquo; model.
-          </p>
-          <div className="flex flex-wrap items-center justify-between gap-3 md:col-span-2">
-            {localTest ? <TestInline test={localTest} /> : <span />}
-            <button
-              type="submit"
-              disabled={!endpointDirty}
-              className="btn-primary rounded-[var(--r-btn)] px-4 py-2 text-sm font-medium disabled:opacity-50"
-            >
-              Save endpoint
-            </button>
-          </div>
-          {justSaved && !endpointDirty ? (
-            <div role="status" className="flex flex-wrap items-center gap-3 text-sm md:col-span-2">
-              <span className="text-ok">Saved.</span>
-              {customInUse ? null : (
-                <>
-                  <span className="text-ink-soft">No agent uses the Custom tag model yet.</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const next = { ...settings.agents };
-                      for (const s of AGENT_SLOTS) next[s.id] = { provider: "local", modelId: "local:custom" };
-                      updateSettings({ agents: next });
-                    }}
-                    className="rounded-[var(--r-btn)] border border-line px-3 py-1.5 text-xs font-medium hover:bg-paper-2"
-                  >
-                    Use it for all agents
-                  </button>
-                </>
-              )}
-            </div>
-          ) : null}
-        </form>
-      </Disclosure>
-
-      {planned.length ? (
-        <p className="text-xs text-mute">
-          Also planned, not selectable yet: {planned.join(", ")}.
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
-function TestInline({ test }: { test: TestControl }) {
-  return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-      <button
-        type="button"
-        onClick={test.onRun}
-        disabled={test.busy}
-        className="rounded-[var(--r-btn)] border border-line px-3 py-1.5 text-xs font-medium hover:bg-paper-2 disabled:opacity-50"
-      >
-        {test.busy ? "Testing…" : "Test endpoint"}
-      </button>
-      <span role="status" aria-live="polite" className="text-xs">
-        {test.result ? (
-          <span className={test.result.ok ? "text-ok" : "text-danger"}>
-            {test.result.ok ? "✓ " : "✕ "}
-            {test.result.message}
-          </span>
-        ) : null}
-      </span>
-    </div>
-  );
-}
-
-/* --------------------------------- Page --------------------------------- */
+const localBackend = getBackend("local");
+const cloudBackends = BACKENDS.filter((b) => b.where === "cloud");
+// The cloud backends share one poster and one video model.
+const cloudMedia = cloudBackends[0];
 
 export default function SettingsPage() {
-  const hash = useSyncExternalStore(
-    subscribeHash,
-    () => window.location.hash.slice(1),
-    () => "",
-  );
-  const { tab, row } = parseHash(hash);
-
-  const [status, setStatus] = useState<ServerStatus | null>(null);
-  const [deviceKeys, setDeviceKeys] = useState<Record<string, boolean>>({});
-  const [ready, setReady] = useState(false);
+  const settings = useAisle((s) => s.settings);
+  const updateSettings = useAisle((s) => s.updateSettings);
+  const [status, setStatus] = useState<KeyStatus | "error" | null>(null);
+  const keys = status === "error" ? null : status;
 
   useEffect(() => {
     let cancelled = false;
     void fetch("/api/settings/status")
-      .then((res) => (res.ok ? (res.json() as Promise<ServerStatus>) : null))
-      .catch(() => null)
-      .then((json) => {
-        if (cancelled) return;
-        if (json) setStatus(json);
-        setDeviceKeys(readDeviceKeys(IMAGE_PROVIDER_IDS));
-        setReady(true);
+      .then((r) => {
+        if (!r.ok) throw new Error(`status ${r.status}`);
+        return r.json();
+      })
+      .then((json: KeyStatus) => {
+        if (!cancelled) setStatus(json);
+      })
+      .catch(() => {
+        if (!cancelled) setStatus("error");
       });
     return () => {
       cancelled = true;
     };
   }, []);
 
-  // A deep link targets a row on the Connections tab, which mounts in the same commit as the tab switch.
-  useEffect(() => {
-    if (tab !== "connections" || !row) return;
-    const el = document.getElementById(row);
-    if (!el) return;
-    el.closest("details")?.setAttribute("open", "");
-    el.scrollIntoView({ block: "center" });
-    el.focus({ preventScroll: true });
-  }, [tab, row, ready]);
-
-  const conn = useMemo<Conn>(() => {
-    const stateOf = (kind: ConnectionKind, providerId: string) =>
-      connectionState(kind, providerId as LlmProviderId & ProviderId, status, deviceKeys);
-    return {
-      ready,
-      stateOf,
-      ok: (kind, providerId) => !ready || isConnected(stateOf(kind, providerId)),
-      goConnect: (kind, providerId) => {
-        window.location.hash = `connections/${kind}:${providerId}`;
-      },
-    };
-  }, [ready, status, deviceKeys]);
+  const image = getModelOrDefault(settings.imageModelId, "image");
+  const video = getModelOrDefault(settings.videoModelId, "video");
+  const duration = snapCampaignDuration(video, settings.videoDurationSec);
+  const now = currentBackend(settings);
+  // Say so on the Local option when this server's local runtime is not answering.
+  const runtime = keys?.runtime;
+  const localDown = !runtime
+    ? ""
+    : !runtime.localModel && !runtime.comfy
+      ? " (local LLM and ComfyUI not answering)"
+      : !runtime.localModel
+        ? " (local LLM not answering)"
+        : !runtime.comfy
+          ? " (ComfyUI not answering)"
+          : "";
+  const nowLabel =
+    now === null
+      ? "mixed — seats and media differ"
+      : now === "local"
+        ? "Local — everything on this Mac"
+        : `Cloud · ${getBackend(now).name}`;
 
   return (
-    <div className="flex max-w-4xl flex-col gap-6">
-      <PageHeader
-        eyebrow="Workspace"
-        title="Settings"
-        description="Choose the AI models behind each step and connect your providers."
-      />
+    <div className="flex flex-col gap-10">
+      <header className="max-w-2xl">
+        <p className="text-[11px] uppercase tracking-[0.2em] text-signal">Workspace</p>
+        <h1 className="font-serif text-4xl">Settings.</h1>
+        <p className="mt-3 text-sm leading-relaxed text-ink-soft">
+          Pick backends once for the whole company. All four agents use an LLM — Local (Qwen3.8 on
+          MTPLX), OpenAI or Claude. Studio posters and ad videos use the media models below. Local
+          is free. Cloud models run on Aisle&apos;s own keys and are paid in credits, so there is
+          nothing to paste here.
+        </p>
+      </header>
 
-      <div role="tablist" aria-label="Settings sections" className="flex gap-1 border-b border-line">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            role="tab"
-            id={`tab-${t.id}`}
-            aria-selected={tab === t.id}
-            aria-controls={`panel-${t.id}`}
-            onClick={() => {
-              window.location.hash = t.id;
-            }}
-            className={cn(
-              "-mb-px rounded-none border-b-2 px-4 py-2.5 text-sm font-medium",
-              tab === t.id
-                ? "border-signal text-signal"
-                : "border-transparent text-ink-soft hover:text-ink",
+      <section>
+        <p className="text-[11px] uppercase tracking-wider text-mute">Connection</p>
+        <ul className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          {LLM_PROVIDERS.map((p) => {
+            if (p.id === "local") {
+              const served = runtime?.localModel;
+              const seats = AGENT_SLOTS.map((slot) => settings.agents[slot.id]);
+              const qwen = getLlmOrDefault(LOCAL_DEFAULT_LLM);
+              // A blank field follows the server's LOCAL_LLM_BASE_URL; with none set, Local seats stub.
+              const seatUrl = trimUrl(settings.localBaseUrl) || (keys?.llm.local && runtime ? runtime.localBase : "");
+              const localSeats = seats.some((seat) => seat.provider === "local");
+              // The probe only checks the server's URL; say so when the seats call another.
+              const elsewhere = runtime && localSeats && seatUrl !== runtime.localBase;
+              const wrongModel =
+                !elsewhere && served && seats.some((seat) => seat.modelId === qwen.id) && served !== qwen.apiModel;
+              return (
+                <li key={p.id} className="hairline bg-surface p-4">
+                  <p className="text-sm font-medium">{p.name}</p>
+                  <p className="mt-1 text-xs text-mute">{p.blurb}</p>
+                  <p className={`mt-3 break-words text-[11px] uppercase tracking-wider ${served ? "text-emerald-800" : "text-mute"}`}>
+                    {status === null
+                      ? "Checking…"
+                      : !runtime
+                        ? "Status unavailable"
+                        : served
+                          ? `LLM · ${served} · ${hostOf(runtime.localBase)}`
+                          : `LLM not answering · ${hostOf(runtime.localBase)}`}
+                  </p>
+                  {runtime && (
+                    <p className={`mt-1 text-[11px] uppercase tracking-wider ${runtime.comfy ? "text-emerald-800" : "text-mute"}`}>
+                      {runtime.comfy ? "ComfyUI answering" : "ComfyUI not answering"}
+                    </p>
+                  )}
+                  {elsewhere && (
+                    <p className="mt-2 break-words text-xs text-signal">
+                      {seatUrl
+                        ? `Local seats call ${hostOf(seatUrl)} — not checked here.`
+                        : "Local seats have no URL, so they fall back to the simulator."}
+                    </p>
+                  )}
+                  {wrongModel && (
+                    <p className="mt-2 break-words text-xs text-signal">
+                      {qwen.name} seats ask for {qwen.apiModel}; this server has {served}.
+                    </p>
+                  )}
+                </li>
+              );
+            }
+            const live = keys?.llm[p.id];
+            return (
+              <li key={p.id} className="hairline bg-surface p-4">
+                <p className="text-sm font-medium">{p.name}</p>
+                <p className="mt-1 text-xs text-mute">{p.blurb}</p>
+                <p className={`mt-3 text-[11px] uppercase tracking-wider ${live ? "text-emerald-800" : "text-mute"}`}>
+                  {status === null ? "Checking…" : live ? "Included with credits" : "Not available"}
+                </p>
+              </li>
+            );
+          })}
+          {UNAVAILABLE_LLM_PROVIDERS.map((p) => (
+            <li key={p.id} className="hairline bg-surface p-4 opacity-60">
+              <p className="text-sm font-medium">{p.name}</p>
+              <p className="mt-1 text-xs text-mute">{p.reason}</p>
+              <p className="mt-3 text-[11px] uppercase tracking-wider text-mute">Not available</p>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="text-[11px] uppercase tracking-wider text-mute">Agent backends</p>
+            <h2 className="font-serif text-3xl">Who thinks for each seat.</h2>
+          </div>
+          <div>
+            <label className="text-[11px] uppercase tracking-wider text-mute">
+              Apply one backend to all
+              <select
+                className="mt-1 block min-w-[240px] border border-line bg-surface px-3 py-2 text-sm normal-case tracking-normal text-ink"
+                defaultValue=""
+                onChange={(e) => {
+                  const id = e.target.value as BackendId | "";
+                  if (!id) return;
+                  updateSettings(applyBackend(settings, id, keys?.runtime?.localBase));
+                  e.target.value = "";
+                }}
+              >
+                <option value="">Choose…</option>
+                <optgroup label="This Mac">
+                  <option value={localBackend.id}>
+                    {localBackend.name} — Qwen3.8 + ComfyUI{localDown}
+                  </option>
+                </optgroup>
+                <optgroup label="Cloud">
+                  {cloudBackends.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
+            </label>
+            <p className="mt-1 text-[11px] text-mute">Now: {nowLabel}</p>
+            {localDown && (
+              <p className="mt-1 max-w-[240px] text-[11px] text-signal">
+                Local{localDown}: those seats fall back to rules and Studio renders fail until it starts.
+              </p>
             )}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+          </div>
+        </div>
+        <p className="mt-3 max-w-3xl text-sm leading-relaxed text-ink-soft">
+          <span className="text-ink">Local</span> puts all four seats on{" "}
+          {getLlmOrDefault(localBackend.llmModelId).name} (MTPLX) and Studio on ComfyUI —{" "}
+          {getModel(localBackend.imageModelId).name} posters, {getModel(localBackend.videoModelId).name}{" "}
+          ad videos. <span className="text-ink">Cloud</span> puts the seats on that provider and
+          Studio on {getModel(cloudMedia.imageModelId).name} and{" "}
+          {getModel(cloudMedia.videoModelId).name}. Cloud seats and renders use credits; when
+          credits run out, agents fall back to a local model or their built-in rules and posters
+          render on ComfyUI.
+        </p>
+        <div className="mt-5 grid gap-4 lg:grid-cols-2">
+          {AGENT_SLOTS.map((slot) => {
+            const assignment = settings.agents[slot.id];
+            const model = getLlmOrDefault(assignment.modelId);
+            return (
+              <article key={slot.id} className="hairline bg-surface p-5">
+                <p className="text-[11px] uppercase tracking-[0.16em] text-signal">{slot.label}</p>
+                <p className="mt-1 font-serif text-2xl">{model.name}</p>
+                <p className="text-xs text-mute">
+                  {model.provider} · typical call {seatCostLabel(model, slot.id)} · {slot.help}
+                </p>
+                <div className="mt-4">
+                  <LlmPicker
+                    agent={slot.id}
+                    value={assignment}
+                    onChange={(next) =>
+                      updateSettings({
+                        agents: { ...settings.agents, [slot.id]: next },
+                      })
+                    }
+                  />
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </section>
 
-      <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="pb-12 pt-2">
-        {tab === "models" ? <ModelsTab conn={conn} /> : null}
-        {tab === "connections" ? (
-          <ConnectionsTab
-            conn={conn}
-            status={status}
-            highlightRow={row}
-            setDeviceKey={(provider, has) => setDeviceKeys((k) => ({ ...k, [provider]: has }))}
+      <section className="max-w-xl">
+        <p className="text-[11px] uppercase tracking-wider text-mute">Local runtime</p>
+        <h2 className="font-serif text-3xl">MTPLX, Ollama or LM Studio.</h2>
+        <p className="mt-2 text-sm text-ink-soft">
+          OpenAI-compatible base URL. Used when an agent is set to Local. MTPLX serves Qwen3.8 on
+          port 8000 — start it with <code className="text-xs">mtplx quickstart --port 8000</code>.
+          Aisle will call <code className="text-xs">/chat/completions</code> from the server — no
+          browser CORS. Only loopback addresses (127.0.0.1, localhost) are accepted, and a hosted
+          Aisle ignores this field and uses its own configured server.
+        </p>
+        <label className="mt-4 block">
+          <span className="text-[11px] uppercase tracking-wider text-mute">Base URL</span>
+          <input
+            value={settings.localBaseUrl}
+            onChange={(e) => updateSettings({ localBaseUrl: e.target.value })}
+            placeholder="http://127.0.0.1:8000/v1"
+            className="mt-1 w-full border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-ink"
           />
-        ) : null}
-        {tab === "account" ? <ProfileSection /> : null}
-      </div>
+        </label>
+        <label className="mt-3 block">
+          <span className="text-[11px] uppercase tracking-wider text-mute">
+            Custom model tag (when “Custom tag” is selected)
+          </span>
+          <input
+            value={settings.localModel}
+            onChange={(e) => updateSettings({ localModel: e.target.value })}
+            placeholder="mtplx-flash-next-optimized-speed"
+            className="mt-1 w-full border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-ink"
+          />
+        </label>
+      </section>
+
+      <section>
+        <p className="text-[11px] uppercase tracking-wider text-mute">Media generation</p>
+        <h2 className="font-serif text-3xl">Posters and ad videos.</h2>
+        <p className="mt-2 max-w-xl text-sm text-ink-soft">
+          Studio generates with these models. Cloud renders cost credits (twice the provider&apos;s
+          price); ComfyUI on this Mac is free. Hover a take there for tokens and cost. Estimates are
+          Sep 2026 list prices.
+        </p>
+        <div className="mt-5 grid gap-8 lg:grid-cols-2">
+          <div className="hairline bg-surface p-5">
+            <p className="text-[11px] uppercase tracking-wider text-mute">Image model</p>
+            <p className="mt-1 font-serif text-2xl">{image.name}</p>
+            <p className="text-xs text-mute">
+              {image.estimateLabel} · {image.blurb}
+            </p>
+            <div className="mt-4">
+              <ModelPicker
+                kind="image"
+                value={settings.imageModelId}
+                onChange={(imageModelId) => updateSettings({ imageModelId })}
+              />
+            </div>
+          </div>
+          <div className="hairline bg-surface p-5">
+            <p className="text-[11px] uppercase tracking-wider text-mute">Video model</p>
+            <p className="mt-1 font-serif text-2xl">{video.name}</p>
+            <p className="text-xs text-mute">
+              {video.estimateLabel} · {video.blurb}
+            </p>
+            <label className="mt-3 block text-[11px] uppercase tracking-wider text-mute">
+              Default duration
+              <select
+                value={duration}
+                onChange={(e) => updateSettings({ videoDurationSec: Number(e.target.value) })}
+                className="mt-1 w-full border border-line bg-surface px-2 py-1.5 text-sm text-ink"
+              >
+                {/* Only lengths this model can render, the same list Studio and the server use. */}
+                {campaignVideoDurations(video).map((s) => {
+                  const cost = quoteModel(video.id, { durationSec: s }).costUsd;
+                  return (
+                    <option key={s} value={s}>
+                      {s}s{s === 30 ? " complete story ad" : " test clip"} · {cost > 0 ? `${formatUsd(cost)} · ${creditsForCost(cost)} credits` : "Free"}
+                    </option>
+                  );
+                })}
+              </select>
+            </label>
+            <div className="mt-4">
+              <ModelPicker
+                kind="video"
+                value={settings.videoModelId}
+                onChange={(videoModelId) =>
+                  updateSettings({
+                    videoModelId,
+                    // Keep the saved default a length the new model can render.
+                    videoDurationSec: snapCampaignDuration(getModelOrDefault(videoModelId, "video"), settings.videoDurationSec),
+                  })
+                }
+                durationSec={duration}
+              />
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }

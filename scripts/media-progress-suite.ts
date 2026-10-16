@@ -1,0 +1,135 @@
+/** Isolated status tests: no live jobs, account data, model calls or ad publication. */
+import assert from "node:assert/strict";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+import { createRequire } from "node:module";
+import ts from "typescript";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { createRenderJob, listRenderJobs, renderJobForPrompt, updateRenderJob } from "../src/lib/media/progress-store";
+import { acceptComfyProgress, reconcileRenderJob } from "../src/lib/media/progress";
+import { blankCampaign, defaultBrand } from "../src/lib/seed";
+import { defaultSettings } from "../src/lib/settings";
+import type { RenderProgress } from "../src/lib/media/progress-types";
+import type { MediaGeneration } from "../src/lib/media/types";
+
+const dir = mkdtempSync(path.join(os.tmpdir(), "aisle-progress-test-"));
+process.env.AISLE_MEDIA_PROGRESS_DB = path.join(dir, "progress.db");
+const input = { campaignId: "test-campaign", kind: "video" as const, modelName: "Offline MiniMax fixture", sourceCreativeId: "test-image" };
+const job = createRenderJob("alice", input);
+assert.equal(listRenderJobs("bob", input.campaignId).length, 0);
+assert.equal(listRenderJobs("alice", "other-campaign").length, 0);
+assert.throws(() => createRenderJob("alice", input), /already has a render/);
+updateRenderJob(job.id, { promptId: "test-prompt", stage: "queued" });
+const current = () => renderJobForPrompt("test-prompt")!;
+assert.equal(current().stage, "queued");
+console.log("PASS durable tracking, per-user/per-campaign isolation and duplicate-render guard");
+
+acceptComfyProgress({ type: "progress", data: { prompt_id: "foreign-job", node: "10", value: 6, max: 6 } });
+assert.equal(current().stage, "queued");
+acceptComfyProgress({ type: "execution_start", data: { prompt_id: "test-prompt" } });
+acceptComfyProgress({ type: "progress", data: { prompt_id: "test-prompt", node: "10", value: 4, max: 6 } });
+assert.equal(current().stage, "sampling"); assert.equal(current().step, 4);
+acceptComfyProgress({ type: "progress", data: { prompt_id: "test-prompt", node: "10", value: 3, max: 6 } });
+assert.equal(current().step, 4);
+acceptComfyProgress({ type: "progress", data: { prompt_id: "test-prompt", node: "12", value: 1, max: 100 } });
+assert.equal(current().totalSteps, 6);
+acceptComfyProgress({ type: "progress_state", data: { prompt_id: "test-prompt", nodes: { "10": { state: "finished", value: 6, max: 6 } } } });
+assert.equal(current().stage, "encoding");
+acceptComfyProgress({ type: "execution_start", data: { prompt_id: "test-prompt" } });
+assert.equal(current().stage, "encoding");
+console.log("PASS real event mapping, foreign-event rejection, monotonic sampling and separate encoding stage");
+
+const campaign = blankCampaign({ name: "Status fixture", product: "Juice", category: "Beverages", targetAudience: "Adults", objective: "Draft", budget: 500, channels: ["web"], startDate: "2026-10-05", endDate: "2026-10-18", country: "AU", notes: "Offline test" }, defaultBrand, null, defaultSettings());
+const offline = await reconcileRenderJob(current(), campaign, async () => { throw new Error("offline"); });
+assert.equal(offline.backendOnline, false); assert.equal(offline.stage, "encoding");
+const saving = await reconcileRenderJob(current(), campaign, async () => ({ status: "completed" }));
+assert.equal(saving.stage, "saving", "backend completion is not saved campaign completion");
+const generation: MediaGeneration = { kind: "video", modelId: "comfy:minimax-h3", provider: "ComfyUI", modelName: "Fixture", status: "ok", promptId: "test-prompt", url: "http://fixture/video.mp4", note: "Offline", at: new Date().toISOString(), usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0, units: 1, unitLabel: "video", costUsd: 0, billedAs: "fixture", estimate: false, latencyMs: 0 } };
+campaign.videos = [{ id: "fixture-video", version: 1, title: "Fixture", prompt: "Fixture", durationSec: 5, aspect: "4:5", status: "ready", generation }];
+const done = await reconcileRenderJob(current(), campaign, async () => { throw new Error("must not need backend after saving"); });
+assert.equal(done.stage, "complete");
+acceptComfyProgress({ type: "execution_error", data: { prompt_id: "test-prompt", exception_message: "late event" } });
+assert.equal(current().stage, "complete");
+console.log("PASS disconnect preserves progress, backend completion waits for saving, late events cannot erase success");
+
+const second = createRenderJob("alice", input, { promptId: "failed-prompt", stage: "sampling" });
+const failed = await reconcileRenderJob(second, campaign, async () => ({ status: "failed", execution_error: { exception_message: "Fixture GPU error" } }));
+assert.equal(failed.stage, "failed"); assert.match(failed.error!, /GPU/);
+const third = createRenderJob("alice", input, { promptId: "missing-prompt", stage: "queued" });
+assert.equal((await reconcileRenderJob(third, campaign, async () => ({ status: "missing" }))).stage, "failed");
+const orphan = createRenderJob("alice", input, { createdAt: new Date(Date.now() - 180_000).toISOString() });
+assert.equal((await reconcileRenderJob(orphan, campaign, async () => ({ status: "pending" }))).stage, "failed");
+console.log("PASS failed, cancelled/missing and abandoned pre-submit requests do not stay stuck as rendering");
+
+const cloudInput = { ...input, campaignId: "cloud-campaign", modelName: "Gemini Omni Flash", provider: "google" };
+const cloud = createRenderJob("alice", cloudInput, { promptId: "google:omni:fixture", stage: "queued" });
+const neverComfy = async () => { throw new Error("a cloud job must never query ComfyUI"); };
+const running = await reconcileRenderJob(cloud, campaign, neverComfy);
+assert.equal(running.stage, "queued"); assert.equal(running.backendOnline, undefined);
+const slowCloud = createRenderJob("alice", cloudInput, { promptId: "google:omni:slow", stage: "queued", createdAt: new Date(Date.now() - 10 * 60_000).toISOString() });
+assert.equal((await reconcileRenderJob(slowCloud, campaign, neverComfy)).stage, "queued", "a cloud video may take minutes; 120 s is a local-only limit");
+const deadCloud = createRenderJob("alice", cloudInput, { promptId: "google:omni:dead", stage: "queued", createdAt: new Date(Date.now() - 16 * 60_000).toISOString() });
+assert.equal((await reconcileRenderJob(deadCloud, campaign, neverComfy)).stage, "failed");
+const legacyCloud = createRenderJob("alice", { ...input, campaignId: "legacy-cloud" }, { promptId: "openai:fixture", stage: "queued" });
+assert.equal((await reconcileRenderJob(legacyCloud, campaign, neverComfy)).stage, "queued", "a provider-prefixed prompt id is recognised without the provider field");
+const savedCloud = { ...campaign, creatives: [{ ...campaign.creatives[0], id: "cloud-image", generation: { ...generation, kind: "image" as const, provider: "OpenAI", promptId: "openai:fixture", url: "aisle-media:" + "a".repeat(64) } }] } as typeof campaign;
+assert.equal((await reconcileRenderJob(legacyCloud, savedCloud, neverComfy)).stage, "complete");
+const vercelDir = mkdtempSync(path.join(os.tmpdir(), "aisle-progress-vercel-"));
+const savedProgressDb = process.env.AISLE_MEDIA_PROGRESS_DB, savedTmp = process.env.TMPDIR;
+delete process.env.AISLE_MEDIA_PROGRESS_DB; process.env.VERCEL = "1"; process.env.TMPDIR = vercelDir;
+try {
+  createRenderJob("alice", { ...input, campaignId: "vercel-campaign" });
+  assert.equal(existsSync(path.join(vercelDir, "aisle-media-progress.db")), true, "on Vercel the progress file lives in the writable tmp dir");
+} finally {
+  delete process.env.VERCEL; process.env.AISLE_MEDIA_PROGRESS_DB = savedProgressDb;
+  if (savedTmp === undefined) delete process.env.TMPDIR; else process.env.TMPDIR = savedTmp;
+}
+console.log("PASS cloud jobs never poll ComfyUI, get a cloud-length timeout, complete when saved, and progress works on Vercel's /tmp");
+
+const sequence = { title: "30s TV-style draft", current: 1, total: 5, label: "A pause in the day", phase: "rendering" as const, heartbeatAt: new Date().toISOString() };
+const multi = createRenderJob("alice", input);
+updateRenderJob(multi.id, { sequence, promptId: "scene-one", stage: "sampling", step: 4, totalSteps: 6 });
+const clipDone = await reconcileRenderJob(renderJobForPrompt("scene-one")!, campaign, async () => ({ status: "completed" }));
+assert.notEqual(clipDone.stage, "complete", "One finished clip is not a finished advertisement");
+updateRenderJob(multi.id, { promptId: "scene-two", stage: "queued", step: 0, totalSteps: 0, sequence: { ...sequence, current: 2, label: "The hand-off" } });
+assert.equal(renderJobForPrompt("scene-two")?.step, 0);
+assert.equal(renderJobForPrompt("scene-one"), undefined);
+const editing = updateRenderJob(multi.id, { stage: "encoding", sequence: { ...sequence, phase: "editing" } })!;
+assert.equal((await reconcileRenderJob(editing, campaign, async () => { throw new Error("No backend poll during local editing"); })).stage, "encoding");
+const stale = { ...editing, sequence: { ...sequence, heartbeatAt: new Date(Date.now() - 360_000).toISOString() } };
+assert.equal((await reconcileRenderJob(stale, campaign, async () => ({ status: "completed" }))).stage, "failed");
+console.log("PASS multi-scene completion boundary, next-scene reset, local editing and stopped-worker detection");
+
+// Compile the actual client panel for server-rendered accessibility/state assertions.
+const require = createRequire(import.meta.url);
+const source = readFileSync("src/components/studio/RenderProgress.tsx", "utf8");
+let compiled = ts.transpileModule(source, { compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
+for (const specifier of ["react/jsx-runtime", "react"]) compiled = compiled.replaceAll(`from "${specifier}"`, `from "${pathToFileURL(require.resolve(specifier)).href}"`);
+compiled = compiled.replaceAll('from "@/lib/media/progress-types"', `from "${pathToFileURL(path.resolve("src/lib/media/progress-types.ts")).href}"`);
+const moduleFile = path.join(dir, "RenderProgress.mjs");
+writeFileSync(moduleFile, compiled);
+const { RenderProgressPanel } = await import(pathToFileURL(moduleFile).href);
+const render = (renderJob: RenderProgress, unavailable = false) => renderToStaticMarkup(createElement(RenderProgressPanel, { jobs: [renderJob], unavailable, liveConnected: true, onViewVideo: () => {} }));
+const sampling = render({ ...job, stage: "sampling", step: 4, totalSteps: 6 });
+assert.match(sampling, /aria-valuenow="67"/);
+assert.match(sampling, /4 \/ 6 sampling steps/);
+assert.match(sampling, /not total render time/);
+const encoding = render({ ...job, stage: "encoding", step: 6, totalSteps: 6 });
+assert.doesNotMatch(encoding, /aria-valuenow=/);
+assert.match(encoding, /MP4 is not ready yet/);
+assert.match(render(done), /aria-valuenow="100"/);
+assert.match(render(done), /View video/);
+assert.match(render(failed), /Fixture GPU error/);
+assert.match(render({ ...job, stage: "sampling", step: 4, totalSteps: 6 }, true), /Cannot refresh progress/);
+const sequencePanel = render({ ...job, stage: "sampling", step: 4, totalSteps: 6, sequence });
+assert.match(sequencePanel, /New scene 1 of 5/);
+assert.match(sequencePanel, /for the current scene/);
+assert.match(sequencePanel, /Remaining scenes, editing and saving follow/);
+const cloudPanel = renderToStaticMarkup(createElement(RenderProgressPanel, { jobs: [{ ...job, provider: "google", modelName: "Gemini Omni Flash", stage: "queued" }], unavailable: false, liveConnected: false, onViewVideo: () => {} }));
+assert.match(cloudPanel, /Rendering in the cloud on Gemini Omni Flash/);
+assert.doesNotMatch(cloudPanel, /Reconnecting live step updates/, "a cloud render has no ComfyUI socket to reconnect");
+console.log("PASS accessible bar, accurate percentages, indeterminate encoding, ready link and failure/disconnect states");
+console.log(`All progress checks passed. Isolated artifacts: ${dir}`);

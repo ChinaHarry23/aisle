@@ -11,7 +11,7 @@
 import { isDatabaseUnavailable } from "@/lib/db";
 
 export const STORAGE_MESSAGE =
-  "Aisle could not reach its database, so the account was not created. Nothing was lost — try again in a moment.";
+  "This desk could not reach its database, so the account was not created. Nothing was lost — try again in a moment.";
 
 export type StorageFailure = {
   /** True when the request failed because storage is unusable. */

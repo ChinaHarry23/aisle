@@ -17,9 +17,25 @@ import { DatabaseSync } from "node:sqlite";
 import type { Database, Row } from "./types";
 import { DatabaseUnavailableError } from "./types";
 
-/** `$1, $2` (Postgres style) → `?` (SQLite style), in order. */
+/**
+ * `$1, $2` (Postgres style) → `?1, ?2` (SQLite numbered style). Numbered, not
+ * bare `?`, so a reused `$1` binds the same value as Postgres does instead of
+ * silently consuming the next slot as NULL.
+ */
 function toPositional(text: string): string {
-  return text.replace(/\$(\d+)/g, "?");
+  return text.replace(/\$(\d+)/g, "?$1");
+}
+
+/** Node 23 treats numbered SQLite parameters as named, not anonymous slots. */
+function bindings(text: string, params: unknown[]): unknown[] {
+  const indexes = [...text.matchAll(/\$(\d+)/g)].map(match => Number(match[1]));
+  if (!indexes.length) return params;
+  const named: Record<string, unknown> = {};
+  for (const index of indexes) {
+    if (index < 1 || index > params.length) throw new Error(`Missing value for SQL parameter $${index}.`);
+    named[`?${index}`] = params[index - 1] ?? null;
+  }
+  return [named];
 }
 
 export function createSqliteDatabase(file: string): Database {
@@ -54,11 +70,11 @@ export function createSqliteDatabase(file: string): Database {
     label: file === ":memory:" ? "sqlite (in-memory)" : `sqlite file ${file}`,
     async query<T extends Row = Row>(text: string, params: unknown[] = []): Promise<T[]> {
       const statement = handle.prepare(toPositional(text));
-      return statement.all(...(params as never[])) as T[];
+      return statement.all(...(bindings(text, params) as never[])) as T[];
     },
     async execute(text: string, params: unknown[] = []): Promise<void> {
       const statement = handle.prepare(toPositional(text));
-      statement.run(...(params as never[]));
+      statement.run(...(bindings(text, params) as never[]));
     },
   };
 }

@@ -30,12 +30,110 @@ create table if not exists kv (
   value      text not null,
   updated_at text not null
 );
+
+create table if not exists credit_accounts (
+  user_id         text primary key,
+  balance_milli   integer not null default 0,
+  free_granted_at text,
+  last_grant_ref  text,
+  grant_epoch     integer not null default 0,
+  updated_at      text not null
+);
+
+create table if not exists credit_holds (
+  ref        text primary key,
+  user_id    text not null,
+  milli      integer not null,
+  epoch      integer not null,
+  status     text not null,
+  charged_milli integer,
+  created_at text not null
+);
+
+create index if not exists credit_holds_user_idx on credit_holds (user_id, status, created_at);
+
+create table if not exists free_grants (
+  identity_key text primary key,
+  user_id      text not null,
+  granted_at   text not null
+);
+
+create index if not exists free_grants_day_idx on free_grants (granted_at);
+
+create table if not exists signup_attempts (
+  id         text primary key,
+  ip_key     text not null,
+  created_at text not null
+);
+
+create index if not exists signup_attempts_ip_idx on signup_attempts (ip_key, created_at);
+
+create table if not exists credit_ledger (
+  id                  text primary key,
+  user_id             text not null,
+  delta_milli         integer not null,
+  reason              text not null,
+  ref                 text,
+  model_id            text,
+  cost_usd            real,
+  balance_after_milli integer,
+  note                text,
+  created_at          text not null
+);
+
+create index if not exists credit_ledger_user_idx on credit_ledger (user_id, created_at);
+
+create unique index if not exists credit_ledger_ref_idx on credit_ledger (reason, ref) where ref is not null;
+
+create table if not exists billing_customers (
+  user_id                text primary key,
+  stripe_customer_id     text not null unique,
+  stripe_subscription_id text,
+  status                 text,
+  cancel_at_period_end   integer not null default 0,
+  current_period_end     text,
+  stripe_livemode        integer,
+  subscription_event_at  bigint,
+  updated_at             text not null
+);
+
+create table if not exists stripe_events (
+  id          text primary key,
+  type        text not null,
+  received_at text not null
+);
+
+create table if not exists media_objects (
+  id            text primary key,
+  owner_user_id text not null,
+  kind          text not null,
+  mime          text not null,
+  size          integer not null,
+  driver        text not null,
+  bytes         bytea,
+  created_at    text not null
+);
 `;
 
 /** Columns added after the first release. Duplicates are expected and ignored. */
 const ADDITIVE = [
   "alter table users add column updated_at text",
   "alter table users add column last_login_at text",
+  "alter table users add column password_login integer not null default 1",
+  "alter table users add column google_sub text",
+  "alter table users add column apple_sub text",
+  "create unique index if not exists users_google_sub_idx on users (google_sub) where google_sub is not null",
+  "create unique index if not exists users_apple_sub_idx on users (apple_sub) where apple_sub is not null",
+  // Bumped by every monthly reset and expiry, so a hold from an earlier grant refunds nothing.
+  "alter table credit_accounts add column grant_epoch integer not null default 0",
+  // Test-mode and live-mode customer ids are different objects; a row from the other mode is stale.
+  "alter table billing_customers add column stripe_livemode integer",
+  // A settle that failed twice parks its charge here, so the sweeper applies it instead of refunding.
+  "alter table credit_holds add column charged_milli integer",
+  // Stripe's `created` (unix seconds) of the newest event that wrote the subscription's status.
+  "alter table billing_customers add column subscription_event_at bigint",
+  // Bumped when a password is replaced or an email is claimed by Google/Apple, which ends every older session.
+  "alter table users add column session_version integer not null default 0",
 ];
 
 export async function migrate(db: Database) {

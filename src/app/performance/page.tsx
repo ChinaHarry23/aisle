@@ -6,7 +6,7 @@ import { formatNumber } from "@/lib/ids";
 import { channelLabel } from "@/lib/status";
 import type { ChannelResultStatus } from "@/lib/runtime/types";
 import { useAisle } from "@/lib/store";
-import { Empty, PageHeader, SectionTitle, Stat } from "@/components/ui";
+import { Empty, SectionTitle, Stat } from "@/components/ui";
 import Link from "next/link";
 
 export default function PerformancePage() {
@@ -36,18 +36,25 @@ export default function PerformancePage() {
     },
     { impressions: 0, clicks: 0, conversions: 0 },
   );
+  const ctr = totals.impressions ? (totals.clicks / totals.impressions) * 100 : 0;
   const gaps = analysed.reduce((n, c) => n + (c.performanceReport?.gaps.length ?? 0), 0);
 
   return (
     <div className="flex flex-col gap-8">
-      <PageHeader
-        eyebrow="Performance"
-        title="What worked, and what to do next"
-        description="We collect results from your channels, then use them to shape your next campaign brief."
-      />
+      <header>
+        <p className="text-[11px] uppercase tracking-[0.2em] text-signal">Feedback loop</p>
+        <h1 className="font-serif text-4xl">What ran. What to do next.</h1>
+        <p className="mt-2 max-w-xl text-sm text-ink-soft">
+          Media Manager collects results. Trend Analyser reads them before the next brief. That is
+          the difference between four chatbots and a company.
+        </p>
+      </header>
 
-      <section className="grid gap-3 sm:grid-cols-3">
+      <aside className="hairline bg-surface p-4 text-sm"><strong>Simulated analytics:</strong> channel connectors are not configured. These demonstration figures are synthetic, not measured campaign outcomes. Missing-channel scenarios test the feedback workflow; they do not establish real business performance.</aside>
+
+      <section className="grid gap-3 sm:grid-cols-4">
         <Stat label="Impressions" value={formatNumber(totals.impressions)} hint="reporting channels only" />
+        <Stat label="Blended CTR" value={`${ctr.toFixed(1)}%`} />
         <Stat label="Conversions" value={formatNumber(totals.conversions)} />
         <Stat
           label="Data gaps"
@@ -57,8 +64,8 @@ export default function PerformancePage() {
       </section>
 
       {awaitingCollection.length > 0 ? (
-        <section className="hairline p-4">
-          <SectionTitle kicker="Results" title="Published, waiting on results" />
+        <section className="hairline bg-surface p-5">
+          <SectionTitle kicker="AHR-06" title="Published, waiting on results" />
           <ul className="mt-3 flex flex-col gap-2">
             {awaitingCollection.map((c) => (
               <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
@@ -72,7 +79,7 @@ export default function PerformancePage() {
                   type="button"
                   disabled={busy[c.id]}
                   onClick={() => void collectFeedback(c.id)}
-                  className="rounded-full border border-line font-medium hover:bg-paper-2 px-3 py-1.5 text-xs disabled:opacity-50"
+                  className="rounded-full border border-ink px-3 py-1.5 text-xs disabled:opacity-50"
                 >
                   {busy[c.id] ? "Collecting…" : "Collect results"}
                 </button>
@@ -89,7 +96,7 @@ export default function PerformancePage() {
         const draft = drafts[c.id] ?? report.recommendationText ?? report.summary;
         const firstChannel = report.results[0]?.channel ?? c.channels[0];
         return (
-          <article key={c.id} className="hairline p-4">
+          <article key={c.id} className="hairline bg-surface p-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <Link href={`/campaigns/${c.id}`} className="font-serif text-2xl hover:text-signal">
@@ -187,7 +194,7 @@ export default function PerformancePage() {
             ) : null}
 
             <div className="mt-5 border-t border-line pt-4">
-              <SectionTitle kicker="Up next" title="What we suggest for your next campaign" />
+              <SectionTitle kicker="Returned to Trend Analyser" title="Next-cycle recommendation" />
               {report.recommendationUnsupported ? (
                 <p className="mt-3 text-sm text-signal">
                   No keep/drop/change advice could be sourced from the collected evidence, so none
@@ -231,14 +238,14 @@ export default function PerformancePage() {
                     value={draft}
                     onChange={(e) => setDrafts((d) => ({ ...d, [c.id]: e.target.value }))}
                     rows={3}
-                    className="w-full border border-line px-3 py-2 text-sm outline-none focus:border-signal"
+                    className="w-full border border-line px-3 py-2 text-sm outline-none focus:border-ink"
                   />
                   <div className="mt-2 flex flex-wrap gap-2">
                     <button
                       type="button"
                       disabled={busy[c.id]}
                       onClick={() => void decideRecommendation(c.id, "accepted", draft)}
-                      className="rounded-full btn-primary px-4 py-2 text-sm font-medium disabled:opacity-50"
+                      className="rounded-full bg-ink px-4 py-2 text-sm text-paper disabled:opacity-50"
                     >
                       Accept
                     </button>
@@ -246,7 +253,7 @@ export default function PerformancePage() {
                       type="button"
                       disabled={busy[c.id]}
                       onClick={() => void decideRecommendation(c.id, "edited", draft)}
-                      className="rounded-full border border-line font-medium hover:bg-paper-2 px-4 py-2 text-sm disabled:opacity-50"
+                      className="rounded-full border border-ink px-4 py-2 text-sm disabled:opacity-50"
                     >
                       Save edit
                     </button>
@@ -273,20 +280,20 @@ export default function PerformancePage() {
       {analysed.length === 0 ? (
         <Empty
           title="No results collected yet"
-          body="Publish a campaign and connect your channels to see results here. If data is missing, we say so instead of guessing."
+          body="Publish a campaign, then collect authorised channel results. Missing data is marked as a gap rather than estimated."
         />
       ) : null}
 
       {legacy.length > 0 ? (
         <section>
-          <SectionTitle kicker="Archived demo history" title="Seeded campaigns" />
+          <SectionTitle kicker="Earlier work" title="Before collected reports" />
           <p className="mt-2 max-w-2xl text-sm text-ink-soft">
-            These campaigns predate the runtime and carry a plain recommendation without a
-            collected report, so they are shown for context only.
+            These campaigns have a written recommendation and no collected channel report, so they
+            stay here for context.
           </p>
           <ul className="mt-3 flex flex-col gap-2 text-sm">
             {legacy.map((c) => (
-              <li key={c.id} className="hairline p-3">
+              <li key={c.id} className="hairline bg-surface p-3">
                 <Link href={`/campaigns/${c.id}`} className="font-medium hover:text-signal">
                   {c.name}
                 </Link>

@@ -7,9 +7,44 @@
  * `withRuntimeDefaults` before the engine or a view touches it.
  */
 
+import { uid } from "@/lib/ids";
 import type { Campaign } from "@/lib/types";
-import { defaultSpendCap } from "./engine";
-import type { Evidence, PolicyDecision, RunStep, ToolCall } from "./types";
+import type { AgentRun, Evidence, PolicyDecision, RunStep, ToolCall } from "./types";
+
+/**
+ * Founder-set ceiling for automated spend (UC-01 ext 13.a). Lives here, not in
+ * the engine, so browser code that normalises campaigns does not pull the
+ * server-only engine (and its billing ledger) into the client bundle.
+ */
+export function defaultSpendCap(campaign: Pick<Campaign, "budget" | "spendCapUsd">) {
+  if (typeof campaign.spendCapUsd === "number" && campaign.spendCapUsd > 0) {
+    return campaign.spendCapUsd;
+  }
+  return Math.max(5, Math.min(50, Math.round(campaign.budget * 0.002 * 100) / 100));
+}
+
+export function emptyEvidence(): Evidence[] {
+  return [];
+}
+
+export function blankRun(campaignId: string): AgentRun {
+  const now = new Date().toISOString();
+  return {
+    id: uid("run"),
+    campaignId,
+    startedAt: now,
+    updatedAt: now,
+    status: "idle",
+    step: "intake.validate",
+    stepsTaken: 0,
+    maxSteps: 36,
+    revisionAttempts: 0,
+    toolsUsed: [],
+    haltedReason: null,
+    awaiting: null,
+    awaitingDetail: null,
+  };
+}
 
 export function withRuntimeDefaults(campaign: Campaign): Campaign {
   const internalDataAuthorised = campaign.internalDataAuthorised !== false;

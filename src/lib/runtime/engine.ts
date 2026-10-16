@@ -8,17 +8,20 @@
  * makes the whole bench testable without a browser.
  */
 
+import type { BillingContext } from "@/lib/billing/meter";
 import { uid } from "@/lib/ids";
-import { requestGenerate } from "@/lib/media/client";
+import { runGeneration } from "@/lib/media/generate";
 import { posterPrompt } from "@/lib/media/prompts";
 import type { MediaGeneration } from "@/lib/media/types";
 import type { Campaign, Creative } from "@/lib/types";
 import { makeLlmRuntime, type LlmRuntime } from "./decide";
+import { defaultSpendCap } from "./defaults";
 import { evaluateGuard } from "./guard";
 import { validateIntake } from "./intake";
 import {
   addEvent,
   addStep,
+  callTool,
   setRun,
   runComplianceReview,
   runCreativeGeneration,
@@ -39,9 +42,27 @@ import {
 
 export type EngineOptions = {
   llm?: LlmRuntime;
+  /**
+   * Who pays for cloud agent calls and poster renders. Absent means nobody:
+   * cloud work does not go out (local models and ComfyUI still run).
+   */
+  billing?: BillingContext;
   /** Bounded work per ADVANCE so one HTTP call cannot run away. */
   maxSteps?: number;
-  /** Ad renderer. Defaults to the studio route; tests pass a stub. */
+  /**
+   * Set false to force the deterministic path.
+   *
+   * The engine's own suites assert the rules, not a model's wording, so they run
+   * with the agents switched off; the agents have their own suite.
+   */
+  useAgents?: boolean;
+  /**
+   * Epoch ms after which ADVANCE starts no further step (the first always
+   * runs). Lets a route with a hard time limit hand back before it is killed
+   * mid-call; the client then advances again.
+   */
+  stepDeadline?: number;
+  /** Poster renderer. Defaults to `runGeneration` on the same billing; tests pass a stub. */
   renderPoster?: (input: {
     campaign: Campaign;
     creative: Creative;
@@ -51,17 +72,25 @@ export type EngineOptions = {
 
 const DEFAULT_MAX_STEPS = 12;
 
-async function defaultRenderPoster(input: {
-  campaign: Campaign;
-  creative: Creative;
-  modelId: string;
-}): Promise<MediaGeneration> {
-  return requestGenerate({
-    kind: "image",
-    modelId: input.modelId,
-    prompt: posterPrompt(input.campaign, input.creative),
-    aspectRatio: "4:5",
-  });
+/** Owner recorded on media rendered for runs nobody is billed for (tests, owner scripts). */
+export const UNMETERED_MEDIA_OWNER = "aisle-unmetered";
+
+function defaultRenderPoster(billing: BillingContext | undefined): NonNullable<EngineOptions["renderPoster"]> {
+  // Non-strict: without credits the poster renders on ComfyUI instead of failing the step.
+  return (input) =>
+    runGeneration(
+      {
+        kind: "image",
+        modelId: input.modelId,
+        prompt: posterPrompt(input.campaign, input.creative),
+        aspectRatio: "4:5",
+        ownerId: billing?.kind === "user" ? billing.userId : UNMETERED_MEDIA_OWNER,
+        campaignId: input.campaign.id,
+        creativeId: input.creative.id,
+      },
+      undefined,
+      billing,
+    );
 }
 
 function newRun(campaignId: string, now: string): AgentRun {
@@ -116,13 +145,7 @@ function blankWork(campaign: Campaign, now: string): Work {
   };
 }
 
-/** Founder-set ceiling for automated spend (UC-01 ext 13.a). */
-export function defaultSpendCap(campaign: Pick<Campaign, "budget" | "spendCapUsd">) {
-  if (typeof campaign.spendCapUsd === "number" && campaign.spendCapUsd > 0) {
-    return campaign.spendCapUsd;
-  }
-  return Math.max(5, Math.min(50, Math.round(campaign.budget * 0.002 * 100) / 100));
-}
+export { defaultSpendCap };
 
 function envFor(
   ctx: EngineContext,
@@ -131,6 +154,7 @@ function envFor(
   brand: StepEnv["brand"],
   llm: LlmRuntime,
   renderPoster: NonNullable<EngineOptions["renderPoster"]>,
+  billing: BillingContext | undefined,
 ): StepEnv {
   return {
     now: ctx.now,
@@ -139,6 +163,7 @@ function envFor(
     llm,
     allCampaigns: ctx.campaigns.map((c) => (c.id === campaign.id ? campaign : c)),
     renderPoster,
+    billing,
   };
 }
 
@@ -282,10 +307,41 @@ export async function runEngine(
   brand: StepEnv["brand"],
   options: EngineOptions = {},
 ): Promise<EngineResult> {
-  const llm = options.llm ?? makeLlmRuntime();
+  const llm = options.llm ?? makeLlmRuntime(options.billing);
   const maxSteps = options.maxSteps ?? DEFAULT_MAX_STEPS;
   const w = blankWork(campaign, ctx.now);
-  const env = envFor(ctx, w.campaign, settings, brand, llm, options.renderPoster ?? defaultRenderPoster);
+
+  /**
+   * The agents' tool context, rebuilt from the current work state.
+   *
+   * A tool call made by an agent has to be recorded exactly as one the engine makes
+   * itself: same run trace, same evidence ledger, same spend meter. Routing it
+   * through `callTool` is what guarantees that, which is also why the agent cannot
+   * be handed a raw client — it would bypass every record this product depends on.
+   */
+  llm.agent = () => {
+    if (options.useAgents === false) return undefined;
+    const env = envFor(ctx, w.campaign, settings, brand, llm, options.renderPoster ?? defaultRenderPoster(options.billing), options.billing);
+    return {
+      billing: options.billing,
+      tools: {
+        campaign: w.campaign,
+        brand,
+        at: w.now,
+        execute: (name, args) => callTool(w, "trend", name, args, env),
+      },
+      onNote: (note) => addEvent(w, "trend", "insight", "Agent note", note),
+      onFailedUsage: (costUsd) => {
+        // Charged by the funnel, with no trace to carry it: book it here.
+        if (costUsd <= 0) return;
+        w.campaign.spend = {
+          ...w.campaign.spend,
+          inferenceUsd: Math.round((w.campaign.spend.inferenceUsd + costUsd) * 1e5) / 1e5,
+        };
+      },
+    };
+  };
+  const env = envFor(ctx, w.campaign, settings, brand, llm, options.renderPoster ?? defaultRenderPoster(options.billing), options.billing);
   let canAdvance = false;
 
   if (!w.run || !activeRun(w.run)) {
@@ -523,6 +579,7 @@ export async function runEngine(
       let last = "Nothing to do.";
       let taken = 0;
       while (taken < maxSteps) {
+        if (taken > 0 && options.stepDeadline !== undefined && Date.now() >= options.stepDeadline) break;
         const run = w.run!;
         if (run.status !== "running") break;
         if (["founder.gate", "media.schedule"].includes(run.step)) break;

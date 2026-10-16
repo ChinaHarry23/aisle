@@ -1,37 +1,16 @@
 import type { Campaign, CampaignBrief, Creative } from "@/lib/types";
 
 export function fallbackBrief(campaign: Campaign): CampaignBrief {
-  return {
-    product: campaign.product,
-    angle: campaign.objective,
-    audience: campaign.targetAudience,
-    channels: campaign.channels,
-    keyMessage: campaign.product,
-    claimsAllowed: campaign.sharedContext.approvedClaims,
-    claimsAvoid: [],
-    visualDirection: campaign.sharedContext.brandTone,
-  };
+  return { product: campaign.product, angle: campaign.objective, audience: campaign.targetAudience, channels: campaign.channels, keyMessage: campaign.product, claimsAllowed: campaign.sharedContext.approvedClaims, claimsAvoid: [], visualDirection: campaign.sharedContext.brandTone };
 }
 
+/** The creative agent authors the picture. This wrapper sets output conventions, not a scene. */
 export function posterPrompt(campaign: Campaign, creative: Creative) {
+  if (!creative.prompt.trim()) throw new Error("A creative-agent image prompt is required before rendering.");
   return [
-    "Retail advertisement, 4:5, print quality.",
-    `Brand: ${campaign.sharedContext.retailer}.`,
-    `Product: ${campaign.product}.`,
-    `Headline: ${creative.headline}.`,
-    creative.subhead,
+    creative.prompt,
+    "Render the background artwork only, portrait 4:5, photographic materials. Leave intentional negative space for separately authored advertising copy.",
+    "Do not draw a finished poster, typography, prices, logos or watermarks. Respect the supplied campaign's visual restrictions.",
     campaign.brief?.visualDirection ?? campaign.sharedContext.brandTone,
-    "No competitor logos. Honest product, not stock-smile families.",
-  ].join(" ");
-}
-
-export function videoPrompt(campaign: Campaign, durationSec: number) {
-  const hero = campaign.creatives[0];
-  return [
-    `${durationSec}-second retail ad.`,
-    `Product: ${campaign.product}.`,
-    `Line: ${hero?.headline ?? campaign.brief?.keyMessage ?? campaign.objective}.`,
-    `Audience: ${campaign.targetAudience}.`,
-    "No unsubstantiated claims. End on pack shot.",
-  ].join(" ");
+  ].join("\n");
 }

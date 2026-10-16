@@ -1,13 +1,15 @@
 import type { MediaModel, ProviderId } from "./types";
 
 export const PROVIDERS: { id: ProviderId; name: string }[] = [
+  { id: "comfy", name: "ComfyUI" },
   { id: "openai", name: "OpenAI" },
   { id: "google", name: "Google" },
   { id: "bfl", name: "Black Forest Labs" },
   { id: "ideogram", name: "Ideogram" },
   { id: "recraft", name: "Recraft" },
   { id: "xai", name: "xAI" },
-  { id: "bytedance", name: "BytePlus" },
+  { id: "bytedance", name: "ByteDance" },
+  { id: "tencent", name: "Tencent" },
   { id: "alibaba", name: "Alibaba" },
   { id: "stability", name: "Stability AI" },
   { id: "luma", name: "Luma" },
@@ -21,18 +23,65 @@ export const PROVIDERS: { id: ProviderId; name: string }[] = [
 
 export const MEDIA_MODELS: MediaModel[] = [
   {
+    id: "comfy:local",
+    providerId: "comfy",
+    provider: "ComfyUI",
+    name: "Z-Image Turbo",
+    apiModel: "z-image-turbo",
+    kind: "image",
+    blurb: "Local text-to-image poster on the ComfyUI server.",
+    bestFor: "Campaign stills on this machine",
+    envKeys: [],
+    endpoint: "http://127.0.0.1:8188",
+    estimateLabel: "Local · 8 steps",
+    billing: { mode: "per_image", usd: 0, estOutTokens: 0 },
+    notes: "COMFYUI_URL, COMFYUI_IMAGE_UNET, COMFYUI_IMAGE_CLIP, COMFYUI_IMAGE_VAE.",
+  },
+  {
+    id: "comfy:minimax-h3",
+    providerId: "comfy",
+    provider: "ComfyUI",
+    name: "MiniMax H3",
+    apiModel: "minimax-h3",
+    kind: "video",
+    blurb: "Local ad video. Uses the campaign poster as the opening frame when one exists.",
+    bestFor: "Campaign films on this machine",
+    envKeys: [],
+    endpoint: "http://127.0.0.1:8188",
+    estimateLabel: "Local · turbo",
+    billing: { mode: "per_second", usdPerSec: 0, estTokensPerSec: 0 },
+    notes: "COMFYUI_VIDEO_UNET, COMFYUI_VIDEO_CLIP, COMFYUI_VIDEO_VAE, COMFYUI_AUDIO_VAE, COMFYUI_VIDEO_LORA. COMFYUI_VIDEO_TURBO=0 uses the 20-step path.",
+  },
+  {
+    id: "comfy:ltx-2.5",
+    providerId: "comfy",
+    provider: "ComfyUI",
+    name: "LTX-2.5",
+    apiModel: "ltx-2.5",
+    kind: "video",
+    videoInput: "text",
+    blurb: "Local cinematic text-to-video. Creates a scene from the brief, without a poster input.",
+    bestFor: "Widescreen live-action concepts with people",
+    envKeys: [],
+    endpoint: "http://127.0.0.1:8188",
+    estimateLabel: "Local · 8 + 3 steps",
+    billing: { mode: "per_second", usdPerSec: 0, estTokensPerSec: 0 },
+    notes: "Native LTX-2.5 BF16 · 16:9 · 720p or 1080p · 2x latent upscale and diffusion decoder. Real generation time depends on the machine.",
+  },
+  {
     id: "openai:gpt-image-2",
     providerId: "openai",
     provider: "OpenAI",
     name: "GPT Image 2",
     apiModel: "gpt-image-2",
     kind: "image",
-    blurb: "Best default for composed retail ads. Token-billed.",
+    blurb: "Best default for composed retail posters. Token-billed.",
     bestFor: "Campaign heroes, complex layouts",
     envKeys: ["OPENAI_API_KEY"],
     endpoint: "https://api.openai.com/v1/images/generations",
-    estimateLabel: "~$0.053 / ad",
-    billing: { mode: "tokens", textInPerM: 5, imageOutPerM: 30, estOutTokens: 1650 },
+    estimateLabel: "~$0.053 / poster",
+    // $0.053 medium 1024² at $30 per 1M output tokens. Real cost comes from `usage`.
+    billing: { mode: "tokens", textInPerM: 5, imageOutPerM: 30, estOutTokens: 1767 },
   },
   {
     id: "openai:gpt-image-2-high",
@@ -45,78 +94,23 @@ export const MEDIA_MODELS: MediaModel[] = [
     bestFor: "Catalogue covers, print",
     envKeys: ["OPENAI_API_KEY"],
     endpoint: "https://api.openai.com/v1/images/generations",
-    estimateLabel: "~$0.21 / ad",
-    billing: { mode: "tokens", textInPerM: 5, imageOutPerM: 30, estOutTokens: 6800 },
-  },
-  {
-    id: "openai:gpt-image-1-mini",
-    providerId: "openai",
-    provider: "OpenAI",
-    name: "GPT Image 1 Mini",
-    apiModel: "gpt-image-1-mini",
-    kind: "image",
-    blurb: "Cheap volume stills while you iterate copy.",
-    bestFor: "Drafting, A/B volume",
-    envKeys: ["OPENAI_API_KEY"],
-    endpoint: "https://api.openai.com/v1/images/generations",
-    estimateLabel: "~$0.009 / ad",
-    billing: { mode: "per_image", usd: 0.009, estOutTokens: 900 },
-  },
-  {
-    id: "google:imagen-4-fast",
-    providerId: "google",
-    provider: "Google",
-    name: "Imagen 4 Fast",
-    apiModel: "imagen-4.0-fast-generate-001",
-    kind: "image",
-    blurb: "Fast photoreal stills. Flat per image.",
-    bestFor: "Product photography speed",
-    envKeys: ["GOOGLE_AI_API_KEY"],
-    endpoint: "https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-fast-generate-001:predict",
-    estimateLabel: "$0.02 / ad",
-    billing: { mode: "per_image", usd: 0.02, estOutTokens: 1200 },
-  },
-  {
-    id: "google:imagen-4",
-    providerId: "google",
-    provider: "Google",
-    name: "Imagen 4",
-    apiModel: "imagen-4.0-generate-001",
-    kind: "image",
-    blurb: "Strong text rendering for ads with headlines.",
-    bestFor: "Type-in-image, banners",
-    envKeys: ["GOOGLE_AI_API_KEY"],
-    endpoint: "https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict",
-    estimateLabel: "$0.04 / ad",
-    billing: { mode: "per_image", usd: 0.04, estOutTokens: 1400 },
-  },
-  {
-    id: "google:imagen-4-ultra",
-    providerId: "google",
-    provider: "Google",
-    name: "Imagen 4 Ultra",
-    apiModel: "imagen-4.0-ultra-generate-001",
-    kind: "image",
-    blurb: "Highest Imagen still quality.",
-    bestFor: "Hero product shots",
-    envKeys: ["GOOGLE_AI_API_KEY"],
-    endpoint: "https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-ultra-generate-001:predict",
-    estimateLabel: "$0.06 / ad",
-    billing: { mode: "per_image", usd: 0.06, estOutTokens: 1800 },
+    estimateLabel: "~$0.21 / poster",
+    billing: { mode: "tokens", textInPerM: 5, imageOutPerM: 30, estOutTokens: 7033 },
   },
   {
     id: "google:nano-banana-2",
     providerId: "google",
     provider: "Google",
-    name: "Gemini Flash Image",
-    apiModel: "gemini-3.1-flash-preview-image",
+    name: "Nano Banana 2",
+    apiModel: "gemini-3.1-flash-image",
     kind: "image",
-    blurb: "Gemini-native image (Nano Banana 2). Fast edits too.",
+    blurb: "Gemini-native image (Gemini 3.1 Flash Image). Fast, good with product shots.",
     bestFor: "Iterate + edit from a still",
     envKeys: ["GOOGLE_AI_API_KEY"],
-    endpoint: "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-preview-image:generateContent",
-    estimateLabel: "~$0.08 / ad",
-    billing: { mode: "per_image", usd: 0.08, estOutTokens: 2000 },
+    endpoint: "https://generativelanguage.googleapis.com/v1beta/interactions",
+    estimateLabel: "~$0.067 / poster",
+    // 1K output is 1120 image tokens at $60 per 1M; prompt tokens at $0.50 per 1M.
+    billing: { mode: "tokens", textInPerM: 0.5, imageOutPerM: 60, estOutTokens: 1120 },
   },
   {
     id: "bfl:flux-2-klein",
@@ -129,7 +123,7 @@ export const MEDIA_MODELS: MediaModel[] = [
     bestFor: "Draft stills",
     envKeys: ["BFL_API_KEY"],
     endpoint: "https://api.bfl.ai/v1/flux-2-klein",
-    estimateLabel: "$0.015 / ad",
+    estimateLabel: "$0.015 / poster",
     billing: { mode: "per_mp", usdPerMp: 0.015, megapixels: 1, estOutTokens: 800 },
   },
   {
@@ -143,7 +137,7 @@ export const MEDIA_MODELS: MediaModel[] = [
     bestFor: "Apparel and product photos",
     envKeys: ["BFL_API_KEY"],
     endpoint: "https://api.bfl.ai/v1/flux-2-pro",
-    estimateLabel: "$0.03 / ad",
+    estimateLabel: "$0.03 / poster",
     billing: { mode: "per_mp", usdPerMp: 0.03, megapixels: 1, estOutTokens: 1100 },
   },
   {
@@ -157,7 +151,7 @@ export const MEDIA_MODELS: MediaModel[] = [
     bestFor: "Premium product",
     envKeys: ["BFL_API_KEY"],
     endpoint: "https://api.bfl.ai/v1/flux-2-max",
-    estimateLabel: "$0.07 / ad",
+    estimateLabel: "$0.07 / poster",
     billing: { mode: "per_mp", usdPerMp: 0.07, megapixels: 1, estOutTokens: 1600 },
   },
   {
@@ -167,11 +161,11 @@ export const MEDIA_MODELS: MediaModel[] = [
     name: "Ideogram 4 Turbo",
     apiModel: "ideogram-v4-turbo",
     kind: "image",
-    blurb: "Readable ad type, cheaper tier.",
+    blurb: "Readable poster type, cheaper tier.",
     bestFor: "Headlines on the image",
     envKeys: ["IDEOGRAM_API_KEY"],
     endpoint: "https://api.ideogram.ai/v1/ideogram-v3/generate",
-    estimateLabel: "$0.03 / ad",
+    estimateLabel: "$0.03 / poster",
     billing: { mode: "per_image", usd: 0.03, estOutTokens: 1000 },
   },
   {
@@ -182,10 +176,10 @@ export const MEDIA_MODELS: MediaModel[] = [
     apiModel: "ideogram-v4-quality",
     kind: "image",
     blurb: "Best-in-class typography for catalogues and signage.",
-    bestFor: "Print ads, in-store",
+    bestFor: "Print posters, in-store",
     envKeys: ["IDEOGRAM_API_KEY"],
     endpoint: "https://api.ideogram.ai/v1/ideogram-v3/generate",
-    estimateLabel: "$0.10 / ad",
+    estimateLabel: "$0.10 / poster",
     billing: { mode: "per_image", usd: 0.1, estOutTokens: 1500 },
   },
   {
@@ -199,7 +193,7 @@ export const MEDIA_MODELS: MediaModel[] = [
     bestFor: "Brand-clean layouts",
     envKeys: ["RECRAFT_API_KEY"],
     endpoint: "https://external.api.recraft.ai/v1/images/generations",
-    estimateLabel: "$0.035 / ad",
+    estimateLabel: "$0.035 / poster",
     billing: { mode: "per_image", usd: 0.035, estOutTokens: 1100 },
   },
   {
@@ -213,36 +207,93 @@ export const MEDIA_MODELS: MediaModel[] = [
     bestFor: "Alternate look when others feel samey",
     envKeys: ["XAI_API_KEY"],
     endpoint: "https://api.x.ai/v1/images/generations",
-    estimateLabel: "~$0.05 / ad",
+    estimateLabel: "~$0.05 / poster",
     billing: { mode: "per_image", usd: 0.05, estOutTokens: 1300 },
+  },
+  {
+    id: "bytedance:seedream-5-pro",
+    providerId: "bytedance",
+    provider: "ByteDance",
+    name: "Seedream 5.0 Pro",
+    apiModel: "dola-seedream-5-0-pro-260628",
+    kind: "image",
+    blurb: "Top Seedream quality, strong on headline text. BytePlus ModelArk.",
+    bestFor: "Campaign heroes without people",
+    envKeys: ["ARK_API_KEY"],
+    endpoint: "https://ark.ap-southeast.bytepluses.com/api/v3/images/generations",
+    estimateLabel: "$0.045 / poster",
+    // Per image up to 2.61 MP (posters render 1440x1800); output_tokens is w*h/256 but not billed.
+    billing: { mode: "per_image", usd: 0.045, estOutTokens: 10125 },
+  },
+  {
+    id: "bytedance:seedream-5-lite",
+    providerId: "bytedance",
+    provider: "ByteDance",
+    name: "Seedream 5.0 Lite",
+    apiModel: "seedream-5-0-lite-260128",
+    kind: "image",
+    blurb: "The only Seedream poster Seedance will animate when it shows a real face.",
+    bestFor: "Posters with people that become ads",
+    envKeys: ["ARK_API_KEY"],
+    endpoint: "https://ark.ap-southeast.bytepluses.com/api/v3/images/generations",
+    estimateLabel: "$0.035 / poster",
+    billing: { mode: "per_image", usd: 0.035, estOutTokens: 14580 },
   },
   {
     id: "bytedance:seedream-4.5",
     providerId: "bytedance",
-    provider: "BytePlus",
+    provider: "ByteDance",
     name: "Seedream 4.5",
-    apiModel: "seedream-4.5",
+    apiModel: "seedream-4-5-251128",
     kind: "image",
-    blurb: "Strong composition, competitive price.",
+    blurb: "Strong composition, competitive price. JPEG, at least 3.7 MP.",
     bestFor: "Lifestyle stills",
     envKeys: ["ARK_API_KEY"],
     endpoint: "https://ark.ap-southeast.bytepluses.com/api/v3/images/generations",
-    estimateLabel: "$0.04 / ad",
-    billing: { mode: "per_image", usd: 0.04, estOutTokens: 1200 },
+    estimateLabel: "$0.04 / poster",
+    billing: { mode: "per_image", usd: 0.04, estOutTokens: 14580 },
   },
   {
-    id: "alibaba:qwen-image-3",
+    id: "tencent:hy-image-3.5",
+    providerId: "tencent",
+    provider: "Tencent",
+    name: "Hunyuan Image 3.5",
+    apiModel: "hy-image-v3.5-preview",
+    kind: "image",
+    blurb: "Hunyuan's newest (preview), strongest at rendered text. Tencent TokenHub.",
+    bestFor: "Type-heavy posters",
+    envKeys: ["TOKENHUB_API_KEY"],
+    endpoint: "https://tokenhub-intl.tencentcloudmaas.com/v1/wand/hunyuan-image/v35-generation",
+    estimateLabel: "$0.024 / poster",
+    billing: { mode: "per_image", usd: 0.024, estOutTokens: 20000 },
+  },
+  {
+    id: "tencent:hy-image-3",
+    providerId: "tencent",
+    provider: "Tencent",
+    name: "Hunyuan Image 3.0",
+    apiModel: "hy-image-v3",
+    kind: "image",
+    blurb: "Stable Hunyuan stills, up to 1 MP. Tencent TokenHub.",
+    bestFor: "Product stills",
+    envKeys: ["TOKENHUB_API_KEY"],
+    endpoint: "https://tokenhub-intl.tencentcloudmaas.com/v1/wand/hunyuan-image/v3-generation",
+    estimateLabel: "$0.032 / poster",
+    billing: { mode: "per_image", usd: 0.032, estOutTokens: 1024 },
+  },
+  {
+    id: "alibaba:qwen-image-2",
     providerId: "alibaba",
     provider: "Alibaba",
-    name: "Qwen Image 3",
-    apiModel: "qwen-image-3",
+    name: "Qwen Image 2.0",
+    apiModel: "qwen-image-2.0",
     kind: "image",
-    blurb: "Qwen stills, solid on product + type.",
-    bestFor: "Bilingual ads later",
+    blurb: "Qwen stills, solid on product shots and rendered text. Model Studio (Singapore).",
+    bestFor: "Bilingual posters",
     envKeys: ["DASHSCOPE_API_KEY"],
-    endpoint: "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation",
-    estimateLabel: "$0.03 / ad",
-    billing: { mode: "per_image", usd: 0.03, estOutTokens: 1000 },
+    endpoint: "https://dashscope-intl.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation",
+    estimateLabel: "$0.035 / poster",
+    billing: { mode: "per_image", usd: 0.035, estOutTokens: 1000 },
   },
   {
     id: "stability:sd3.5-large",
@@ -255,7 +306,7 @@ export const MEDIA_MODELS: MediaModel[] = [
     bestFor: "Custom brand LoRAs",
     envKeys: ["STABILITY_API_KEY"],
     endpoint: "https://api.stability.ai/v2beta/stable-image/generate/sd3",
-    estimateLabel: "$0.065 / ad",
+    estimateLabel: "$0.065 / poster",
     billing: { mode: "per_image", usd: 0.065, estOutTokens: 1400 },
   },
   {
@@ -269,7 +320,7 @@ export const MEDIA_MODELS: MediaModel[] = [
     bestFor: "Volume drafts",
     envKeys: ["LUMA_API_KEY"],
     endpoint: "https://api.lumalabs.ai/dream-machine/v1/generations/image",
-    estimateLabel: "$0.004 / ad",
+    estimateLabel: "$0.004 / poster",
     billing: { mode: "per_image", usd: 0.004, estOutTokens: 600 },
   },
   {
@@ -283,7 +334,7 @@ export const MEDIA_MODELS: MediaModel[] = [
     bestFor: "Moodier campaigns",
     envKeys: ["KREA_API_KEY"],
     endpoint: "https://api.krea.ai/v1/generate",
-    estimateLabel: "~$0.06 / ad",
+    estimateLabel: "~$0.06 / poster",
     billing: { mode: "per_image", usd: 0.06, estOutTokens: 1400 },
   },
   {
@@ -297,10 +348,28 @@ export const MEDIA_MODELS: MediaModel[] = [
     bestFor: "Enterprise AWS shops",
     envKeys: ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"],
     endpoint: "bedrock-runtime (InvokeModel)",
-    estimateLabel: "$0.008 / ad",
+    estimateLabel: "$0.008 / poster",
     billing: { mode: "per_image", usd: 0.008, estOutTokens: 700 },
   },
 
+  {
+    id: "google:omni-flash",
+    providerId: "google",
+    provider: "Google",
+    name: "Gemini Omni Flash",
+    apiModel: "gemini-omni-1.1-flash",
+    kind: "video",
+    blurb: "Default cloud ad video. Image-to-video with native audio; length set in the prompt.",
+    bestFor: "Instagram / web ads",
+    envKeys: ["GOOGLE_AI_API_KEY"],
+    endpoint: "https://generativelanguage.googleapis.com/v1beta/interactions",
+    estimateLabel: "~$0.10 / s",
+    // 5,792 output tokens per second of 720p at $17.50 per 1M. Billed from `usage`.
+    billing: { mode: "per_second", usdPerSec: 0.1014, estTokensPerSec: 5792 },
+    usageBilled: true,
+    promptLength: true,
+    durations: [4, 6, 8, 10],
+  },
   {
     id: "google:veo-3.1-lite",
     providerId: "google",
@@ -308,70 +377,46 @@ export const MEDIA_MODELS: MediaModel[] = [
     name: "Veo 3.1 Lite",
     apiModel: "veo-3.1-lite-generate-preview",
     kind: "video",
-    blurb: "Cheapest Veo. 4–8s clips.",
+    blurb: "Cheapest Veo. 4, 6 or 8 s at 720p.",
     bestFor: "Social volume",
     envKeys: ["GOOGLE_AI_API_KEY"],
     endpoint: "https://generativelanguage.googleapis.com/v1beta/models/veo-3.1-lite-generate-preview:predictLongRunning",
     estimateLabel: "$0.05 / s",
     billing: { mode: "per_second", usdPerSec: 0.05, estTokensPerSec: 400 },
+    durations: [4, 6, 8],
+    sunset: "2026-10-22",
   },
   {
     id: "google:veo-3.1-fast",
     providerId: "google",
     provider: "Google",
     name: "Veo 3.1 Fast",
-    apiModel: "veo-3.1-fast-generate",
+    apiModel: "veo-3.1-fast-generate-preview",
     kind: "video",
-    blurb: "Default ad video. Native audio available.",
+    blurb: "Veo image-to-video with native audio. 4, 6 or 8 s at 720p.",
     bestFor: "Instagram / web ads",
     envKeys: ["GOOGLE_AI_API_KEY"],
-    endpoint: "https://generativelanguage.googleapis.com/v1beta/models/veo-3.1-fast-generate:predictLongRunning",
-    estimateLabel: "$0.12 / s",
-    billing: { mode: "per_second", usdPerSec: 0.12, estTokensPerSec: 700 },
+    endpoint: "https://generativelanguage.googleapis.com/v1beta/models/veo-3.1-fast-generate-preview:predictLongRunning",
+    estimateLabel: "$0.10 / s",
+    billing: { mode: "per_second", usdPerSec: 0.1, estTokensPerSec: 700 },
+    durations: [4, 6, 8],
+    sunset: "2026-10-22",
   },
   {
     id: "google:veo-3.1",
     providerId: "google",
     provider: "Google",
     name: "Veo 3.1",
-    apiModel: "veo-3.1-generate",
+    apiModel: "veo-3.1-generate-preview",
     kind: "video",
-    blurb: "Highest Veo. Dialogue-grade audio.",
+    blurb: "Highest Veo. Dialogue-grade audio. 4, 6 or 8 s at 720p.",
     bestFor: "Hero spots",
     envKeys: ["GOOGLE_AI_API_KEY"],
-    endpoint: "https://generativelanguage.googleapis.com/v1beta/models/veo-3.1-generate:predictLongRunning",
+    endpoint: "https://generativelanguage.googleapis.com/v1beta/models/veo-3.1-generate-preview:predictLongRunning",
     estimateLabel: "$0.40 / s",
     billing: { mode: "per_second", usdPerSec: 0.4, estTokensPerSec: 1400 },
-  },
-  {
-    id: "openai:sora-2",
-    providerId: "openai",
-    provider: "OpenAI",
-    name: "Sora 2",
-    apiModel: "sora-2",
-    kind: "video",
-    blurb: "720p. Videos API sunsets 24 Sep 2026 — do not build long-term on it.",
-    bestFor: "Short cinematic still-in-motion",
-    envKeys: ["OPENAI_API_KEY"],
-    endpoint: "https://api.openai.com/v1/videos",
-    estimateLabel: "$0.10 / s",
-    billing: { mode: "per_second", usdPerSec: 0.1, estTokensPerSec: 600 },
-    notes: "API sunsetting 24 Sep 2026",
-  },
-  {
-    id: "openai:sora-2-pro",
-    providerId: "openai",
-    provider: "OpenAI",
-    name: "Sora 2 Pro",
-    apiModel: "sora-2-pro",
-    kind: "video",
-    blurb: "Higher fidelity Sora. Same sunset.",
-    bestFor: "Premium 720p spots",
-    envKeys: ["OPENAI_API_KEY"],
-    endpoint: "https://api.openai.com/v1/videos",
-    estimateLabel: "$0.30 / s",
-    billing: { mode: "per_second", usdPerSec: 0.3, estTokensPerSec: 1100 },
-    notes: "API sunsetting 24 Sep 2026",
+    durations: [4, 6, 8],
+    sunset: "2026-10-22",
   },
   {
     id: "runway:gen-4-turbo",
@@ -430,18 +475,86 @@ export const MEDIA_MODELS: MediaModel[] = [
     billing: { mode: "per_second", usdPerSec: 0.11, estTokensPerSec: 600 },
   },
   {
+    id: "bytedance:seedance-2.5",
+    providerId: "bytedance",
+    provider: "ByteDance",
+    name: "Seedance 2.5",
+    apiModel: "dreamina-seedance-2-5-260628",
+    kind: "video",
+    blurb: "Dreamina Seedance 2.5. Text-to-video, native audio, one 4–30 second ad with its own shots.",
+    bestFor: "A full short ad, not a zoom on a poster",
+    videoInput: "text",
+    envKeys: ["ARK_API_KEY"],
+    endpoint: "https://ark.ap-southeast.bytepluses.com/api/v3/contents/generations/tasks",
+    estimateLabel: "~$0.12 / s (720p)",
+    // 720p token rate follows the Seedance 2.0 fast card; 2.5 is billed from `usage`.
+    billing: { mode: "per_second", usdPerSec: 0.121, estTokensPerSec: 21600 },
+    usageBilled: true,
+    durations: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30],
+  },
+  {
+    id: "bytedance:seedance-2-mini",
+    providerId: "bytedance",
+    provider: "ByteDance",
+    name: "Seedance 2.0 Mini",
+    apiModel: "dreamina-seedance-2-0-mini-260615",
+    kind: "video",
+    blurb: "Cheapest Seedance 2.0. Poster as first frame, native audio, keeps the poster's framing.",
+    bestFor: "High-volume cuts",
+    envKeys: ["ARK_API_KEY"],
+    endpoint: "https://ark.ap-southeast.bytepluses.com/api/v3/contents/generations/tasks",
+    estimateLabel: "~$0.08 / s (720p)",
+    // 720p is ~21,600 output tokens per second at $3.50 per 1M. Billed from `usage`.
+    billing: { mode: "per_second", usdPerSec: 0.0756, estTokensPerSec: 21600 },
+    usageBilled: true,
+    durations: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+  },
+  {
     id: "bytedance:seedance-2-fast",
     providerId: "bytedance",
     provider: "ByteDance",
     name: "Seedance 2.0 Fast",
-    apiModel: "seedance-2.0-fast",
+    apiModel: "dreamina-seedance-2-0-fast-260128",
     kind: "video",
-    blurb: "Token-billed video; cheap fast tier.",
-    bestFor: "High-volume cuts",
+    blurb: "Faster, sharper Seedance 2.0 with native audio.",
+    bestFor: "Instagram / web ads",
     envKeys: ["ARK_API_KEY"],
     endpoint: "https://ark.ap-southeast.bytepluses.com/api/v3/contents/generations/tasks",
-    estimateLabel: "$0.05 / s",
-    billing: { mode: "per_second", usdPerSec: 0.05, estTokensPerSec: 900 },
+    estimateLabel: "~$0.12 / s (720p)",
+    // 720p is ~21,600 output tokens per second at $5.60 per 1M. Billed from `usage`.
+    billing: { mode: "per_second", usdPerSec: 0.121, estTokensPerSec: 21600 },
+    usageBilled: true,
+    durations: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+  },
+  {
+    id: "tencent:hy-video-1.5",
+    providerId: "tencent",
+    provider: "Tencent",
+    name: "Hunyuan Video 1.5",
+    apiModel: "hy-video-v1.5",
+    kind: "video",
+    blurb: "Cheap Tencent image-to-video. Always 5 s at 720p, silent, poster's framing.",
+    bestFor: "Silent motion loops",
+    envKeys: ["TOKENHUB_API_KEY"],
+    endpoint: "https://tokenhub-intl.tencentcloudmaas.com/v1/wand/hunyuan-video/generation",
+    estimateLabel: "$0.24 / 5 s clip",
+    billing: { mode: "per_second", usdPerSec: 0.048, estTokensPerSec: 30000 },
+    durations: [5],
+  },
+  {
+    id: "tencent:kling-3",
+    providerId: "tencent",
+    provider: "Tencent",
+    name: "Kling 3.0 (TokenHub)",
+    apiModel: "kling-video-v3",
+    kind: "video",
+    blurb: "Kling 3.0 pay-as-you-go through Tencent TokenHub. Native audio, poster's framing.",
+    bestFor: "Product move + lifestyle",
+    envKeys: ["TOKENHUB_API_KEY"],
+    endpoint: "https://tokenhub-intl.tencentcloudmaas.com/v1/wand/kling/image-to-video",
+    estimateLabel: "$0.126 / s (720p, audio)",
+    billing: { mode: "per_second", usdPerSec: 0.126, estTokensPerSec: 60000 },
+    durations: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
   },
   {
     id: "minimax:hailuo-2.3",
@@ -458,18 +571,34 @@ export const MEDIA_MODELS: MediaModel[] = [
     billing: { mode: "per_second", usdPerSec: 0.05, estTokensPerSec: 400 },
   },
   {
+    id: "alibaba:wan-2.6-flash",
+    providerId: "alibaba",
+    provider: "Alibaba",
+    name: "Wan 2.6 Flash",
+    apiModel: "wan2.6-i2v-flash",
+    kind: "video",
+    blurb: "Cheapest image-to-video with audio. Keeps the poster's framing.",
+    bestFor: "Budget motion",
+    envKeys: ["DASHSCOPE_API_KEY"],
+    endpoint: "https://dashscope-intl.aliyuncs.com/api/v1/services/aigc/video-generation/video-synthesis",
+    estimateLabel: "$0.05 / s (720p, audio)",
+    billing: { mode: "per_second", usdPerSec: 0.05, estTokensPerSec: 380 },
+    durations: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+  },
+  {
     id: "alibaba:wan-2.6",
     providerId: "alibaba",
     provider: "Alibaba",
     name: "Wan 2.6",
-    apiModel: "wan2.6-t2v",
+    apiModel: "wan2.6-i2v",
     kind: "video",
-    blurb: "Open-leaning Alibaba video.",
-    bestFor: "Budget motion",
+    blurb: "Full Wan 2.6 image-to-video with audio.",
+    bestFor: "Polished motion on a budget",
     envKeys: ["DASHSCOPE_API_KEY"],
-    endpoint: "https://dashscope.aliyuncs.com/api/v1/services/aigc/video-generation/video-synthesis",
-    estimateLabel: "$0.05 / s",
-    billing: { mode: "per_second", usdPerSec: 0.05, estTokensPerSec: 380 },
+    endpoint: "https://dashscope-intl.aliyuncs.com/api/v1/services/aigc/video-generation/video-synthesis",
+    estimateLabel: "$0.10 / s (720p)",
+    billing: { mode: "per_second", usdPerSec: 0.1, estTokensPerSec: 380 },
+    durations: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
   },
   {
     id: "luma:ray-3",
@@ -479,7 +608,7 @@ export const MEDIA_MODELS: MediaModel[] = [
     apiModel: "ray-3",
     kind: "video",
     blurb: "Dream Machine current still-to-motion.",
-    bestFor: "Ad → video",
+    bestFor: "Poster → ad video",
     envKeys: ["LUMA_API_KEY"],
     endpoint: "https://api.lumalabs.ai/dream-machine/v1/generations",
     estimateLabel: "$0.08 / s",
@@ -515,25 +644,77 @@ export const MEDIA_MODELS: MediaModel[] = [
   },
 ];
 
-export const DEFAULT_IMAGE_MODEL = "openai:gpt-image-2";
-export const DEFAULT_VIDEO_MODEL = "google:veo-3.1-fast";
+export const DEFAULT_IMAGE_MODEL = "comfy:local";
+export const DEFAULT_VIDEO_MODEL = "comfy:minimax-h3";
+
+/**
+ * Models the providers have shut down, mapped to their replacement, so saved
+ * settings and old campaign takes still resolve instead of throwing.
+ */
+const RETIRED: Record<string, string> = {
+  "google:imagen-4-fast": "google:nano-banana-2",
+  "google:imagen-4": "google:nano-banana-2",
+  "google:imagen-4-ultra": "google:nano-banana-2",
+  "openai:gpt-image-1-mini": "openai:gpt-image-2",
+  "openai:sora-2": "google:omni-flash",
+  "openai:sora-2-pro": "google:omni-flash",
+  // Never a real DashScope model id; Qwen Image 2.0 is the documented one.
+  "alibaba:qwen-image-3": "alibaba:qwen-image-2",
+};
+
+/** Clip lengths a model renders. ComfyUI MiniMax takes any whole second from 5 to 15. */
+export function allowedDurations(model: Pick<MediaModel, "durations">): number[] {
+  return model.durations ?? Array.from({ length: 11 }, (_, i) => i + 5);
+}
+
+/** The allowed length nearest `sec`, so a default saved for one model fits another. */
+export function snapDuration(model: Pick<MediaModel, "durations">, sec: number): number {
+  const allowed = allowedDurations(model);
+  return allowed.reduce((best, s) => (Math.abs(s - sec) < Math.abs(best - sec) ? s : best), allowed[0]);
+}
+
+/** A complete ad is an edited production, never a 30s request sent to a clip model. */
+export function supportsStoryAd(model: Pick<MediaModel, "id">) {
+  return ["comfy:ltx-2.5", "comfy:minimax-h3"].includes(model.id);
+}
+
+export function campaignVideoDurations(model: Pick<MediaModel, "id" | "durations">) {
+  return supportsStoryAd(model) ? [30, ...allowedDurations(model)] : allowedDurations(model);
+}
+
+export function snapCampaignDuration(model: Pick<MediaModel, "id" | "durations">, sec: number) {
+  return sec === 30 && supportsStoryAd(model) ? 30 : snapDuration(model, sec);
+}
+
+export function resolveModelId(id: string): string {
+  return RETIRED[id] ?? id;
+}
 
 export function getModel(id: string): MediaModel {
-  const found = MEDIA_MODELS.find((m) => m.id === id);
+  const resolved = resolveModelId(id);
+  const found = MEDIA_MODELS.find((m) => m.id === resolved);
   if (!found) throw new Error(`Unknown media model: ${id}`);
   return found;
 }
 
 export function getModelOrDefault(id: string | undefined, kind: MediaModel["kind"]) {
-  return MEDIA_MODELS.find((m) => m.id === id && m.kind === kind) ?? modelsOf(kind)[0];
+  const resolved = id ? resolveModelId(id) : id;
+  return MEDIA_MODELS.find((m) => m.id === resolved && m.kind === kind) ?? modelsOf(kind)[0];
 }
 
-/** Image models offered for now: OpenAI GPT Image and BytePlus Seedream. Everything else stays in the catalog but is hidden. */
-export const ENABLED_IMAGE_PROVIDERS: ProviderId[] = ["openai", "bytedance"];
+/** "22 Oct 2026" for a sunset date, for pickers. */
+export function sunsetLabel(model: Pick<MediaModel, "sunset">) {
+  if (!model.sunset) return undefined;
+  const date = new Date(`${model.sunset}T00:00:00Z`);
+  return `Shuts down ${date.toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })}`;
+}
 
 export function modelsOf(kind: MediaModel["kind"]) {
-  return MEDIA_MODELS.filter(
-    (m) =>
-      m.kind === kind && (kind !== "image" || ENABLED_IMAGE_PROVIDERS.includes(m.providerId)),
-  );
+  return MEDIA_MODELS.filter((m) => m.kind === kind);
+}
+
+export function modelsByProvider(kind: MediaModel["kind"], providerId: ProviderId | "all") {
+  const list = modelsOf(kind);
+  if (providerId === "all") return list;
+  return list.filter((m) => m.providerId === providerId);
 }

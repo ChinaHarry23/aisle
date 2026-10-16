@@ -1,87 +1,79 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, type ReactNode } from "react";
-import { Check, ChevronDown } from "lucide-react";
+import { useMemo, useState } from "react";
+import { IntakeChatbot } from "@/components/intake/IntakeChatbot";
+import { ASSISTANT_NOTE_PREFIX } from "@/lib/intake/shared";
+import { attachableRecommendation } from "@/lib/runtime/defaults";
 import { validateIntake } from "@/lib/runtime/intake";
-import type { CampaignInput, Channel, Country } from "@/lib/types";
+import type { CampaignInput, Channel, Country, IntakeFieldSources } from "@/lib/types";
 import { channelLabel } from "@/lib/status";
-import { PageHeader } from "@/components/ui";
-import { cn } from "@/lib/cn";
 import { useAisle } from "@/lib/store";
 
 const channels: Channel[] = ["instagram", "web", "email", "print", "digital_signage"];
-const countries: { id: Country; label: string }[] = [
-  { id: "AU", label: "Australia" },
-  { id: "NZ", label: "New Zealand" },
-  { id: "UK", label: "United Kingdom" },
-  { id: "US", label: "United States" },
-];
-const categories = ["Grocery", "Apparel", "Pantry", "Home", "Beauty"];
-const goals = ["Drive sales", "Build awareness", "Promote a new product", "Clear stock"];
-/** Fields that live under "More options", so a problem there opens the panel. */
-const advancedFields = ["category", "startDate", "endDate", "country"];
+const countries: Country[] = ["AU", "NZ", "UK", "US"];
 
-const input =
-  "w-full border border-line bg-surface px-3 py-2.5 text-[15px] outline-none transition focus:border-signal focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--signal)_18%,transparent)]";
-
-function isoDay(offsetDays: number) {
-  const d = new Date();
-  d.setDate(d.getDate() + offsetDays);
-  return d.toISOString().slice(0, 10);
-}
-
-function emptyBrief(): CampaignInput {
-  return {
-    name: "",
-    product: "",
-    category: "Grocery",
-    targetAudience: "",
-    objective: "",
-    // Not asked for: the engine still needs a figure, so every brief carries this default.
-    budget: 8000,
-    channels: ["instagram"],
-    startDate: isoDay(7),
-    endDate: isoDay(21),
-    country: "AU",
-    notes: "",
-  };
-}
-
-function Field({
-  label,
-  hint,
-  error,
-  children,
-}: {
-  label: string;
-  hint?: string;
-  error?: string;
-  children: ReactNode;
-}) {
-  return (
-    <label className="block">
-      <span className="text-sm font-medium">{label}</span>
-      {hint ? <span className="ml-2 text-xs text-mute">{hint}</span> : null}
-      <div className="mt-1.5">{children}</div>
-      {error ? <p className="mt-1 text-xs text-signal">{error}</p> : null}
-    </label>
-  );
-}
+const empty: CampaignInput = {
+  name: "",
+  product: "",
+  category: "Grocery",
+  targetAudience: "",
+  objective: "",
+  budget: 8000,
+  channels: ["instagram", "web", "email"],
+  startDate: "2026-08-26",
+  endDate: "2026-09-08",
+  country: "AU",
+  notes: "",
+  fieldSources: {},
+  intakeLog: [],
+};
 
 export default function NewCampaignPage() {
   const router = useRouter();
   const createCampaign = useAisle((s) => s.createCampaign);
   const launch = useAisle((s) => s.launch);
   const brand = useAisle((s) => s.brand);
-  const [form, setForm] = useState<CampaignInput>(emptyBrief);
-  const [attempted, setAttempted] = useState(false);
-  const [moreOpen, setMoreOpen] = useState(false);
+  const campaigns = useAisle((s) => s.campaigns);
+  const [mode, setMode] = useState<"form" | "chat">("form");
+  const [error, setError] = useState("");
+  const [form, setForm] = useState<CampaignInput>(empty);
 
-  function update<K extends keyof CampaignInput>(key: K, value: CampaignInput[K]) {
-    setForm((f) => ({ ...f, [key]: value }));
+  const priorRecommendation = useMemo(
+    () => attachableRecommendation(campaigns),
+    [campaigns],
+  );
+
+  function update<K extends keyof CampaignInput>(
+    key: K,
+    value: CampaignInput[K],
+    source: "founder" | "assistant" = "founder",
+  ) {
+    setForm((f) => {
+      const nextSources: IntakeFieldSources = { ...(f.fieldSources ?? {}) };
+      if (key in empty && key !== "fieldSources" && key !== "intakeLog") {
+        nextSources[key as keyof IntakeFieldSources] = source;
+      }
+      // Once the founder edits an assistant-drafted note, strip the unconfirmed prefix.
+      let finalValue = value;
+      if (
+        key === "notes" &&
+        source === "founder" &&
+        typeof value === "string" &&
+        value.startsWith(ASSISTANT_NOTE_PREFIX)
+      ) {
+        finalValue = value.slice(ASSISTANT_NOTE_PREFIX.length) as CampaignInput[K];
+      }
+      return {
+        ...f,
+        [key]: finalValue,
+        fieldSources: nextSources,
+      };
+    });
   }
+
+  /** UC-01 steps 4–5 run in the form too, so a launch is never a surprise. */
+  const problems = validateIntake(form, brand);
 
   function toggleChannel(ch: Channel) {
     setForm((f) => ({
@@ -89,242 +81,338 @@ export default function NewCampaignPage() {
       channels: f.channels.includes(ch)
         ? f.channels.filter((x) => x !== ch)
         : [...f.channels, ch],
+      fieldSources: { ...(f.fieldSources ?? {}), channels: "founder" },
     }));
   }
 
-  /** The name is optional: it falls back to the product, so most people never type it. */
-  const brief: CampaignInput = {
-    ...form,
-    name: form.name.trim() || (form.product.trim() ? `${form.product.trim()} campaign` : ""),
-  };
-
-  /** The same checks the engine runs at launch, so a launch is never a surprise. */
-  const problems = validateIntake(brief, brand);
-  const errorFor = (...fields: string[]) =>
-    attempted ? problems.find((p) => fields.includes(p.field))?.message : undefined;
-  const hiddenProblems = problems.filter((p) => advancedFields.includes(p.field));
-  const moreVisible = moreOpen || (attempted && hiddenProblems.length > 0);
-
   async function submit(run: boolean) {
-    setAttempted(true);
     if (problems.length > 0) {
-      requestAnimationFrame(() =>
-        document
-          .querySelector("[data-invalid]")
-          ?.scrollIntoView({ block: "center", behavior: "smooth" }),
+      setError(
+        run
+          ? `The pipeline will not start: ${problems.map((p) => p.message).join(" ")}`
+          : "Fix the brief before saving.",
       );
       return;
     }
-    const id = createCampaign(brief);
+    setError("");
+    const id = createCampaign(form);
     router.push(`/campaigns/${id}`);
     if (run) await launch(id);
   }
 
+  const hasAssistantNotesPrefix =
+    typeof form.notes === "string" && form.notes.startsWith(ASSISTANT_NOTE_PREFIX.trim());
+
   return (
-    <div className="flex max-w-2xl flex-col gap-8 pb-28">
-      <PageHeader
-        title="New campaign"
-        description="Describe what you're promoting and who it's for. Your AI agents research the market, design the creative and run compliance checks, then send the finished campaign to you for approval. Nothing is published until you say so."
-      />
-
-      <form
-        noValidate
-        className="flex flex-col gap-3"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void submit(true);
-        }}
-      >
-        <section className="hairline flex flex-col gap-6 p-4">
-          <Field label="What are you promoting?" error={errorFor("product", "name")}>
-            <input
-              autoFocus
-              value={form.product}
-              onChange={(e) => update("product", e.target.value)}
-              placeholder="Fresh oranges and juice"
-              data-invalid={errorFor("product", "name") ? "" : undefined}
-              className={input}
-            />
-          </Field>
-          <Field label="Who is it for?" error={errorFor("targetAudience")}>
-            <input
-              value={form.targetAudience}
-              onChange={(e) => update("targetAudience", e.target.value)}
-              placeholder="Families doing the weekly shop"
-              data-invalid={errorFor("targetAudience") ? "" : undefined}
-              className={input}
-            />
-          </Field>
-          <Field label="What should it achieve?" error={errorFor("objective")}>
-            <input
-              value={form.objective}
-              onChange={(e) => update("objective", e.target.value)}
-              placeholder="Sell more over the next two weeks"
-              data-invalid={errorFor("objective") ? "" : undefined}
-              className={input}
-            />
-            <p className="mt-3 text-xs text-mute">Or pick one:</p>
-            <div className="mt-1.5 flex flex-wrap gap-2">
-              {goals.map((g) => (
-                <button
-                  key={g}
-                  type="button"
-                  onClick={() => update("objective", g)}
-                  className="border border-line bg-surface px-3 py-1.5 text-sm text-ink hover:border-signal hover:text-signal-dark"
-                >
-                  {g}
-                </button>
-              ))}
-            </div>
-          </Field>
-          <fieldset>
-            <legend className="text-sm font-medium">Where should it run?</legend>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {channels.map((ch) => {
-                const on = form.channels.includes(ch);
-                return (
-                  <button
-                    key={ch}
-                    type="button"
-                    aria-pressed={on}
-                    onClick={() => toggleChannel(ch)}
-                    className={cn(
-                      "inline-flex items-center gap-1.5 border px-3 py-1.5 text-sm transition",
-                      on
-                        ? "border-signal bg-signal/10 font-medium text-signal-dark"
-                        : "border-line bg-surface text-ink-soft hover:border-mute",
-                    )}
-                  >
-                    {on ? <Check size={14} strokeWidth={2.5} /> : null}
-                    {channelLabel[ch]}
-                  </button>
-                );
-              })}
-            </div>
-            {errorFor("channels") ? (
-              <p data-invalid className="mt-1.5 text-xs text-signal">
-                {errorFor("channels")}
-              </p>
-            ) : null}
-          </fieldset>
-        </section>
-
-        <section className="hairline">
+    <div className={mode === "chat" ? "mx-auto max-w-5xl" : "mx-auto max-w-2xl"}>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.2em] text-signal">Campaign management</p>
+          <h1 className="mt-1 font-serif text-4xl">Write the brief.</h1>
+        </div>
+        <div
+          role="tablist"
+          aria-label="Campaign intake mode"
+          className="inline-flex border border-line bg-surface p-1 text-xs"
+        >
           <button
             type="button"
-            aria-expanded={moreVisible}
-            onClick={() => setMoreOpen((v) => !v)}
-            className="flex w-full items-center justify-between gap-3 p-4 text-left"
+            role="tab"
+            aria-selected={mode === "form"}
+            onClick={() => setMode("form")}
+            className={`px-3.5 py-1.5 transition-colors ${
+              mode === "form" ? "bg-ink text-paper" : "text-ink-soft hover:text-ink"
+            }`}
           >
-            <span>
-              <span className="block text-sm font-medium">More options</span>
-              <span className="block text-xs text-mute">
-                {form.startDate} to {form.endDate} ·{" "}
-                {countries.find((c) => c.id === form.country)?.label} · {form.category}
-              </span>
-            </span>
-            <ChevronDown
-              size={16}
-              className={cn("shrink-0 text-mute transition", moreVisible && "rotate-180")}
-            />
+            Write in form
           </button>
-          {moreVisible ? (
-            <div className="flex flex-col gap-5 border-t border-line p-4">
-              <Field label="Campaign name" hint="Optional">
-                <input
-                  value={form.name}
-                  onChange={(e) => update("name", e.target.value)}
-                  placeholder={brief.name || "Leave blank to use the product name"}
-                  className={input}
-                />
-              </Field>
-              <div className="grid gap-5 sm:grid-cols-2">
-                <Field label="Category" error={errorFor("category")}>
-                  <select
-                    value={form.category}
-                    onChange={(e) => update("category", e.target.value)}
-                    className={input}
-                  >
-                    {categories.map((c) => (
-                      <option key={c}>{c}</option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label="Market" hint="Sets compliance rules" error={errorFor("country")}>
-                  <select
-                    value={form.country}
-                    onChange={(e) => update("country", e.target.value as Country)}
-                    className={input}
-                  >
-                    {countries.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.label}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-              </div>
-              <div className="grid gap-5 sm:grid-cols-2">
-                <Field label="Starts" error={errorFor("startDate")}>
-                  <input
-                    type="date"
-                    value={form.startDate}
-                    onChange={(e) => update("startDate", e.target.value)}
-                    data-invalid={errorFor("startDate") ? "" : undefined}
-                    className={input}
-                  />
-                </Field>
-                <Field label="Ends" error={errorFor("endDate")}>
-                  <input
-                    type="date"
-                    value={form.endDate}
-                    onChange={(e) => update("endDate", e.target.value)}
-                    data-invalid={errorFor("endDate") ? "" : undefined}
-                    className={input}
-                  />
-                </Field>
-              </div>
-              <Field label="Notes for the agents" hint="Optional">
-                <textarea
-                  value={form.notes}
-                  onChange={(e) => update("notes", e.target.value)}
-                  rows={3}
-                  placeholder="Anything the agents should know, like tone or things to avoid"
-                  className={input}
-                />
-              </Field>
-            </div>
-          ) : null}
-        </section>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === "chat"}
+            onClick={() => setMode("chat")}
+            className={`px-3.5 py-1.5 transition-colors ${
+              mode === "chat" ? "bg-ink text-paper" : "text-ink-soft hover:text-ink"
+            }`}
+          >
+            Describe with AI assistant
+          </button>
+        </div>
+      </div>
 
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface/90 px-4 py-3 backdrop-blur lg:left-60">
-          <div className="mx-auto flex max-w-2xl flex-wrap items-center justify-between gap-3">
-            <p className="text-sm text-mute">
-              {attempted && problems.length > 0
-                ? `${problems.length} thing${problems.length === 1 ? "" : "s"} to fix above.`
-                : "You'll review everything before it goes live."}
-            </p>
-            <div className="flex items-center gap-2">
-              <Link href="/campaigns" className="px-3 py-2 text-sm text-ink-soft hover:text-ink">
-                Cancel
-              </Link>
-              <button
-                type="button"
-                onClick={() => void submit(false)}
-                className="rounded-full border border-line bg-surface px-4 py-2 text-sm font-medium hover:bg-paper-2"
-              >
-                Save draft
-              </button>
+      <p className="mt-3 max-w-2xl text-sm leading-relaxed text-ink-soft">
+        You specify product, audience, objective, budget, channels, and market. Aisle turns that
+        into tasks for Trend Analyser, Image Generation, Compliance, and Media Manager — using{" "}
+        {brand.retailerName} brand rules. Switch between the structured form and the conversational
+        intake assistant at any time.
+      </p>
+
+      {mode === "chat" ? (
+        <IntakeChatbot
+          brand={brand}
+          form={form}
+          priorRecommendation={priorRecommendation}
+          onApplyDraft={(next) => setForm(next)}
+          onSwitchToForm={() => setMode("form")}
+        />
+      ) : (
+        <>
+          {problems.length > 0 ? (
+            <ul className="mt-4 flex flex-col gap-1 text-xs text-mute">
+              {problems.map((p) => (
+                <li key={`${p.field}-${p.message}`}>
+                  {p.field}: {p.message} <span className="opacity-70">({p.clause})</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+
+          <form
+            className="mt-8 flex flex-col gap-5"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void submit(true);
+            }}
+          >
+            <label className="block">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] uppercase tracking-wider text-mute">
+                  Campaign name
+                </span>
+                <ProvenanceBadge source={form.fieldSources?.name} />
+              </div>
+              <input
+                required
+                value={form.name}
+                onChange={(e) => update("name", e.target.value)}
+                placeholder="Week 35 catalogue — citrus"
+                className="mt-1 w-full border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-ink"
+              />
+            </label>
+            <div className="grid gap-5 sm:grid-cols-2">
+              <label className="block">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] uppercase tracking-wider text-mute">Product</span>
+                  <ProvenanceBadge source={form.fieldSources?.product} />
+                </div>
+                <input
+                  required
+                  value={form.product}
+                  onChange={(e) => update("product", e.target.value)}
+                  placeholder="Navel oranges + Lane & Co. juice"
+                  className="mt-1 w-full border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-ink"
+                />
+              </label>
+              <label className="block">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] uppercase tracking-wider text-mute">Category</span>
+                  <ProvenanceBadge source={form.fieldSources?.category} />
+                </div>
+                <select
+                  value={form.category}
+                  onChange={(e) => update("category", e.target.value)}
+                  className="mt-1 w-full border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-ink"
+                >
+                  {["Grocery", "Apparel", "Pantry", "Home", "Beauty"].map((c) => (
+                    <option key={c}>{c}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <label className="block">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] uppercase tracking-wider text-mute">
+                  Target audience
+                </span>
+                <ProvenanceBadge source={form.fieldSources?.targetAudience} />
+              </div>
+              <input
+                required
+                value={form.targetAudience}
+                onChange={(e) => update("targetAudience", e.target.value)}
+                placeholder="Household shoppers, 28–45"
+                className="mt-1 w-full border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-ink"
+              />
+            </label>
+            <label className="block">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] uppercase tracking-wider text-mute">Objective</span>
+                <ProvenanceBadge source={form.fieldSources?.objective} />
+              </div>
+              <input
+                required
+                value={form.objective}
+                onChange={(e) => update("objective", e.target.value)}
+                placeholder="Lift catalogue engagement and basket attach"
+                className="mt-1 w-full border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-ink"
+              />
+            </label>
+            <div className="grid gap-5 sm:grid-cols-3">
+              <label className="block">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] uppercase tracking-wider text-mute">
+                    Budget (AUD)
+                  </span>
+                  <ProvenanceBadge source={form.fieldSources?.budget} founderEntry />
+                </div>
+                <input
+                  type="number"
+                  min={500}
+                  value={form.budget}
+                  onChange={(e) => update("budget", Number(e.target.value))}
+                  className="mt-1 w-full border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-ink"
+                />
+              </label>
+              <label className="block">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] uppercase tracking-wider text-mute">Starts</span>
+                  <ProvenanceBadge source={form.fieldSources?.startDate} founderEntry />
+                </div>
+                <input
+                  type="date"
+                  value={form.startDate}
+                  onChange={(e) => update("startDate", e.target.value)}
+                  className="mt-1 w-full border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-ink"
+                />
+              </label>
+              <label className="block">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] uppercase tracking-wider text-mute">Ends</span>
+                  <ProvenanceBadge source={form.fieldSources?.endDate} founderEntry />
+                </div>
+                <input
+                  type="date"
+                  value={form.endDate}
+                  onChange={(e) => update("endDate", e.target.value)}
+                  className="mt-1 w-full border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-ink"
+                />
+              </label>
+            </div>
+            <fieldset>
+              <div className="flex items-center justify-between">
+                <legend className="text-[11px] uppercase tracking-wider text-mute">
+                  Channels
+                </legend>
+                <ProvenanceBadge source={form.fieldSources?.channels} founderEntry />
+              </div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {channels.map((ch) => {
+                  const on = form.channels.includes(ch);
+                  return (
+                    <button
+                      key={ch}
+                      type="button"
+                      onClick={() => toggleChannel(ch)}
+                      className={`rounded-full px-3 py-1.5 text-sm ${
+                        on ? "bg-ink text-paper" : "border border-line bg-surface"
+                      }`}
+                    >
+                      {channelLabel[ch]}
+                    </button>
+                  );
+                })}
+              </div>
+            </fieldset>
+            <fieldset>
+              <div className="flex items-center justify-between">
+                <legend className="text-[11px] uppercase tracking-wider text-mute">
+                  Market (country-specific compliance)
+                </legend>
+                <ProvenanceBadge source={form.fieldSources?.country} founderEntry />
+              </div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {countries.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => update("country", c)}
+                    className={`rounded-full px-3 py-1.5 text-sm ${
+                      form.country === c
+                        ? "bg-signal text-paper"
+                        : "border border-line bg-surface"
+                    }`}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+            <label className="block">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] uppercase tracking-wider text-mute">
+                  Founder notes
+                </span>
+                <div className="flex items-center gap-2">
+                  {hasAssistantNotesPrefix ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setForm((f) => ({
+                          ...f,
+                          notes: f.notes.replace(ASSISTANT_NOTE_PREFIX, "").trim(),
+                          fieldSources: { ...(f.fieldSources ?? {}), notes: "founder" },
+                        }))
+                      }
+                      className="text-[10px] uppercase tracking-wider text-signal underline"
+                    >
+                      Confirm assistant note as founder fact
+                    </button>
+                  ) : null}
+                  <ProvenanceBadge source={form.fieldSources?.notes} />
+                </div>
+              </div>
+              <textarea
+                value={form.notes}
+                onChange={(e) => update("notes", e.target.value)}
+                rows={3}
+                placeholder="Keep it edible, not wellness-cult."
+                className="mt-1 w-full border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-ink"
+              />
+            </label>
+            <div className="flex flex-wrap gap-2 pt-2">
+              {error ? <p className="w-full text-sm text-signal">{error}</p> : null}
               <button
                 type="submit"
-                className="rounded-full bg-signal px-5 py-2 text-sm font-semibold text-white hover:bg-signal-dark"
+                className="rounded-full bg-ink px-5 py-2.5 text-sm text-paper"
               >
                 Launch agents
               </button>
+              <button
+                type="button"
+                onClick={() => void submit(false)}
+                className="rounded-full border border-ink px-5 py-2.5 text-sm"
+              >
+                Save draft
+              </button>
             </div>
-          </div>
-        </div>
-      </form>
+          </form>
+        </>
+      )}
     </div>
+  );
+}
+
+function ProvenanceBadge({
+  source,
+  founderEntry,
+}: {
+  source?: "founder" | "assistant";
+  founderEntry?: boolean;
+}) {
+  if (!source) {
+    return founderEntry ? (
+      <span className="text-[10px] uppercase tracking-wider text-mute">Founder entry</span>
+    ) : null;
+  }
+  return (
+    <span
+      className={`px-1.5 py-0.5 text-[10px] uppercase tracking-wider ${
+        source === "assistant"
+          ? "border border-amber-700/40 text-amber-800"
+          : "border border-line text-mute"
+      }`}
+    >
+      {source === "assistant" ? "Drafted by assistant" : "Founder confirmed"}
+    </span>
   );
 }

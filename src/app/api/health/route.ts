@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { countUsers, ensureSeedAccounts, listUsers } from "@/lib/auth/users";
+import { getCurrentUser } from "@/lib/auth/current";
+import { countUsers, ensureSeedAccounts, findUserById, listUsers } from "@/lib/auth/users";
+import { billingFor, isUnlimited } from "@/lib/billing/meter";
 import { getDatabase, isDatabaseUnavailable } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -47,13 +49,23 @@ export async function GET() {
   }
 }
 
-/** The roster, without hashes, for the team's own sign-in check. */
+/**
+ * The roster, without hashes, for the team's own sign-in check. Only a team
+ * desk that is unlimited here (any desk locally; on a hosted install only the
+ * ones in AISLE_UNLIMITED_USERS) may read it.
+ */
 export async function POST(request: Request) {
+  const session = await getCurrentUser();
+  if (!session) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
   const body = (await request.json().catch(() => null)) as { reveal?: boolean } | null;
   if (!body?.reveal) {
     return NextResponse.json({ error: "Send { reveal: true }." }, { status: 400 });
   }
   try {
+    const user = await findUserById(session.id);
+    if (!user || !isUnlimited(billingFor(user))) {
+      return NextResponse.json({ error: "Only the team's desks can list accounts." }, { status: 403 });
+    }
     return NextResponse.json({ users: await listUsers() });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Storage check failed.";
