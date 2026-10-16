@@ -17,6 +17,7 @@ export async function signSession(user: SessionUser) {
     email: user.email,
     name: user.name,
     role: user.role,
+    sv: user.sessionVersion ?? 0,
   })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(user.id)
@@ -33,7 +34,7 @@ export async function readSession(token: string): Promise<SessionUser | null> {
     const name = typeof payload.name === "string" ? payload.name : "";
     const role = payload.role === "dev" || payload.role === "beta" ? payload.role : null;
     if (!id || !email || !name || !role) return null;
-    return { id, email, name, role };
+    return { id, email, name, role, sessionVersion: typeof payload.sv === "number" ? payload.sv : 0 };
   } catch {
     return null;
   }

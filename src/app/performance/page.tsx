@@ -50,6 +50,8 @@ export default function PerformancePage() {
         </p>
       </header>
 
+      <aside className="hairline bg-surface p-4 text-sm"><strong>Simulated analytics:</strong> channel connectors are not configured. These demonstration figures are synthetic, not measured campaign outcomes. Missing-channel scenarios test the feedback workflow; they do not establish real business performance.</aside>
+
       <section className="grid gap-3 sm:grid-cols-4">
         <Stat label="Impressions" value={formatNumber(totals.impressions)} hint="reporting channels only" />
         <Stat label="Blended CTR" value={`${ctr.toFixed(1)}%`} />
@@ -284,10 +286,10 @@ export default function PerformancePage() {
 
       {legacy.length > 0 ? (
         <section>
-          <SectionTitle kicker="Archived demo history" title="Seeded campaigns" />
+          <SectionTitle kicker="Earlier work" title="Before collected reports" />
           <p className="mt-2 max-w-2xl text-sm text-ink-soft">
-            These campaigns predate the runtime and carry a plain recommendation without a
-            collected report, so they are shown for context only.
+            These campaigns have a written recommendation and no collected channel report, so they
+            stay here for context.
           </p>
           <ul className="mt-3 flex flex-col gap-2 text-sm">
             {legacy.map((c) => (

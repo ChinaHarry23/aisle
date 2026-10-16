@@ -9,7 +9,6 @@ const countries: Country[] = ["AU", "NZ", "UK", "US"];
 export default function BrandPage() {
   const brand = useAisle((s) => s.brand);
   const updateBrand = useAisle((s) => s.updateBrand);
-  const resetDemo = useAisle((s) => s.resetDemo);
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6">
@@ -105,15 +104,6 @@ export default function BrandPage() {
         </ul>
       </div>
 
-      <button
-        type="button"
-        onClick={() => {
-          if (confirm("Reset campaigns and brand to the demo seed?")) resetDemo();
-        }}
-        className="self-start text-sm text-mute underline hover:text-ink"
-      >
-        Reset demo data
-      </button>
     </div>
   );
 }

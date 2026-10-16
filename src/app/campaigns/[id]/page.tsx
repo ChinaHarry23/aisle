@@ -286,6 +286,14 @@ export default function CampaignWorkspace() {
                     : "—"
                 }
               />
+              {campaign.fieldSources && Object.keys(campaign.fieldSources).length > 0 ? (
+                <Row
+                  k="Intake provenance"
+                  v={Object.entries(campaign.fieldSources)
+                    .map(([field, src]) => `${field}: ${src}`)
+                    .join(" · ")}
+                />
+              ) : null}
             </dl>
           </div>
           <div className="hairline bg-surface p-5">

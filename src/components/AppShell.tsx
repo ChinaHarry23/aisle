@@ -8,17 +8,17 @@ import {
   LayoutDashboard,
   LogOut,
   Megaphone,
-  MessagesSquare,
   ShieldAlert,
   Sparkles,
   Store,
   LineChart,
   Clapperboard,
   SlidersHorizontal,
+  CreditCard,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { CreditsBadge } from "@/components/billing/CreditsBadge";
 import { WorkspaceSync } from "@/components/WorkspaceSync";
-import { DeveloperContact } from "@/components/DeveloperContact";
 import { cn } from "@/lib/cn";
 import type { PublicUser } from "@/lib/auth/types";
 import { applyTheme, isUiTheme } from "@/lib/theme";
@@ -26,14 +26,15 @@ import { useAisle } from "@/lib/store";
 
 const nav = [
   { href: "/", label: "Overview", icon: LayoutDashboard },
-  { href: "/whatsapp", label: "WhatsApp", icon: MessagesSquare },
   { href: "/campaigns", label: "Campaigns", icon: Megaphone },
   { href: "/studio", label: "Studio", icon: Clapperboard },
   { href: "/approvals", label: "Approvals", icon: ShieldAlert },
   { href: "/schedule", label: "Schedule", icon: CalendarDays },
   { href: "/performance", label: "Performance", icon: LineChart },
+  { href: "/operations", label: "Workflow operations", icon: Sparkles },
   { href: "/brand", label: "Brand", icon: Store },
   { href: "/settings", label: "Settings", icon: SlidersHorizontal },
+  { href: "/billing", label: "Billing", icon: CreditCard },
 ];
 
 function isAuthPath(pathname: string) {
@@ -86,12 +87,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   if (isAuthPath(pathname)) {
-    return (
-      <div className="flex min-h-screen flex-col">
-        {children}
-        <DeveloperContact />
-      </div>
-    );
+    return <div className="flex min-h-screen flex-col">{children}</div>;
   }
 
   if (!sessionReady || !user) {
@@ -122,9 +118,9 @@ export function AppShell({ children }: { children: ReactNode }) {
               {awaiting > 0 ? ` · ${awaiting} waiting` : ""}
             </p>
             <div className="flex items-center gap-3">
+              <CreditsBadge pathname={pathname} />
               <p className="hidden max-w-[14rem] truncate text-[11px] uppercase tracking-[0.14em] sm:block">
                 {user.name}
-                {user.role === "dev" ? " · desk" : " · beta"}
               </p>
               <ThemeToggle />
             </div>
@@ -165,7 +161,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <div className="shell-foot">
                 <p className="flex items-center gap-2 text-xs" style={{ color: "var(--aside-muted)" }}>
                   <Sparkles size={14} />
-                  {user.role === "dev" ? "Team desk" : "Beta desk"}
+                  Account
                 </p>
                 <p className="mt-1 font-serif text-lg">{user.name}</p>
                 <p className="text-xs" style={{ color: "var(--aside-muted)" }}>
@@ -184,7 +180,6 @@ export function AppShell({ children }: { children: ReactNode }) {
             </aside>
             <div className="min-w-0">
               <div className="shell-page">{children}</div>
-              <DeveloperContact />
             </div>
           </div>
         </div>

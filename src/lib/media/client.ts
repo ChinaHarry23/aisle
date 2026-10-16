@@ -2,6 +2,10 @@ import type { GenerateRequest, GenerateResult } from "./types";
 import { stubGenerate } from "./stub";
 
 export async function requestGenerate(req: GenerateRequest): Promise<GenerateResult> {
+  if (typeof window === "undefined") {
+    const { runGeneration } = await import("./generate");
+    return runGeneration(req);
+  }
   try {
     const res = await fetch("/api/studio/generate", {
       method: "POST",

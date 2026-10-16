@@ -1,0 +1,25 @@
+{
+  "at": "2026-09-29T12:30:13.987Z",
+  "model": "mtplx-flash-next-optimized-speed",
+  "elapsedSeconds": 115,
+  "jobStatus": "completed",
+  "campaignStatus": "awaiting_approval",
+  "liveDecisionCount": 3,
+  "decisions": [
+    { "agent": "trend", "title": "Brief prioritisation · Custom tag", "detail": "LLM decision · ok · est. $0.0000 · 1013 tokens. Live decision from Custom tag." },
+    { "agent": "creative", "title": "Copy for v1 · Custom tag", "detail": "LLM decision · ok · est. $0.0000 · 675 tokens. Live decision from Custom tag." },
+    { "agent": "compliance", "title": "Policy review · Custom tag", "detail": "LLM decision · ok · est. $0.0000 · 916 tokens. Live decision from Custom tag." }
+  ],
+  "toolOutcomes": [
+    { "tool": "web.market_context", "status": "empty" },
+    { "tool": "web.season_weather", "status": "ok" },
+    { "tool": "web.competitor_scan", "status": "empty" },
+    { "tool": "retail.internal_signals", "status": "skipped" }
+  ],
+  "limitations": [
+    "One synthetic campaign, not a quality benchmark or business efficacy evaluation",
+    "Poster generation deliberately stubbed",
+    "No paid cloud APIs or real publishing used",
+    "Local text roles were verified; real channel analytics, media output and production deployment were not"
+  ]
+}

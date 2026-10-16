@@ -17,6 +17,7 @@ export function WorkspaceSync({
 
   useEffect(() => {
     let cancelled = false;
+    let serviceMode = false;
     skipSave.current = true;
     useAisle.persist.setOptions({ name: `aisle-ws-${user.id}` });
 
@@ -27,8 +28,9 @@ export function WorkspaceSync({
         const data = (await res.json()) as Pick<
           ReturnType<typeof useAisle.getState>,
           "brand" | "campaigns" | "settings"
-        >;
+        > & { workflow?: boolean };
         if (cancelled) return;
+        serviceMode = data.workflow === true;
         hydrateFromServer(data);
       } catch {
         if (cancelled) return;
@@ -40,6 +42,20 @@ export function WorkspaceSync({
     }
 
     void load();
+
+    const refresh = setInterval(async () => {
+      if (!serviceMode || cancelled) return;
+      try {
+        const response = await fetch("/api/workspace", { cache: "no-store" });
+        if (!response.ok || cancelled) return;
+        const data = await response.json() as { campaigns: ReturnType<typeof useAisle.getState>["campaigns"]; workflowCampaignIds: string[] };
+        if (cancelled) return;
+        const managed = new Map(data.campaigns.filter(c => data.workflowCampaignIds.includes(c.id)).map(c => [c.id, c]));
+        skipSave.current = true;
+        useAisle.setState(s => ({ campaigns: [...s.campaigns.map(c => managed.get(c.id) ?? c), ...[...managed.values()].filter(c => !s.campaigns.some(x => x.id === c.id))] }));
+      } catch { /* Keep the last confirmed snapshot until the service is reachable. */ }
+      finally { skipSave.current = false; }
+    }, 2000);
 
     const unsub = useAisle.subscribe((state, prev) => {
       if (skipSave.current) return;
@@ -67,6 +83,7 @@ export function WorkspaceSync({
 
     return () => {
       cancelled = true;
+      clearInterval(refresh);
       unsub();
       if (timer.current) clearTimeout(timer.current);
     };

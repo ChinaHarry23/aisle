@@ -5,10 +5,12 @@ import { readSession, SESSION_COOKIE } from "@/lib/auth/session";
 function isPublicPath(pathname: string) {
   if (pathname === "/login" || pathname === "/signup") return true;
   if (pathname.startsWith("/api/auth/")) return true;
-  if (pathname.startsWith("/api/whatsapp/webhook")) return true;
   // Storage health must be readable when sign-in is what is broken: it reports
   // the backend, not any account data.
   if (pathname === "/api/health") return true;
+  // Stripe posts without a session; the route checks its signature instead, and
+  // a redirect to /login would count as a failed delivery.
+  if (pathname === "/api/stripe/webhook") return true;
   return false;
 }
 

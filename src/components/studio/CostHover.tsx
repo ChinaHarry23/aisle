@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { formatNumber, formatUsd } from "@/lib/ids";
+import { formatCredits, milliForCost } from "@/lib/billing/plan";
 import type { MediaGeneration } from "@/lib/media/types";
 
 export function CostHover({
@@ -11,11 +12,13 @@ export function CostHover({
 }) {
   if (!generation) return children;
   const u = generation.usage;
+  // What a take costs in credits: 2x the provider bill, a credit being one cent.
+  const credits = u.costUsd > 0 ? `${formatCredits(milliForCost(u.costUsd))} cr` : "free";
   return (
     <div className="group relative">
       {children}
       <span className="absolute right-3 top-3 z-10 rounded-full bg-ink/85 px-2 py-0.5 text-[10px] tabular-nums text-paper">
-        {formatUsd(u.costUsd)}
+        {formatUsd(u.costUsd)} · {credits}
       </span>
       <div className="pointer-events-none absolute inset-x-3 bottom-3 z-10 opacity-0 transition duration-150 group-hover:opacity-100">
         <div className="bg-ink/95 p-3 text-paper shadow-lg">
@@ -44,7 +47,7 @@ export function CostHover({
             </div>
             <div className="col-span-2">
               <dt className="text-white/45">Cost</dt>
-              <dd className="text-signal">{formatUsd(u.costUsd)}</dd>
+              <dd className="text-signal">{formatUsd(u.costUsd)} · {credits}</dd>
             </div>
           </dl>
           <p className="mt-2 text-[10px] text-white/45">

@@ -9,8 +9,19 @@
 
 import { uid } from "@/lib/ids";
 import type { Campaign } from "@/lib/types";
-import { defaultSpendCap } from "./engine";
 import type { AgentRun, Evidence, PolicyDecision, RunStep, ToolCall } from "./types";
+
+/**
+ * Founder-set ceiling for automated spend (UC-01 ext 13.a). Lives here, not in
+ * the engine, so browser code that normalises campaigns does not pull the
+ * server-only engine (and its billing ledger) into the client bundle.
+ */
+export function defaultSpendCap(campaign: Pick<Campaign, "budget" | "spendCapUsd">) {
+  if (typeof campaign.spendCapUsd === "number" && campaign.spendCapUsd > 0) {
+    return campaign.spendCapUsd;
+  }
+  return Math.max(5, Math.min(50, Math.round(campaign.budget * 0.002 * 100) / 100));
+}
 
 export function emptyEvidence(): Evidence[] {
   return [];

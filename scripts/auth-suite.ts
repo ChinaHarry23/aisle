@@ -84,14 +84,16 @@ process.env.AUTH_SECRET = process.env.AUTH_SECRET || "suite-secret-not-for-produ
   const alex = await users.findUserByEmail("alex@aisle.website");
   assert.ok(alex, "the team desks must exist on a fresh database");
   assert.equal(alex.role, "dev");
+  const seedPassword = seeds.seedPassword();
+  assert.ok(seedPassword, "a local install has a seed password");
   assert.ok(
-    await password.verifyPassword(seeds.SEED_PASSWORD, alex.passwordHash),
+    await password.verifyPassword(seedPassword, alex.passwordHash),
     "a seeded desk must accept the documented password",
   );
   assert.equal(await users.countUsers(), seeds.SEED_ACCOUNTS.length);
   pass(
-    "seeded desks sign in with the published password",
-    `${seeds.SEED_ACCOUNTS.length} desks · password "${seeds.SEED_PASSWORD}"`,
+    "seeded desks sign in with the local demo password",
+    `${seeds.SEED_ACCOUNTS.length} desks · password "${seedPassword}"`,
   );
 }
 
@@ -127,6 +129,50 @@ let createdId = "";
   );
   assert.equal(await users.countUsers(), seeds.SEED_ACCOUNTS.length + 1);
   pass("signup — duplicate address refused case-insensitively", "database unique index, not a read-then-write check");
+}
+
+{
+  const first = await users.signInWithProvider({
+    provider: "google",
+    sub: "google-sub-1",
+    email: "shopper@example.test",
+    emailVerified: true,
+    name: "Shopper",
+  });
+  const second = await users.signInWithProvider({
+    provider: "google",
+    sub: "google-sub-1",
+    email: "shopper@example.test",
+    emailVerified: true,
+    name: "Shopper",
+  });
+  assert.equal(second.id, first.id, "the same Google identity must reopen the same account");
+  const stored = await users.findUserByEmail("shopper@example.test");
+  assert.equal(stored?.passwordLogin, false, "a provider account has no password");
+  assert.equal(stored?.googleSub, "google-sub-1");
+  await assert.rejects(
+    () =>
+      users.signInWithProvider({
+        provider: "google",
+        sub: "google-sub-2",
+        email: "unverified@example.test",
+        emailVerified: false,
+        name: null,
+      }),
+    /confirmed email/,
+  );
+  await users.signInWithProvider({
+    provider: "apple",
+    sub: "apple-sub-1",
+    email,
+    emailVerified: true,
+    name: "Bao Xinlong",
+  });
+  const linked = await users.findUserByEmail(email);
+  assert.equal(linked?.id, createdId, "a verified email must join the existing password account");
+  assert.equal(linked?.appleSub, "apple-sub-1");
+  assert.equal(linked?.passwordLogin, true, "linking Apple must not remove the password");
+  pass("oauth — Google opens one account, Apple links a confirmed email", first.email);
 }
 
 {

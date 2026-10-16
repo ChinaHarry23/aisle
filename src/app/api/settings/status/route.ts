@@ -1,7 +1,11 @@
+import { loadedLocalModel } from "@/lib/llm/adapters";
+import { comfyReachable } from "@/lib/media/comfy";
+import { DEFAULT_LOCAL_BASE_URL } from "@/lib/settings";
+
+/** Whether the platform key for each cloud LLM is set, i.e. whether credits can buy it here. */
 const llm = {
   openai: Boolean(process.env.OPENAI_API_KEY),
   anthropic: Boolean(process.env.ANTHROPIC_API_KEY),
-  cursor: Boolean(process.env.CURSOR_API_KEY),
   local: Boolean(process.env.LOCAL_LLM_BASE_URL),
 };
 
@@ -16,11 +20,17 @@ const media = {
   runway: Boolean(process.env.RUNWAYML_API_SECRET),
 };
 
-const whatsapp = {
-  live: Boolean(process.env.WHATSAPP_VERIFY_TOKEN),
-  displayNumber: process.env.WHATSAPP_DISPLAY_NUMBER || null,
-};
+/**
+ * What the server-side local runtime can answer with right now. Only the
+ * configured URL is probed — never one supplied by the browser — so the page
+ * is told which URL that was and can say when its seats call another.
+ */
+async function localRuntime() {
+  const localBase = (process.env.LOCAL_LLM_BASE_URL || DEFAULT_LOCAL_BASE_URL).replace(/\/$/, "");
+  const [localModel, comfy] = await Promise.all([loadedLocalModel(localBase), comfyReachable()]);
+  return { localBase, localModel, comfy };
+}
 
 export async function GET() {
-  return Response.json({ llm, media, whatsapp });
+  return Response.json({ llm, media, runtime: await localRuntime() });
 }

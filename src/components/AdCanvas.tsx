@@ -1,5 +1,9 @@
+"use client";
+
+import { useState } from "react";
 import { cn } from "@/lib/cn";
 import type { Creative } from "@/lib/types";
+import { campaignMediaUrl } from "@/lib/media/url";
 
 function Motif({ motif, accent }: { motif: Creative["motif"]; accent: string }) {
   if (motif === "campus") {
@@ -47,32 +51,43 @@ export function AdCanvas({
   creative,
   className,
   compact,
+  brandLabel = "Campaign concept",
+  campaignId,
 }: {
   creative: Creative;
   className?: string;
   compact?: boolean;
+  brandLabel?: string;
+  campaignId?: string;
 }) {
+  const src = campaignMediaUrl(campaignId, creative.id, creative.generation);
+  const [failedUrl, setFailedUrl] = useState<string>();
+  const hasImage = Boolean(src);
   return (
     <article
       className={cn("relative overflow-hidden", className)}
       style={{ background: creative.palette.bg, color: creative.palette.fg }}
     >
-      {creative.generation?.url ? (
+      {src ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={creative.generation.url}
+          src={src}
           alt={creative.headline}
           className="absolute inset-0 h-full w-full object-cover"
+          onError={() => setFailedUrl(src)}
+          onLoad={() => setFailedUrl(undefined)}
         />
       ) : null}
-      <div className="pointer-events-none absolute -right-6 -top-8 h-44 w-36 opacity-80">
+      {src && failedUrl === src ? <p role="alert" className="absolute inset-x-3 bottom-20 z-10 rounded bg-white p-3 text-xs text-red-800">Image could not load. Refresh after the local service is available; your saved draft is retained.</p> : null}
+      {hasImage ? <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/85 via-black/10 to-black/85" /> : null}
+      {!hasImage ? <div className="pointer-events-none absolute -right-6 -top-8 h-44 w-36 opacity-80">
         <Motif motif={creative.motif} accent={creative.palette.accent} />
-      </div>
-      <div className={cn("relative flex h-full flex-col justify-between", compact ? "p-5" : "p-7")}>
+      </div> : null}
+      <div className={cn("relative flex h-full flex-col justify-between", compact ? "p-5" : "p-7")} style={hasImage ? { color: "#ffffff" } : undefined}>
         <div>
           <p
             className="text-[10px] uppercase tracking-[0.22em]"
-            style={{ color: creative.palette.accent }}
+            style={{ color: hasImage ? "#ffffff" : creative.palette.accent }}
           >
             {creative.kicker}
           </p>
@@ -86,7 +101,7 @@ export function AdCanvas({
           </h3>
           <p
             className={cn("mt-3 max-w-[34ch] leading-relaxed", compact ? "text-xs" : "text-sm")}
-            style={{ color: creative.palette.muted }}
+            style={{ color: hasImage ? "#ffffff" : creative.palette.muted }}
           >
             {creative.subhead}
           </p>
@@ -98,8 +113,8 @@ export function AdCanvas({
           >
             {creative.cta}
           </span>
-          <span className="text-[10px] uppercase tracking-[0.18em] opacity-70">
-            Lane & Co. · {creative.variant}
+          <span className="max-w-[48%] text-right text-[10px] uppercase tracking-[0.12em] opacity-90">
+            {brandLabel} · {creative.variant}
             {creative.version > 1 ? ` · v${creative.version}` : ""}
           </span>
         </div>

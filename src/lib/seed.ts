@@ -101,7 +101,7 @@ export function blankCampaign(
     running: false,
     imageModelId: input.imageModelId ?? settings?.imageModelId ?? DEFAULT_IMAGE_MODEL,
     videoModelId: input.videoModelId ?? settings?.videoModelId ?? DEFAULT_VIDEO_MODEL,
-    videoDurationSec: settings?.videoDurationSec ?? 8,
+    videoDurationSec: settings?.videoDurationSec ?? 30,
     videos: [],
     studioHistory: [],
     studioBusy: null,
@@ -116,6 +116,7 @@ export function blankCampaign(
     schedule: [],
     performance: null,
     log: [
+      ...(input.intakeLog ?? []),
       makeLog(
         "founder",
         "decision",
@@ -932,7 +933,7 @@ export function seedCampaigns(brand: BrandProfile): Campaign[] {
         generation: stubGenerate(
           {
             kind: "image",
-            modelId: "google:imagen-4",
+            modelId: "google:nano-banana-2",
             prompt: "Paper catalogue cover, fruit illustration, generous margin.",
             aspectRatio: "4:5",
           },

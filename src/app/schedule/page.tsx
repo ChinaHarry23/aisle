@@ -31,6 +31,8 @@ export default function SchedulePage() {
         </p>
       </header>
 
+      <aside className="hairline bg-surface p-4 text-sm"><strong>Prototype distribution:</strong> publishing records a simulated release. It does not send posts, emails, print orders or paid advertisements to external channels.</aside>
+
       {conflicts.length > 0 ? (
         <section className="flex flex-col gap-3">
           <h2 className="text-[11px] uppercase tracking-[0.18em] text-signal">

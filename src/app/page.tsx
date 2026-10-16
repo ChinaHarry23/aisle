@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { ArrowRight, Plus } from "lucide-react";
 import { AdCanvas } from "@/components/AdCanvas";
 import { AgentLog } from "@/components/AgentLog";
@@ -20,12 +19,9 @@ const bench: { id: AgentSlot; replaces: string }[] = [
 ];
 
 export default function OverviewPage() {
-  const router = useRouter();
   const campaigns = useAisle((s) => s.campaigns);
   const brand = useAisle((s) => s.brand);
   const settings = useAisle((s) => s.settings);
-  const createCampaign = useAisle((s) => s.createCampaign);
-  const launch = useAisle((s) => s.launch);
   const collectFeedback = useAisle((s) => s.collectFeedback);
   const busy = useAisle((s) => s.busy);
 
@@ -45,69 +41,41 @@ export default function OverviewPage() {
   );
   recentLog.sort((a, b) => (a.at < b.at ? 1 : -1));
 
-  async function watchLiveRun() {
-    const id = createCampaign({
-      name: "Trail Parka — mid-semester restock",
-      product: "Northline Trail Parka (navy)",
-      category: "Apparel",
-      targetAudience: "Australian university students, 18–24",
-      objective: "Promote our new winter jacket to Australian university students.",
-      budget: 12000,
-      channels: ["instagram", "web", "email", "digital_signage"],
-      startDate: "2026-08-26",
-      endDate: "2026-09-12",
-      country: "AU",
-      notes: "Keep it campus, not wilderness. Watch the compliance loop.",
-    });
-    router.push(`/campaigns/${id}`);
-    await launch(id);
-  }
+  const fresh = campaigns.length === 0;
 
   return (
     <div className="flex flex-col gap-10">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-[11px] uppercase tracking-[0.2em] text-signal">Founder desk</p>
+          <p className="text-[11px] uppercase tracking-[0.2em] text-signal">
+            {fresh ? "Aisle" : "This week"}
+          </p>
           <h1 className="mt-1 font-serif text-4xl tracking-tight md:text-5xl">
-            {brand.retailerName} is in cycle.
+            {fresh ? "Start with one brief." : `${brand.retailerName} is in cycle.`}
           </h1>
           <p className="mt-3 max-w-xl text-sm leading-relaxed text-ink-soft">
-            Weekly catalogue energy across social, web, email, and in-store. You set the brief.
-            Four agents research, make, check, and schedule. You handle the exceptions.
+            {fresh
+              ? "Set the product, the audience, and the channels. Aisle researches, makes the creative, checks the claims, and waits for you before anything is published."
+              : "You set the brief. Four agents research, make, check, and schedule. You approve what goes out."}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => void watchLiveRun()}
-            className="rounded-full bg-ink px-4 py-2 text-sm text-paper hover:bg-ink-soft"
-          >
-            Watch a live agent run
-          </button>
           <Link
             href="/campaigns/new"
-            className="inline-flex items-center gap-1.5 rounded-full border border-ink px-4 py-2 text-sm hover:bg-surface"
+            className="inline-flex items-center gap-1.5 rounded-full bg-ink px-4 py-2 text-sm text-paper hover:bg-ink-soft"
           >
             <Plus size={14} /> New campaign
           </Link>
+          {fresh ? (
+            <Link
+              href="/brand"
+              className="inline-flex items-center gap-1.5 rounded-full border border-ink px-4 py-2 text-sm hover:bg-surface"
+            >
+              Set up brand
+            </Link>
+          ) : null}
         </div>
       </header>
-
-      <section className="hairline bg-surface p-5">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <p className="text-[11px] uppercase tracking-[0.16em] text-signal">Group mates</p>
-            <h2 className="font-serif text-2xl">WhatsApp tasks and goals</h2>
-            <p className="mt-2 max-w-xl text-sm text-ink-soft">
-              Drop a WhatsApp group export to pull Task / Goal lines from the class chat. Aisle
-              cannot log into a personal WhatsApp account.
-            </p>
-          </div>
-          <Link href="/whatsapp" className="text-sm text-signal hover:underline">
-            Open WhatsApp desk
-          </Link>
-        </div>
-      </section>
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Stat
@@ -160,8 +128,8 @@ export default function OverviewPage() {
       {campaigns.some((c) => c.status === "published" && !c.performanceReport) ? (
         <section>
           <SectionTitle
-            kicker="AHR-06"
-            title="Results waiting to be collected"
+            kicker="Results"
+            title="Waiting to be collected"
             aside={
               <Link href="/performance" className="text-sm text-signal hover:underline">
                 Open performance
@@ -235,6 +203,11 @@ export default function OverviewPage() {
       <section className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
         <div>
           <SectionTitle kicker="On the bench" title="Campaigns" />
+          {campaigns.length === 0 ? (
+            <p className="mt-4 text-sm text-ink-soft">
+              No campaigns yet. Write the first brief and the agents will run it.
+            </p>
+          ) : null}
           <ul className="mt-4 flex flex-col gap-3">
             {campaigns.slice(0, 5).map((c) => (
               <li key={c.id}>
@@ -264,7 +237,7 @@ export default function OverviewPage() {
             <div>
               <SectionTitle kicker="In market" title="Hero creative" />
               <div className="mt-4 aspect-[4/5] max-h-[420px]">
-                <AdCanvas creative={hero.creatives[0]} className="h-full" />
+                <AdCanvas creative={hero.creatives[0]} campaignId={hero.id} brandLabel={hero.sharedContext.retailer} className="h-full" />
               </div>
             </div>
           ) : null}

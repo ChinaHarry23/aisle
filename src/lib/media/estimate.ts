@@ -88,3 +88,18 @@ export function quoteModel(modelId: string, opts: { prompt?: string; durationSec
     durationSec: opts.durationSec,
   });
 }
+
+/**
+ * What a cloud render reserves before it goes out. Token- and usage-billed
+ * calls can run over the list estimate, so they carry a 1.5x buffer. A model
+ * that only takes its length from the prompt is held for its longest listed
+ * clip plus a quarter (thinking tokens), since that is what it may return.
+ */
+export function holdEstimateUsd(model: MediaModel, req: Pick<GenerateRequest, "prompt" | "durationSec">) {
+  if (model.kind === "video" && model.promptLength && model.durations?.length) {
+    const longest = Math.max(req.durationSec ?? 0, ...model.durations);
+    return estimateUsage(model, { ...req, durationSec: longest }).costUsd * 1.25;
+  }
+  const quote = estimateUsage(model, req).costUsd;
+  return model.billing.mode === "tokens" || model.usageBilled ? quote * 1.5 : quote;
+}
