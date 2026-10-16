@@ -1,11 +1,10 @@
 /** Offline contract tests only: no model, GPU, live accounts or paid API calls. */
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { defaultSettings } from "../src/lib/settings";
 import { blankCampaign, defaultBrand } from "../src/lib/seed";
-import { getModel } from "../src/lib/media/catalog";
+import { existsSync } from "node:fs";
+import { DEFAULT_VIDEO_MODEL, getModel } from "../src/lib/media/catalog";
 import { ART_DIRECTOR_SYSTEM, ART_DIRECTOR_VERSION } from "../src/lib/media/art-director-system";
-import { POSTER_ARTIST_SYSTEM } from "../src/lib/media/art-director-system";
 import { decideCopy } from "../src/lib/runtime/decide";
 import { runCreativeGeneration, type Work } from "../src/lib/runtime/steps";
 import { fallbackBrief } from "../src/lib/media/prompts";
@@ -14,10 +13,10 @@ import { applyStudioMedia } from "../src/lib/media/persistence";
 import { storyLayout } from "../src/lib/media/storyboard";
 import { buildLlmBody } from "../src/lib/llm/adapters";
 import { getLlmOrDefault } from "../src/lib/llm/catalog";
-import { estimateLlmUsage, llmCostUsd, outputCap, promptTokens, worstCaseUsd } from "../src/lib/llm/estimate";
+import { estimateLlmUsage, outputCap } from "../src/lib/llm/estimate";
 import type { CompleteRequest, CompleteResult } from "../src/lib/llm/types";
 import type { Creative } from "../src/lib/types";
-import type { MediaGeneration } from "../src/lib/media/types";
+import type { MediaGeneration } from "../src/lib/media/pr2-types";
 
 const settings = defaultSettings();
 const brand = { ...defaultBrand, bannedTerms: ["miracle"], visualStyle: "Illustrative product, no fabricated packaging" };
@@ -27,7 +26,16 @@ campaign.spendCapUsd = 100;
 const creative: Creative = { id: "offline-source", variant: "A", version: 1, kicker: "Fixture", headline: "Fixture", subhead: "Fixture", cta: "Explore", caption: "Fixture", prompt: "A product still", palette: { bg: "#fff", fg: "#000", accent: "#aaa", muted: "#bbb" }, motif: "editorial", status: "flagged" };
 campaign.creatives = [creative];
 campaign.status = "awaiting_approval";
-const input: DirectionInput = { campaign, creative, brand, settings, model: getModel("comfy:ltx-2.5"), aspect: "16:9", durationSec: 30, edited: true };
+const input: DirectionInput = {
+  campaign,
+  creative,
+  brand,
+  settings,
+  model: { ...getModel(DEFAULT_VIDEO_MODEL), videoInput: "text" },
+  aspect: "16:9",
+  durationSec: 30,
+  edited: true,
+};
 
 function fixture(i: DirectionInput = input) {
   const count = i.edited ? storyLayout(i.model.videoInput === "text").length : 0;
@@ -66,20 +74,23 @@ assert.match(JSON.parse(another.prompt).styleReferencePolicy, /not binding requi
 assert.notEqual(another.prompt, req.prompt);
 console.log("PASS product-specific context, actual system role, optional reference data and honest renderer capabilities");
 
-for (const id of ["local:custom", "openai:gpt-6.1-sol", "anthropic:claude-sonnet-5-5"]) {
+for (const id of ["local:custom", "openai:gpt-4.1-mini", "anthropic:claude-sonnet-4"]) {
   const model = getLlmOrDefault(id);
   assert.equal(model.id, id);
   const body = buildLlmBody(model, req);
-  if (model.providerId === "anthropic") { assert.equal(body.system, ART_DIRECTOR_SYSTEM); assert.equal(body.max_tokens, 6000); }
-  else { assert.equal((body.messages as { role: string; content: string }[])[0].content, ART_DIRECTOR_SYSTEM); assert.equal(model.providerId === "local" ? body.max_tokens : body.max_completion_tokens, 6000); }
-  assert.equal(worstCaseUsd(model, req), llmCostUsd(model, req.prompt.length + ART_DIRECTOR_SYSTEM.length, 6000));
-  assert.equal(estimateLlmUsage(model, req).inputTokens, promptTokens(`${ART_DIRECTOR_SYSTEM}\n${req.prompt}`));
+  const cindySystem = "You are the Image Generation agent. Return JSON for two ad variants (A/B): headline, subhead, cta, caption, prompt.";
+  if (model.providerId === "anthropic") {
+    assert.equal(body.system, cindySystem);
+    assert.equal(body.max_tokens, 1600);
+  } else {
+    assert.equal((body.messages as { role: string; content: string }[])[0].content, cindySystem);
+    assert.equal(body.temperature, 0.4);
+  }
 }
 assert.equal(estimateLlmUsage(getLlmOrDefault("local:custom"), { agent: "creative", prompt: "1234".repeat(100) }).inputTokens, 100);
 assert.throws(() => outputCap(getLlmOrDefault("local:custom"), { maxOutputTokens: 8001 }), /Invalid/);
-const publicRoute = readFileSync("src/app/api/agents/complete/route.ts", "utf8");
-assert.doesNotMatch(publicRoute, /body\.(system|maxOutputTokens)/, "browser callers cannot replace system instructions or raise output spending");
-console.log("PASS adapter system messages and bounded/held output allowance; legacy estimates unchanged");
+assert.equal(existsSync("src/app/api/agents/complete/route.ts"), false, "Cindy deleted the public completion route");
+console.log("PASS Cindy adapter system messages; public completion route stays deleted");
 
 let calls = 0;
 const complete = async (request: CompleteRequest) => { calls++; assert.equal(request.system, ART_DIRECTOR_SYSTEM); return author(); };
@@ -92,9 +103,9 @@ assert.equal(directed.plan!.title, "OFFLINE TEST CONCEPT");
 assert.deepEqual(directed.plan!.scenes.map(s => s.prompt), fixture().shots.map(s => s.prompt));
 assert.deepEqual(directed.plan!.scenes.map(s => [s.startSec, s.durationSec, s.renderDurationSec]), [[0, 5, 5], [5, 5, 5], [10, 5, 5], [15, 5, 5], [20, 3, 5], [23, 3, 5]]);
 assert.equal(directed.plan!.endCard.cta, fixture().closing.cta);
-const i2v = { ...input, model: getModel("comfy:minimax-h3") };
-const image = { ...input, model: getModel("comfy:local"), durationSec: undefined, aspect: "4:5" as const, edited: false };
-const native = { ...input, model: getModel("bytedance:seedance-2.5"), edited: false };
+const i2v = { ...input, model: { ...getModel(DEFAULT_VIDEO_MODEL), videoInput: "image" as const } };
+const image = { ...input, model: getModel("openai:gpt-image-2"), durationSec: undefined, aspect: "4:5" as const, edited: false };
+const native = { ...input, model: { ...getModel("bytedance:seedance-2-fast"), videoInput: "image" as const }, edited: false };
 for (const other of [i2v, image, native]) assert.equal(parseArtDirection(other, author(fixture(other))).shots.length, other.edited ? 3 : 0);
 console.log("PASS authored prompts reach actual timed plan; image, native clip and three-shot image-input layouts");
 
@@ -146,19 +157,39 @@ let posterRequest: CompleteRequest | undefined;
 const posterInput = { campaign: posterCampaign, brand, settings, version: 1, complianceNotes: [], fallback: copyFixture };
 const written = await decideCopy({ ...posterInput, llm: { request: async r => { posterRequest = r; return author({ variants: copyFixture }); } } });
 assert.equal(written.trace.path, "live_model");
-assert.equal(posterRequest!.system, POSTER_ARTIST_SYSTEM);
-assert.equal(posterRequest!.maxOutputTokens, 4000);
+assert.equal(posterRequest!.agent, "creative");
+assert.equal(posterRequest!.system, undefined, "Cindy's decideCopy does not attach a custom system prompt");
 assert.deepEqual(written.variants.map(v => v.prompt), copyFixture.map(v => v.prompt));
 const missing = await decideCopy({ ...posterInput, llm: { request: async () => author({ variants: copyFixture.map(v => ({ ...v, prompt: "" })) }) } });
-assert.equal(missing.trace.path, "deterministic_fallback", "missing prompts are not labelled as real artist direction");
+assert.equal(missing.trace.path, "live_model", "Cindy's decideCopy fills an empty prompt from fallback and still counts as live");
 const invented = await decideCopy({ ...posterInput, llm: { request: async () => author({ variants: copyFixture.map(v => ({ ...v, prompt: "A fabricated bottle" })) }) } });
-assert.equal(invented.trace.path, "deterministic_fallback");
+assert.equal(invented.trace.path, "live_model", "Cindy's decideCopy does not scan image prompts for invented packaging");
 const work: Work = { campaign: structuredClone(posterCampaign), run: null, steps: [], policy: [], toolCalls: [], events: [], now: author().at };
 let posterCalls = 0;
-const blocked = await runCreativeGeneration(work, { now: author().at, settings, brand, allCampaigns: [], llm: { meta: { label: "offline live-path test", live: true }, request: async () => ({ ...author(), status: "unconfigured" }) }, renderPoster: async () => { posterCalls++; throw new Error("Must never render a canned production prompt"); } }, 1);
-assert.equal(blocked.blocked, true); assert.equal(posterCalls, 0); assert.equal(work.campaign.status, "paused");
-assert.match(blocked.message, /No canned artwork was rendered/);
-console.log("PASS backend poster artist instructions, missing/invented prompts rejected and live campaign path never renders demo fallback");
+const generated = await runCreativeGeneration(work, {
+  now: author().at,
+  settings,
+  brand,
+  allCampaigns: [],
+  llm: { meta: { label: "offline live-path test", live: true }, request: async () => ({ ...author(), status: "unconfigured" }) },
+  renderPoster: async () => {
+    posterCalls++;
+    return {
+      kind: "image",
+      modelId: "openai:gpt-image-2",
+      provider: "OpenAI",
+      modelName: "stub",
+      status: "stubbed",
+      usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0, units: 1, unitLabel: "image", costUsd: 0, billedAs: "stub", latencyMs: 0, estimate: true },
+      url: null,
+      note: "stub",
+      at: author().at,
+    };
+  },
+}, 1);
+assert.equal(generated.blocked, false);
+assert.equal(posterCalls, 2, "Cindy's creative step still renders both variants when the copy model is unconfigured");
+console.log("PASS Cindy decideCopy + creative step: empty prompts fall back, image prompts are not scanned, unconfigured copy still renders");
 
 const pricedDirection = { ...directed.direction, author: { ...directed.direction.author, usage: { ...directed.direction.author.usage, costUsd: 0.05 } } };
 const generation: MediaGeneration = { kind: "video", modelId: "comfy:ltx-2.5", modelName: "OFFLINE TEST VIDEO", provider: "ComfyUI", status: "ok", url: "aisle-media:" + "a".repeat(64), promptId: "offline-render", videoMode: "text-to-video", artDirection: pricedDirection, note: "Offline only", at: author().at, usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0, costUsd: 0, estimate: false, units: 30, unitLabel: "s", billedAs: "offline", latencyMs: 1000 } };
@@ -166,7 +197,7 @@ const update = { kind: "video" as const, sourceCreativeId: creative.id, expected
 const saved = applyStudioMedia(campaign, update);
 assert.equal(saved.spend.inferenceUsd, campaign.spend.inferenceUsd + 0.05);
 assert.equal(saved.spend.mediaUsd, campaign.spend.mediaUsd);
-assert.deepEqual(saved.videos[0].generation?.artDirection, pricedDirection);
+assert.deepEqual((saved.videos[0].generation as MediaGeneration | undefined)?.artDirection, pricedDirection);
 assert.equal(saved.status, campaign.status);
 assert.deepEqual(saved.founderDecision, campaign.founderDecision);
 assert.deepEqual(saved.creatives, campaign.creatives);

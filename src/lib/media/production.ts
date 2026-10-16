@@ -5,8 +5,7 @@ import { findUserById } from "../auth/users";
 import { loadWorkspace, saveWorkspace } from "../auth/workspace";
 import { mergeWorkflowCampaigns, saveWorkflowMedia, workflowEnabled } from "../workflow/gateway";
 import type { Campaign } from "../types";
-import { getModel } from "./catalog";
-import { runGeneration } from "./generate";
+import { getModel, runGeneration } from "../pr2-shims";
 import { LTX_SAMPLERS } from "./ltx";
 import { applyStudioMedia, type StudioMediaUpdate } from "./persistence";
 import { ensureProgressMonitor } from "./progress";
@@ -16,7 +15,7 @@ import { editStoryAd, prepareEndCard, requireStoryEditor, verifyScene } from "./
 import { ProductionRepository, type ProductionInput } from "./production-store";
 import { storySourceSnapshot } from "./storyboard";
 import { putMedia, readMedia } from "./store";
-import type { GenerateRequest, MediaGeneration } from "./types";
+import type { GenerateRequest, MediaGeneration } from "./pr2-types";
 
 async function loadLatest(input: ProductionInput) {
   const user = await findUserById(input.ownerId);

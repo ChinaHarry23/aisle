@@ -91,10 +91,30 @@ export type FramedConversation = {
   toolCallId?: string;
 };
 
+/** LangChain 1.x stores `systemPrompt` as a SystemMessage with array content. */
+function messageText(message: BaseMessage): string {
+  const fromGetter = message.text;
+  if (typeof fromGetter === "string" && fromGetter) return fromGetter;
+  const content = message.content;
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content
+    .map((part) => {
+      if (typeof part === "string") return part;
+      if (part && typeof part === "object" && "text" in part) {
+        const text = (part as { text?: unknown }).text;
+        return typeof text === "string" ? text : "";
+      }
+      return "";
+    })
+    .filter(Boolean)
+    .join("");
+}
+
 export function toTurns(messages: BaseMessage[]): FramedConversation {
   const system = messages
     .filter((message) => message.getType() === "system")
-    .map((message) => (typeof message.content === "string" ? message.content : ""))
+    .map(messageText)
     .filter(Boolean)
     .join("\n\n");
 
@@ -110,7 +130,7 @@ export function toTurns(messages: BaseMessage[]): FramedConversation {
   if (messages.length === 0) return { system, turns: [], prompt: system };
 
   const final = messages[messages.length - 1];
-  const finalText = typeof final.content === "string" ? final.content : "";
+  const finalText = messageText(final);
   if (final.getType() === "system") {
     // Nothing but instructions: a prompt is still required, so repeat the system text.
     return { system, turns: [], prompt: system };
@@ -137,7 +157,7 @@ export function toTurns(messages: BaseMessage[]): FramedConversation {
 function toTurnsForHistory(messages: BaseMessage[]): ChatTurn[] {
   const { turns } = { turns: [] as ChatTurn[] };
   for (const message of messages) {
-    const text = typeof message.content === "string" ? message.content : "";
+    const text = messageText(message);
     if (message.getType() === "system") continue;
     if (message.getType() === "human") {
       turns.push({ role: "user", content: text });
@@ -220,7 +240,7 @@ export class MeteredChatModel extends BaseChatModel {
 
 
     const request: CompleteRequest = {
-      agent: this.config.agent,
+      agent: this.config.agent === "intake" ? "trend" : this.config.agent,
       modelId: this.config.modelId,
       prompt,
       ...(system ? { system } : {}),

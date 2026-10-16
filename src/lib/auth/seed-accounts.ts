@@ -17,6 +17,9 @@ export function seedPassword(): string | null {
   return process.env.AISLE_SEED_PASSWORD || (isHosted() ? null : DEMO_SEED_PASSWORD);
 }
 
+/** Cindy's `users.ts` imports this constant (plaintext used when seeding desks). */
+export const SEED_PASSWORD = process.env.AISLE_SEED_PASSWORD || DEMO_SEED_PASSWORD;
+
 export const SEED_ACCOUNTS: {
   id: string;
   email: string;

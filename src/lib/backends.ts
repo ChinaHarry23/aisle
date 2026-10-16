@@ -1,7 +1,10 @@
 import { AGENT_SLOTS, LLM_PROVIDERS, PROVIDER_DEFAULT_MODEL } from "./llm/catalog";
 import type { LlmProviderId } from "./llm/types";
-import { DEFAULT_IMAGE_MODEL, DEFAULT_VIDEO_MODEL, getModelOrDefault, snapCampaignDuration } from "./media/catalog";
-import { DEFAULT_LOCAL_BASE_URL, type WorkspaceSettings } from "./settings";
+import { DEFAULT_IMAGE_MODEL, DEFAULT_VIDEO_MODEL } from "./media/catalog";
+import type { WorkspaceSettings } from "./settings";
+
+/** Matches Cindy's Settings default (Ollama). */
+export const DEFAULT_LOCAL_BASE_URL = "http://127.0.0.1:11434/v1";
 
 /**
  * "Apply one backend to all" moves every agent seat and both Studio models in
@@ -22,8 +25,7 @@ export type Backend = {
 };
 
 export const CLOUD_IMAGE_MODEL = "openai:gpt-image-2";
-/** Dreamina Seedance 2.5: one clip can run 4–30 seconds, poster as the first frame. */
-export const CLOUD_VIDEO_MODEL = "bytedance:seedance-2.5";
+export const CLOUD_VIDEO_MODEL = "bytedance:seedance-2-fast";
 
 export const BACKENDS: Backend[] = LLM_PROVIDERS.map((p) => {
   const local = p.id === "local";
@@ -44,7 +46,7 @@ export function getBackend(id: BackendId): Backend {
 }
 
 /** Shipped defaults nobody chose: the pre-MTPLX build pointed Local at Ollama. */
-const UNCHOSEN_LOCAL_URLS = new Set(["", "http://127.0.0.1:11434/v1"]);
+const UNCHOSEN_LOCAL_URLS = new Set(["", "http://127.0.0.1:8000/v1"]);
 
 /**
  * `serverLocalBase` is the URL the server itself uses for Local (its
@@ -63,8 +65,7 @@ export function applyBackend(
     agents,
     imageModelId: backend.imageModelId,
     videoModelId: backend.videoModelId,
-    // The saved length moves to one the new video model can render (Omni: 4–10 s).
-    videoDurationSec: snapCampaignDuration(getModelOrDefault(backend.videoModelId, "video"), settings.videoDurationSec),
+    videoDurationSec: settings.videoDurationSec,
     // Qwen3.8 is only on MTPLX, so a blank or old default URL moves to the
     // server's Local URL. A URL someone typed (MTPLX on another port) is kept.
     ...(backend.where === "local" && UNCHOSEN_LOCAL_URLS.has(settings.localBaseUrl.trim().replace(/\/$/, ""))
@@ -82,10 +83,5 @@ export function currentBackend(settings: WorkspaceSettings): BackendId | null {
   const providers = new Set(AGENT_SLOTS.map((slot) => settings.agents[slot.id].provider));
   if (providers.size !== 1) return null;
   const [id] = providers;
-  const media = [
-    getModelOrDefault(settings.imageModelId, "image"),
-    getModelOrDefault(settings.videoModelId, "video"),
-  ];
-  const onThisMac = id === "local";
-  return media.every((m) => (m.providerId === "comfy") === onThisMac) ? id : null;
+  return id;
 }

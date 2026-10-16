@@ -8,7 +8,8 @@ import os from "node:os";
 import path from "node:path";
 import { defaultSettings } from "../src/lib/settings";
 import { blankCampaign, defaultBrand } from "../src/lib/seed";
-import { allowedDurations, campaignVideoDurations, getModel, snapCampaignDuration } from "../src/lib/media/catalog";
+import { getModel } from "../src/lib/media/catalog";
+import { allowedDurations, campaignVideoDurations, snapCampaignDuration } from "../src/lib/pr2-shims";
 import { ltxWorkflow } from "../src/lib/media/ltx";
 import { applyStudioMedia } from "../src/lib/media/persistence";
 import { createRenderJob, listRenderJobs, updateRenderJob } from "../src/lib/media/progress-store";
@@ -44,18 +45,17 @@ for (const scene of ltxPlan.scenes) {
   assert.equal(graph["28"].inputs.width, 1920);
   assert.equal(graph["28"].inputs.height, 1080);
 }
-assert.equal(defaultSettings().videoDurationSec, 30);
-assert.equal(blankCampaign({ ...campaign, name: "New" }, defaultBrand, null).videoDurationSec, 30);
+assert.equal(defaultSettings().videoDurationSec, 8, "Cindy's Settings default clip length");
+assert.equal(blankCampaign({ ...campaign, name: "New" }, defaultBrand, null).videoDurationSec, 8);
 assert.deepEqual(plan.scenes.map(s => [s.startSec, s.durationSec]), [[0, 10], [10, 10], [20, 6]]);
 assert.equal(plan.endCard.startSec + plan.endCard.durationSec, 30);
 assert.equal(plan.endCard.headline, creative.headline); assert.equal(plan.endCard.cta, creative.cta);
 assert.deepEqual(plan.scenes.map(s => s.prompt), fixtureStory(3).scenes.map(s => s.prompt));
-for (const modelId of ["comfy:ltx-2.5", "comfy:minimax-h3"]) {
-  assert(campaignVideoDurations(getModel(modelId)).includes(30));
-  assert(!allowedDurations(getModel(modelId)).includes(30), "30s is an editor feature, not a provider duration");
-  assert.equal(snapCampaignDuration(getModel(modelId), 30), 30);
-}
-assert(!campaignVideoDurations(getModel("google:veo-3.1-fast")).includes(30));
+const veo = getModel("google:veo-3.1-fast");
+assert(campaignVideoDurations(veo).includes(8));
+assert(!campaignVideoDurations(veo).includes(30), "Cindy's catalog does not advertise a 30s Veo clip");
+assert(!allowedDurations(veo).includes(30));
+assert.equal(snapCampaignDuration(veo, 30), 30, "PR #2 storyboard still snaps an editor 30s sequence");
 assert.throws(() => ltxWorkflow({ kind: "video", modelId: "comfy:ltx-2.5", prompt: "Invalid long clip", durationSec: 30 }, 1), /edited sequence/);
 for (const scene of plan.scenes) assert(Number(ltxWorkflow({ kind: "video", modelId: "comfy:ltx-2.5", prompt: scene.prompt, durationSec: scene.durationSec }, 1)["16"].inputs.length) <= 361);
 assert.match(endCardSvg({ ...plan, endCard: { ...plan.endCard, headline: '<script> & "exact"' } }, 1280, 720), /&lt;script&gt; &amp; &quot;exact&quot;/);

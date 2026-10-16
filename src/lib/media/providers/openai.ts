@@ -4,7 +4,7 @@
  * (the Videos API shut down on 24 Sep 2026).
  */
 import { randomUUID } from "node:crypto";
-import type { AspectRatio } from "../types";
+import type { AspectRatio } from "../pr2-types";
 import { assertMediaBytes } from "../store";
 import { afterSubmit, apiBase, envValue, providerJson, ProviderError, roundUsd } from "./http";
 import type { MediaProviderAdapter } from "./types";

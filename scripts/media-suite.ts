@@ -13,7 +13,7 @@ import { applyStudioMedia, type StudioMediaUpdate } from "../src/lib/media/persi
 import { assertComfyAssetUrl, cachedComfyAsset, mediaResponse } from "../src/lib/media/assets";
 import { generateComfyVideo, uploadStartFrame } from "../src/lib/media/comfy";
 import { campaignMediaUrl } from "../src/lib/media/url";
-import type { MediaGeneration } from "../src/lib/media/types";
+import type { MediaGeneration } from "../src/lib/media/pr2-types";
 
 const dir = mkdtempSync(path.join(os.tmpdir(), "aisle-media-test-"));
 process.env.AISLE_MEDIA_DIR = path.join(dir, "media");

@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/current";
-import { billingForSession, type BillingContext } from "@/lib/billing/meter";
 import { demoWorkspace, loadWorkspace, type WorkspaceSnapshot } from "@/lib/auth/workspace";
 import { runEngine } from "@/lib/runtime/engine";
 import { withRuntimeDefaults } from "@/lib/runtime/defaults";
@@ -19,7 +18,6 @@ export const dynamic = "force-dynamic";
  * settles its credit hold) inside maxDuration. The client advances again.
  */
 export const maxDuration = 800;
-const STEP_BUDGET_S = 300;
 const MAX_STEPS_PER_REQUEST = 12;
 
 /**
@@ -88,21 +86,12 @@ export async function POST(request: Request) {
     }
   }
 
-  const started = Date.now();
   const stored = await loadWorkspaceSafely(user.id, user.role);
   const brand = (body.brand as typeof stored.brand) ?? stored.brand;
   const settings = stored.settings;
   const campaigns = (body.campaigns ?? []).map(withRuntimeDefaults);
   const target = withRuntimeDefaults(body.campaign);
 
-  // Who pays is read from the accounts DB, not the 30-day cookie. A missing
-  // row or an unreachable DB means nobody pays: cloud work is refused.
-  let billing: BillingContext | undefined;
-  try {
-    billing = await billingForSession(user);
-  } catch (error) {
-    console.error("[credits] account lookup failed", error);
-  }
   const maxSteps =
     typeof body.maxSteps === "number" && Number.isFinite(body.maxSteps)
       ? Math.min(Math.max(0, Math.floor(body.maxSteps)), MAX_STEPS_PER_REQUEST)
@@ -115,7 +104,7 @@ export async function POST(request: Request) {
       body.command,
       settings,
       brand,
-      { maxSteps, billing, stepDeadline: started + STEP_BUDGET_S * 1000 },
+      { maxSteps },
     );
     return NextResponse.json({
       campaign: result.campaign,

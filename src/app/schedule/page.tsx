@@ -1,12 +1,32 @@
 "use client";
 
+import { useState, type ComponentType } from "react";
+import { FaFacebook, FaInstagram, FaLinkedin } from "react-icons/fa6";
+import { Globe, Image, LayoutTemplate, MessageSquare, PanelTop, Plus } from "lucide-react";
 import Link from "next/link";
-import { Empty, StatusBadge } from "@/components/ui";
+import { Empty, PageHeader, StatusBadge } from "@/components/ui";
 import { channelLabel } from "@/lib/status";
 import { formatDate } from "@/lib/ids";
 import { useAisle } from "@/lib/store";
 
+const SOCIALS: { name: string; icon: ComponentType<{ size?: number }>; tile: string }[] = [
+  {
+    name: "Instagram",
+    icon: FaInstagram,
+    tile: "bg-[linear-gradient(45deg,#f9a03f_0%,#e1306c_50%,#833ab4_100%)] text-white",
+  },
+  { name: "Facebook", icon: FaFacebook, tile: "bg-[#1877f2] text-white" },
+  { name: "LinkedIn", icon: FaLinkedin, tile: "bg-[#0a66c2] text-white" },
+];
+const WEBSITE_ACTIONS: { label: string; icon: ComponentType<{ size?: number; className?: string }> }[] = [
+  { label: "Generate hero banner", icon: Image },
+  { label: "Generate landing page section", icon: LayoutTemplate },
+  { label: "Generate announcement bar", icon: PanelTop },
+  { label: "Generate promo popup", icon: MessageSquare },
+];
+
 export default function SchedulePage() {
+  const [notice, setNotice] = useState<string | null>(null);
   const campaigns = useAisle((s) => s.campaigns);
   const resolveConflict = useAisle((s) => s.resolveConflict);
   const items = campaigns
@@ -21,26 +41,72 @@ export default function SchedulePage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <header>
-        <p className="text-[11px] uppercase tracking-[0.2em] text-signal">Intelligent scheduling</p>
-        <h1 className="font-serif text-4xl">The week on channels.</h1>
-        <p className="mt-2 max-w-xl text-sm text-ink-soft">
-          Media Manager places approved work using campaign dates, audience behaviour, and prior
-          engagement. When two campaigns collide on a channel it flags the clash for you instead of
-          moving or dropping anything on its own.
-        </p>
-      </header>
+      <PageHeader
+        eyebrow="Schedule"
+        title="Your week, channel by channel"
+        description="Approved campaigns are placed on the days and channels that suit your audience best. If two campaigns land on the same channel at once, we flag it for you rather than moving anything on our own."
+      />
 
-      <aside className="hairline bg-surface p-4 text-sm"><strong>Prototype distribution:</strong> publishing records a simulated release. It does not send posts, emails, print orders or paid advertisements to external channels.</aside>
+      {/* Mock only: none of these buttons are wired up yet. */}
+      <section className="grid gap-4 lg:grid-cols-2">
+        <div className="hairline flex flex-col gap-3 p-4">
+          <h2 className="font-serif text-lg">Connect channels</h2>
+          <ul className="flex flex-col gap-2">
+            {SOCIALS.map(({ name, icon: Icon, tile }) => (
+              <li
+                key={name}
+                className="flex items-center gap-3 rounded-xl border border-line px-3 py-2.5"
+              >
+                <span
+                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${tile}`}
+                >
+                  <Icon size={18} />
+                </span>
+                <span className="flex-1 text-sm font-medium">{name}</span>
+                <button
+                  type="button"
+                  onClick={() => setNotice(`Connecting ${name} isn't available yet.`)}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1.5 text-xs font-medium hover:border-signal hover:bg-signal-soft hover:text-signal"
+                >
+                  <Plus size={13} /> Connect
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="hairline flex flex-col gap-3 p-4">
+          <h2 className="flex items-center gap-2 font-serif text-lg">
+            <Globe size={16} className="text-signal" /> Website
+          </h2>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {WEBSITE_ACTIONS.map(({ label, icon: Icon }) => (
+              <button
+                key={label}
+                type="button"
+                onClick={() => setNotice(`"${label}" isn't available yet.`)}
+                className="inline-flex items-center gap-2 rounded-xl border border-line px-3 py-2.5 text-left text-sm font-medium hover:border-signal hover:bg-signal-soft hover:text-signal"
+              >
+                <Icon size={15} className="shrink-0" />
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+        {notice ? (
+          <p role="status" className="text-xs text-mute lg:col-span-2">
+            {notice} This is a preview of what&rsquo;s coming.
+          </p>
+        ) : null}
+      </section>
 
       {conflicts.length > 0 ? (
         <section className="flex flex-col gap-3">
-          <h2 className="text-[11px] uppercase tracking-[0.18em] text-signal">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-signal">
             Conflicts {unresolved.length > 0 ? `— ${unresolved.length} awaiting you` : "— all resolved"}
           </h2>
           <ul className="flex flex-col gap-2">
             {conflicts.map(({ campaign, conflict }) => (
-              <li key={conflict.id} className="hairline bg-surface p-4 text-sm">
+              <li key={conflict.id} className="hairline p-4 text-sm">
                 <div className="flex flex-wrap items-center gap-2">
                   <span
                     className={
@@ -61,7 +127,7 @@ export default function SchedulePage() {
                     onClick={() =>
                       void resolveConflict(campaign.id, conflict.id, "Accepted by the founder.")
                     }
-                    className="mt-2 rounded-full border border-ink px-3 py-1 text-xs"
+                    className="mt-2 rounded-full border border-line px-3 py-1.5 text-xs font-medium hover:border-signal hover:bg-signal-soft hover:text-signal"
                   >
                     Accept and continue
                   </button>
@@ -73,14 +139,14 @@ export default function SchedulePage() {
       ) : null}
 
       {items.length === 0 ? (
-        <Empty title="Nothing scheduled" body="Approve a campaign and Media Manager will fill this." />
+        <Empty title="Nothing scheduled" body="Approve a campaign and its posts will show up here." />
       ) : (
-        <ul className="divide-y divide-line border-y border-line bg-surface">
+        <ul className="flex flex-col gap-3">
           {items.map((item) => (
-            <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 py-4">
+            <li key={item.id} className="hairline flex flex-wrap items-center justify-between gap-3 p-4">
               <div>
                 <p className="text-xs uppercase tracking-wider text-mute">{formatDate(item.at, true)}</p>
-                <Link href={`/campaigns/${item.campaignId}`} className="font-serif text-xl hover:text-signal">
+                <Link href={`/campaigns/${item.campaignId}`} className="font-medium hover:text-signal">
                   {item.campaign}
                 </Link>
                 <p className="text-sm text-ink-soft">

@@ -1,7 +1,7 @@
 /** Native LTX-2.5 distilled T2V: official 8-step base + 2x latent upscale + 3-step refinement. */
 import { randomUUID } from "node:crypto";
 import { comfyGet, listed, requireServer, result, submit, viewUrl, waitForFile, type PromptNode } from "./comfy";
-import type { GenerateRequest, GenerateResult } from "./types";
+import type { GenerateRequest, GenerateResult } from "./pr2-types";
 
 export const LTX_WEIGHTS = {
   unet: "ltx-2.5-22b-distilled-transformer-bf16.safetensors",

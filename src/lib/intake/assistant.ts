@@ -29,7 +29,7 @@ import { MeteredChatModel } from "@/lib/agents/metered-chat-model";
 import type { BillingContext } from "@/lib/billing/meter";
 import { uid } from "@/lib/ids";
 import { getLlmOrDefault } from "@/lib/llm/catalog";
-import { runComplete } from "@/lib/llm/complete";
+import { runComplete } from "@/lib/llm/metered-complete";
 import type { CompleteRequest, CompleteResult } from "@/lib/llm/types";
 import {
   CHANNELS,
@@ -38,14 +38,7 @@ import {
 } from "@/lib/runtime/intake";
 import { makeLog } from "@/lib/seed";
 import type { WorkspaceSettings } from "@/lib/settings";
-import type {
-  AgentEvent,
-  BrandProfile,
-  CampaignInput,
-  Channel,
-  Country,
-  IntakeFieldSources,
-} from "@/lib/types";
+import type { AgentEvent, BrandProfile, CampaignInput, Channel, Country } from "@/lib/types";
 import {
   ASSISTANT_NOTE_PREFIX,
   MAX_INTAKE_TURNS,
@@ -53,6 +46,7 @@ import {
   optionsForMissingField,
   type IntakeChatMessage,
   type IntakeDraftState,
+  type IntakeFieldSources,
   type IntakeTurnOutput,
 } from "./shared";
 
@@ -748,6 +742,7 @@ export function toCampaignInput(
   draft: IntakeDraftState,
   intakeLog: AgentEvent[],
 ): CampaignInput {
+  void intakeLog;
   return {
     name: draft.name.trim(),
     product: draft.product.trim(),
@@ -760,7 +755,5 @@ export function toCampaignInput(
     endDate: draft.endDate,
     country: draft.country,
     notes: draft.notes,
-    fieldSources: { ...draft.fieldSources },
-    intakeLog,
   };
 }

@@ -42,25 +42,6 @@ export type CampaignStatus =
 
 export type RiskLevel = "low" | "medium" | "high";
 
-export type FieldSource = "founder" | "assistant";
-
-export type IntakeFieldSources = Partial<
-  Record<
-    | "name"
-    | "product"
-    | "category"
-    | "targetAudience"
-    | "objective"
-    | "budget"
-    | "channels"
-    | "startDate"
-    | "endDate"
-    | "country"
-    | "notes",
-    FieldSource
-  >
->;
-
 export type CampaignInput = {
   name: string;
   product: string;
@@ -73,18 +54,10 @@ export type CampaignInput = {
   endDate: string;
   country: Country;
   notes: string;
-  /** How many poster variants the creative step writes. Defaults to two. */
-  posterVariants?: number;
   imageModelId?: string;
   videoModelId?: string;
   /** Ceiling the founder sets on automated spend for this campaign. */
   spendCapUsd?: number;
-  /** Whether internal POS/catalogue data is authorised for this campaign. */
-  internalDataAuthorised?: boolean;
-  /** Provenance per brief field when drafted with the conversational intake assistant. */
-  fieldSources?: IntakeFieldSources;
-  /** Conversational intake transcript recorded before the founder launched the brief. */
-  intakeLog?: AgentEvent[];
 };
 
 export type Trend = {
@@ -134,7 +107,7 @@ export type Palette = {
 
 export type Creative = {
   id: string;
-  variant: "A" | "B" | "C" | "D";
+  variant: "A" | "B";
   version: number;
   kicker: string;
   headline: string;
@@ -314,6 +287,18 @@ export type Campaign = CampaignInput & {
   validationProblems: { field: string; message: string; clause: string }[];
 };
 
+/** A brand-guideline document the founder uploaded; only its extracted text is kept. */
+export type GuidelineDoc = {
+  id: string;
+  name: string;
+  /** Size of the original upload in bytes. */
+  size: number;
+  uploadedAt: string;
+  text: string;
+  /** True when the document was longer than we store and the text was cut. */
+  truncated: boolean;
+};
+
 export type BrandProfile = {
   retailerName: string;
   tagline: string;
@@ -321,6 +306,13 @@ export type BrandProfile = {
   visualStyle: string;
   approvedTerms: string[];
   bannedTerms: string[];
-  colors: { ink: string; paper: string; signal: string };
+  /** Path or URL of the brand logo. */
+  logoUrl?: string;
+  /** Public website of the brand. */
+  website?: string;
+  about?: string;
+  colors: { ink: string; paper: string; signal: string; accent?: string; deep?: string };
   countryRules: Record<Country, string>;
+  /** Uploaded guideline documents the agents must follow. Absent on older workspaces. */
+  guidelines?: GuidelineDoc[];
 };

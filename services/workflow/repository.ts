@@ -104,10 +104,6 @@ export class WorkflowRepository {
           country: raw.country,
           notes: typeof raw.notes === "string" ? raw.notes : "",
           spendCapUsd: raw.spendCapUsd,
-          fieldSources: raw.fieldSources,
-          intakeLog: Array.isArray(raw.intakeLog)
-            ? raw.intakeLog.filter((e) => e && e.kind === "intake" && (e.agent === "intake" || e.agent === "founder")).slice(0, 24)
-            : undefined,
         };
         const prior = attachableRecommendation(this.campaigns(user));
         const fresh = { ...blankCampaign(fields, input.brand, prior?.note ?? null, input.settings, prior?.fromCampaignId ?? null), id: raw.id, internalDataAuthorised: raw.internalDataAuthorised === true };

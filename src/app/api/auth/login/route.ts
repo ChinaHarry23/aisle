@@ -3,6 +3,7 @@ import { findUserByEmail, publicUser, recordLogin } from "@/lib/auth/users";
 import { normalizeEmail, validEmail, verifyPassword } from "@/lib/auth/password";
 import { sessionCookieOptions, signSession, SESSION_COOKIE } from "@/lib/auth/session";
 import { DEMO_SEED_PASSWORD, SEED_ACCOUNTS } from "@/lib/auth/seed-accounts";
+import { userExtras } from "@/lib/auth/oauth-users";
 import { isHosted } from "@/lib/billing/hosted";
 import { describeStorageFailure } from "@/lib/auth/storage-errors";
 
@@ -33,7 +34,9 @@ export async function POST(request: Request) {
   if (!user) {
     return NextResponse.json({ error: "Email or password is wrong." }, { status: 401 });
   }
-  if (!user.passwordLogin) {
+  const extras = await userExtras(user.id);
+  // Cindy's AuthUser omits passwordLogin; extras reads the PR #2 column (default on).
+  if (extras.passwordLogin === false) {
     return NextResponse.json(
       { error: "This account uses Google or Apple. Continue with that button." },
       { status: 401 },
@@ -53,7 +56,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Email or password is wrong." }, { status: 401 });
   }
 
-  const token = await signSession({ ...publicUser(user), sessionVersion: user.sessionVersion });
+  const token = await signSession({ ...publicUser(user), sessionVersion: extras.sessionVersion });
   const response = NextResponse.json({ user: publicUser(user) });
   response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions());
   await recordLogin(user.id);

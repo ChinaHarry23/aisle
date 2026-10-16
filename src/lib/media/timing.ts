@@ -1,4 +1,4 @@
-import type { MediaGeneration } from "./types";
+import type { MediaGeneration } from "./pr2-types";
 
 /** Recorded request latency includes queueing/loading/rendering, not campaign import. */
 export function generationTiming(generation?: MediaGeneration) {

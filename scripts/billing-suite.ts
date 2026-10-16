@@ -130,6 +130,7 @@ try {
   const { verifyPassword } = await import("../src/lib/auth/password");
   const signupRoute = await import("../src/app/api/auth/signup/route");
   const users = await import("../src/lib/auth/users");
+  const oauthUsers = await import("../src/lib/auth/oauth-users");
   const { getDatabase, closeDatabase } = await import("../src/lib/db/index");
   const route = await import("../src/app/api/stripe/webhook/route");
   const { proxy } = await import("../src/proxy");
@@ -464,7 +465,10 @@ try {
   /* ---------- Proxy ---------- */
   {
     const hook = await proxy(new NextRequest("http://localhost:3000/api/stripe/webhook", { method: "POST" }));
-    assert.equal(hook.headers.get("x-middleware-next"), "1");
+    // Cindy's proxy.ts is restored exactly: only `/`, login/signup, `/api/auth/*`
+    // and `/api/health` are public. Stripe webhook is a PR #2 route and is
+    // session-gated here the same as other APIs.
+    assert.equal(hook.status, 307);
     const billing = await proxy(new NextRequest("http://localhost:3000/api/billing"));
     assert.equal(billing.status, 307);
     assert.match(billing.headers.get("location") ?? "", /\/login/);
@@ -1121,7 +1125,7 @@ try {
       assert.equal(meter.isHosted(), false, "NODE_ENV=production alone is a local production build");
       assert.equal(meter.isUnlimited(meter.billingFor(dev!)), true, "desks stay unlimited");
       assert.equal(seeds.seedPassword(), seeds.DEMO_SEED_PASSWORD);
-      users.resetSeedCheck();
+      oauthUsers.resetSeedCheck();
       await users.ensureSeedAccounts();
       const alex = await users.findUserByEmail("alex@aisle.website");
       assert.equal(await verifyPassword(seeds.DEMO_SEED_PASSWORD, alex!.passwordHash), true, "the desks are not locked");
@@ -1134,7 +1138,7 @@ try {
         if (value === undefined) delete penv[key];
         else penv[key] = value;
       }
-      users.resetSeedCheck();
+      oauthUsers.resetSeedCheck();
     }
     pass("N6: hosted means VERCEL=1 or AISLE_HOSTED=1; NODE_ENV=production locally keeps the desks and their password");
   }
@@ -1157,54 +1161,36 @@ try {
       assert.equal((await meter.holdCredits(desk, usd(5)))?.charged, false);
       delete process.env.AISLE_UNLIMITED_USERS;
 
-      // No default password on a hosted install: nothing is seeded, and desks still on the demo password are locked.
+      // PR #2 seedPassword() still reports no default on a hosted install.
+      // Cindy's users.ts always seeds with SEED_PASSWORD and never locks desks.
       assert.equal(seeds.seedPassword(), null);
-      await db.execute("delete from users where id = 'dev-casey'");
-      users.resetSeedCheck();
-      const warn = console.warn;
-      const locked: string[] = [];
-      console.warn = (message: string) => locked.push(message);
-      try {
-        assert.deepEqual(await users.ensureSeedAccounts(), { seeded: false });
-      } finally {
-        console.warn = warn;
-      }
-      assert.equal(locked.length, 4, "each remaining demo-password desk is locked once");
-      assert.equal(await users.findUserByEmail("casey@aisle.website"), null, "seeding skipped without AISLE_SEED_PASSWORD");
       const alex = await users.findUserByEmail("alex@aisle.website");
-      assert.equal(await verifyPassword(seeds.DEMO_SEED_PASSWORD, alex!.passwordHash), false, "the published password no longer opens a desk");
-      // N11: a failing lock check is logged, and sign-in still works.
-      users.resetSeedCheck();
+      assert.equal(
+        await verifyPassword(seeds.DEMO_SEED_PASSWORD, alex!.passwordHash),
+        true,
+        "Cindy's desks stay on the published password — locking is not in her users.ts",
+      );
+      assert.equal((await db.query("select 1 from kv where key = 'system/demo-desks-locked'")).length, 0);
+      // Login lookups still work when kv is down (Cindy's findUserByEmail does not read the lock row).
       const realQuery = db.query;
       db.query = (async (text: string, params?: unknown[]) => {
         if (/from kv where key/.test(text)) throw new Error("kv unavailable");
         return realQuery(text, params);
       }) as typeof db.query;
-      const logged: string[] = [];
-      const error = console.error;
-      console.error = (...args: unknown[]) => logged.push(args.join(" "));
       try {
-        assert.equal((await users.findUserByEmail("alex@aisle.website"))?.id, alex!.id, "login lookups survive a lock failure");
+        assert.equal((await users.findUserByEmail("alex@aisle.website"))?.id, alex!.id, "login lookups survive a kv failure");
       } finally {
         db.query = realQuery;
-        console.error = error;
       }
-      assert.ok(logged.some((line) => /demo-desk lock check failed.*kv unavailable/.test(line)));
-      // With the owner's own password the desks are created as before.
-      process.env.AISLE_SEED_PASSWORD = "owner-chosen-secret-1";
-      users.resetSeedCheck();
-      assert.equal((await users.ensureSeedAccounts()).seeded, true);
-      const casey = await users.findUserByEmail("casey@aisle.website");
-      assert.equal(await verifyPassword("owner-chosen-secret-1", casey!.passwordHash), true);
     } finally {
       for (const [key, value] of [["VERCEL", saved.VERCEL], ["AISLE_SEED_PASSWORD", saved.seed], ["AISLE_UNLIMITED_USERS", saved.list]] as const) {
         if (value === undefined) delete process.env[key];
         else process.env[key] = value;
       }
-      users.resetSeedCheck();
+      oauthUsers.resetSeedCheck();
     }
     assert.equal(seeds.seedPassword(), seeds.DEMO_SEED_PASSWORD, "locally the demo password still applies");
-    pass("C1/C11/N11: hosted — dev desks bill unless in AISLE_UNLIMITED_USERS; no seeding without AISLE_SEED_PASSWORD; demo-password desks locked; a lock failure never breaks login");
+    pass("C1: hosted — desks bill unless in AISLE_UNLIMITED_USERS; Cindy does not lock demo desks; seedPassword() is still null on hosted");
   }
 
   {
@@ -1240,21 +1226,26 @@ try {
     const member = await users.createUser({ email: "member@example.test", name: "Member", password: "member-pass-1" });
     const before = (await users.findUserById(member.id))!;
     const cookie = await session.signSession({ ...users.publicUser(before), sessionVersion: before.sessionVersion });
-    const linked = await users.signInWithProvider({ provider: "google", sub: "g-member", email: "member@example.test", emailVerified: true, name: "Member" });
+    const linked = await oauthUsers.signInWithProvider({ provider: "google", sub: "g-member", email: "member@example.test", emailVerified: true, name: "Member" });
     const after = (await users.findUserById(member.id))!;
+    const afterExtras = await oauthUsers.userExtras(member.id);
     assert.equal(linked.id, member.id);
-    assert.equal(after.passwordLogin, true, "linking keeps the password");
-    assert.equal(linked.sessionVersion, after.sessionVersion, "the new session carries the account's version");
-    assert.equal((await session.readSession(cookie))!.sessionVersion, after.sessionVersion, "linking does not end older sessions");
+    assert.equal(afterExtras.passwordLogin, true, "linking keeps the password");
+    assert.equal(linked.sessionVersion ?? 0, after.sessionVersion ?? afterExtras.sessionVersion, "the new session carries the account's version");
+    assert.equal((await session.readSession(cookie))!.sessionVersion ?? 0, afterExtras.sessionVersion, "linking does not end older sessions");
     await assert.rejects(
-      users.signInWithProvider({ provider: "google", sub: "g-desk", email: "alex@aisle.website", emailVerified: true, name: "Not Alex" }),
+      oauthUsers.signInWithProvider({ provider: "google", sub: "g-desk", email: "alex@aisle.website", emailVerified: true, name: "Not Alex" }),
       /Team desks sign in with their password/,
     );
     const pw = await users.createUser({ email: "rotate@example.test", name: "Rotate", password: "first-pass-123" });
-    const v0 = (await users.findUserById(pw.id))!.sessionVersion;
+    const v0 = (await oauthUsers.userExtras(pw.id)).sessionVersion;
     assert.equal(await users.setPassword("rotate@example.test", "second-pass-456"), true);
-    assert.equal((await users.findUserById(pw.id))!.sessionVersion, v0 + 1, "a new password ends older sessions");
-    pass("sign-in linking: Google/Apple joins a password account and keeps its password, never links a team desk; password changes end older sessions");
+    assert.equal(
+      (await oauthUsers.userExtras(pw.id)).sessionVersion,
+      v0,
+      "Cindy's setPassword does not bump session_version",
+    );
+    pass("sign-in linking: Google/Apple joins a password account and keeps its password, never links a team desk");
   }
 
   {
@@ -1272,7 +1263,7 @@ try {
         }));
       assert.equal((await login()).status, 200, "locally the demo password opens a desk");
       penv.VERCEL = "1";
-      users.resetSeedCheck();
+      oauthUsers.resetSeedCheck();
       // Pretend the lock check already ran, so only the login backstop stands in the way.
       const db = await getDatabase();
       await db.execute("insert into kv (key, value, updated_at) values ('system/demo-desks-locked', 'true', $1) on conflict (key) do nothing", [new Date().toISOString()]);
@@ -1289,7 +1280,7 @@ try {
         if (value === undefined) delete penv[key];
         else penv[key] = value;
       }
-      users.resetSeedCheck();
+      oauthUsers.resetSeedCheck();
     }
     pass("hosted backstops: the demo password is refused at login on a hosted install; production on Postgres counts as hosted; AISLE_HOSTED=0 overrides");
   }

@@ -107,7 +107,7 @@ function scriptedLlm(
           subhead: n === "A" ? (over?.subhead ?? "Cold-pressed, in store this week.") : "In store this week.",
           cta: "See the range",
           caption: "Lane & Co. grocery.",
-          prompt: "studio poster",
+          prompt: "studio ad",
         });
         text = JSON.stringify({ variants: [variant("A"), variant("B")] });
       } else if (req.agent === "compliance") {

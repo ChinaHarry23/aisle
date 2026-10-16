@@ -9,7 +9,7 @@ import ts from "typescript";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { formatClipDuration, formatGenerationDate, formatGenerationDuration, generationTiming } from "../src/lib/media/timing";
-import type { MediaGeneration } from "../src/lib/media/types";
+import type { MediaGeneration } from "../src/lib/media/pr2-types";
 
 const generation: MediaGeneration = {
   kind: "video", modelId: "comfy:minimax-h3", provider: "ComfyUI", modelName: "MiniMax H3",

@@ -75,7 +75,7 @@ export function ensureProgressMonitor() {
 
 type BackendJob = { status: string; execution_error?: { exception_message?: string }; outputs?: Record<string, unknown> };
 export async function reconcileRenderJob(job: RenderProgress, campaign: Campaign, fetchJob: (id: string) => Promise<BackendJob>) {
-  const saved = [...campaign.creatives, ...campaign.videos].some(asset => asset.generation?.status === "ok" && asset.generation.url && job.promptId && asset.generation.promptId === job.promptId);
+  const saved = [...campaign.creatives, ...campaign.videos].some(asset => asset.generation?.status === "ok" && asset.generation.url && job.promptId && (asset.generation as { promptId?: string }).promptId === job.promptId);
   if (saved) return updateRenderJob(job.id, { stage: "complete", error: undefined })!;
   if (!renderActive(job)) return job;
   if (job.sequence) {

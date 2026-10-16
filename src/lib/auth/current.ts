@@ -15,6 +15,9 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
   const session = await readSession(token);
   if (!session) return null;
   const user = await findUserById(session.id);
-  if (!user || user.sessionVersion !== (session.sessionVersion ?? 0)) return null;
-  return publicUser(user);
+  if (!user) return null;
+  // Cindy's AuthUser has no sessionVersion; missing means 0 so PR #2's
+  // optional field never logs her desks out.
+  if ((user.sessionVersion ?? 0) !== (session.sessionVersion ?? 0)) return null;
+  return { ...publicUser(user), sessionVersion: user.sessionVersion ?? 0 };
 }

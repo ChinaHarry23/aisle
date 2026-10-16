@@ -7,7 +7,7 @@
  * joins by adding an adapter with offline fake-server tests and a live smoke run
  * (`scripts/provider-smoke.ts`).
  */
-import type { ProviderId } from "../types";
+import type { ProviderId } from "../pr2-types";
 import { comfyReachable } from "../comfy";
 import { alibabaAdapter } from "./alibaba";
 import { bytedanceAdapter } from "./bytedance";

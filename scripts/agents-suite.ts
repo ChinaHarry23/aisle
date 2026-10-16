@@ -17,9 +17,9 @@ import { DynamicStructuredTool } from "@langchain/core/tools";
 import { MeteredChatModel, MeteredCallUnavailable, toTurns, MAX_MODEL_CALLS_PER_RUN } from "../src/lib/agents/metered-chat-model";
 import { agentTools, toolNamesFor, toolSchema } from "../src/lib/agents/agent-tools";
 import { buildAgent, complianceSchema } from "../src/lib/agents/seats";
-import { runComplete } from "../src/lib/llm/complete";
-import { LOCAL_DEFAULT_LLM, getLlmModel } from "../src/lib/llm/catalog";
-import { parseToolArgs } from "../src/lib/llm/adapters";
+import { runComplete } from "../src/lib/llm/metered-complete";
+import { getLlmModel } from "../src/lib/llm/catalog";
+import { parseToolArgs, LOCAL_DEFAULT_LLM } from "../src/lib/pr2-shims";
 import { AIMessage, HumanMessage, SystemMessage, ToolMessage } from "@langchain/core/messages";
 import { TOOL_REGISTRY } from "../src/lib/runtime/tools";
 
@@ -56,6 +56,17 @@ const pass = (label: string) => {
     content: '{"status":"ok"}',
   });
   pass("a LangChain conversation translates to portable turns, keeping tool-call ids paired");
+}
+
+{
+  // createAgent stores systemPrompt as a SystemMessage with array content, not a string.
+  const turns = toTurns([
+    new SystemMessage({ content: [{ type: "text", text: "You may NEVER approve an advertisement." }] }),
+    new HumanMessage("Review this."),
+  ]);
+  assert.match(turns.system, /never approve/i, "array-content system prompts still become the system field");
+  assert.equal(turns.prompt, "Review this.");
+  pass("LangChain 1.x array-content system prompts are sent as the seat instructions");
 }
 
 {

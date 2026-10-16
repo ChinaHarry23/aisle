@@ -5,7 +5,7 @@
  * never in a URL, and a provider file URI never leaves the server.
  */
 import { randomUUID } from "node:crypto";
-import type { AspectRatio, GenerateRequest } from "../types";
+import type { AspectRatio, GenerateRequest } from "../pr2-types";
 import { assertMediaBytes, MEDIA_MAX_BYTES } from "../store";
 import { afterSubmit, apiBase, downloadFile, envValue, mp4DurationSec, pollJob, providerJson, ProviderError, roundUsd, timeLeft, videoJobMs } from "./http";
 import type { MediaProviderAdapter, ProviderContext, ProviderOutput } from "./types";

@@ -7,7 +7,7 @@
  * when that file is present.
  */
 
-import type { AspectRatio, GenerateRequest, GenerateResult } from "./types";
+import type { AspectRatio, GenerateRequest, GenerateResult } from "./pr2-types";
 import { randomUUID } from "node:crypto";
 import { readMedia } from "./store";
 
