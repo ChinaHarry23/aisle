@@ -46,7 +46,7 @@ jobs:
           for key in $keys; do
             body=$(jq -n --arg text "PR #$PR_NUMBER $state: $PR_TITLE" --arg url "$PR_URL" '{
               body: {type: "doc", version: 1, content: [{type: "paragraph", content: [
-                {type: "text", text: $text + " "},
+                {type: "text", text: ($text + " ")},
                 {type: "text", text: $url, marks: [{type: "link", attrs: {href: $url}}]}
               ]}]}
             }')
