@@ -8,7 +8,26 @@
 
 import type { CompleteResult } from "@/lib/llm/types";
 import type { ValidationProblem } from "@/lib/runtime/intake";
-import type { AgentEvent, Channel, Country, IntakeFieldSources } from "@/lib/types";
+import type { AgentEvent, Channel, Country } from "@/lib/types";
+
+/** Provenance for a brief field. Kept here so Cindy's CampaignInput stays unchanged. */
+export type FieldSource = "founder" | "assistant";
+export type IntakeFieldSources = Partial<
+  Record<
+    | "name"
+    | "product"
+    | "category"
+    | "targetAudience"
+    | "objective"
+    | "budget"
+    | "channels"
+    | "startDate"
+    | "endDate"
+    | "country"
+    | "notes",
+    FieldSource
+  >
+>;
 
 export const MAX_INTAKE_TURNS = 12;
 

@@ -17,7 +17,7 @@ import os from "node:os";
 import path from "node:path";
 import { getDatabase, type Database } from "@/lib/db";
 import { assertComfyAssetUrl, cachedComfyAsset } from "./assets";
-import type { MediaKind } from "./types";
+import type { MediaKind } from "./pr2-types";
 
 export type MediaMime = "image/png" | "image/jpeg" | "image/webp" | "video/mp4";
 

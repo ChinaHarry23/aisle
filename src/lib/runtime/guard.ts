@@ -227,16 +227,3 @@ export function evaluateGuard(input: GuardInput, at: string): GuardOutcome {
     decision,
   };
 }
-
-/** Convenience predicate for the engine's hot paths. */
-export function wouldBlock(input: GuardInput, at: string): boolean {
-  return evaluateGuard(input, at).verdict === "block";
-}
-
-export const guardRuleCatalogue: { id: GuardRuleId; clause: string; text: string }[] = rules.map(
-  (r) => ({
-    id: r.id,
-    clause: r.clause,
-    text: r.id,
-  }),
-);

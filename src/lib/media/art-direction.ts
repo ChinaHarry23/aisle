@@ -1,6 +1,6 @@
 /** Server-side creative planning. No template advertisement is substituted on failure. */
 import type { BillingContext } from "../billing/meter";
-import { runComplete } from "../llm/complete";
+import { runComplete } from "../llm/metered-complete";
 import { getLlmOrDefault } from "../llm/catalog";
 import { worstCaseUsd } from "../llm/estimate";
 import type { CompleteRequest, CompleteResult } from "../llm/types";
@@ -10,7 +10,7 @@ import { extractJson } from "../runtime/decide";
 import { WorkflowError } from "../workflow/commands";
 import { ART_DIRECTOR_SYSTEM, ART_DIRECTOR_VERSION } from "./art-director-system";
 import { storyAdPlan, storyLayout, type StoryAdPlan, type StoryScene } from "./storyboard";
-import type { AspectRatio, MediaModel } from "./types";
+import type { AspectRatio, MediaModel } from "./pr2-types";
 
 export type ArtDirection = {
   version: string; title: string; sellingIdea: string; hook: string;

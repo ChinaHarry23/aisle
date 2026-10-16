@@ -11,7 +11,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import { NextResponse, type NextRequest } from "next/server";
 import { sessionCookieOptions, signSession, SESSION_COOKIE } from "./session";
-import { signInWithProvider } from "./users";
+import { signInWithProvider } from "./oauth-users";
 import type { SessionUser } from "./types";
 
 export type OAuthProvider = "google" | "apple";

@@ -6,7 +6,7 @@ import path from "node:path";
 import type { UserRole } from "../auth/types";
 import { WorkflowError } from "../workflow/commands";
 import type { StoryAdPlan } from "./storyboard";
-import type { GenerateRequest, MediaGeneration } from "./types";
+import type { GenerateRequest, MediaGeneration } from "./pr2-types";
 import { updateRenderJob } from "./progress-store";
 import type { ArtDirection } from "./art-direction";
 

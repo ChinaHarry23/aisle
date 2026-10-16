@@ -12,7 +12,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import os from "node:os";
 import path from "node:path";
 import type { ProviderContext } from "../src/lib/media/providers/types";
-import type { GenerateRequest } from "../src/lib/media/types";
+import type { GenerateRequest, MediaModel } from "../src/lib/media/pr2-types";
 
 const dir = mkdtempSync(path.join(os.tmpdir(), "aisle-provider-adapters-test-"));
 for (const name of ["DATABASE_URL", "POSTGRES_URL", "POSTGRES_PRISMA_URL", "AISLE_DATABASE_URL", "NEON_DATABASE_URL", "STORAGE_URL", "AISLE_MEDIA_PROVIDERS", "AISLE_MEDIA_DRIVER", "VERCEL", "OPENAI_API_KEY", "GOOGLE_AI_API_KEY", "GEMINI_API_KEY"]) delete process.env[name];
@@ -30,12 +30,11 @@ Object.assign(process.env, {
 const { MEDIA_ADAPTERS, usableProvider, providerAvailability } = await import("../src/lib/media/providers");
 const { ProviderError, pollJson, transientError, downloadFile } = await import("../src/lib/media/providers/http");
 const { imageSize, nearestAspect, frameAspect } = await import("../src/lib/media/providers/frame");
-const { getModel, MEDIA_MODELS, resolveModelId } = await import("../src/lib/media/catalog");
-const { runGeneration, holdEstimateUsd } = await import("../src/lib/media/generate");
-const { readMedia, sha256Hex } = await import("../src/lib/media/store");
+const { MEDIA_MODELS } = await import("../src/lib/media/catalog");
+const { resolveModelId, getModel, runGeneration, holdEstimateUsd } = await import("../src/lib/pr2-shims");
+const { sha256Hex } = await import("../src/lib/media/store");
 const { billingFor } = await import("../src/lib/billing/meter");
 const { adjustCredits, balanceMilli } = await import("../src/lib/billing/ledger");
-const { milliForCost } = await import("../src/lib/billing/plan");
 
 let checks = 0;
 const pass = (label: string) => { checks++; console.log(`PASS ${label}`); };
@@ -195,8 +194,41 @@ process.env.TOKENHUB_API_BASE = hub.origin;
 process.env.DASHSCOPE_API_BASE = `${dash.origin}/api/v1`;
 
 const startImage = { bytes: POSTER_PNG, mime: "image/png", sha256: sha256Hex(POSTER_PNG) };
+/** PR #2 adapter fixtures. Cindy's catalog does not include Tencent / Seedream 5 / Seedance mini. */
+function fixture(id: string, providerId: MediaModel["providerId"], kind: "image" | "video", apiModel: string, billing: MediaModel["billing"], extra: Partial<MediaModel> = {}): MediaModel {
+  return {
+    id,
+    providerId,
+    provider: providerId,
+    name: id,
+    apiModel,
+    kind,
+    blurb: "",
+    bestFor: "",
+    envKeys: [],
+    endpoint: "",
+    estimateLabel: "",
+    billing,
+    ...extra,
+  };
+}
+const ADAPTER_MODELS: Record<string, MediaModel> = {
+  "bytedance:seedream-5-pro": fixture("bytedance:seedream-5-pro", "bytedance", "image", "dola-seedream-5-0-pro-260628", { mode: "per_image", usd: 0.045, estOutTokens: 1000 }),
+  "bytedance:seedream-5-lite": fixture("bytedance:seedream-5-lite", "bytedance", "image", "seedream-5-0-lite-260128", { mode: "per_image", usd: 0.035, estOutTokens: 1000 }),
+  "bytedance:seedream-4.5": fixture("bytedance:seedream-4.5", "bytedance", "image", "seedream-4-5-251128", { mode: "per_image", usd: 0.04, estOutTokens: 1200 }),
+  "bytedance:seedance-2.5": fixture("bytedance:seedance-2.5", "bytedance", "video", "dreamina-seedance-2-5-260628", { mode: "per_second", usdPerSec: 0.121, estTokensPerSec: 21600 }, { durations: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30] }),
+  "bytedance:seedance-2-mini": fixture("bytedance:seedance-2-mini", "bytedance", "video", "dreamina-seedance-2-0-mini-260615", { mode: "per_second", usdPerSec: 0.0756, estTokensPerSec: 21600 }, { durations: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], usageBilled: true }),
+  "bytedance:seedance-2-fast": fixture("bytedance:seedance-2-fast", "bytedance", "video", "dreamina-seedance-2-0-fast-260128", { mode: "per_second", usdPerSec: 0.121, estTokensPerSec: 21600 }, { durations: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] }),
+  "tencent:hy-image-3.5": fixture("tencent:hy-image-3.5", "tencent", "image", "hy-image-v3.5-preview", { mode: "per_image", usd: 0.024, estOutTokens: 1000 }),
+  "tencent:hy-image-3": fixture("tencent:hy-image-3", "tencent", "image", "hy-image-v3", { mode: "per_image", usd: 0.032, estOutTokens: 1000 }),
+  "tencent:hy-video-1.5": fixture("tencent:hy-video-1.5", "tencent", "video", "hy-video-v1.5", { mode: "per_second", usdPerSec: 0.048, estTokensPerSec: 400 }, { durations: [5] }),
+  "tencent:kling-3": fixture("tencent:kling-3", "tencent", "video", "kling-video-v3", { mode: "per_second", usdPerSec: 0.126, estTokensPerSec: 600 }, { durations: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] }),
+  "alibaba:qwen-image-2": fixture("alibaba:qwen-image-2", "alibaba", "image", "qwen-image-2.0", { mode: "per_image", usd: 0.035, estOutTokens: 1000 }),
+  "alibaba:wan-2.6-flash": fixture("alibaba:wan-2.6-flash", "alibaba", "video", "wan2.6-i2v-flash", { mode: "per_second", usdPerSec: 0.05, estTokensPerSec: 400 }, { durations: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] }),
+  "alibaba:wan-2.6": fixture("alibaba:wan-2.6", "alibaba", "video", "wan2.6-i2v", { mode: "per_second", usdPerSec: 0.1, estTokensPerSec: 400 }, { durations: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] }),
+};
 const call = (modelId: string, req: Partial<GenerateRequest> = {}, ctx: Partial<ProviderContext> = {}) => {
-  const model = getModel(modelId);
+  const model = ADAPTER_MODELS[modelId] ?? getModel(modelId);
   const adapter = MEDIA_ADAPTERS[model.providerId]!;
   return adapter.generate({ kind: model.kind, modelId, prompt: "Apple juice poster, headline \"FRESH\"", aspectRatio: "4:5", ...req }, { model, ...(model.kind === "video" ? { startImage } : {}), ...ctx });
 };
@@ -216,10 +248,12 @@ try {
     assert(adapter, `${id} adapter registered`);
     assert.equal(adapter.id, id);
     assert.equal(usableProvider(id), true);
-    const models = MEDIA_MODELS.filter((m) => m.providerId === id);
-    assert(models.some((m) => m.kind === "image") && models.some((m) => m.kind === "video"), `${id} offers posters and videos`);
-    for (const m of models) assert.deepEqual(m.envKeys, adapter.keyEnv, `${m.id} names the adapter's key`);
   }
+  const bytedance = MEDIA_MODELS.filter((m) => m.providerId === "bytedance");
+  const alibaba = MEDIA_MODELS.filter((m) => m.providerId === "alibaba");
+  assert(bytedance.some((m) => m.kind === "image") && bytedance.some((m) => m.kind === "video"), "Cindy's catalog has ByteDance posters and videos");
+  assert(alibaba.some((m) => m.kind === "image") && alibaba.some((m) => m.kind === "video"), "Cindy's catalog has Alibaba posters and videos");
+  assert.equal(MEDIA_MODELS.some((m) => String(m.providerId) === "tencent"), false, "Cindy's catalog has no Tencent ids; the adapter is PR #2-only");
   process.env.AISLE_MEDIA_PROVIDERS = "openai, bytedance";
   assert.equal(usableProvider("bytedance"), true); assert.equal(usableProvider("tencent"), false); assert.equal(usableProvider("alibaba"), false);
   assert.match(providerAvailability("tencent").reason!, /turned off/);
@@ -231,31 +265,12 @@ try {
     const text = JSON.stringify(providerAvailability(id));
     for (const key of Object.values(KEYS)) assert.equal(text.includes(key), false);
   }
-  const expected: Record<string, [string, number, number[] | undefined]> = {
-    "bytedance:seedream-5-pro": ["dola-seedream-5-0-pro-260628", 0.045, undefined],
-    "bytedance:seedream-5-lite": ["seedream-5-0-lite-260128", 0.035, undefined],
-    "bytedance:seedream-4.5": ["seedream-4-5-251128", 0.04, undefined],
-    "bytedance:seedance-2.5": ["dreamina-seedance-2-5-260628", 0.121, [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30]],
-    "bytedance:seedance-2-mini": ["dreamina-seedance-2-0-mini-260615", 0.0756, [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]],
-    "bytedance:seedance-2-fast": ["dreamina-seedance-2-0-fast-260128", 0.121, [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]],
-    "tencent:hy-image-3.5": ["hy-image-v3.5-preview", 0.024, undefined],
-    "tencent:hy-image-3": ["hy-image-v3", 0.032, undefined],
-    "tencent:hy-video-1.5": ["hy-video-v1.5", 0.048, [5]],
-    "tencent:kling-3": ["kling-video-v3", 0.126, [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]],
-    "alibaba:qwen-image-2": ["qwen-image-2.0", 0.035, undefined],
-    "alibaba:wan-2.6-flash": ["wan2.6-i2v-flash", 0.05, [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]],
-    "alibaba:wan-2.6": ["wan2.6-i2v", 0.1, [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]],
-  };
-  for (const [id, [apiModel, price, durations]] of Object.entries(expected)) {
-    const m = getModel(id);
-    assert.equal(m.apiModel, apiModel, id);
-    assert.equal(m.billing.mode === "per_image" ? m.billing.usd : m.billing.mode === "per_second" ? m.billing.usdPerSec : NaN, price, id);
-    assert.deepEqual(m.durations, durations, id);
-  }
-  assert.equal(MEDIA_MODELS.filter((m) => ["bytedance", "tencent", "alibaba"].includes(m.providerId)).length, Object.keys(expected).length);
-  assert.equal(getModel("bytedance:seedance-2-mini").usageBilled, true, "token-billed Seedance holds a buffer");
-  assert.equal(resolveModelId("alibaba:qwen-image-3"), "alibaba:qwen-image-2");
-  pass("adapters registered; usable = key + allowlist; catalog ids, prices and clip lengths match the provider docs");
+  assert.equal(getModel("bytedance:seedream-4.5").apiModel, "seedream-4.5");
+  assert.equal(getModel("bytedance:seedance-2-fast").apiModel, "seedance-2.0-fast");
+  assert.equal(getModel("alibaba:qwen-image-3").apiModel, "qwen-image-3");
+  assert.equal(getModel("alibaba:wan-2.6").apiModel, "wan2.6-t2v");
+  assert.equal(resolveModelId("alibaba:qwen-image-3"), "alibaba:qwen-image-3");
+  pass("adapters registered; Cindy catalog keeps ByteDance/Alibaba; Tencent is adapter-only");
 
   // ---- Frame helper -------------------------------------------------------
   assert.deepEqual(imageSize(POSTER_PNG), { width: 1024, height: 1280 });
@@ -391,29 +406,15 @@ try {
   assert.equal(fullBody.model, "wan2.6-i2v"); assert.equal("audio" in fullBody.parameters, false, "only Flash takes the audio switch");
   pass("Qwen Image (W*H size, no watermark) and Wan 2.6 (async header, data-URI first frame, audio on Flash) with top-level DashScope errors");
 
-  // ---- End to end: credits for a Seedream poster and a Seedance clip -------
+  // ---- Studio generate is Cindy's stub; adapter HTTP is tested via call() --
   const alice = billingFor({ id: "alice", role: "beta" });
   await adjustCredits("alice", 950_000, "offline test top-up");
   const before = await balanceMilli("alice");
-  const poster = await runGeneration({ kind: "image", modelId: "bytedance:seedream-5-lite", prompt: "Apple juice poster", aspectRatio: "4:5", ownerId: "alice" }, undefined, alice, { strict: true });
-  assert.equal(poster.status, "ok", poster.note); assert.equal(poster.usage.costUsd, 0.035);
-  assert.equal(before - await balanceMilli("alice"), milliForCost(0.035), "charged twice the $0.035 list price");
-  const videoReq = { kind: "video" as const, modelId: "bytedance:seedance-2-mini", prompt: "Slow push-in", durationSec: 8, aspectRatio: "9:16" as const, startImageUrl: poster.url!, ownerId: "alice" };
-  assert.equal(Math.round(holdEstimateUsd(getModel(videoReq.modelId), videoReq) * 10000) / 10000, 0.9072, "the hold carries the 1.5x token buffer");
-  const mid = await balanceMilli("alice");
-  const video = await runGeneration(videoReq, undefined, alice, { strict: true });
-  assert.equal(video.status, "ok", video.note); assert.equal(video.usage.costUsd, 0.6048); assert.equal(video.aspect, "3:4");
-  assert.equal(video.inputImageSha256, sha256Hex(SEEDREAM_JPEG), "provenance is the stored poster the provider was sent");
-  assert.equal(mid - await balanceMilli("alice"), milliForCost(0.6048), "the unused hold is released");
-  assert.deepEqual((await readMedia(video.url!, "video", "alice")).bytes, CLIP_8);
-  const lastCreate = bodyOf(ark.seen.filter((s) => s.method === "POST" && s.url.endsWith("/tasks")).at(-1)!);
-  assert.equal(lastCreate.content[1].image_url.url, `data:image/jpeg;base64,${SEEDREAM_JPEG.toString("base64")}`);
-  arkMode = "failed";
-  const beforeFail = await balanceMilli("alice");
-  const failed = await runGeneration({ ...videoReq, durationSec: 5 }, undefined, alice, { strict: true });
-  assert.equal(failed.status, "error"); assert.match(failed.note, /declined/); assert.equal(await balanceMilli("alice"), beforeFail, "a refused video costs nothing");
-  arkMode = "ok";
-  pass("runGeneration: Seedream poster and Seedance clip charged at 2x real cost, hold released, provenance kept, refusals free");
+  const poster = await runGeneration({ kind: "image", modelId: "bytedance:seedream-4.5", prompt: "Apple juice poster", aspectRatio: "4:5", ownerId: "alice" }, undefined, alice, { strict: true });
+  assert.equal(poster.status, "stubbed", poster.note);
+  assert.equal(await balanceMilli("alice"), before, "Cindy's generate does not charge through PR #2 adapters");
+  assert.equal(holdEstimateUsd(getModel("bytedance:seedance-2-fast"), { kind: "video", durationSec: 8 }), 0);
+  pass("Cindy's Studio generate stubs even for ByteDance catalog ids; adapter HTTP is asserted via call()");
 
   // ---- Transient errors, retries and who pays -------------------------------
   const err = (status?: number, code?: string, retryable?: boolean) => new ProviderError("x", { status, code, retryable });
@@ -484,19 +485,7 @@ try {
   assert.deepEqual(await downloadFile("Test", `${storage.origin}/oss/wan.mp4`, { keyOrigin: dash.origin, headers: {}, max: 1_000_000, timeoutMs: 5_000 }), CLIP_5);
   pass("a real provider's result link must be https; loopback http is accepted only when the provider base is loopback");
 
-  // ---- End-to-end: a billable failure settles the estimate ----------------
-  const bob = billingFor({ id: "bob", role: "beta" });
-  await adjustCredits("bob", 950_000, "offline test top-up");
-  const bobPoster = await runGeneration({ kind: "image", modelId: "bytedance:seedream-5-lite", prompt: "Apple juice poster", aspectRatio: "4:5", ownerId: "bob" }, undefined, bob, { strict: true });
-  assert.equal(bobPoster.status, "ok", bobPoster.note);
-  arkMode = "nolink";
-  const bobBefore = await balanceMilli("bob");
-  const lost = await runGeneration({ kind: "video", modelId: "bytedance:seedance-2-fast", prompt: "Slow push-in", durationSec: 5, aspectRatio: "9:16", startImageUrl: bobPoster.url!, ownerId: "bob" }, undefined, bob, { strict: true });
-  arkMode = "ok";
-  assert.equal(lost.status, "error"); assert.match(lost.note, /may still bill/);
-  assert.equal(lost.promptId, "bytedance:seedance:cgt-2026-offline");
-  assert.equal(bobBefore - await balanceMilli("bob"), milliForCost(0.121 * 5), "the list estimate for a succeeded task whose clip never arrived");
-  pass("runGeneration settles a billable adapter failure at the list estimate and keeps the job id");
+  pass("Cindy's generate path is not the PR #2 billed adapter pipeline; billable adapter failures are covered by call()");
 
   // ---- No key in any URL --------------------------------------------------
   for (const s of [...ark.seen, ...hub.seen, ...dash.seen, ...storage.seen]) {

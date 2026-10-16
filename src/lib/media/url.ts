@@ -1,4 +1,4 @@
-import type { MediaGeneration } from "./types";
+import type { MediaGeneration } from "./pr2-types";
 
 const STORED_PREFIX = "aisle-media:";
 

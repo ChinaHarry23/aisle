@@ -3,7 +3,7 @@
  * poster's framing (Seedance "adaptive", Hunyuan Video, Kling, Wan). The
  * aspect a clip really has is read from the poster's own header, not assumed.
  */
-import type { AspectRatio } from "../types";
+import type { AspectRatio } from "../pr2-types";
 
 const RATIOS: [AspectRatio, number][] = [["1:1", 1], ["4:5", 4 / 5], ["3:4", 3 / 4], ["16:9", 16 / 9], ["9:16", 9 / 16]];
 

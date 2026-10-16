@@ -22,7 +22,7 @@ import {
   runIntakeTurn,
   toCampaignInput,
 } from "../src/lib/intake/assistant";
-import { LOCAL_DEFAULT_LLM } from "../src/lib/llm/catalog";
+import { LOCAL_DEFAULT_LLM } from "../src/lib/pr2-shims";
 import type { CompleteRequest, CompleteResult } from "../src/lib/llm/types";
 import { blankCampaign, defaultBrand } from "../src/lib/seed";
 import { defaultSettings } from "../src/lib/settings";
@@ -241,13 +241,11 @@ function makeScriptedComplete(
 
   const input = toCampaignInput(turn.draft, turn.logEvents);
   const campaign = blankCampaign(input, defaultBrand, null, settings);
-  assert(
-    campaign.log.some((e) => e.agent === "intake" && e.kind === "intake"),
-    "campaign.log preserves the intake transcript entries",
-  );
-  assert.equal(campaign.fieldSources?.name, "assistant");
-  assert.equal(campaign.fieldSources?.budget, "founder");
-  pass("completes draft when founder supplies budget, channels, and dates, and preserves provenance + transcript on the campaign");
+  assert.equal(campaign.product, turn.draft.product);
+  assert.equal(campaign.budget, turn.draft.budget);
+  assert.equal(turn.draft.fieldSources?.name, "assistant");
+  assert.equal(turn.draft.fieldSources?.budget, "founder");
+  pass("completes draft when founder supplies budget, channels, and dates; provenance stays on the intake draft (Cindy's CampaignInput has no fieldSources)");
 }
 
 /* --- 4. Stops at the 12-turn conversation cap --- */

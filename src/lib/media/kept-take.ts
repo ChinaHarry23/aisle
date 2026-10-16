@@ -10,7 +10,7 @@
 import { isUnlimited, type BillingContext } from "@/lib/billing/meter";
 import { milliForCost, MILLI } from "@/lib/billing/plan";
 import { isStoredMediaUrl, STORED_PREFIX } from "./store";
-import type { GenerateResult, MediaKind } from "./types";
+import type { GenerateResult, MediaKind } from "./pr2-types";
 
 /** Credits (milli) a finished take charged this context: nothing for local, dev or unmetered runs. */
 export function chargedMilliFor(billing: BillingContext | undefined, generation: GenerateResult): number {

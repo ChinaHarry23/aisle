@@ -77,10 +77,35 @@ export function Stat({
 }) {
   return (
     <div className="hairline p-4">
-      <p className="text-[11px] uppercase tracking-wider text-mute">{label}</p>
-      <p className="mt-2 font-serif text-3xl leading-none">{value}</p>
-      {hint ? <p className="mt-2 text-sm text-mute">{hint}</p> : null}
+      <p className="text-sm text-ink-soft">{label}</p>
+      <p className="mt-3 text-3xl font-semibold tabular-nums tracking-tight">{value}</p>
+      {hint ? <p className="mt-0.5 text-xs text-mute">{hint}</p> : null}
     </div>
+  );
+}
+
+export function PageHeader({
+  eyebrow,
+  title,
+  description,
+  actions,
+}: {
+  eyebrow?: string;
+  title: ReactNode;
+  description?: ReactNode;
+  actions?: ReactNode;
+}) {
+  return (
+    <header className="flex flex-wrap items-start justify-between gap-4">
+      <div className="min-w-[18rem] flex-1">
+        {eyebrow ? <p className="text-sm text-mute">{eyebrow}</p> : null}
+        <h1 className="mt-1 font-serif text-2xl tracking-tight md:text-3xl">{title}</h1>
+        {description ? (
+          <p className="mt-2 max-w-4xl text-[15px] leading-relaxed text-ink-soft">{description}</p>
+        ) : null}
+      </div>
+      {actions ? <div className="flex flex-wrap items-center gap-2 md:pt-1">{actions}</div> : null}
+    </header>
   );
 }
 
@@ -96,10 +121,8 @@ export function SectionTitle({
   return (
     <div className="flex flex-wrap items-end justify-between gap-3">
       <div>
-        {kicker ? (
-          <p className="text-[11px] uppercase tracking-[0.18em] text-signal">{kicker}</p>
-        ) : null}
-        <h2 className="font-serif text-2xl md:text-3xl">{title}</h2>
+        {kicker ? <p className="text-xs text-mute">{kicker}</p> : null}
+        <h2 className="font-serif text-lg md:text-xl">{title}</h2>
       </div>
       {aside}
     </div>
@@ -116,9 +139,9 @@ export function Empty({
   children?: ReactNode;
 }) {
   return (
-    <div className="hairline flex flex-col items-start gap-3 p-8">
-      <h3 className="font-serif text-xl">{title}</h3>
-      <p className="max-w-md text-sm leading-relaxed text-ink-soft">{body}</p>
+    <div className="hairline flex flex-col items-center gap-3 p-8 text-center">
+      <h3 className="font-serif text-lg md:text-xl">{title}</h3>
+      <p className="max-w-xl text-base leading-relaxed text-ink-soft">{body}</p>
       {children}
     </div>
   );

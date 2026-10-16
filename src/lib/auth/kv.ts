@@ -1,5 +1,5 @@
 /**
- * Workspace and inbox documents.
+ * Workspace documents.
  *
  * This module used to be the Vercel Blob client: every read and save was a network
  * call authenticated by `BLOB_READ_WRITE_TOKEN`. When that token stopped working,

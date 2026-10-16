@@ -9,7 +9,13 @@ import type { BillingContext } from "@/lib/billing/meter";
 import { holdCredits, releaseHold, settleHold } from "@/lib/billing/meter";
 import { getLlmOrDefault } from "./catalog";
 import { llmCostUsd, worstCaseUsd } from "./estimate";
-import { anthropicBase, openaiBase } from "./adapters";
+function openaiBase() {
+  return (process.env.OPENAI_API_BASE?.trim() || "https://api.openai.com/v1").replace(/\/$/, "");
+}
+
+function anthropicBase() {
+  return (process.env.ANTHROPIC_API_BASE?.trim() || "https://api.anthropic.com/v1").replace(/\/$/, "");
+}
 export type WebCitation = { title: string; url: string; snippet: string };
 
 export type WebSearchResult = {

@@ -1,4 +1,4 @@
-import type { MediaKind } from "./types";
+import type { MediaKind } from "./pr2-types";
 
 export type RenderStage = "preparing" | "queued" | "loading" | "sampling" | "encoding" | "saving" | "complete" | "failed";
 export type RenderProgress = {

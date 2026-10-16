@@ -12,7 +12,7 @@ import type { z } from "zod";
 import type { BillingContext } from "@/lib/billing/meter";
 import type { CompleteResult } from "@/lib/llm/types";
 import { getLlmOrDefault } from "@/lib/llm/catalog";
-import { runComplete } from "@/lib/llm/complete";
+import { runComplete } from "@/lib/llm/metered-complete";
 import type { ToolAgent, ToolOutcome } from "@/lib/runtime/tools";
 import { agentTools, type AgentToolContext } from "./agent-tools";
 import {

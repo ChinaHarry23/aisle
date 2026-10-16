@@ -1,4 +1,4 @@
-import type { MediaGeneration } from "@/lib/media/types";
+import type { MediaGeneration } from "@/lib/media/pr2-types";
 import { formatClipDuration, formatGenerationDate, formatGenerationDuration, generationTiming } from "@/lib/media/timing";
 
 export function GenerationInfo({ generation, clipDurationSec }: { generation?: MediaGeneration; clipDurationSec?: number }) {

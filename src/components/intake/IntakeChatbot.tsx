@@ -65,12 +65,12 @@ export function IntakeChatbot({
     targetAudience: form.targetAudience,
     objective: form.objective,
     budget: isBudgetExplicit(form) ? form.budget : 0,
-    channels: form.fieldSources?.channels ? form.channels : [],
-    startDate: form.fieldSources?.startDate ? form.startDate : "",
-    endDate: form.fieldSources?.endDate ? form.endDate : "",
+    channels: form.product.trim() ? form.channels : [],
+    startDate: form.product.trim() ? form.startDate : "",
+    endDate: form.product.trim() ? form.endDate : "",
     country: form.country || "AU",
     notes: form.notes,
-    fieldSources: { ...(form.fieldSources ?? {}) },
+    fieldSources: {},
   }));
 
   const [messages, setMessages] = useState<IntakeChatMessage[]>([
@@ -104,7 +104,7 @@ export function IntakeChatbot({
   const [sessionCostUsd, setSessionCostUsd] = useState(0);
   const [sessionTokens, setSessionTokens] = useState(0);
   const [lastModelLabel, setLastModelLabel] = useState<string | null>(null);
-  const [intakeEvents, setIntakeEvents] = useState<AgentEvent[]>(form.intakeLog ?? []);
+  const [intakeEvents, setIntakeEvents] = useState<AgentEvent[]>([]);
   const msgCounterRef = useRef(0);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const scrollEndRef = useRef<HTMLDivElement | null>(null);
@@ -160,6 +160,7 @@ export function IntakeChatbot({
   }
 
   function syncToParent(nextDraft: IntakeDraftState, nextEvents: AgentEvent[]) {
+    void nextEvents;
     onApplyDraft({
       name: nextDraft.name || form.name,
       product: nextDraft.product || form.product,
@@ -172,8 +173,6 @@ export function IntakeChatbot({
       endDate: nextDraft.endDate || form.endDate,
       country: nextDraft.country || form.country,
       notes: nextDraft.notes || form.notes,
-      fieldSources: { ...nextDraft.fieldSources },
-      intakeLog: nextEvents,
     });
   }
 
@@ -619,5 +618,5 @@ function DraftFieldRow({
 
 // Helper so the initial form default budget (8000) does not pretend the founder already answered the budget question in chat unless they edited it.
 function isBudgetExplicit(form: CampaignInput): boolean {
-  return form.fieldSources?.budget === "founder" || Boolean(form.product && form.budget > 0);
+  return Boolean(form.product && form.budget > 0);
 }

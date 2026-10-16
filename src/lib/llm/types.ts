@@ -1,4 +1,4 @@
-export type LlmProviderId = "local" | "openai" | "anthropic";
+export type LlmProviderId = "local" | "openai" | "anthropic" | "cursor";
 
 export type AgentSlot = "trend" | "creative" | "compliance" | "media";
 
@@ -91,7 +91,8 @@ export type ChatTurn =
   | { role: "tool"; toolCallId: string; name: string; content: string };
 
 export type CompleteRequest = {
-  agent: MeteredAgentId;
+  /** Seat the completion is billed/traced as. Intake maps onto `trend`. */
+  agent: AgentSlot;
   modelId: string;
   prompt: string;
   /** Server-authored role instructions. The public completion route drops this field. */

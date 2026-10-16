@@ -1,4 +1,4 @@
-import type { AgentId, CampaignStatus, Channel, RiskLevel } from "./types";
+import type { AgentId, CampaignStatus, Channel } from "./types";
 
 export const statusLabel: Record<CampaignStatus, string> = {
   draft: "Draft",
@@ -37,27 +37,12 @@ export const agentLabel: Record<AgentId, string> = {
   intake: "Inbound intake",
 };
 
-export const agentRole: Record<AgentId, string> = {
-  founder: "Operator",
-  trend: "Market researcher",
-  creative: "Creative studio",
-  compliance: "Legal & brand risk",
-  media: "Distribution",
-  intake: "Inbound briefs",
-};
-
 export const channelLabel: Record<Channel, string> = {
-  instagram: "Instagram",
+  instagram: "Social media",
   web: "Website",
   email: "Email",
   print: "Print catalogue",
   digital_signage: "In-store signage",
-};
-
-export const riskLabel: Record<RiskLevel, string> = {
-  low: "Low risk",
-  medium: "Medium risk",
-  high: "High risk",
 };
 
 export const pipelineOrder: CampaignStatus[] = [

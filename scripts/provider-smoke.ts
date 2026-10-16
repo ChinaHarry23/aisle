@@ -19,7 +19,7 @@ import { MEDIA_MODELS } from "../src/lib/media/catalog";
 import { quoteModel } from "../src/lib/media/estimate";
 import { assertMediaBytes, sha256Hex } from "../src/lib/media/store";
 import { mp4DurationSec } from "../src/lib/media/providers/http";
-import type { MediaKind, MediaModel, ProviderId } from "../src/lib/media/types";
+import type { MediaKind, MediaModel, ProviderId } from "../src/lib/media/pr2-types";
 
 const args = new Set(process.argv.slice(2));
 const flag = (name: string) => process.argv.slice(2).find((a) => a.startsWith(`--${name}=`))?.split("=").slice(1).join("=");
@@ -54,7 +54,7 @@ type Evidence = {
 
 /** Cheapest model of a kind for a provider, skipping ones already scheduled to shut down. */
 function cheapest(providerId: ProviderId, kind: MediaKind): MediaModel | undefined {
-  const candidates = MEDIA_MODELS.filter((m) => m.providerId === providerId && m.kind === kind);
+  const candidates = MEDIA_MODELS.filter((m) => m.providerId === providerId && m.kind === kind) as MediaModel[];
   const live = candidates.filter((m) => !m.sunset);
   const pool = live.length ? live : candidates;
   const seconds = (m: MediaModel) => m.durations?.[0] ?? 4;

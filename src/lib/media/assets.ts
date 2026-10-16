@@ -2,7 +2,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { MediaKind } from "./types";
+import type { MediaKind } from "./pr2-types";
 
 /**
  * A ComfyUI `/view` link Aisle itself rendered: an output (never an upload,

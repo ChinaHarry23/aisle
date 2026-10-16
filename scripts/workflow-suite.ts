@@ -13,11 +13,8 @@ import { parseCommand } from "../src/lib/workflow/commands";
 import type { WorkflowSubmission } from "../src/lib/workflow/types";
 import type { Command } from "../src/lib/runtime/types";
 import type { EngineOptions } from "../src/lib/runtime/engine";
-import { UNMETERED_TEST } from "../src/lib/billing/meter";
 
-// Explicit billing context: the fixture worker never opens the accounts database.
 const offline: EngineOptions = {
-  billing: UNMETERED_TEST,
   llm: { request: async () => ({ provider: "Fixture", providerId: "openai", modelId: "openai:gpt-4.1-mini", modelName: "Fixture", status: "unconfigured", usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0, costUsd: 0, billedAs: "test", estimate: true, latencyMs: 0 }, text: null, note: "Offline test fixture", at: new Date().toISOString() }) },
   renderPoster: async ({ modelId }) => ({ kind: "image", modelId, provider: "Fixture", modelName: "Fixture", status: "stubbed", usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0, units: 1, unitLabel: "image", costUsd: 0, billedAs: "test", estimate: true, latencyMs: 0 }, url: null, note: "Offline fixture", at: new Date().toISOString() }),
 };
@@ -141,7 +138,7 @@ if (process.argv.includes("--fixture-worker") || process.argv.includes("--fixtur
     const report = repo.get("alice", gapJob.id).result?.campaign.performanceReport;
     assert.equal(report?.results.find(r => r.channel === "email")?.status, "late");
     assert.equal(report?.results.find(r => r.channel === "email")?.figures, null);
-    assert.match(report?.summary || "", /SIMULATED PERFORMANCE/);
+    assert.match(report?.summary || "", /Marked as a gap/);
     pass("AHR-06 explicit gap setting persists; missing figures are not fabricated");
     console.log(`\n${checks} workflow checks passed. Test-only database: ${file}`);
   } finally { server.close(); await once(server, "close"); repo.close(); }

@@ -13,7 +13,7 @@ import { acceptComfyProgress, reconcileRenderJob } from "../src/lib/media/progre
 import { blankCampaign, defaultBrand } from "../src/lib/seed";
 import { defaultSettings } from "../src/lib/settings";
 import type { RenderProgress } from "../src/lib/media/progress-types";
-import type { MediaGeneration } from "../src/lib/media/types";
+import type { MediaGeneration } from "../src/lib/media/pr2-types";
 
 const dir = mkdtempSync(path.join(os.tmpdir(), "aisle-progress-test-"));
 process.env.AISLE_MEDIA_PROGRESS_DB = path.join(dir, "progress.db");
@@ -48,7 +48,7 @@ assert.equal(offline.backendOnline, false); assert.equal(offline.stage, "encodin
 const saving = await reconcileRenderJob(current(), campaign, async () => ({ status: "completed" }));
 assert.equal(saving.stage, "saving", "backend completion is not saved campaign completion");
 const generation: MediaGeneration = { kind: "video", modelId: "comfy:minimax-h3", provider: "ComfyUI", modelName: "Fixture", status: "ok", promptId: "test-prompt", url: "http://fixture/video.mp4", note: "Offline", at: new Date().toISOString(), usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0, units: 1, unitLabel: "video", costUsd: 0, billedAs: "fixture", estimate: false, latencyMs: 0 } };
-campaign.videos = [{ id: "fixture-video", version: 1, title: "Fixture", prompt: "Fixture", durationSec: 5, aspect: "4:5", status: "ready", generation }];
+campaign.videos = [{ id: "fixture-video", version: 1, title: "Fixture", prompt: "Fixture", durationSec: 5, aspect: "4:5", status: "ready", generation: generation as typeof campaign.videos[number]["generation"] }];
 const done = await reconcileRenderJob(current(), campaign, async () => { throw new Error("must not need backend after saving"); });
 assert.equal(done.stage, "complete");
 acceptComfyProgress({ type: "execution_error", data: { prompt_id: "test-prompt", exception_message: "late event" } });
@@ -75,7 +75,7 @@ const deadCloud = createRenderJob("alice", cloudInput, { promptId: "google:omni:
 assert.equal((await reconcileRenderJob(deadCloud, campaign, neverComfy)).stage, "failed");
 const legacyCloud = createRenderJob("alice", { ...input, campaignId: "legacy-cloud" }, { promptId: "openai:fixture", stage: "queued" });
 assert.equal((await reconcileRenderJob(legacyCloud, campaign, neverComfy)).stage, "queued", "a provider-prefixed prompt id is recognised without the provider field");
-const savedCloud = { ...campaign, creatives: [{ ...campaign.creatives[0], id: "cloud-image", generation: { ...generation, kind: "image" as const, provider: "OpenAI", promptId: "openai:fixture", url: "aisle-media:" + "a".repeat(64) } }] } as typeof campaign;
+const savedCloud = { ...campaign, creatives: [{ ...campaign.creatives[0], id: "cloud-image", generation: { ...generation, kind: "image" as const, provider: "OpenAI", promptId: "openai:fixture", url: "aisle-media:" + "a".repeat(64) } }] } as unknown as typeof campaign;
 assert.equal((await reconcileRenderJob(legacyCloud, savedCloud, neverComfy)).stage, "complete");
 const vercelDir = mkdtempSync(path.join(os.tmpdir(), "aisle-progress-vercel-"));
 const savedProgressDb = process.env.AISLE_MEDIA_PROGRESS_DB, savedTmp = process.env.TMPDIR;

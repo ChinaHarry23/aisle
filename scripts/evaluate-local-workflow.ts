@@ -27,7 +27,7 @@ campaign.internalDataAuthorised = false;
 try {
   const job = repo.enqueue("local-evaluation", "local-model-1", { campaign, campaigns: [], settings, brand: defaultBrand, command: { type: "START", actor: "founder" } });
   const started = Date.now();
-  await workOnce(repo, "local-evaluation-worker", { billing: undefined /* nobody pays: no cloud call can go out */, renderPoster: async ({modelId}) => stubGenerate({ kind: "image", modelId, prompt: "Evaluation placeholder" }, "Media deliberately stubbed: evaluating text-agent decisions only.") });
+  await workOnce(repo, "local-evaluation-worker", { renderPoster: async ({modelId}) => stubGenerate({ kind: "image", modelId, prompt: "Evaluation placeholder" }, "Media deliberately stubbed: evaluating text-agent decisions only.") });
   const result = repo.get("local-evaluation", job.id);
   const live = result.result?.campaign.log.filter(e => e.detail.includes("LLM decision")) || [];
   const report = { at: new Date().toISOString(), model, elapsedSeconds: Math.round((Date.now()-started)/1000), jobStatus: result.status, campaignStatus: result.result?.campaign.status, liveDecisionCount: live.length, decisions: live.map(e=>({agent:e.agent,title:e.title,detail:e.detail})), toolOutcomes: result.result?.campaign.toolCalls.map(t=>({tool:t.tool,status:t.status})), limitations: ["Synthetic campaign; not a business efficacy evaluation", "Poster generation deliberately stubbed", "No paid cloud APIs or real publishing used"] };

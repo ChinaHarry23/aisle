@@ -5,7 +5,7 @@
  * downloaded at once, without the key, and never stored.
  */
 import { randomUUID } from "node:crypto";
-import type { AspectRatio, GenerateRequest } from "../types";
+import type { AspectRatio, GenerateRequest } from "../pr2-types";
 import { assertMediaBytes, MEDIA_MAX_BYTES } from "../store";
 import { frameAspect, moderationMessage } from "./frame";
 import { afterSubmit, apiBase, downloadFile, envValue, mp4DurationSec, pollJob, ProviderError, roundUsd, timeLeft, videoJobMs } from "./http";

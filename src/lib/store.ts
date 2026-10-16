@@ -2,8 +2,17 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { blankCampaign, defaultBrand, seedCampaigns } from "./seed";
-import { defaultSettings, withSettingsDefaults, type WorkspaceSettings } from "./settings";
+import { makeCreatives } from "./creatives";
+import { uid } from "./ids";
+import { requestGenerate } from "./media/client";
+import { fallbackBrief, posterPrompt, videoPrompt } from "./media/prompts";
+import { blankCampaign, defaultBrand, makeLog, migrateLegacyBrand, seedCampaigns } from "./seed";
+import {
+  defaultSettings,
+  withSettingsDefaults,
+  type TrendSource,
+  type WorkspaceSettings,
+} from "./settings";
 import { sendCommand, type EngineResponse } from "./runtime/client";
 import { attachableRecommendation, withRuntimeDefaults } from "./runtime/defaults";
 import type {
@@ -13,9 +22,6 @@ import type {
   RecommendationDecision,
 } from "./runtime/types";
 import type { BrandProfile, Campaign, CampaignInput } from "./types";
-import { getModelOrDefault } from "./media/catalog";
-import { BILLING_CHANGED } from "../components/billing/events";
-import type { GenerateRequest } from "./media/types";
 
 type Store = {
   hydrated: boolean;
@@ -25,11 +31,6 @@ type Store = {
   /** Last message the engine returned, surfaced on the desk. */
   engineMessage: string | null;
   busy: Record<string, boolean>;
-  studioPending: Record<string, "posters" | "video" | undefined>;
-  /** Last Studio render refused for lack of credits (HTTP 402), shown with a Billing link. */
-  studioCredits: StudioCreditsNotice | null;
-  /** A paid take that could not be attached to its campaign, still downloadable. */
-  studioKept: { campaignId: string; url: string } | null;
   setHydrated: () => void;
   hydrateFromServer: (data: {
     brand: BrandProfile;
@@ -38,6 +39,12 @@ type Store = {
   }) => void;
   updateBrand: (partial: Partial<BrandProfile>) => void;
   updateSettings: (partial: Partial<WorkspaceSettings>) => void;
+  /** Adds sources, skipping any whose value is already in the list. Returns how many were new. */
+  addTrendSources: (
+    sources: Pick<TrendSource, "kind" | "value" | "label" | "content" | "size" | "truncated">[],
+  ) => number;
+  toggleTrendSource: (id: string) => void;
+  removeTrendSource: (id: string) => void;
   createCampaign: (input: CampaignInput) => string;
   /** AHR-01 → AHR-02. Validates the brief, then runs the bench to the next gate. */
   launch: (id: string) => Promise<void>;
@@ -68,44 +75,8 @@ type Store = {
   resetDemo: () => void;
   setStudio: (id: string, patch: Partial<Pick<Campaign, "videoDurationSec" | "spendCapUsd">>) => void;
   generatePosters: (id: string) => Promise<void>;
-  generateAdVideo: (id: string, creativeId?: string, durationSec?: number, quality?: GenerateRequest["quality"], styleReference?: string) => Promise<void>;
+  generateAdVideo: (id: string) => Promise<void>;
 };
-
-export type StudioCreditsNotice = { campaignId: string; message: string; neededCredits: number; balanceCredits: number; billingUrl: string };
-
-class StudioCreditsError extends Error {
-  readonly notice: StudioCreditsNotice;
-  constructor(notice: StudioCreditsNotice) {
-    super(notice.message);
-    this.notice = notice;
-  }
-}
-
-/** A render that finished (and was charged) but could not be attached; its take stays downloadable. */
-class StudioKeptError extends Error {
-  readonly url: string;
-  constructor(message: string, url: string) {
-    super(message);
-    this.url = url;
-  }
-}
-
-/** POST one Studio render. A 402 becomes a StudioCreditsError the UI shows with a Billing link. */
-async function studioRequest(campaignId: string, body: Record<string, unknown>, fallback: string) {
-  const response = await fetch("/api/studio/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ campaignId, ...body }) });
-  const result = await response.json().catch(() => ({}));
-  // Any answer may have spent, returned or refused credits: let the header badge refetch.
-  window.dispatchEvent(new Event(BILLING_CHANGED));
-  if (response.status === 402) {
-    // Only an in-app path is followed, whatever the response says.
-    const billingUrl = typeof result.billingUrl === "string" && result.billingUrl.startsWith("/") && !result.billingUrl.startsWith("//") ? result.billingUrl : "/billing";
-    throw new StudioCreditsError({ campaignId, message: result.error || "Not enough credits for this cloud render.", neededCredits: Number(result.neededCredits) || 0, balanceCredits: Number(result.balanceCredits) || 0, billingUrl });
-  }
-  // Only the app's own download route is linked, whatever the response says.
-  if (!response.ok && typeof result.downloadUrl === "string" && result.downloadUrl.startsWith("/api/studio/download?")) throw new StudioKeptError(result.error || fallback, result.downloadUrl);
-  if (!response.ok) throw new Error(result.error || fallback);
-  return result as { campaign: Campaign; queued?: boolean; productionId?: string };
-}
 
 /** Apply an engine response to a single campaign, replacing it wholesale. */
 function applyResult(s: Store, result: EngineResponse): Partial<Store> {
@@ -168,11 +139,8 @@ export const useAisle = create<Store>()(
         settings: defaultSettings(),
         engineMessage: null,
         busy: {},
-        studioPending: {},
-        studioCredits: null,
-        studioKept: null,
         setHydrated: () => set({ hydrated: true }),
-        hydrateFromServer: (data) =>
+              hydrateFromServer: (data) =>
           set({
             brand: data.brand,
             campaigns: (data.campaigns ?? []).map(withRuntimeDefaults),
@@ -187,6 +155,49 @@ export const useAisle = create<Store>()(
               ...s.settings,
               ...partial,
               agents: partial.agents ? { ...s.settings.agents, ...partial.agents } : s.settings.agents,
+            },
+          })),
+        addTrendSources: (sources) => {
+          const known = new Set(get().settings.trendSources.map((t) => t.value.toLowerCase()));
+          const fresh = sources.filter((src) => {
+            const key = src.value.toLowerCase();
+            if (known.has(key)) return false;
+            known.add(key);
+            return true;
+          });
+          if (fresh.length === 0) return 0;
+          const addedAt = new Date().toISOString();
+          set((s) => ({
+            settings: {
+              ...s.settings,
+              trendSources: [
+                ...s.settings.trendSources,
+                ...fresh.map((src) => ({
+                  ...src,
+                  id: uid("src"),
+                  enabled: true,
+                  addedAt,
+                  lastFetchedAt: null,
+                })),
+              ],
+            },
+          }));
+          return fresh.length;
+        },
+        toggleTrendSource: (id) =>
+          set((s) => ({
+            settings: {
+              ...s.settings,
+              trendSources: s.settings.trendSources.map((t) =>
+                t.id === id ? { ...t, enabled: !t.enabled } : t,
+              ),
+            },
+          })),
+        removeTrendSource: (id) =>
+          set((s) => ({
+            settings: {
+              ...s.settings,
+              trendSources: s.settings.trendSources.filter((t) => t.id !== id),
             },
           })),
 
@@ -279,41 +290,135 @@ export const useAisle = create<Store>()(
 
         generatePosters: async (id) => {
           const campaign = get().campaigns.find((c) => c.id === id);
-          if (!campaign || get().studioPending[id]) return;
-          set(s => ({ studioPending: { ...s.studioPending, [id]: "posters" }, engineMessage: null, studioCredits: null, studioKept: null }));
+          if (!campaign) return;
+          set((s) => ({
+            campaigns: s.campaigns.map((c) => (c.id === id ? { ...c, studioBusy: "posters" } : c)),
+          }));
           try {
-            if (!campaign.creatives.length) throw new Error("Launch agents to create the campaign copy first.");
-            for (const cr of campaign.creatives) {
-              const result = await studioRequest(id, { creativeId: cr.id, kind: "image" }, "Image generation failed.");
-              set(s => ({ campaigns: s.campaigns.map(c => c.id === id ? result.campaign : c) }));
+            const modelId = get().settings.imageModelId;
+            const brief = campaign.brief ?? fallbackBrief(campaign);
+            const base =
+              campaign.creatives.length > 0
+                ? campaign.creatives
+                : makeCreatives({ ...campaign, brief }, brief, 1);
+            const next: Campaign["creatives"] = [];
+            for (const cr of base) {
+              const generation = await requestGenerate({
+                kind: "image",
+                modelId,
+                prompt: posterPrompt(campaign, cr),
+                aspectRatio: "4:5",
+              });
+              next.push({ ...cr, generation });
             }
-            set({ engineMessage: "Images saved to the campaign. Review required; nothing was approved or published." });
-          } catch (error) {
-            if (error instanceof StudioCreditsError) set({ studioCredits: error.notice });
-            else if (error instanceof StudioKeptError) set({ engineMessage: error.message, studioKept: { campaignId: id, url: error.url } });
-            else set({ engineMessage: error instanceof Error ? error.message : "Image generation failed." });
+            const cost = next.reduce((n, cr) => n + (cr.generation?.usage.costUsd ?? 0), 0);
+            const tokens = next.reduce((n, cr) => n + (cr.generation?.usage.totalTokens ?? 0), 0);
+            set((s) => ({
+              campaigns: s.campaigns.map((c) =>
+                c.id === id
+                  ? {
+                      ...c,
+                      imageModelId: modelId,
+                      creatives: next,
+                      spend: { ...c.spend, mediaUsd: c.spend.mediaUsd + cost },
+                      studioHistory: [
+                        ...(c.studioHistory ?? []),
+                        {
+                          id: uid("run"),
+                          at: new Date().toISOString(),
+                          kind: "image" as const,
+                          modelId,
+                          label: "Studio ads",
+                          costUsd: cost,
+                          totalTokens: tokens,
+                        },
+                      ],
+                      log: [
+                        ...c.log,
+                        makeLog(
+                          "creative",
+                          "output",
+                          `Ads on ${modelId}`,
+                          `est. $${cost.toFixed(3)} · ${tokens} tokens`,
+                        ),
+                      ],
+                      updatedAt: new Date().toISOString(),
+                    }
+                  : c,
+              ),
+            }));
           } finally {
-            set(s => ({ studioPending: { ...s.studioPending, [id]: undefined } }));
+            set((s) => ({
+              campaigns: s.campaigns.map((c) => (c.id === id ? { ...c, studioBusy: null } : c)),
+            }));
           }
         },
 
-        generateAdVideo: async (id, creativeId, requestedDuration, quality, styleReference) => {
+        generateAdVideo: async (id) => {
           const campaign = get().campaigns.find((c) => c.id === id);
-          if (!campaign || get().studioPending[id]) return;
-          set(s => ({ studioPending: { ...s.studioPending, [id]: "video" }, engineMessage: null, studioCredits: null, studioKept: null }));
+          if (!campaign) return;
+          set((s) => ({
+            campaigns: s.campaigns.map((c) => (c.id === id ? { ...c, studioBusy: "video" } : c)),
+          }));
           try {
-            const durationSec = requestedDuration ?? get().settings.videoDurationSec ?? campaign.videoDurationSec;
-            const textVideo = getModelOrDefault(get().settings.videoModelId, "video").videoInput === "text";
-            const source = campaign.creatives.find(c => (!creativeId || c.id === creativeId) && (textVideo || (c.generation?.status === "ok" && c.generation.url)));
-            if (!source) throw new Error(textVideo ? "Launch agents to create campaign copy first." : "Generate and select a campaign image first.");
-            const result = await studioRequest(id, { creativeId: source.id, kind: "video", durationSec, quality, styleReference }, "Video generation failed.");
-            set(s => ({ campaigns: s.campaigns.map(c => c.id === id ? result.campaign : c), engineMessage: result.queued ? "30-second story ad queued. Scenes, editing and saving run in the background; you can leave or reload this page. Review required when finished." : "Video saved to this campaign; review required." }));
-          } catch (error) {
-            if (error instanceof StudioCreditsError) set({ studioCredits: error.notice });
-            else if (error instanceof StudioKeptError) set({ engineMessage: error.message, studioKept: { campaignId: id, url: error.url } });
-            else set({ engineMessage: error instanceof Error ? error.message : "Video generation failed." });
+            const modelId = get().settings.videoModelId;
+            const durationSec = campaign.videoDurationSec ?? get().settings.videoDurationSec;
+            const prompt = videoPrompt(campaign, durationSec);
+            const generation = await requestGenerate({
+              kind: "video",
+              modelId,
+              prompt,
+              durationSec,
+              aspectRatio: "9:16",
+            });
+            const video = {
+              id: uid("vid"),
+              version: (campaign.videos?.length ?? 0) + 1,
+              title: `${campaign.product} — ${durationSec}s`,
+              prompt,
+              durationSec,
+              aspect: "9:16" as const,
+              status: "ready" as const,
+              generation,
+            };
+            set((s) => ({
+              campaigns: s.campaigns.map((c) =>
+                c.id === id
+                  ? {
+                      ...c,
+                      videoModelId: modelId,
+                      videos: [video, ...(c.videos ?? [])],
+                      spend: { ...c.spend, mediaUsd: c.spend.mediaUsd + generation.usage.costUsd },
+                      studioHistory: [
+                        ...(c.studioHistory ?? []),
+                        {
+                          id: uid("run"),
+                          at: new Date().toISOString(),
+                          kind: "video" as const,
+                          modelId,
+                          label: `${durationSec}s ad`,
+                          costUsd: generation.usage.costUsd,
+                          totalTokens: generation.usage.totalTokens,
+                        },
+                      ],
+                      log: [
+                        ...c.log,
+                        makeLog(
+                          "creative",
+                          "output",
+                          `Ad video on ${modelId}`,
+                          `${durationSec}s · est. $${generation.usage.costUsd.toFixed(3)} · ${generation.usage.totalTokens} tokens`,
+                        ),
+                      ],
+                      updatedAt: new Date().toISOString(),
+                    }
+                  : c,
+              ),
+            }));
           } finally {
-            set(s => ({ studioPending: { ...s.studioPending, [id]: undefined } }));
+            set((s) => ({
+              campaigns: s.campaigns.map((c) => (c.id === id ? { ...c, studioBusy: null } : c)),
+            }));
           }
         },
       };
@@ -332,7 +437,14 @@ export const useAisle = create<Store>()(
         };
         return {
           ...current,
-          brand: { ...current.brand, ...p.brand },
+          brand: (() => {
+            const saved = p.brand ? migrateLegacyBrand(p.brand) : undefined;
+            return {
+              ...current.brand,
+              ...saved,
+              colors: { ...current.brand.colors, ...saved?.colors },
+            };
+          })(),
           campaigns: (p.campaigns ?? current.campaigns).map(withRuntimeDefaults),
           settings: withSettingsDefaults(
             p.settings ??
