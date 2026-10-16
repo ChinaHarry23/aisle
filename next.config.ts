@@ -1,8 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Production image runs the traced server at `.next/standalone/server.js`.
-  output: "standalone",
+  // Docker image runs `.next/standalone/server.js`; Vercel builds its own serverless output.
+  ...(process.env.VERCEL ? {} : { output: "standalone" }),
   allowedDevOrigins: [
     "127.0.0.1",
     "172.20.10.3",
