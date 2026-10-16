@@ -1,0 +1,61 @@
+name: Jira
+
+on:
+  pull_request:
+    types: [opened, reopened, closed]
+
+permissions:
+  contents: read
+
+jobs:
+  comment:
+    name: Comment on Jira issue
+    runs-on: ubuntu-latest
+    # Fork PRs do not receive secrets, so there is nothing to call Jira with.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    env:
+      JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+      JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+      JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+      PR_TITLE: ${{ github.event.pull_request.title }}
+      PR_BRANCH: ${{ github.event.pull_request.head.ref }}
+      PR_URL: ${{ github.event.pull_request.html_url }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      PR_ACTION: ${{ github.event.action }}
+      PR_MERGED: ${{ github.event.pull_request.merged }}
+    steps:
+      - name: Post the PR status to each referenced issue
+        run: |
+          if [ -z "$JIRA_BASE_URL" ] || [ -z "$JIRA_USER_EMAIL" ] || [ -z "$JIRA_API_TOKEN" ]; then
+            echo "Jira secrets are not set; skipping."
+            exit 0
+          fi
+
+          keys=$(printf '%s\n%s' "$PR_BRANCH" "$PR_TITLE" | grep -oE 'SCRUM-[0-9]+' | sort -u || true)
+          if [ -z "$keys" ]; then
+            echo "No SCRUM-<n> issue key in the branch or title; skipping."
+            exit 0
+          fi
+
+          if [ "$PR_ACTION" = "closed" ]; then
+            if [ "$PR_MERGED" = "true" ]; then state="merged"; else state="closed without merging"; fi
+          else
+            state="$PR_ACTION"
+          fi
+
+          for key in $keys; do
+            body=$(jq -n --arg text "PR #$PR_NUMBER $state: $PR_TITLE" --arg url "$PR_URL" '{
+              body: {type: "doc", version: 1, content: [{type: "paragraph", content: [
+                {type: "text", text: $text + " "},
+                {type: "text", text: $url, marks: [{type: "link", attrs: {href: $url}}]}
+              ]}]}
+            }')
+            status=$(curl -s -o /dev/null -w '%{http_code}' \
+              -u "$JIRA_USER_EMAIL:$JIRA_API_TOKEN" \
+              -H 'Content-Type: application/json' \
+              -X POST --data "$body" \
+              "${JIRA_BASE_URL%/}/rest/api/3/issue/$key/comment")
+            echo "$key: HTTP $status"
+            # A 404 means the key does not exist (or is not visible); that should not fail the PR.
+            if [ "$status" != "201" ] && [ "$status" != "404" ]; then exit 1; fi
+          done
