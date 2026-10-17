@@ -152,10 +152,156 @@ async function release(hold: Hold) {
  * need OpenAI-format `tools` / `tool_calls`, so this path talks to a local
  * OpenAI-compatible server without changing her adapter module.
  */
+function openaiBase() {
+  return (process.env.OPENAI_API_BASE?.trim() || "https://api.openai.com/v1").replace(/\/$/, "");
+}
+
+function openAIMessages(req: CompleteRequest): Record<string, unknown>[] {
+  const messages: Record<string, unknown>[] = [
+    { role: "system", content: req.system || systemFor(req.agent) },
+  ];
+  for (const turn of req.history ?? []) {
+    if (turn.role === "user") messages.push({ role: "user", content: turn.content });
+    else if (turn.role === "assistant") {
+      messages.push({
+        role: "assistant",
+        content: turn.content,
+        ...(turn.toolCalls?.length
+          ? {
+              tool_calls: turn.toolCalls.map((call) => ({
+                id: call.id,
+                type: "function",
+                function: { name: call.name, arguments: JSON.stringify(call.args) },
+              })),
+            }
+          : {}),
+      });
+    } else {
+      messages.push({ role: "tool", tool_call_id: turn.toolCallId, name: turn.name, content: turn.content });
+    }
+  }
+  if (req.lastTurnIsToolResult) {
+    messages.push({ role: "tool", tool_call_id: req.toolCallId, content: req.prompt });
+  } else {
+    messages.push({ role: "user", content: req.prompt });
+  }
+  return messages;
+}
+
+function openAITools(req: CompleteRequest) {
+  return (req.tools ?? []).map((tool) => ({
+    type: "function" as const,
+    function: { name: tool.name, description: tool.description, parameters: tool.parameters },
+  }));
+}
+
+async function postOpenAI(path: string, body: unknown) {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) throw new Error("OPENAI_API_KEY is not set.");
+  const res = await fetch(`${openaiBase()}${path}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(120_000),
+  });
+  if (!res.ok) throw new Error(`OpenAI ${res.status}: ${(await res.text()).slice(0, 240)}`);
+  return (await res.json()) as Record<string, unknown>;
+}
+
+function toolCallsFromChat(message: {
+  content?: string;
+  tool_calls?: { id?: string; function?: { name?: string; arguments?: string } }[];
+} | undefined): ToolCall[] {
+  return (message?.tool_calls ?? [])
+    .filter((call) => call.function?.name)
+    .map((call, index) => ({
+      id: call.id || `call_${index}`,
+      name: call.function!.name!,
+      args: parseToolArgs(call.function?.arguments),
+    }));
+}
+
+/** GPT-6 Luna can call tools on Chat Completions only with reasoning turned off. */
+async function callOpenAIChatTools(model: LlmModel, req: CompleteRequest) {
+  const json = await postOpenAI("/chat/completions", {
+    model: model.apiModel,
+    reasoning_effort: "none",
+    messages: openAIMessages(req),
+    ...(req.tools?.length ? { tools: openAITools(req) } : {}),
+  });
+  const message = (json.choices as { message?: { content?: string; tool_calls?: { id?: string; function?: { name?: string; arguments?: string } }[] } }[] | undefined)?.[0]?.message;
+  const usage = json.usage as { prompt_tokens?: number; completion_tokens?: number } | undefined;
+  const toolCalls = toolCallsFromChat(message);
+  return {
+    text: message?.content ?? "",
+    inputTokens: usage?.prompt_tokens,
+    outputTokens: usage?.completion_tokens,
+    ...(toolCalls.length ? { toolCalls } : {}),
+  };
+}
+
+/** GPT-6 Astra and GPT-6.1 Sol accept function calls on the Responses API. */
+async function callOpenAIResponses(model: LlmModel, req: CompleteRequest) {
+  const input: Record<string, unknown>[] = [{ role: "system", content: req.system || systemFor(req.agent) }];
+  for (const turn of req.history ?? []) {
+    if (turn.role === "tool") {
+      input.push({ type: "function_call_output", call_id: turn.toolCallId, output: turn.content });
+    } else if (turn.role === "assistant" && turn.toolCalls?.length) {
+      for (const call of turn.toolCalls) {
+        input.push({ type: "function_call", call_id: call.id, name: call.name, arguments: JSON.stringify(call.args) });
+      }
+    } else {
+      input.push({ role: turn.role === "assistant" ? "assistant" : "user", content: turn.content });
+    }
+  }
+  if (req.lastTurnIsToolResult) input.push({ type: "function_call_output", call_id: req.toolCallId, output: req.prompt });
+  else input.push({ role: "user", content: req.prompt });
+
+  const json = await postOpenAI("/responses", {
+    model: model.apiModel,
+    input,
+    reasoning: { effort: model.effort ?? "low" },
+    ...(req.tools?.length
+      ? {
+          tools: req.tools.map((tool) => ({
+            type: "function",
+            name: tool.name,
+            description: tool.description,
+            parameters: tool.parameters,
+          })),
+        }
+      : {}),
+  });
+  const output = (json.output as { type?: string; call_id?: string; name?: string; arguments?: string; content?: { type?: string; text?: string }[] }[]) ?? [];
+  const text = output
+    .filter((item) => item.type === "message")
+    .flatMap((item) => item.content ?? [])
+    .filter((part) => part.type === "output_text" && part.text)
+    .map((part) => part.text)
+    .join("");
+  const toolCalls: ToolCall[] = output
+    .filter((item) => item.type === "function_call" && item.name)
+    .map((item, index) => ({
+      id: item.call_id || `call_${index}`,
+      name: item.name!,
+      args: parseToolArgs(item.arguments),
+    }));
+  const usage = json.usage as { input_tokens?: number; output_tokens?: number } | undefined;
+  return {
+    text,
+    inputTokens: usage?.input_tokens,
+    outputTokens: usage?.output_tokens,
+    ...(toolCalls.length ? { toolCalls } : {}),
+  };
+}
+
 async function callLlmWithTools(
   model: LlmModel,
   req: CompleteRequest,
 ): Promise<{ text: string; inputTokens?: number; outputTokens?: number; toolCalls?: ToolCall[] }> {
+  if (model.providerId === "openai") {
+    return model.toolApi === "responses" ? callOpenAIResponses(model, req) : callOpenAIChatTools(model, req);
+  }
   if (model.providerId !== "local") {
     throw new Error(`${model.provider} tool calling is not wired through Cindy's adapters.`);
   }

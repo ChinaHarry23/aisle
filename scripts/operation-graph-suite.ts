@@ -40,7 +40,7 @@ const campaign = blankCampaign(
 const offline = async (_req: CompleteRequest): Promise<CompleteResult> => ({
   provider: "Offline",
   providerId: "openai",
-  modelId: "openai:gpt-4.1-mini",
+  modelId: "openai:gpt-6-luna",
   modelName: "Offline",
   status: "unconfigured",
   usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0, costUsd: 0, billedAs: "none", estimate: true, latencyMs: 0 },

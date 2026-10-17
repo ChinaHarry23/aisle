@@ -129,13 +129,13 @@ const alice = billingFor({ id: "alice", role: "beta" });
 
 try {
   // ---- Catalog and availability (Cindy's catalog wins) -------------------
-  for (const kept of ["google:imagen-4", "google:imagen-4-fast", "google:imagen-4-ultra", "openai:gpt-image-1-mini", "openai:sora-2", "openai:sora-2-pro"]) {
+  for (const kept of ["google:nano-banana-2", "google:nano-banana-2.1", "google:nano-banana-pro", "openai:gpt-image-2.5", "openai:gpt-image-2.5-flare"]) {
     assert.equal(MEDIA_MODELS.some(m => m.id === kept), true, kept);
     assert.equal(getModel(kept).id, kept);
   }
-  assert.equal(getModel("google:veo-3.1-fast").apiModel, "veo-3.1-fast-generate");
+  assert.equal(getModel("google:veo-3.1-fast").apiModel, "veo-3.1-fast-generate-preview");
   assert.deepEqual(getModel("google:veo-3.1-fast").billing, { mode: "per_second", usdPerSec: 0.12, estTokensPerSec: 700 });
-  assert.equal(getModel("google:nano-banana-2").apiModel, "gemini-3.1-flash-preview-image");
+  assert.equal(getModel("google:nano-banana-2").apiModel, "gemini-3.1-flash-image");
   assert.deepEqual(Object.keys(MEDIA_ADAPTERS).sort(), ["alibaba", "bytedance", "google", "openai", "tencent"]);
   assert.equal(usableProvider("openai"), true); assert.equal(usableProvider("google"), true);
   process.env.AISLE_MEDIA_PROVIDERS = "openai";
@@ -143,13 +143,13 @@ try {
   delete process.env.AISLE_MEDIA_PROVIDERS;
   process.env.GOOGLE_AI_API_KEY = "test-google-offline";
   assert.equal(JSON.stringify(providerAvailability("openai")).includes("sk-test"), false);
-  pass("Cindy's catalog kept (Imagen 4 / Sora / Veo 3.1 Fast); PR #2 adapters still register");
+  pass("catalog keeps Nano Banana, GPT Image 2.5, and Veo 3.1 Fast; PR #2 adapters still register");
 
   // ---- Cindy's generate stays a stub even when keys are present ------------
   await adjustCredits("alice", 950_000, "offline test top-up");
   const before = await balanceMilli("alice");
   const openaiBefore = openai.seen.length;
-  const poster = await runGeneration({ kind: "image", modelId: "openai:gpt-image-2", prompt: "Apple juice poster", aspectRatio: "4:5", ownerId: "alice" }, undefined, alice, { strict: true });
+  const poster = await runGeneration({ kind: "image", modelId: "openai:gpt-image-2.5", prompt: "Apple juice poster", aspectRatio: "4:5", ownerId: "alice" }, undefined, alice, { strict: true });
   assert.equal(poster.status, "stubbed", poster.note);
   assert.match(poster.note, /Wire the fetch in src\/lib\/media\/adapters\.ts/);
   assert.equal(openai.seen.length, openaiBefore, "Cindy's generate does not call PR #2 cloud adapters");

@@ -72,7 +72,7 @@ const offlineLlm: LlmStub = {
   request: async () => ({
     provider: "Offline",
     providerId: "openai" as const,
-    modelId: "openai:gpt-4.1-mini",
+    modelId: "openai:gpt-6-luna",
     modelName: "Offline",
     status: "unconfigured" as const,
     usage: usageStub(),
@@ -126,7 +126,7 @@ function scriptedLlm(
       return {
         provider: "Scripted",
         providerId: "openai" as const,
-        modelId: "openai:gpt-4.1-mini",
+        modelId: "openai:gpt-6-luna",
         modelName: "Scripted",
         status: text ? ("ok" as const) : ("unconfigured" as const),
         usage: usageStub(),

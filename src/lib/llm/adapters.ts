@@ -42,6 +42,13 @@ export function buildLlmBody(model: LlmModel, req: CompleteRequest): Record<stri
       messages: [{ role: "user", content: req.prompt }],
     };
   }
+  if (model.reasoning) {
+    return {
+      model: apiModel,
+      messages,
+      reasoning_effort: model.effort ?? "low",
+    };
+  }
   return {
     model: apiModel,
     temperature: 0.4,

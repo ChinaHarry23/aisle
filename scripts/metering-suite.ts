@@ -128,36 +128,36 @@ try {
   /* ---------------------------------- Cindy's cloud LLM adapters are unwired */
   const free = PLAN.freeCredits * MILLI;
   assert.equal(await balanceMilli("beta-1"), free);
-  assert.equal(DEFAULT_LLM, "openai:gpt-4.1-mini");
-  assert.equal(PROVIDER_DEFAULT_MODEL.openai, "openai:gpt-4.1-mini");
-  assert.equal(getLlmOrDefault("openai:gpt-9-unknown").id, "openai:gpt-4.1-mini");
-  const gpt = await runComplete(ask("openai:gpt-4.1-mini"), beta("beta-1"));
+  assert.equal(DEFAULT_LLM, "openai:gpt-6-luna");
+  assert.equal(PROVIDER_DEFAULT_MODEL.openai, "openai:gpt-6-luna");
+  assert.equal(getLlmOrDefault("openai:gpt-9-unknown").id, "openai:gpt-6-luna");
+  const gpt = await runComplete(ask("openai:gpt-6-luna"), beta("beta-1"));
   assert.equal(gpt.status, "error", gpt.note);
   assert.match(gpt.note, /not wired yet/i);
   assert.equal(await balanceMilli("beta-1"), free, "the hold is released when Cindy's adapter throws");
   assert.equal(cloud.seen.length, 0, "no provider HTTP goes out");
 
-  const claude = await runComplete(ask("anthropic:claude-sonnet-4"), beta("beta-1"));
+  const claude = await runComplete(ask("anthropic:claude-sonnet-5.5"), beta("beta-1"));
   assert.equal(claude.status, "error", claude.note);
   assert.match(claude.note, /not wired yet/i);
   assert.equal(await balanceMilli("beta-1"), free);
   pass("Cindy's OpenAI/Anthropic adapters stay unwired: cloud complete errors, holds release, nothing is charged");
 
-  assert.equal(getLlmModel("anthropic:claude-haiku-3.5").id, "anthropic:claude-haiku-3.5");
-  pass("Cindy's catalog keeps Haiku 3.5 and GPT-4.1 mini as first-class ids");
+  assert.equal(getLlmModel("anthropic:claude-haiku-5.5").id, "anthropic:claude-haiku-5.5");
+  pass("Claude default is Haiku 5.5; the OpenAI default is GPT-6 Luna");
 
   /* ----------------------------------------------- dev is free but still unwired */
-  const devResult = await runComplete(ask("openai:gpt-4.1-mini"), { kind: "user", userId: "dev-1", role: "dev" });
+  const devResult = await runComplete(ask("openai:gpt-6-luna"), { kind: "user", userId: "dev-1", role: "dev" });
   assert.equal(devResult.status, "error", devResult.note);
   assert.equal((await recentLedger("dev-1")).filter((row) => row.reason === "usage" || row.reason === "dev_usage").length, 0);
   pass("a dev desk does not charge when Cindy's cloud adapter is unwired");
 
   /* ------------------------------------------ no billing context: no call */
   const before = cloudCalls();
-  const nobody = await runComplete(ask("openai:gpt-4.1-mini"), undefined);
+  const nobody = await runComplete(ask("openai:gpt-6-luna"), undefined);
   assert.deepEqual([nobody.status, nobody.note, nobody.usage.costUsd, nobody.usage.totalTokens], ["no_credits", OUT_OF_CREDITS, 0, 0]);
   assert.equal(cloudCalls(), before);
-  const unmetered = await runComplete(ask("openai:gpt-4.1-mini"), UNMETERED_TEST);
+  const unmetered = await runComplete(ask("openai:gpt-6-luna"), UNMETERED_TEST);
   assert.equal(unmetered.status, "error");
   assert.match(unmetered.note, /not wired yet/i);
   assert.equal(cloudCalls(), before);
@@ -166,13 +166,13 @@ try {
   /* ------------------------------------ out of credits: stop or go local */
   await setBalance("broke-1", 0);
   const sent = cloudCalls();
-  const broke = await runComplete(ask("anthropic:claude-opus-4.1"), beta("broke-1"));
+  const broke = await runComplete(ask("anthropic:claude-opus-5.5"), beta("broke-1"));
   assert.deepEqual([broke.status, broke.usage.costUsd], ["no_credits", 0]);
-  const opusNeeds = formatCredits(milliForCost(worstCaseUsd(getLlmModel("anthropic:claude-opus-4.1"), ask("x"))));
-  assert.match(broke.note, new RegExp(`^${OUT_OF_CREDITS}\\. Opus 4\\.1 needs ${opusNeeds.replace(".", "\\.")} credits held per call; you have 0\\.`));
+  const opusNeeds = formatCredits(milliForCost(worstCaseUsd(getLlmModel("anthropic:claude-opus-5.5"), ask("x"))));
+  assert.match(broke.note, new RegExp(`^${OUT_OF_CREDITS}\\. Opus 5\\.5 needs ${opusNeeds.replace(".", "\\.")} credits held per call; you have 0\\.`));
   assert.equal(cloudCalls(), sent);
   process.env.LOCAL_LLM_BASE_URL = `${local.base}/v1`;
-  const rerouted = await runComplete(ask("anthropic:claude-opus-4.1"), beta("broke-1"));
+  const rerouted = await runComplete(ask("anthropic:claude-opus-5.5"), beta("broke-1"));
   delete process.env.LOCAL_LLM_BASE_URL;
   assert.equal(rerouted.status, "ok", rerouted.note);
   assert.deepEqual([rerouted.providerId, rerouted.modelId, rerouted.modelName, rerouted.usage.costUsd], ["local", "local:custom", "Custom tag", 0]);
@@ -185,7 +185,7 @@ try {
 
   /* ------------------------------- provider errors never leave the adapter */
   await setBalance("careful-1", 40 * MILLI);
-  for (const modelId of ["openai:gpt-4.1-mini", "anthropic:claude-sonnet-4"]) {
+  for (const modelId of ["openai:gpt-6-luna", "anthropic:claude-sonnet-5.5"]) {
     const calls = cloudCalls();
     const result = await runComplete(ask(modelId), beta("careful-1"));
     assert.equal(result.status, "error", modelId);
@@ -209,17 +209,17 @@ try {
 
   /* ------------------------------------ holds still reserve before the adapter */
   const decisionPrompt = "x".repeat(1000);
-  const sonnetHold = milliForCost(worstCaseUsd(getLlmModel("anthropic:claude-sonnet-4"), { prompt: decisionPrompt }));
-  const opusHold = milliForCost(worstCaseUsd(getLlmModel("anthropic:claude-opus-4.1"), { prompt: decisionPrompt }));
+  const sonnetHold = milliForCost(worstCaseUsd(getLlmModel("anthropic:claude-sonnet-5.5"), { prompt: decisionPrompt }));
+  const opusHold = milliForCost(worstCaseUsd(getLlmModel("anthropic:claude-opus-5.5"), { prompt: decisionPrompt }));
   assert(sonnetHold > 0 && opusHold > sonnetHold);
-  const sonnet = getLlmModel("anthropic:claude-sonnet-4");
+  const sonnet = getLlmModel("anthropic:claude-sonnet-5.5");
   assert.equal(worstCaseUsd(sonnet, { prompt: "字".repeat(3000) }), llmCostUsd(sonnet, 3160, outputCap(sonnet)));
   await setBalance("frugal-1", sonnetHold + MILLI);
-  const frugal = await runComplete(ask("anthropic:claude-sonnet-4"), beta("frugal-1"));
+  const frugal = await runComplete(ask("anthropic:claude-sonnet-5.5"), beta("frugal-1"));
   assert.equal(frugal.status, "error");
   assert.equal(await balanceMilli("frugal-1"), sonnetHold + MILLI, "unwired adapter releases the hold");
   await setBalance("frugal-2", 0);
-  const short = await runComplete(ask("anthropic:claude-opus-4.1"), beta("frugal-2"));
+  const short = await runComplete(ask("anthropic:claude-opus-5.5"), beta("frugal-2"));
   assert.equal(short.status, "no_credits");
   assert.match(short.note, /^Out of credits — subscribe on Billing/);
   pass(`Claude decisions hold ${sonnetHold / MILLI} (Sonnet) / ${opusHold / MILLI} (Opus) credits; a failed hold says out of credits`);
@@ -271,7 +271,7 @@ try {
 
   /* ----------------------------------------------- concurrency cannot overdraw */
   const prompt = "Burst decision.";
-  const hold = milliForCost(worstCaseUsd(getLlmModel("openai:gpt-4.1-mini"), { prompt }));
+  const hold = milliForCost(worstCaseUsd(getLlmModel("openai:gpt-6-luna"), { prompt }));
   await setBalance("burst-1", hold * 3 + Math.floor(hold / 2));
   mode = "slow";
   const calls = cloudCalls();
@@ -283,7 +283,7 @@ try {
       await new Promise((resolve) => setTimeout(resolve, 10));
     }
   })();
-  const burst = await Promise.all(Array.from({ length: 8 }, () => runComplete(ask("openai:gpt-4.1-mini", prompt), beta("burst-1"))));
+  const burst = await Promise.all(Array.from({ length: 8 }, () => runComplete(ask("openai:gpt-6-luna", prompt), beta("burst-1"))));
   watching = false;
   await watch;
   mode = "ok";
@@ -320,7 +320,7 @@ try {
   }
   await setBalance("engine-1", 20 * MILLI);
   const rendersBeforePaid = renders;
-  const paid = await drive(cloudSettings("openai:gpt-4.1-mini"), beta("engine-1"));
+  const paid = await drive(cloudSettings("openai:gpt-6-luna"), beta("engine-1"));
   assert.equal((await usageRows("engine-1")).length, 0, "Cindy's decide.ts does not thread billing into runComplete");
   assert.equal(paid.spend.inferenceUsd, 0);
   const paidRenders = renders - rendersBeforePaid;
@@ -330,14 +330,14 @@ try {
 
   await setBalance("engine-2", 0);
   const beforeUnpaidRenders = renders;
-  const unpaid = await drive(cloudSettings("anthropic:claude-opus-4.1"), beta("engine-2"));
+  const unpaid = await drive(cloudSettings("anthropic:claude-opus-5.5"), beta("engine-2"));
   assert.equal(unpaid.spend.inferenceUsd, 0);
   assert(renders > beforeUnpaidRenders, "Cindy's creative step still renders when the LLM is unwired");
   pass("Cindy's engine does not bill decisions; deterministic rules still run without charging");
 
   // A route with a time limit stops starting steps once its budget is spent; the client advances again.
   {
-    const settings = cloudSettings("openai:gpt-4.1-mini");
+    const settings = cloudSettings("openai:gpt-6-luna");
     let campaign: Campaign = blankCampaign({ ...input, channels: [...input.channels] }, defaultBrand, null, settings);
     const opts = { renderPoster: stubPoster };
     campaign = (await runEngine({ campaigns: [campaign], now: new Date().toISOString() }, campaign, { type: "START", actor: "founder" }, settings, defaultBrand, { ...opts, maxSteps: 0 })).campaign;
@@ -350,7 +350,7 @@ try {
 
   // The poster spend guard runs on the quote, before anything renders.
   renders = 0;
-  const posterSettings = { ...cloudSettings("openai:gpt-4.1-mini"), imageModelId: "openai:gpt-image-2" };
+  const posterSettings = { ...cloudSettings("openai:gpt-6-luna"), imageModelId: "openai:gpt-image-2.5" };
   const capped = await drive(posterSettings, UNMETERED_TEST, { spendCapUsd: 0.01 });
   assert(renders > 0, "Cindy's creative step calls renderPoster before the spend guard");
   assert.equal(capped.spend.mediaUsd, 0, "blocked spend is not booked");
@@ -364,7 +364,7 @@ try {
   await db.execute("insert into users (id, email, name, role, password_hash, created_at) values ($1, $2, $3, $4, $5, $6)", ["worker-beta", "worker-beta@example.test", "Worker Beta", "beta", "x", at]);
   const repo = new WorkflowRepository(path.join(dir, "workflow.db"));
   try {
-    const settings = cloudSettings("openai:gpt-4.1-mini");
+    const settings = cloudSettings("openai:gpt-6-luna");
     const workCampaign = blankCampaign({ ...input, channels: [...input.channels] }, defaultBrand, null, settings);
     const job = repo.enqueue("worker-beta", "metered-1", { campaign: workCampaign, campaigns: [], brand: defaultBrand, settings, command: { type: "START", actor: "founder" } });
     await workOnce(repo, "metering-worker", { renderPoster: stubPoster });

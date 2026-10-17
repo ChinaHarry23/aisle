@@ -74,7 +74,7 @@ assert.match(JSON.parse(another.prompt).styleReferencePolicy, /not binding requi
 assert.notEqual(another.prompt, req.prompt);
 console.log("PASS product-specific context, actual system role, optional reference data and honest renderer capabilities");
 
-for (const id of ["local:custom", "openai:gpt-4.1-mini", "anthropic:claude-sonnet-4"]) {
+for (const id of ["local:custom", "openai:gpt-6-luna", "anthropic:claude-sonnet-5.5"]) {
   const model = getLlmOrDefault(id);
   assert.equal(model.id, id);
   const body = buildLlmBody(model, req);
@@ -84,7 +84,8 @@ for (const id of ["local:custom", "openai:gpt-4.1-mini", "anthropic:claude-sonne
     assert.equal(body.max_tokens, 1600);
   } else {
     assert.equal((body.messages as { role: string; content: string }[])[0].content, cindySystem);
-    assert.equal(body.temperature, 0.4);
+    if (model.reasoning) assert.equal(body.reasoning_effort, model.effort ?? "low");
+    else assert.equal(body.temperature, 0.4);
   }
 }
 assert.equal(estimateLlmUsage(getLlmOrDefault("local:custom"), { agent: "creative", prompt: "1234".repeat(100) }).inputTokens, 100);
@@ -104,7 +105,7 @@ assert.deepEqual(directed.plan!.scenes.map(s => s.prompt), fixture().shots.map(s
 assert.deepEqual(directed.plan!.scenes.map(s => [s.startSec, s.durationSec, s.renderDurationSec]), [[0, 5, 5], [5, 5, 5], [10, 5, 5], [15, 5, 5], [20, 3, 5], [23, 3, 5]]);
 assert.equal(directed.plan!.endCard.cta, fixture().closing.cta);
 const i2v = { ...input, model: { ...getModel(DEFAULT_VIDEO_MODEL), videoInput: "image" as const } };
-const image = { ...input, model: getModel("openai:gpt-image-2"), durationSec: undefined, aspect: "4:5" as const, edited: false };
+const image = { ...input, model: getModel("openai:gpt-image-2.5"), durationSec: undefined, aspect: "4:5" as const, edited: false };
 const native = { ...input, model: { ...getModel("bytedance:seedance-2-fast"), videoInput: "image" as const }, edited: false };
 for (const other of [i2v, image, native]) assert.equal(parseArtDirection(other, author(fixture(other))).shots.length, other.edited ? 3 : 0);
 console.log("PASS authored prompts reach actual timed plan; image, native clip and three-shot image-input layouts");
@@ -176,7 +177,7 @@ const generated = await runCreativeGeneration(work, {
     posterCalls++;
     return {
       kind: "image",
-      modelId: "openai:gpt-image-2",
+      modelId: "openai:gpt-image-2.5",
       provider: "OpenAI",
       modelName: "stub",
       status: "stubbed",
