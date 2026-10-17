@@ -1,0 +1,62 @@
+{
+  "campaignId": "campaign-example",
+  "advertisementVersionId": "adv_5a7150099384ed5c9d26ef5733442f71c0e619b3b0db9db484d21b814f8da8f7",
+  "version": 1,
+  "content": [
+    {
+      "creativeId": "creative-0",
+      "headline": "The warmest jacket in Australia",
+      "body": "Guaranteed dry through adults weather.",
+      "caption": "New Cotton shirt. The warmest jacket in Australia — guaranteed.",
+      "callToAction": "Shop the parka",
+      "imageUrl": null,
+      "createdAt": "2026-10-17T00:00:00.000Z",
+      "generationInputs": {
+        "prompt": "Simple product shot Headline: The warmest jacket in Australia. Product: Cotton shirt. Brand: Lane & Co."
+      }
+    },
+    {
+      "creativeId": "creative-1",
+      "headline": "Winter, but make it campus.",
+      "body": "Australia's number one uni jacket. Risk-free warmth.",
+      "caption": "Cotton shirt — number one on campus.",
+      "callToAction": "See the drop",
+      "imageUrl": null,
+      "createdAt": "2026-10-17T00:00:00.000Z",
+      "generationInputs": {
+        "prompt": "Simple product shot Headline: Winter, but make it campus.. Product: Cotton shirt. Brand: Lane & Co."
+      }
+    }
+  ],
+  "productInformation": "Cotton shirt",
+  "brandAssets": {
+    "retailerName": "Woolworths",
+    "logoUrl": "/woolworths-logo.jpg",
+    "guidelines": [],
+    "bannedTerms": [
+      "guaranteed",
+      "miracle",
+      "clinically proven",
+      "Australia's best",
+      "healthiest",
+      "risk-free",
+      "number one"
+    ],
+    "approvedTerms": [
+      "fresh",
+      "seasonal",
+      "Australian grown",
+      "everyday low price",
+      "quality",
+      "value"
+    ],
+    "countryRule": "Australian Consumer Law. No absolute superiority claims without substantiation. Health claims need evidence. Prices include GST unless stated. Promotional statements must not mislead a reasonable consumer."
+  },
+  "campaignObjective": "Product awareness",
+  "targetAudience": "Adults",
+  "country": "AU",
+  "targetPlatforms": [
+    "web"
+  ],
+  "limitations": []
+}
