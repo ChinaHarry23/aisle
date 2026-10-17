@@ -492,6 +492,7 @@ export const seasonWeatherTool: ToolDefinition = {
 type ShelfLookupResult =
   | {
       ok: true;
+      query: string;
       claim: string;
       detail: string;
       sourceRef: string;

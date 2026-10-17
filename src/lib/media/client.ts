@@ -5,9 +5,9 @@ import { stubGenerate } from "./stub";
 
 export async function requestGenerate(req: GenerateRequest): Promise<GenerateResult> {
   const fallback = () => stubGenerate(req, "Studio stub — generate route unavailable.");
-  let providerId: string;
+  let model: ReturnType<typeof getModel>;
   try {
-    providerId = getModel(req.modelId).providerId;
+    model = getModel(req.modelId);
   } catch {
     // A saved id such as comfy:local is no longer in the catalogue. Stubbing
     // here keeps the creative step from failing the whole operation.
@@ -15,7 +15,7 @@ export async function requestGenerate(req: GenerateRequest): Promise<GenerateRes
   }
   try {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
-    const key = getByoKey(providerId);
+    const key = getByoKey(model.providerId);
     if (key) headers["x-provider-key"] = key;
     const res = await fetch("/api/studio/generate", {
       method: "POST",
