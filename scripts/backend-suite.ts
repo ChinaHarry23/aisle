@@ -44,7 +44,7 @@ pass("Local default is Cindy's llama3.3");
 
 const fresh = defaultSettings();
 assert(seats(fresh).every((seat) => seat.provider === "openai" && seat.modelId === DEFAULT_LLM));
-assert.equal(fresh.imageModelId, "openai:gpt-image-2");
+assert.equal(fresh.imageModelId, "openai:gpt-image-2.5");
 assert.equal(fresh.videoModelId, "google:veo-3.1-fast");
 assert.equal(fresh.localBaseUrl, DEFAULT_LOCAL_BASE_URL);
 assert.equal(currentBackend(fresh), "openai");
@@ -70,24 +70,24 @@ pass("every backend moves all four seats and both media models, and survives a s
 
 const local = getBackend("local");
 assert.equal(local.llmModelId, LOCAL_DEFAULT_LLM);
-assert.equal(local.imageModelId, "openai:gpt-image-2");
+assert.equal(local.imageModelId, "openai:gpt-image-2.5");
 assert.equal(local.videoModelId, "google:veo-3.1-fast");
 for (const id of ["openai", "anthropic", "cursor"] as const) {
   const cloud = getBackend(id);
   assert.equal(cloud.where, "cloud");
   assert.deepEqual([cloud.imageModelId, cloud.videoModelId], [CLOUD_IMAGE_MODEL, CLOUD_VIDEO_MODEL]);
 }
-assert.equal(CLOUD_IMAGE_MODEL, "openai:gpt-image-2");
+assert.equal(CLOUD_IMAGE_MODEL, "openai:gpt-image-2.5");
 assert.equal(CLOUD_VIDEO_MODEL, "bytedance:seedance-2-fast");
 pass("cloud backends share Cindy's GPT Image 2 + Seedance Fast");
 
 assert.deepEqual(LLM_PROVIDERS.map((p) => p.id), ["local", "openai", "anthropic", "cursor"]);
 assert(LLM_MODELS.some((m) => m.id.startsWith("cursor:")));
-assert.equal(DEFAULT_LLM, "openai:gpt-4.1-mini");
-assert.equal(PROVIDER_DEFAULT_MODEL.openai, "openai:gpt-4.1-mini");
-assert.equal(PROVIDER_DEFAULT_MODEL.anthropic, "anthropic:claude-sonnet-4");
-assert.equal(getBackend("openai").llmModelId, "openai:gpt-4.1-mini");
-pass("catalog keeps Cindy's Cursor seats and GPT-4.1 mini default");
+assert.equal(DEFAULT_LLM, "openai:gpt-6-luna");
+assert.equal(PROVIDER_DEFAULT_MODEL.openai, "openai:gpt-6-luna");
+assert.equal(PROVIDER_DEFAULT_MODEL.anthropic, "anthropic:claude-sonnet-5.5");
+assert.equal(getBackend("openai").llmModelId, "openai:gpt-6-luna");
+pass("catalog keeps Cindy's Cursor seats and GPT-6 Luna as the OpenAI default");
 
 assert.equal(getLlmOrDefault("missing-model").id, DEFAULT_LLM);
 assert.equal(apply({ ...fresh, localBaseUrl: "  " }, "local").localBaseUrl, DEFAULT_LOCAL_BASE_URL);
@@ -106,22 +106,23 @@ const custom = {
 };
 assert.equal(currentBackend(custom), "local");
 assert.equal(
-  currentBackend({ ...fresh, agents: { ...fresh.agents, media: { provider: "openai", modelId: "openai:gpt-5" } } }),
+  currentBackend({ ...fresh, agents: { ...fresh.agents, media: { provider: "openai", modelId: "openai:gpt-6.1-sol" } } }),
   "openai",
 );
 pass("the Now readout tracks a single provider across seats");
 
-const mini = buildLlmBody(getLlmModel("openai:gpt-4.1-mini"), {
+const luna = buildLlmBody(getLlmModel("openai:gpt-6-luna"), {
   agent: "trend",
-  modelId: "openai:gpt-4.1-mini",
+  modelId: "openai:gpt-6-luna",
   prompt: "hi",
 });
-assert.equal(mini.model, "gpt-4.1-mini");
-assert.equal(mini.temperature, 0.4);
+assert.equal(luna.model, "gpt-6-luna");
+assert.equal(luna.reasoning_effort, "low");
+assert.equal("temperature" in luna, false);
 const customSeat = getLlmModel("local:custom");
 assert.equal(isLlmConfigured(customSeat, "http://127.0.0.1:11434/v1"), true);
-assert.equal(isLlmConfigured(getLlmModel("openai:gpt-4.1-mini")), false);
-pass("Cindy's OpenAI bodies use temperature; local is configured when a base URL is set");
+assert.equal(isLlmConfigured(getLlmModel("openai:gpt-6-luna")), false);
+pass("GPT-6 Luna omits temperature; local is configured when a base URL is set");
 
 const rendered = renderingModel({ kind: "image", modelId: fresh.imageModelId });
 assert.equal(rendered.id, fresh.imageModelId);

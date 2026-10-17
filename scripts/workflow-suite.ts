@@ -15,7 +15,7 @@ import type { Command } from "../src/lib/runtime/types";
 import type { EngineOptions } from "../src/lib/runtime/engine";
 
 const offline: EngineOptions = {
-  llm: { request: async () => ({ provider: "Fixture", providerId: "openai", modelId: "openai:gpt-4.1-mini", modelName: "Fixture", status: "unconfigured", usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0, costUsd: 0, billedAs: "test", estimate: true, latencyMs: 0 }, text: null, note: "Offline test fixture", at: new Date().toISOString() }) },
+  llm: { request: async () => ({ provider: "Fixture", providerId: "openai", modelId: "openai:gpt-6-luna", modelName: "Fixture", status: "unconfigured", usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0, costUsd: 0, billedAs: "test", estimate: true, latencyMs: 0 }, text: null, note: "Offline test fixture", at: new Date().toISOString() }) },
   renderPoster: async ({ modelId }) => ({ kind: "image", modelId, provider: "Fixture", modelName: "Fixture", status: "stubbed", usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0, units: 1, unitLabel: "image", costUsd: 0, billedAs: "test", estimate: true, latencyMs: 0 }, url: null, note: "Offline fixture", at: new Date().toISOString() }),
 };
 

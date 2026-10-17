@@ -33,7 +33,13 @@ export type LlmModel = {
   /** OpenAI reasoning model: takes `reasoning_effort` and rejects `temperature`. */
   reasoning?: boolean;
   /** Thinking effort: `reasoning_effort` on OpenAI, `output_config.effort` on Claude 5.x. */
-  effort?: "low" | "medium" | "high";
+  effort?: "none" | "low" | "medium" | "high";
+  /**
+   * How this model accepts function calls.
+   * `chat` is Chat Completions with `reasoning_effort: "none"` (GPT-6 Luna).
+   * `responses` is the Responses API, required for GPT-6 Astra and GPT-6.1 Sol.
+   */
+  toolApi?: "chat" | "responses";
   /** Provider shutdown date (YYYY-MM-DD), shown in pickers. */
   sunset?: string;
 };

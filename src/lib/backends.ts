@@ -24,7 +24,7 @@ export type Backend = {
   videoModelId: string;
 };
 
-export const CLOUD_IMAGE_MODEL = "openai:gpt-image-2";
+export const CLOUD_IMAGE_MODEL = "openai:gpt-image-2.5";
 export const CLOUD_VIDEO_MODEL = "bytedance:seedance-2-fast";
 
 export const BACKENDS: Backend[] = LLM_PROVIDERS.map((p) => {

@@ -53,7 +53,7 @@ export function creditExamples(): CreditExample[] {
   };
   attempt(() => llmExample(defaults.openai, "OpenAI"));
   attempt(() => llmExample(defaults.anthropic, "Claude"));
-  attempt(() => mediaExample(["openai:gpt-image-2"], "image", (name) => `A poster · ${name}`));
+  attempt(() => mediaExample(["openai:gpt-image-2.5"], "image", (name) => `A poster · ${name}`));
   attempt(() =>
     mediaExample(["google:omni-flash", "google:veo-3.1-fast"], "video", (name) => `An 8 s ad video · ${name}`, 8),
   );

@@ -12,7 +12,7 @@ import type { MediaProviderAdapter } from "./types";
 /** Image-input tokens (edits) are billed at $8 per 1M; posters send none today. */
 const IMAGE_INPUT_PER_M = 8;
 
-/** gpt-image-2 takes any size with sides divisible by 16; 4:5 and 9:16 are exact, not the nearest stock size. */
+/** GPT Image 2.5 takes any size with sides divisible by 16; 4:5 and 9:16 are exact, not the nearest stock size. */
 const SIZES: Record<AspectRatio, string> = {
   "4:5": "1024x1280",
   "3:4": "1152x1536",
