@@ -15,6 +15,7 @@ import {
 } from "./settings";
 import { sendCommand, type EngineResponse } from "./runtime/client";
 import { attachableRecommendation, withRuntimeDefaults } from "./runtime/defaults";
+import { campaignCanAdvance, mergeCampaignLists } from "./runtime/resume";
 import type {
   ChannelResultStatus,
   Command,
@@ -30,6 +31,8 @@ type Store = {
   settings: WorkspaceSettings;
   /** Last message the engine returned, surfaced on the desk. */
   engineMessage: string | null;
+  /** Set when a command failed to reach the bench. Cleared by the next success. */
+  engineError: string | null;
   busy: Record<string, boolean>;
   setHydrated: () => void;
   hydrateFromServer: (data: {
@@ -48,6 +51,10 @@ type Store = {
   createCampaign: (input: CampaignInput) => string;
   /** AHR-01 → AHR-02. Validates the brief, then runs the bench to the next gate. */
   launch: (id: string) => Promise<void>;
+  /** Pick up a run that is still marked running, including after a failed hand-off. */
+  resumeRunning: () => Promise<void>;
+  /** Ask the bench to continue one campaign. */
+  continueAgents: (id: string) => Promise<void>;
   pause: (id: string) => Promise<void>;
   approve: (id: string, note: string) => Promise<void>;
   reject: (id: string, note: string) => Promise<void>;
@@ -78,11 +85,19 @@ type Store = {
   generateAdVideo: (id: string) => Promise<void>;
 };
 
-/** Apply an engine response to a single campaign, replacing it wholesale. */
+/**
+ * Apply an engine response to a single campaign.
+ *
+ * The campaign is inserted when a workspace reload removed it while the request
+ * was in flight, so the reply is not thrown away.
+ */
 function applyResult(s: Store, result: EngineResponse): Partial<Store> {
+  const next = result.campaign;
+  const exists = s.campaigns.some((c) => c.id === next.id);
   return {
-    campaigns: s.campaigns.map((c) => (c.id === result.campaign.id ? result.campaign : c)),
+    campaigns: exists ? s.campaigns.map((c) => (c.id === next.id ? next : c)) : [next, ...s.campaigns],
     engineMessage: result.message,
+    engineError: result.error ?? null,
   };
 }
 
@@ -97,20 +112,62 @@ export const useAisle = create<Store>()(
        * next request, which is why the desk updates step by step rather than
        * jumping at the end.
        */
+      const pumping = new Set<string>();
+
       async function pump(id: string) {
-        for (let i = 0; i < 8; i += 1) {
-          const state = get();
-          const campaign = state.campaigns.find((c) => c.id === id);
-          if (!campaign) return;
-          if (campaign.run?.status !== "running") return;
-          const result = await sendCommand(
-            { campaigns: state.campaigns, brand: state.brand, settings: state.settings },
-            campaign,
-            { type: "ADVANCE", actor: "founder" } satisfies Command,
-          );
-          set((s) => ({ ...applyResult(s, result), busy: { ...s.busy, [id]: false } }));
-          if (!result.canAdvance) return;
+        if (pumping.has(id)) return;
+        pumping.add(id);
+        let failures = 0;
+        try {
+          for (let i = 0; i < 8; i += 1) {
+            const state = get();
+            const campaign = state.campaigns.find((c) => c.id === id);
+            if (!campaign || !campaignCanAdvance(campaign)) return;
+            set((s) => ({ busy: { ...s.busy, [id]: true } }));
+            const result = await sendCommand(
+              { campaigns: state.campaigns, brand: state.brand, settings: state.settings },
+              campaign,
+              { type: "ADVANCE", actor: "founder" } satisfies Command,
+            );
+            set((s) => ({ ...applyResult(s, result), busy: { ...s.busy, [id]: false } }));
+            if (!result.error) {
+              failures = 0;
+              if (!result.canAdvance) return;
+              continue;
+            }
+            // A dropped request used to stop the bench forever. Retry a few times,
+            // then leave the campaign running so the next page load can try again.
+            failures += 1;
+            if (failures >= 3) return;
+            await new Promise((resolve) => setTimeout(resolve, 1000 * failures));
+          }
+        } finally {
+          pumping.delete(id);
         }
+      }
+
+      /**
+       * One resume pass per page load. Campaigns share one saved document, so
+       * they are continued one at a time rather than racing their writes.
+       */
+      let resuming: Promise<void> | null = null;
+      const resumed = new Set<string>();
+
+      function resumeRunning() {
+        if (resuming) return resuming;
+        resuming = (async () => {
+          const ids = get()
+            .campaigns.filter((campaign) => campaignCanAdvance(campaign) && !get().busy[campaign.id])
+            .map((campaign) => campaign.id);
+          for (const id of ids) {
+            if (resumed.has(id)) continue;
+            resumed.add(id);
+            await pump(id);
+          }
+        })().finally(() => {
+          resuming = null;
+        });
+        return resuming;
       }
 
       async function command(
@@ -138,16 +195,28 @@ export const useAisle = create<Store>()(
         campaigns: seedCampaigns(defaultBrand),
         settings: defaultSettings(),
         engineMessage: null,
+        engineError: null,
         busy: {},
         setHydrated: () => set({ hydrated: true }),
-              hydrateFromServer: (data) =>
+        hydrateFromServer: (data) => {
+          const state = get();
+          const remote = (data.campaigns ?? []).map(withRuntimeDefaults);
+          // Before the first server read, the store holds demo seeds. Only a
+          // command already in flight from this tab is worth keeping.
+          const local = state.hydrated ? state.campaigns : state.campaigns.filter((c) => state.busy[c.id]);
           set({
             brand: data.brand,
-            campaigns: (data.campaigns ?? []).map(withRuntimeDefaults),
+            campaigns: mergeCampaignLists(local, remote, state.busy).map(withRuntimeDefaults),
             settings: withSettingsDefaults(data.settings),
-            busy: {},
             hydrated: true,
-          }),
+          });
+          void resumeRunning();
+        },
+        resumeRunning,
+        continueAgents: async (id) => {
+          resumed.delete(id);
+          await pump(id);
+        },
         updateBrand: (partial) => set((s) => ({ brand: { ...s.brand, ...partial } })),
         updateSettings: (partial) =>
           set((s) => ({
@@ -279,6 +348,7 @@ export const useAisle = create<Store>()(
             settings: defaultSettings(),
             busy: {},
             engineMessage: null,
+            engineError: null,
           }),
 
         setStudio: (id, patch) =>

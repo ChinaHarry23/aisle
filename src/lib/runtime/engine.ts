@@ -23,6 +23,8 @@ export type EngineOptions = {
   llm?: LlmRuntime;
   /** Bounded work per ADVANCE so one HTTP call cannot run away. */
   maxSteps?: number;
+  /** Account whose WhichGrocer sign-in the trend step may use. */
+  ownerUserId?: string;
   /** Ad renderer. Defaults to the studio route; tests pass a stub. */
   renderPoster?: (input: {
     campaign: Campaign;
@@ -113,12 +115,14 @@ function envFor(
   brand: StepEnv["brand"],
   llm: LlmRuntime,
   renderPoster: NonNullable<EngineOptions["renderPoster"]>,
+  ownerUserId?: string,
 ): StepEnv {
   return {
     now: ctx.now,
     settings,
     brand,
     llm,
+    ownerUserId,
     allCampaigns: ctx.campaigns.map((c) => (c.id === campaign.id ? campaign : c)),
     renderPoster,
   };
@@ -141,7 +145,7 @@ export async function runEngine(
   const llm = options.llm ?? makeLlmRuntime();
   const maxSteps = options.maxSteps ?? DEFAULT_MAX_STEPS;
   const w = blankWork(campaign, ctx.now);
-  const env = envFor(ctx, w.campaign, settings, brand, llm, options.renderPoster ?? defaultRenderPoster);
+  const env = envFor(ctx, w.campaign, settings, brand, llm, options.renderPoster ?? defaultRenderPoster, options.ownerUserId);
   let canAdvance = false;
 
   if (!w.run || !activeRun(w.run)) {

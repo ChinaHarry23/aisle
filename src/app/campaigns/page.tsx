@@ -9,6 +9,7 @@ import { useAisle } from "@/lib/store";
 
 export default function CampaignsPage() {
   const campaigns = useAisle((s) => s.campaigns);
+  const engineError = useAisle((s) => s.engineError);
 
   return (
     <div className="flex flex-col gap-8">
@@ -25,6 +26,8 @@ export default function CampaignsPage() {
           </Link>
         }
       />
+
+      {engineError ? <p className="text-sm text-signal">{engineError}</p> : null}
 
       {campaigns.length === 0 ? (
         <Empty title="No campaigns yet" body="Write a short brief and your agents will do the rest.">

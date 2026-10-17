@@ -7,6 +7,7 @@
  */
 
 import { uid } from "@/lib/ids";
+import { getModelOrDefault } from "@/lib/media/catalog";
 import type { MediaGeneration } from "@/lib/media/types";
 import { makeLog } from "@/lib/seed";
 import type { WorkspaceSettings } from "@/lib/settings";
@@ -35,6 +36,7 @@ import {
 } from "./decide";
 import { evaluateGuard } from "./guard";
 import { digestHash, inputDigest } from "./intake";
+import { shelfQuery } from "@/lib/retail/whichgrocer/query";
 import { channelBehaviourNote, toolByName, toToolCall, type ToolOutcome } from "./tools";
 import {
   MAX_REVISION_ATTEMPTS,
@@ -73,6 +75,8 @@ export type StepEnv = {
   settings: WorkspaceSettings;
   brand: BrandProfile;
   llm: LlmRuntime;
+  /** Signed-in founder. WhichGrocer prices are read for this account only. */
+  ownerUserId?: string;
   /** Every campaign in the workspace, for cross-campaign scheduling checks. */
   allCampaigns: Campaign[];
   /**
@@ -189,6 +193,7 @@ export async function callTool(
     brand: env.brand,
     at: w.now,
     args,
+    ownerUserId: env.ownerUserId,
   });
   const call = toToolCall({
     agent,
@@ -544,6 +549,15 @@ export async function runTrendResearch(
   const weather = await callTool(w, "trend", "web.season_weather", { country: c.country }, env);
   toolResults.push(weather);
 
+  const shelf = await callTool(
+    w,
+    "trend",
+    "web.shelf_prices",
+    { query: shelfQuery(c.product, c.category) },
+    env,
+  );
+  toolResults.push(shelf);
+
   const competitor = await callTool(
     w,
     "trend",
@@ -676,11 +690,12 @@ export async function runTrendResearch(
     );
   }
   const publicEvidence = byKind("external_public").filter((e) => e.status === "verified");
-  if (publicEvidence.length > 0) {
+  const contextEvidence = publicEvidence.filter((e) => e.sourceName !== "WhichGrocer");
+  if (contextEvidence.length > 0) {
     pushFinding(
       "Public market context",
-      publicEvidence[0].claim,
-      [publicEvidence[0].id],
+      contextEvidence[0].claim,
+      [contextEvidence[0].id],
       78,
       72,
       { visualDirection: decision.visualDirection },
@@ -688,6 +703,12 @@ export async function runTrendResearch(
   }
   if (retailEvidence[1]) {
     pushFinding("Basket behaviour", retailEvidence[1].claim, [retailEvidence[1].id], 86, 81);
+  }
+  const shelfEvidence = publicEvidence.filter((e) => e.sourceName === "WhichGrocer");
+  if (shelfEvidence[0]) {
+    pushFinding("Shelf price", shelfEvidence[0].claim, shelfEvidence.map((e) => e.id), 91, shelfEvidence[0].confidence, {
+      themeSuggestion: decision.angle,
+    });
   }
 
   const priorNote = c.sharedContext.previousPerformanceNote;
@@ -844,7 +865,7 @@ export async function runCreativeGeneration(
   addTrace(w, trace, "creative", `Copy for v${version}`);
 
   const creatives = buildCreatives(c, variants, version);
-  const modelId = env.settings.imageModelId;
+  const modelId = getModelOrDefault(env.settings.imageModelId, "image").id;
   const withGen: Creative[] = [];
   for (const cr of creatives) {
     const generation = await env.renderPoster({ campaign: c, creative: cr, modelId });

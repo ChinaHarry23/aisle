@@ -1,4 +1,4 @@
-import { DEFAULT_IMAGE_MODEL, DEFAULT_VIDEO_MODEL } from "./media/catalog";
+import { DEFAULT_IMAGE_MODEL, DEFAULT_VIDEO_MODEL, getModelOrDefault } from "./media/catalog";
 import { DEFAULT_LLM } from "./llm/catalog";
 import type { AgentSlot, LlmAssignment } from "./llm/types";
 
@@ -62,5 +62,8 @@ export function withSettingsDefaults(partial?: Partial<WorkspaceSettings> | null
       ...base.agents,
       ...partial.agents,
     },
+    trendSources: partial.trendSources ?? base.trendSources,
+    imageModelId: getModelOrDefault(partial.imageModelId, "image").id,
+    videoModelId: getModelOrDefault(partial.videoModelId, "video").id,
   };
 }

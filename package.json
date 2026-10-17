@@ -29,6 +29,7 @@
     "user": "node --experimental-strip-types scripts/user.ts",
     "auth": "node --experimental-strip-types scripts/auth-suite.ts",
     "test:agents": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/agents-suite.ts",
+    "test:whichgrocer": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/whichgrocer-suite.ts",
     "test:graph": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/operation-graph-suite.ts",
     "test:intake": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/intake-suite.ts"
   },

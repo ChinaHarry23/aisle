@@ -2,6 +2,7 @@
 
 import { ModelTable, type ModelRow } from "@/components/settings/ModelTable";
 import { ProfileSection } from "@/components/settings/ProfileSection";
+import { WhichGrocerConnect } from "@/components/settings/WhichGrocerConnect";
 import {
   MediaKeyEditor,
   ProviderRow,
@@ -417,6 +418,12 @@ function ConnectionsTab({
 
   return (
     <div className="flex flex-col gap-10">
+      <Section
+        title="Grocery prices"
+        description="Used by the Trend Analyser when the campaign country is Australia. Prices are cited with the retailer and the date."
+      >
+        <WhichGrocerConnect />
+      </Section>
       <Section
         title="Image providers"
         description="Add your own key to use a provider. Your keys stay in this browser and are never stored on our servers."

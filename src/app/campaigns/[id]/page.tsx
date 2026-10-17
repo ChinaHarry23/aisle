@@ -20,6 +20,7 @@ import {
 import { cn } from "@/lib/cn";
 import { formatDate, formatNumber } from "@/lib/ids";
 import { channelLabel } from "@/lib/status";
+import { campaignCanAdvance } from "@/lib/runtime/resume";
 import { useAisle } from "@/lib/store";
 
 const tabs = [
@@ -75,6 +76,8 @@ export default function CampaignWorkspace() {
   const campaign = useAisle((s) => s.campaigns.find((c) => c.id === id));
   const brand = useAisle((s) => s.brand);
   const launch = useAisle((s) => s.launch);
+  const continueAgents = useAisle((s) => s.continueAgents);
+  const engineError = useAisle((s) => s.engineError);
   const pause = useAisle((s) => s.pause);
   const approve = useAisle((s) => s.approve);
   const reject = useAisle((s) => s.reject);
@@ -161,6 +164,16 @@ export default function CampaignWorkspace() {
                 Pause
               </button>
             ) : null}
+            {engineError && campaignCanAdvance(campaign) ? (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void continueAgents(campaign.id)}
+                className="rounded-full btn-primary px-4 py-2 text-sm font-medium disabled:opacity-50"
+              >
+                {busy ? "Working…" : "Continue agents"}
+              </button>
+            ) : null}
             {canPublish ? (
               <button
                 type="button"
@@ -186,6 +199,9 @@ export default function CampaignWorkspace() {
         <div className="mt-5">
           <AgentPipeline status={campaign.status} />
         </div>
+        {engineError && campaignCanAdvance(campaign) ? (
+          <p className="mt-3 text-sm text-signal">{engineError}</p>
+        ) : null}
         {run?.status === "running" || campaign.spend.blockedAttempts > 0 ? (
           <p className="mt-3 text-xs text-mute">
             {run?.status === "running" ? "Agents are working on this now. " : ""}

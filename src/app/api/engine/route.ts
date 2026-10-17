@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/current";
 import { demoWorkspace, loadWorkspace, type WorkspaceSnapshot } from "@/lib/auth/workspace";
+import { lookupShelfPrices } from "@/lib/retail/whichgrocer/connection";
 import { runEngine } from "@/lib/runtime/engine";
+import { setShelfPriceLookup } from "@/lib/runtime/tools";
+
+setShelfPriceLookup(lookupShelfPrices);
 import { withRuntimeDefaults } from "@/lib/runtime/defaults";
 import type { Command } from "@/lib/runtime/types";
 import type { Campaign } from "@/lib/types";
@@ -104,7 +108,7 @@ export async function POST(request: Request) {
       body.command,
       settings,
       brand,
-      { maxSteps },
+      { maxSteps, ownerUserId: user.id },
     );
     return NextResponse.json({
       campaign: result.campaign,

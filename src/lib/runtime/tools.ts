@@ -48,6 +48,8 @@ export type ToolInput = {
   at: string;
   /** Agent-provided arguments, already coerced to strings. */
   args: Record<string, string>;
+  /** Signed-in founder, when the run has one. Shelf prices use their WhichGrocer sign-in. */
+  ownerUserId?: string;
 };
 
 const FETCH_TIMEOUT_MS = 6_000;
@@ -485,6 +487,118 @@ export const seasonWeatherTool: ToolDefinition = {
   },
 };
 
+/* --------------------------------------------------------------- shelf price -- */
+
+type ShelfLookupResult =
+  | {
+      ok: true;
+      claim: string;
+      detail: string;
+      sourceRef: string;
+      observedAt: string;
+      summary: string;
+      offers: unknown[];
+    }
+  | { ok: false; kind: string; reason: string };
+
+type ShelfLookup = (input: {
+  userId?: string;
+  product: string;
+  category: string;
+  country: string;
+  at: string;
+  query?: string;
+}) => Promise<ShelfLookupResult>;
+
+/**
+ * The catalogue call needs the database and the WhichGrocer token, which cannot
+ * be bundled into the browser. The API route and the worker install it. A run
+ * without it records the price as unavailable.
+ */
+let shelfLookup: ShelfLookup | null = null;
+
+export function setShelfPriceLookup(lookup: ShelfLookup) {
+  shelfLookup = lookup;
+}
+
+export const shelfPriceTool: ToolDefinition = {
+  name: "web.shelf_prices",
+  label: "Shelf prices (WhichGrocer)",
+  agent: "trend",
+  description:
+    "Reads live Australian catalogue prices for the product from WhichGrocer (Coles, Woolworths, ALDI and other connected retailers). Cites each price with the retailer page and the date WhichGrocer last saw it. Requires the founder's WhichGrocer sign-in.",
+  args: ["query"],
+  async run({ campaign, at, args, ownerUserId }) {
+    const lookup =
+      campaign.country !== "AU"
+        ? {
+            ok: false as const,
+            kind: "outside_au",
+            reason: `WhichGrocer covers Australian retailers. This campaign is ${campaign.country}.`,
+          }
+        : shelfLookup
+          ? await shelfLookup({
+              userId: ownerUserId,
+              product: campaign.product,
+              category: campaign.category,
+              country: campaign.country,
+              at,
+              query: args.query,
+            })
+          : { ok: false as const, kind: "not_connected", reason: "WhichGrocer is not connected." };
+    const sourceRef = "https://mcp.whichgrocer.com/mcp";
+    if (!lookup.ok) {
+      const outside = lookup.kind === "outside_au";
+      return {
+        summary: lookup.reason,
+        status: outside ? "skipped" : "empty",
+        data: null,
+        evidence: [
+          evidence({
+            claim: outside ? "Australian shelf prices do not apply" : `No shelf price retrieved for "${args.query || campaign.product}"`,
+            detail: `${lookup.reason} No catalogue price was used for this part of the brief.`,
+            sourceName: "WhichGrocer",
+            sourceRef,
+            sourceKind: "external_public",
+            observedAt: at.slice(0, 10),
+            at,
+            status: "unavailable",
+            confidence: 100,
+            raisedBy: "trend",
+            usedFor: "Source availability",
+          }),
+        ],
+        gap: {
+          kind: "missing_source",
+          detail: lookup.reason,
+          effect: outside
+            ? "No Australian shelf price was applied to this campaign."
+            : "The brief cannot cite a current Coles, Woolworths or ALDI price. Connect WhichGrocer in Settings, then run the trend step again.",
+        },
+      };
+    }
+    return {
+      summary: lookup.summary,
+      status: "ok",
+      data: { query: lookup.query, offers: lookup.offers },
+      evidence: [
+        evidence({
+          claim: lookup.claim,
+          detail: lookup.detail,
+          sourceName: "WhichGrocer",
+          sourceRef: lookup.sourceRef,
+          sourceKind: "external_public",
+          observedAt: lookup.observedAt,
+          at,
+          confidence: lookup.offers.length > 1 ? 84 : 74,
+          raisedBy: "trend",
+          usedFor: "Shelf price comparison",
+        }),
+      ],
+    };
+  },
+};
+
 /* ---------------------------------------------------------- shared registry -- */
 
 export const TOOL_REGISTRY: ToolDefinition[] = [
@@ -492,6 +606,7 @@ export const TOOL_REGISTRY: ToolDefinition[] = [
   marketContextTool,
   competitorScanTool,
   seasonWeatherTool,
+  shelfPriceTool,
 ];
 
 export function toolByName(name: string): ToolDefinition | undefined {

@@ -103,6 +103,16 @@ create table if not exists stripe_events (
   received_at text not null
 );
 
+create table if not exists whichgrocer_connections (
+  user_id       text primary key,
+  access_token  text not null,
+  refresh_token text,
+  expires_at    text,
+  client_id     text not null,
+  redirect_uri  text not null,
+  updated_at    text not null
+);
+
 create table if not exists media_objects (
   id            text primary key,
   owner_user_id text not null,
