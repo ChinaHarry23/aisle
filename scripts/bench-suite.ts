@@ -288,6 +288,9 @@ async function startAndAdvance(
 {
   const s = await startAndAdvance({ channels: ["instagram", "web", "email", "print"], budget: 18000 });
   const c = s.campaign;
+  assert.equal(c.complianceReviewRuns?.length, 2, "each reviewed version has its own submission record");
+  assert.ok(c.complianceReviewRuns?.every(r => r.status === "COMPLETED" && r.result?.reportId));
+  assert.notEqual(c.complianceReviewRuns?.[0].advertisementVersionId, c.complianceReviewRuns?.[1].advertisementVersionId);
   const outcomes = c.complianceAttempts.map((a) => `${a.attempt}:v${a.creativeVersion}:${a.outcome}`);
   assert.equal(c.complianceAttempts.length, 2, `expected two attempts, got ${outcomes.join(" ")}`);
   assert.equal(c.complianceAttempts[0].outcome, "changes_required");

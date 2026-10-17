@@ -32,6 +32,7 @@ export function operationNodeForStep(step: string | null | undefined): Operation
     case "creative.revise":
       return "revise";
     case "compliance.receive":
+    case "compliance.review":
       return "compliance";
     case "founder.gate":
       return "founder";

@@ -1,3 +1,4 @@
+import { beginReview, submissionFor, assertReviewPermission, ComplianceSubmissionError } from "../compliance/service";
 /**
  * Agent step handlers.
  *
@@ -848,7 +849,7 @@ export async function runCreativeGeneration(
   const withGen: Creative[] = [];
   for (const cr of creatives) {
     const generation = await env.renderPoster({ campaign: c, creative: cr, modelId });
-    withGen.push({ ...cr, generation });
+    withGen.push({ ...cr, createdAt: w.now, generation });
   }
   const mediaCost = withGen.reduce((n, cr) => n + (cr.generation?.usage.costUsd ?? 0), 0);
 
@@ -1025,14 +1026,35 @@ export function deterministicReview(
   return { issues, summary };
 }
 
+export function receiveComplianceSubmission(w: Work, env: StepEnv) {
+  try {
+    beginReview(w.campaign, env.brand, submissionFor(w.campaign, env.brand), w.now);
+    w.campaign.status = "compliance";
+    w.campaign.running = true;
+    setRun(w, { step: "compliance.review", status: "running" });
+    addStep(w, "compliance.receive", "compliance", "ok", "Review registered", "Exact submission retained before model execution.");
+    return { message: "Compliance request accepted; review checkpoint ready.", blocked: false };
+  } catch (error) {
+    if (!(error instanceof ComplianceSubmissionError)) throw error;
+    addEvent(w, "compliance", "flag", "Submission rejected", JSON.stringify(error.toJSON()));
+    w.campaign.running = false;
+    setRun(w, { status: "halted", haltedReason: error.message });
+    return { message: `${error.code}: ${error.message}`, blocked: true };
+  }
+}
+
 export async function runComplianceReview(
   w: Work,
   env: StepEnv,
 ): Promise<{ message: string; blocked: boolean }> {
   const c = w.campaign;
+  assertReviewPermission(c);
+  const submitted = submissionFor(c, env.brand);
+  const reviewRun = c.complianceReviewRuns?.find(r => r.pipelineRunId === c.run?.id && r.advertisementVersionId === submitted.advertisementVersionId && r.status === "UNDER_REVIEW");
+  if (!reviewRun) throw new ComplianceSubmissionError("VERSION_MISMATCH", "No active review exists for this exact version. Resubmit through compliance.receive.");
   c.status = "compliance";
   c.running = true;
-  const attemptNo = c.complianceAttempts.length + 1;
+  const attemptNo = reviewRun.attemptNumber;
   const copyBlob = c.creatives
     .map((cr) => `[${cr.variant}] ${cr.headline} — ${cr.subhead} — ${cr.caption}`)
     .join("\n");
@@ -1109,6 +1131,11 @@ export async function runComplianceReview(
     attempt,
   };
 
+  reviewRun.status = "COMPLETED";
+  reviewRun.completedAt = w.now;
+  reviewRun.result = { status: verdict.outcome, findings: structuredClone(decision.issues),
+    rejectionReason: verdict.outcome === "pass" ? null : decision.summary,
+    limitations: [...reviewRun.submission.limitations, "Existing checks are preliminary; full rule validation is tracked in CC-03 through CC-05."], reportId: report.id };
   c.complianceAttempts = [...c.complianceAttempts, attempt];
   c.complianceReports = [...c.complianceReports, report];
   c.creatives = c.creatives.map((cr) => ({
