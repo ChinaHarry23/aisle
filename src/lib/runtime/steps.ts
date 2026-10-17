@@ -1,3 +1,5 @@
+import { loadRules } from "../compliance/rules";
+import { checkSubmission } from "../compliance/checks";
 import { beginReview, submissionFor, assertReviewPermission, ComplianceSubmissionError } from "../compliance/service";
 /**
  * Agent step handlers.
@@ -1028,7 +1030,8 @@ export function deterministicReview(
 
 export function receiveComplianceSubmission(w: Work, env: StepEnv) {
   try {
-    beginReview(w.campaign, env.brand, submissionFor(w.campaign, env.brand), w.now);
+    const review = beginReview(w.campaign, env.brand, submissionFor(w.campaign, env.brand), w.now);
+    review.ruleSelection ??= loadRules(review.submission, w.now);
     w.campaign.status = "compliance";
     w.campaign.running = true;
     setRun(w, { step: "compliance.review", status: "running" });
@@ -1068,7 +1071,10 @@ export async function runComplianceReview(
   );
   addStep(w, "compliance.receive", "compliance", "ok", "Submission received", `Input digest recorded. Attempt ${attemptNo}.`);
 
-  const fallback = deterministicReview(c, env.brand);
+  const selection = reviewRun.ruleSelection ?? loadRules(reviewRun.submission, w.now);
+  reviewRun.ruleSelection = selection;
+  const checked = checkSubmission(reviewRun.submission, selection);
+  const fallback = { issues: checked.issues, summary: `${checked.issues.length} issue(s) identified against the submitted version.` };
   const { decision, trace } = await decideCompliance({
     campaign: c,
     brand: env.brand,
@@ -1077,10 +1083,13 @@ export async function runComplianceReview(
     copy: copyBlob,
     attempt: attemptNo,
     fallback,
+    rules: selection.rules,
   });
   addTrace(w, trace, "compliance", "Policy review");
 
-  const verdict = complianceFor(c, decision.issues);
+  const verdict = selection.problems.length || decision.issues.some(i => i.basis === "human_judgement")
+    ? { outcome: "manual_review" as const, risk: "high" as const, score: 0 }
+    : complianceFor(c, decision.issues);
   const digest = inputDigest(c);
   const attempt: ComplianceAttempt = {
     id: uid("ca"),
@@ -1095,13 +1104,8 @@ export async function runComplianceReview(
     score: verdict.score,
     summary: decision.summary,
     issues: decision.issues,
-    policyRefs: [
-      `${c.country} advertising and consumer law`,
-      "Brand banned and approved terms",
-      ...(c.channels.includes("print") ? ["Retailer catalogue policy"] : []),
-      ...(c.channels.includes("instagram") ? ["Instagram platform policy"] : []),
-    ],
-    policyComplete: Boolean(env.brand.countryRules[c.country]) && env.brand.bannedTerms.length > 0,
+    policyRefs: selection.rules.map(r => `${r.id}@${r.version}: ${r.source}`),
+    policyComplete: selection.problems.length === 0,
   };
 
   // Legacy-shaped report so existing views keep working.
@@ -1127,7 +1131,7 @@ export async function runComplianceReview(
           : "pass",
     summary: decision.summary,
     findings,
-    countryProfile: `${c.country} · ${env.brand.countryRules[c.country].slice(0, 140)}…`,
+    countryProfile: `${c.country} · ${(env.brand.countryRules[c.country] ?? "Missing country policy").slice(0, 140)}…`,
     attempt,
   };
 
@@ -1135,7 +1139,7 @@ export async function runComplianceReview(
   reviewRun.completedAt = w.now;
   reviewRun.result = { status: verdict.outcome, findings: structuredClone(decision.issues),
     rejectionReason: verdict.outcome === "pass" ? null : decision.summary,
-    limitations: [...reviewRun.submission.limitations, "Existing checks are preliminary; full rule validation is tracked in CC-03 through CC-05."], reportId: report.id };
+    limitations: checked.limitations, reportId: report.id };
   c.complianceAttempts = [...c.complianceAttempts, attempt];
   c.complianceReports = [...c.complianceReports, report];
   c.creatives = c.creatives.map((cr) => ({
@@ -1185,11 +1189,11 @@ export async function runComplianceReview(
       w,
       "compliance",
       "escalation",
-      `Revision limit reached (${MAX_REVISION_ATTEMPTS} attempts) — Manual Review Required`,
+      "Manual Review Required",
       "The automatic revision cycle stopped. All versions, inputs and rejection reasons are retained. Nothing is published or distributed.",
     );
-    addStep(w, "founder.gate", "compliance", "warn", "Escalated to manual review", "Three attempts spent; the founder takes over.");
-    setRun(w, { awaiting: "approval", awaitingDetail: "Manual review required: three compliance attempts did not clear the copy.", status: "awaiting_human", step: "founder.gate" });
+    addStep(w, "founder.gate", "compliance", "warn", "Escalated to manual review", "Policy, evidence, judgement or revision limits require human resolution.");
+    setRun(w, { awaiting: "approval", awaitingDetail: "Manual review required: resolve the recorded policy or content issues before approval.", status: "awaiting_human", step: "founder.gate" });
     return { message: "Escalated for manual review.", blocked: false };
   }
 

@@ -79,3 +79,11 @@ No Jira comments have been posted and no owner approval has been assumed. Copy t
 ## Verification
 
 `npm run test:compliance`: required/malformed input, duplicate IDs, exact snapshot identity, duplicate receipt, permissions, LangGraph receipt checkpoint, provider failure, rejected submission and no autonomous approval/distribution. `npm run bench` retains existing end-to-end regression behaviour; it is not proof of full CC-03 through CC-09 compliance.
+
+## CC-03 / CC-04 implementation update
+
+`rules.ts` reads an explicitly configured server-owned JSON registry from AISLE_COMPLIANCE_RULES_FILE. Its shape is `{authorisedSources: string[], rules: ComplianceRule[]}`; see `ruleSchema` for all required fields. No production laws or policy versions are invented or bundled. A maintainer must curate and authorise actual source material; client-uploaded text cannot authorise registry sources. Missing configuration safely produces manual review. The rule selection checks source allow-list, dates, declared/wording conflicts, country, platforms, audience and product/objective scope; the entire selected rule/version snapshot is retained on the run before model invocation.
+
+`checks.ts` evaluates retailer banned terms, substantiation signals, promotional conditions, prices, asset rights, protected audiences, and configured country/platform/brand/ethical restrictions against the saved text without changing it. Phrase rules give deterministic findings; ambiguous claims, missing evidence, image rights and manual rules require human judgement. Image pixel analysis and independent price/licence verification are not claimed. Model findings are suggestions requiring human validation, with no invented regulator/date attribution. Missing policies or human-judgement issues stop automatic revisions immediately.
+
+Verification: `npm run test:compliance-rules` uses clearly synthetic test policies. Production policy curation is still required before a trustworthy automatic pass is possible. CC-05 report presentation and unresolved-finding consistency follow in a separate change. Full approval enforcement remains CC-08; the legacy human approval route must not be interpreted as automated policy clearance.

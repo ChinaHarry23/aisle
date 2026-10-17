@@ -283,58 +283,24 @@ async function startAndAdvance(
   pass("UC-02 ext 4.b — unauthorised internal data excluded", exclusion.detail);
 }
 
-/* --------------------------------------------- AHR-03/04 three-attempt loop */
-
+/* CC-03: missing trusted policy must stop the automatic revision chain. */
 {
-  const s = await startAndAdvance({ channels: ["instagram", "web", "email", "print"], budget: 18000 });
+  const s = await startAndAdvance({ channels: ["web"] });
   const c = s.campaign;
-  assert.equal(c.complianceReviewRuns?.length, 2, "each reviewed version has its own submission record");
-  assert.ok(c.complianceReviewRuns?.every(r => r.status === "COMPLETED" && r.result?.reportId));
-  assert.notEqual(c.complianceReviewRuns?.[0].advertisementVersionId, c.complianceReviewRuns?.[1].advertisementVersionId);
-  const outcomes = c.complianceAttempts.map((a) => `${a.attempt}:v${a.creativeVersion}:${a.outcome}`);
-  assert.equal(c.complianceAttempts.length, 2, `expected two attempts, got ${outcomes.join(" ")}`);
-  assert.equal(c.complianceAttempts[0].outcome, "changes_required");
-  assert.equal(c.complianceAttempts[1].outcome, "pass");
-  assert.equal(c.creatives[0].version, 2, "the revision must be a new version, not a rerun of v1");
-  assert.ok(
-    c.complianceAttempts.every((a) => a.inputDigest.length > 0),
-    "every submitted version needs a recorded input digest",
-  );
-  assert.ok(
-    c.complianceAttempts[0].issues.some((i) => i.basis === "confirmed_breach"),
-    "a banned claim must be recorded as a confirmed breach",
-  );
-  assert.ok(
-    c.complianceAttempts[1].issues.some((i) => i.basis === "human_judgement"),
-    "an item needing human judgement must be separated from a confirmed breach",
-  );
-  assert.equal(c.status, "awaiting_approval", "a pass must park at Awaiting Human Approval");
-  assert.equal(c.creatives[0].status, "flagged");
-  pass(
-    "AHR-04 — revise then pass, versions and digests retained",
-    outcomes.join(" → "),
-  );
+  assert.equal(c.complianceReviewRuns?.length, 1);
+  assert.equal(c.complianceReviewRuns?.[0].status, "COMPLETED");
+  assert.ok(c.complianceReviewRuns?.[0].ruleSelection?.problems.length);
+  assert.equal(c.complianceAttempts[0].outcome, "manual_review");
+  assert.equal(c.creatives[0].version, 1);
+  assert.equal(c.status, "awaiting_approval");
+  assert.ok(c.complianceAttempts[0].issues.some(i => i.basis === "confirmed_breach"));
+  pass("CC-03/04 — unavailable policy stops automatic work", "Exact submitted version retained; manual review required.");
 }
-
 {
-  // Every revision still carries a banned term, so the loop spends all three
-  // attempts — the case AHR-04 says must escalate rather than retry forever.
-  const s = await startAndAdvance(
-    { channels: ["instagram"], budget: 18000, product: "Cold-pressed olive oil", category: "Pantry" },
-    {},
-    { llm: scriptedLlm(() => ({ headline: "Guaranteed best olive oil", subhead: "Risk-free pantry value." })) },
-  );
-  const c = s.campaign;
-  const attempts = c.complianceAttempts;
-  assert.equal(attempts.length, 3, `three attempts expected, got ${attempts.length}`);
-  assert.equal(attempts.at(-1)?.outcome, "manual_review", "the third attempt must escalate");
-  assert.equal(c.run?.awaiting, "approval");
-  assert.match(c.run?.awaitingDetail ?? "", /three compliance attempts/i);
-  assert.notEqual(c.status, "published", "an escalated campaign must never be published automatically");
-  pass(
-    "AHR-04 ext — three attempts then Manual Review Required",
-    attempts.map((a) => `${a.attempt}:v${a.creativeVersion}:${a.outcome}`).join(" → "),
-  );
+  const s = await startAndAdvance({ channels: ["web"] }, {}, { llm: scriptedLlm() });
+  assert.equal(s.campaign.complianceAttempts[0].outcome, "manual_review", "empty model findings cannot clear unavailable policy");
+  assert.notEqual(s.campaign.status, "published");
+  pass("CC-03 — model pass cannot override missing policy", "Unpublished, awaiting human resolution.");
 }
 
 /* ---------------------------------------------------- AHR-05 distribution -- */

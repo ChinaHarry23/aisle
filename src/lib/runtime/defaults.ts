@@ -8,7 +8,7 @@
  */
 
 import type { Campaign } from "@/lib/types";
-import { defaultSpendCap } from "./engine";
+import { defaultSpendCap } from "./budget";
 import type { Evidence, PolicyDecision, RunStep, ToolCall } from "./types";
 
 export function withRuntimeDefaults(campaign: Campaign): Campaign {

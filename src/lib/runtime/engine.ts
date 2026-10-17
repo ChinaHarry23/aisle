@@ -1,3 +1,4 @@
+import { defaultSpendCap } from "./budget";
 /**
  * The run engine.
  *
@@ -99,12 +100,7 @@ function blankWork(campaign: Campaign, now: string): Work {
 }
 
 /** Founder-set ceiling for automated spend (UC-01 ext 13.a). */
-export function defaultSpendCap(campaign: Pick<Campaign, "budget" | "spendCapUsd">) {
-  if (typeof campaign.spendCapUsd === "number" && campaign.spendCapUsd > 0) {
-    return campaign.spendCapUsd;
-  }
-  return Math.max(5, Math.min(50, Math.round(campaign.budget * 0.002 * 100) / 100));
-}
+export { defaultSpendCap } from "./budget";
 
 function envFor(
   ctx: EngineContext,

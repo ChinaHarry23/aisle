@@ -1,4 +1,5 @@
 /** CC-01/02: server-side submission boundary. No approval or delivery capability. */
+import type { RuleSelection } from "./rules";
 import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { BrandProfile, Campaign } from "../types";
@@ -35,6 +36,7 @@ export type ComplianceReviewRun = {
   completedAt?: string;
   attemptNumber: number;
   submission: ComplianceSubmission;
+  ruleSelection?: RuleSelection;
   result?: {
     status: ComplianceOutcome;
     findings: ComplianceIssue[];
