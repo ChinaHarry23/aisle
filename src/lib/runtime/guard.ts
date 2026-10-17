@@ -161,6 +161,16 @@ const rules: Rule[] = [
     }),
   },
   {
+    id: "AHR-05-R.retry-cap",
+    clause: "AHR-05 · 'should not retry indefinitely' — retries capped at 3 (UC-05 ext 6.a)",
+    applies: (i) => i.action === "RETRY_EXHAUSTED",
+    evaluate: (i) => ({
+      verdict: "block",
+      reason: `Delivery to ${i.target} did not confirm${i.detail ? ` (${i.detail})` : ""}. The three-retry cap is spent, so the agent stops here instead of retrying indefinitely or skipping the item silently.`,
+      remedy: "Founder retries, reschedules, or excludes the channel; nothing is dropped without a record.",
+    }),
+  },
+  {
     id: "AHR-02-R.privacy",
     clause: "UC-02 ext 4.b / 4.c · AHR-02 'using only authorised information'",
     applies: (i) =>
