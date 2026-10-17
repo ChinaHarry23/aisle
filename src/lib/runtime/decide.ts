@@ -311,6 +311,62 @@ export async function decideCompliance(input: {
   return { decision: input.fallback, trace: traceFor("compliance", assignment, result, false) };
 }
 
+/* ----------------------------------------------------------- channel captions -- */
+
+/**
+ * AHR-05 — the Media Manager rewrites the approved ad into one platform-native
+ * caption per channel.
+ *
+ * This is where UC-05 genuinely uses the AI agent. The model is asked to adapt
+ * tone and format per channel, under one hard rule: it may not change or drop any
+ * cleared claim, and it may not add a new one. The caller still enforces that with
+ * the claims guard, so a model that ignores the rule is simply rejected in favour
+ * of the deterministic template — the LLM can only ever improve a caption within
+ * the frozen-claims boundary, never widen it. Offline, this returns no captions and
+ * the deterministic adaptation stands, so the prototype runs with no model at all.
+ */
+export async function decideChannelCaptions(input: {
+  campaign: Campaign;
+  brand: BrandProfile;
+  settings: WorkspaceSettings;
+  llm: LlmRuntime;
+  hero: { headline: string; subhead: string; caption: string };
+  channels: { channel: string; spec: string }[];
+  approvedClaims: string[];
+}): Promise<{ captions: Record<string, string>; trace: DecisionTrace }> {
+  const assignment = assignmentFor(input.campaign, input.settings, "media");
+  const prompt = [
+    `You are the Media Manager for ${input.brand.retailerName}, ${input.campaign.country}.`,
+    `Rewrite one approved advertisement into a platform-native caption for each channel.`,
+    `Product: ${input.campaign.product}. Audience: ${input.campaign.targetAudience}. Brand tone: ${input.brand.tone}.`,
+    `Approved headline: "${input.hero.headline}". Approved subhead: "${input.hero.subhead}".`,
+    `Cleared claims that MUST all still appear and MUST NOT be reworded: ${input.approvedClaims.join("; ") || "(none)"}.`,
+    `Do NOT add any new product claim, price, superlative, guarantee, or banned term (${input.brand.bannedTerms.join(", ")}).`,
+    `Adapt only tone and format to each channel; keep every cleared claim intact.`,
+    "Channels and their format:",
+    ...input.channels.map((c) => `- ${c.channel}: ${c.spec}`),
+    'Reply with JSON only: {"captions":{"<channel>":"caption text"}} — one entry per channel named above.',
+  ].join("\n");
+
+  const result = await input.llm.request({
+    agent: "media",
+    modelId: assignment.modelId,
+    prompt,
+    localBaseUrl: input.settings.localBaseUrl,
+    localModel: input.settings.localModel,
+  });
+  const parsed = extractJson<{ captions?: Record<string, unknown> }>(result.text);
+  if (result.status === "ok" && parsed?.captions && typeof parsed.captions === "object") {
+    const captions: Record<string, string> = {};
+    for (const { channel } of input.channels) {
+      const v = (parsed.captions as Record<string, unknown>)[channel];
+      if (typeof v === "string" && v.trim()) captions[channel] = v.trim().slice(0, 600);
+    }
+    return { captions, trace: traceFor("media", assignment, result, true) };
+  }
+  return { captions: {}, trace: traceFor("media", assignment, result, false) };
+}
+
 /* -------------------------------------------------------------- performance -- */
 
 export async function decideRecommendation(input: {

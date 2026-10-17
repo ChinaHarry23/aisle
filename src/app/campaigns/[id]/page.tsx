@@ -633,7 +633,20 @@ export default function CampaignWorkspace() {
                     <p className="mt-2 text-ink-soft">{v.body}</p>
                     <p className="mt-1 text-xs text-mute">
                       carries: {v.approvedClaims.join(" · ") || "no claims recorded"}
+                      {v.captionSource
+                        ? ` · caption: ${v.captionSource === "model" ? "AI-generated" : "template"}`
+                        : ""}
                     </p>
+                    {v.embedHtml ? (
+                      <details className="mt-2">
+                        <summary className="cursor-pointer text-xs text-mute">
+                          Website embed — paste into your site
+                        </summary>
+                        <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap rounded bg-black/5 p-2 text-[11px] leading-snug">
+                          {v.embedHtml}
+                        </pre>
+                      </details>
+                    ) : null}
                     {v.failure ? <p className="mt-1 text-xs text-signal">{v.failure}</p> : null}
                   </li>
                 ))}

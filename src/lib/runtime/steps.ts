@@ -24,6 +24,7 @@ import type {
   Trend,
 } from "@/lib/types";
 import {
+  decideChannelCaptions,
   decideCompliance,
   decideCopy,
   decideRecommendation,
@@ -33,10 +34,12 @@ import {
   type LlmRuntime,
   type TrendDecision,
 } from "./decide";
+import { selectGateway } from "./gateways";
 import { evaluateGuard } from "./guard";
 import { digestHash, inputDigest } from "./intake";
 import { channelBehaviourNote, toolByName, toToolCall, type ToolOutcome } from "./tools";
 import {
+  MAX_PUBLISH_RETRIES,
   MAX_REVISION_ATTEMPTS,
   type Actor,
   type ChannelResult,
@@ -44,6 +47,7 @@ import {
   type ComplianceAttempt,
   type ComplianceIssue,
   type ComplianceOutcome,
+  type DeliveryAttempt,
   type Evidence,
   type PerformanceReport,
   type PolicyDecision,
@@ -1230,6 +1234,51 @@ const CHANNEL_SPECS: Record<Channel, string> = {
   digital_signage: "9:16 portrait, 6 words, high contrast.",
 };
 
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/**
+ * Build a self-contained, pasteable HTML embed for a channel: the campaign media
+ * plus the (claims-safe) caption, with inline styles so the marketing team can
+ * drop it straight into their own website. The caption is AI-written; the wrapper
+ * is templated so the markup is always well-formed and no new claim can slip in.
+ */
+function buildEmbedHtml(input: {
+  channel: Channel;
+  headline: string;
+  caption: string;
+  mediaUrl: string | null;
+  retailer: string;
+  cta: string;
+}): string {
+  const h = escapeHtml(input.headline);
+  const cap = escapeHtml(input.caption);
+  const retailer = escapeHtml(input.retailer);
+  const cta = escapeHtml(input.cta);
+  const media = input.mediaUrl
+    ? `<img src="${escapeHtml(input.mediaUrl)}" alt="${h}" style="width:100%;height:auto;display:block" />`
+    : `<div style="aspect-ratio:4/5;display:flex;align-items:center;justify-content:center;background:#f2f2f0;color:#9a9a93;font:14px system-ui,sans-serif">Campaign media</div>`;
+  return [
+    `<div class="aisle-ad" data-channel="${input.channel}" style="max-width:480px;margin:0 auto;font-family:system-ui,-apple-system,Segoe UI,sans-serif;border:1px solid #e7e7e4;border-radius:12px;overflow:hidden;background:#fff">`,
+    `  ${media}`,
+    `  <div style="padding:16px 18px">`,
+    `    <h3 style="margin:0 0 8px;font-size:18px;line-height:1.25;color:#1e3338">${h}</h3>`,
+    `    <p style="margin:0;font-size:15px;line-height:1.5;color:#44484a">${cap}</p>`,
+    cta ? `    <a href="#" style="display:inline-block;margin-top:14px;padding:9px 16px;border-radius:999px;background:#183c40;color:#fff;text-decoration:none;font-size:14px">${cta}</a>` : "",
+    `    <p style="margin:14px 0 0;font-size:12px;color:#9a9a93">${retailer}</p>`,
+    `  </div>`,
+    `</div>`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 const CLAIM_STOPWORDS = new Set([
   "the", "and", "for", "with", "into", "its", "own", "not", "from", "that", "this", "are", "was",
 ]);
@@ -1315,6 +1364,7 @@ export function deriveClearedClaims(c: Campaign): string[] {
 
 export async function runMediaAdaptation(
   w: Work,
+  env: StepEnv,
 ): Promise<{ message: string; blocked: boolean }> {
   const c = w.campaign;
   const hero = c.creatives.find((x) => x.variant === "A") ?? c.creatives[0];
@@ -1336,6 +1386,22 @@ export async function runMediaAdaptation(
     `Adapting for ${c.channels.join(", ")}. Claims cleared by AHR-04 are frozen; no wording or imagery changes.`,
   );
 
+  // AHR-05's AI step: the Media Manager asks the model for a platform-native
+  // caption per channel. It is guard-safe — a caption is only used if it keeps
+  // every cleared claim and adds none; otherwise the deterministic template
+  // stands. Offline, no captions come back and the template is used throughout.
+  const { captions, trace: captionTrace } = await decideChannelCaptions({
+    campaign: c,
+    brand: env.brand,
+    settings: env.settings,
+    llm: env.llm,
+    hero: { headline: hero.headline, subhead: hero.subhead, caption: hero.caption },
+    channels: c.channels.map((ch) => ({ channel: ch, spec: CHANNEL_SPECS[ch] })),
+    approvedClaims,
+  });
+  addTrace(w, captionTrace, "media", "Per-channel captions");
+  const captionsLive = captionTrace.path === "live_model";
+
   const versions: ChannelVersion[] = [];
   const decided: PolicyDecision[] = [];
   const adaptations = [];
@@ -1349,7 +1415,21 @@ export async function runMediaAdaptation(
         : channel === "email"
           ? `14-day returns. ${c.sharedContext.retailer}`
           : "";
-    const body = adaptBody(channel, hero, c, condition);
+    const templateBody = adaptBody(channel, hero, c, condition);
+    let body = templateBody;
+    let captionSource: "model" | "template" = "template";
+    const aiCaption = captionsLive ? captions[channel] : undefined;
+    if (aiCaption && aiCaption !== templateBody) {
+      // The model caption is accepted only if it preserves every cleared claim
+      // and introduces no new one; otherwise the template stands (claims-frozen).
+      if (
+        claimsSurvive(approvedClaims, aiCaption) &&
+        introducedClaims(w.campaign, aiCaption).length === 0
+      ) {
+        body = aiCaption;
+        captionSource = "model";
+      }
+    }
     const unchanged = claimsSurvive(approvedClaims, body);
     const introduced = introducedClaims(w.campaign, body);
     const at = new Date(`${c.startDate}T07:00:00`).toISOString();
@@ -1385,6 +1465,7 @@ export async function runMediaAdaptation(
         status: "failed",
         proposedAt: at,
         postingReason: post.reason,
+        captionSource,
         failure: outcome.reason,
       });
       addEvent(w, "media", "policy", `${channel} adaptation blocked`, outcome.reason, {
@@ -1393,10 +1474,21 @@ export async function runMediaAdaptation(
       continue;
     }
 
+    const versionHeadline = channel === "email" ? hero.subhead : hero.headline;
+    // The pasteable embed: the generated media + this channel's caption, ready
+    // for the marketing team to drop into their own website.
+    const embedHtml = buildEmbedHtml({
+      channel,
+      headline: versionHeadline,
+      caption: body,
+      mediaUrl: hero.generation?.url ?? null,
+      retailer: c.sharedContext.retailer,
+      cta: hero.cta,
+    });
     versions.push({
       id: uid("cv"),
       channel,
-      headline: channel === "email" ? hero.subhead : hero.headline,
+      headline: versionHeadline,
       body,
       specs: CHANNEL_SPECS[channel],
       approvedClaims,
@@ -1404,6 +1496,8 @@ export async function runMediaAdaptation(
       status: "adapted",
       proposedAt: at,
       postingReason: post.reason,
+      captionSource,
+      embedHtml,
     });
     adaptations.push({
       channel,
@@ -1427,7 +1521,11 @@ export async function runMediaAdaptation(
     versions.some((v) => v.status === "failed") ? "warn" : "ok",
     `${versions.filter((v) => v.status === "adapted").length}/${versions.length} channel versions prepared`,
     versions
-      .map((v) => `${v.channel}: ${v.status === "adapted" ? "claims intact" : "blocked — flagged"}`)
+      .map((v) =>
+        v.status === "adapted"
+          ? `${v.channel}: claims intact (${v.captionSource === "model" ? "AI caption" : "template"})`
+          : `${v.channel}: blocked — flagged`,
+      )
       .join(" · "),
   );
 
@@ -1789,6 +1887,171 @@ export function deterministicRecommendation(
   return points.slice(0, 4);
 }
 
+/* ------------------------------------------------------------- distribution */
+
+
+/**
+ * The founder's publish (UC-05 steps 6–8, ext 6.a).
+ *
+ * Each scheduled item is submitted to its channel. An item only becomes
+ * `published` once a submission is confirmed, so AHR-06 collects from what truly
+ * ran. If any channel does not confirm within the retry cap, the item is flagged
+ * (never silently dropped), the campaign is held at Scheduled, and the run parks
+ * for the founder — the guard records that the cap, not an infinite retry, was hit.
+ */
+export function runPublish(w: Work): { escalated: boolean } {
+  const c = w.campaign;
+  const attempts: DeliveryAttempt[] = [];
+
+  for (const item of c.runSchedule) {
+    const version = c.channelVersions.find((v) => v.id === item.channelVersionId);
+    if (version?.status === "failed" || item.status === "failed") {
+      // A channel blocked in adaptation is not published and not skipped silently.
+      attempts.push({
+        itemId: item.id,
+        channel: item.channel,
+        attempts: 0,
+        retries: 0,
+        status: "failed",
+        confirmationRef: null,
+        reconciled: false,
+        note: "Channel version was blocked during adaptation, so it was never submitted.",
+        at: w.now,
+      });
+      continue;
+    }
+    const outcome = c.publishOverrides?.[item.channel] ?? "ok";
+    // Selected by channel type: digital (social/web/email) or physical
+    // (print/in-store signage). The release is simulated — no live platform.
+    const attempt = selectGateway(item.channel).publish(
+      { id: item.id, channel: item.channel },
+      outcome,
+      w.now,
+    );
+    attempts.push(attempt);
+    if (attempt.reconciled) {
+      addEvent(w, "media", "schedule", `${item.channel} reconciled a late result`, attempt.note);
+    }
+  }
+
+  const statusByItem = new Map(attempts.map((a) => [a.itemId, a.status]));
+  const statusByVersion = new Map<string, DeliveryAttempt["status"]>();
+  for (const item of c.runSchedule) {
+    const s = statusByItem.get(item.id);
+    if (s && item.channelVersionId) statusByVersion.set(item.channelVersionId, s);
+  }
+
+  // Reflect the confirmed/failed outcome onto every record — no status without
+  // a real (simulated) submission behind it.
+  c.runSchedule = c.runSchedule.map((i) => ({
+    ...i,
+    status: statusByItem.get(i.id) === "published" ? "published" : "failed",
+  }));
+  c.schedule = c.schedule.map((s) => ({
+    ...s,
+    status: statusByItem.get(s.id) === "published" ? "published" : "failed",
+  }));
+  c.channelVersions = c.channelVersions.map((v) =>
+    statusByVersion.get(v.id) === "published"
+      ? { ...v, status: "published" }
+      : v.status === "failed"
+        ? v
+        : { ...v, status: "failed" },
+  );
+
+  const published = attempts.filter((a) => a.status === "published");
+  const failed = attempts.filter((a) => a.status === "failed");
+  const reconciled = attempts.filter((a) => a.reconciled);
+
+  // SCRUM-69 — the explicit mixed-run marker: all live, some live, or none.
+  const reportOutcome: "complete" | "partial" | "none" =
+    failed.length === 0 ? "complete" : published.length > 0 ? "partial" : "none";
+
+  c.deliveryReport = {
+    id: uid("dr"),
+    at: w.now,
+    attempts,
+    published: published.length,
+    failed: failed.length,
+    outcome: reportOutcome,
+    escalated: failed.length > 0,
+  };
+
+  if (failed.length > 0) {
+    // UC-05 ext 6.a — the cap is hit, so the agent stops. The item is raised,
+    // not retried forever and not skipped. The campaign stays at Scheduled until
+    // the founder resolves the unconfirmed channels, so AHR-06 cannot collect yet.
+    const guard = evaluateGuard(
+      {
+        actor: "media",
+        action: "RETRY_EXHAUSTED",
+        campaign: c,
+        target: failed.map((a) => a.channel).join(", "),
+        detail: `${failed.length} channel submission(s) did not confirm after the initial send and ${MAX_PUBLISH_RETRIES} retries`,
+        triggeredBy: "founder.publish",
+      },
+      w.now,
+    );
+    recordPolicy(w, guard.decision);
+    c.status = "scheduled";
+    c.running = false;
+    c.updatedAt = stamp();
+    addEvent(
+      w,
+      "media",
+      "escalation",
+      reportOutcome === "partial"
+        ? "Mixed run — partially completed, founder required"
+        : "Channel delivery failed — founder required",
+      `${published.length} channel(s) confirmed live; ${failed.length} did not after the initial send and ${MAX_PUBLISH_RETRIES} retries (${failed
+        .map((a) => a.channel)
+        .join(", ")}). The unconfirmed items are neither retried indefinitely nor skipped silently — they are held for the founder.`,
+      { policyDecisionId: guard.decision.id },
+    );
+    addStep(
+      w,
+      "media.publish",
+      "founder",
+      "blocked",
+      reportOutcome === "partial" ? "Publish partially completed" : "Publish failed",
+      `${published.length}/${attempts.length} channel(s) live. ${failed.length} flagged for the founder.`,
+    );
+    setRun(w, {
+      awaiting: "failure",
+      awaitingDetail: `${failed.length} channel submission(s) did not confirm. Decide whether to retry, reschedule or exclude them.`,
+      status: "awaiting_human",
+      step: "media.publish",
+    });
+    return { escalated: true };
+  }
+
+  c.status = "published";
+  c.running = false;
+  c.updatedAt = stamp();
+  addEvent(
+    w,
+    "founder",
+    "decision",
+    "Published",
+    `Founder released ${published.map((a) => a.channel).join(", ")}. Each channel confirmed a submission before it was recorded as live${
+      reconciled.length
+        ? ` (${reconciled.length} reconciled from a late confirmation, matched by item id rather than resubmitted)`
+        : ""
+    }, so AHR-06 collects only from what actually ran.`,
+  );
+  addStep(
+    w,
+    "media.publish",
+    "founder",
+    "ok",
+    "Published",
+    `${published.length}/${attempts.length} channel(s) confirmed live.${
+      reconciled.length ? ` ${reconciled.length} reconciled from a late result.` : ""
+    }`,
+  );
+  return { escalated: false };
+}
+
 export async function runFeedbackCollection(
   w: Work,
   env: StepEnv,
@@ -1833,22 +2096,13 @@ export async function runFeedbackCollection(
       return { message: refused.reason, blocked: true };
     }
 
-    c.schedule = c.schedule.map((s) => ({ ...s, status: "published" }));
-    c.runSchedule = c.runSchedule.map((i) => ({ ...i, status: "published" }));
-    c.channelVersions = c.channelVersions.map((v) =>
-      v.status === "failed" ? v : { ...v, status: "published" },
-    );
-    c.status = "published";
-    c.running = false;
-    c.updatedAt = stamp();
-    addEvent(
-      w,
-      "founder",
-      "decision",
-      "Published",
-      `Founder released ${c.channels.join(", ")}. Distribution recorded against each channel so AHR-06 can collect from what actually ran.`,
-    );
-    addStep(w, "media.publish", "founder", "ok", "Published", "Channel, timing and status written to shared context.");
+    // Simulated per-channel submission with bounded retries and late-result
+    // reconciliation (UC-05 ext 6.a). On an unconfirmed channel this parks the
+    // run for the founder and does not fall through to collection.
+    const { escalated } = runPublish(w);
+    if (escalated) {
+      return { message: "Channel delivery incomplete; founder required.", blocked: true };
+    }
   }
 
   if (c.status !== "published") {

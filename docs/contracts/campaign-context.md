@@ -133,7 +133,7 @@ All state-mutating commands pass through `parseCommand()` and `assertTransition(
 | `APPROVE` | `"founder"` | `status === "awaiting_approval" && creatives.length > 0 && complianceAttempts.length > 0` | Records `founderDecision = { action: "approve" }`, marks creatives `"approved"`, sets `run.step = "media.receive"`, and runs `runMediaAdaptation()` + `runSchedule()` → `status = "scheduled"`. |
 | `REQUEST_CHANGES` | `"founder"` | `status === "awaiting_approval" && creatives.length > 0` | Appends `command.note` to `sharedContext.founderNotes`. If `nextVersion <= MAX_REVISION_ATTEMPTS`, sets `run.step = "creative.revise"` and regenerates. Otherwise stays at `"awaiting_approval"`. |
 | `REJECT` | `"founder"` | `status === "awaiting_approval"` | Sets `status = "rejected"`, `creatives[].status = "rejected"`, `run.status = "halted"`. Nothing is distributed. |
-| `PUBLISH` | `"founder"` (`"media"` blocked by guard) | `status === "scheduled" && founderDecision?.action === "approve" && !scheduleConflicts.some(x => !x.resolved)` | Evaluates `AHR-01-R13.publish`. Marks scheduled items and non-failed `channelVersions` as `"published"`, sets `status = "published"`, and parks `run.step = "feedback.collect"`. (See `FB-02` / `SCRUM-117` for separating immediate collection from `PUBLISH`.) |
+| `PUBLISH` | `"founder"` (`"media"` blocked by guard) | `status === "scheduled" && founderDecision?.action === "approve" && !scheduleConflicts.some(x => !x.resolved)` | Evaluates `AHR-01-R13.publish`, then runs the simulated per-channel delivery (`runPublish`): each channel is submitted and marked `"published"` only on a confirmation; a timed-out send is retried up to `MAX_PUBLISH_RETRIES` (3), never indefinitely; a late result is reconciled by stable item id (idempotent). All confirmed → `status = "published"`, parks `run.step = "feedback.collect"`. If any channel never confirms → the item is recorded `"failed"`, `deliveryReport.outcome` is `"partial"`/`"none"`, the run escalates (`awaiting = "failure"`) under `AHR-05-R.retry-cap`, and `status` stays `"scheduled"` until the founder resolves it. Distribution outcomes are recorded in `campaign.deliveryReport` — see §7. (See `FB-02` / `SCRUM-117` for separating immediate collection from `PUBLISH`.) |
 | `COLLECT_FEEDBACK` | `"founder"` | `status === "published"` | Runs `collectChannelResults()`, `buildPerformanceReport()`, and `decideRecommendation()`, parking at `step = "feedback.summarise"` for founder decision. |
 | `DECIDE_RECOMMENDATION` | `"founder"` | `status === "published" && Boolean(performanceReport)` | Stores `recommendationDecision` (`"accepted" \| "edited" \| "discarded"`), sets `run.status = "complete"`. |
 | `RESOLVE_CONFLICT` | `"founder"` | Unresolved `scheduleConflicts` entry matching `conflictId` | Marks conflict `resolved = true` with founder note; if `0` unresolved remain, sets `run.status = "complete"`. |
@@ -249,3 +249,118 @@ All state-mutating commands pass through `parseCommand()` and `assertTransition(
   }
 }
 ```
+
+---
+
+## 7. AHR-05 Distribution → AHR-06 Output Contract (`DI-01` / `SCRUM-99`)
+
+What AHR-05 produces for AHR-06 (`FB-00` / `FB-01`) once the founder issues `PUBLISH`. Posting to a live channel is **simulated** (no platform client); every field below is written by the engine and read back by AHR-06.
+
+- **Code authorities**: `runMediaAdaptation()`, `runSchedule()`, `detectScheduleConflicts()`, `runPublish()` in `src/lib/runtime/steps.ts`; the channel gateways in `src/lib/runtime/gateways.ts`; the `AIMediaManager`/`Agent` classes in `src/lib/runtime/agents.ts`; `publishNode` in `src/lib/runtime/operation-graph.ts`; guard rules in `src/lib/runtime/guard.ts`.
+
+### 7.1 Per-channel adaptation — `campaign.channelVersions[]` (`ChannelVersion`)
+
+| Field | Type | Meaning |
+|---|---|---|
+| `channel` | `Channel` | One of the founder's selected channels. |
+| `headline` / `body` | `string` | The channel-native copy. The `body` is the caption that will run. |
+| `approvedClaims` | `string[]` | The AHR-04-cleared claims this version is frozen against (`deriveClearedClaims`). |
+| `claimsUnchanged` | `boolean` | `true` when the body preserved every cleared claim and added none. |
+| `captionSource` | `"model" \| "template"` | `"model"` when the Media Manager's LLM wrote a claims-safe platform-native caption (`decideChannelCaptions`); `"template"` when the deterministic adaptation was used (offline, or the model's caption was rejected by the claims guard). |
+| `status` | `"adapted" \| "scheduled" \| "published" \| "failed"` | Lifecycle. A channel whose adaptation would change cleared wording is `"failed"` with a `failure` reason and is never published. |
+| `failure` | `string?` | Set when the adaptation was withheld/blocked (`AHR-05-R.claims-frozen`). |
+
+### 7.2 Schedule — `campaign.schedule[]` / `campaign.runSchedule[]`
+
+Each item carries `channel`, `at` (publication timestamp), and `status: "scheduled" \| "published" \| "failed"`. `schedule[].id === runSchedule[].id` — this id is the **idempotency key** used to reconcile a late delivery result. Unresolved `campaign.scheduleConflicts[]` (`outside_window` / `same_slot`) block `PUBLISH` until the founder resolves them (`RESOLVE_CONFLICT`).
+
+### 7.3 Distribution outcomes — `campaign.deliveryReport` (`DeliveryReport`)
+
+Written by `runPublish()` on every `PUBLISH`. This is the authoritative "what actually went live" record AHR-06 should read.
+
+```ts
+type DeliveryReport = {
+  id: string;
+  at: string;                 // ISO timestamp of the publish
+  attempts: DeliveryAttempt[];
+  published: number;          // channels confirmed live
+  failed: number;             // channels that never confirmed
+  outcome: "complete" | "partial" | "none"; // mixed-run marker (SCRUM-69)
+  escalated: boolean;         // true when a channel was raised for the founder
+};
+
+type DeliveryAttempt = {
+  itemId: string;             // = RunScheduleItem.id (idempotency key)
+  channel: Channel;
+  attempts: number;           // total submissions: 1 initial + up to 3 retries
+  retries: number;            // retries used (= attempts − 1), capped at MAX_PUBLISH_RETRIES (3)
+  status: "published" | "failed";
+  confirmationRef: string | null; // present only when confirmed — no outcome without a real submission
+  reconciled: boolean;        // true when a late result was matched to this itemId, not resubmitted
+  note: string;
+  at: string;
+};
+```
+
+### 7.4 Handoff rule (`DI-10` / `SCRUM-108` ↔ `FB-01` / `SCRUM-116`)
+
+- A `channelVersion` with `status === "failed"` **stays** `"failed"` through `PUBLISH`.
+- AHR-06 (`collectChannelResults()`) reads results **only** for channels that reached `status === "published"`. Any selected channel that did **not** publish — whether adaptation was withheld (`"failed"` version) or delivery never confirmed (`deliveryReport` failure) — is recorded as a **gap** with `figures: null`, never estimated.
+- While `deliveryReport.outcome` is `"partial"`/`"none"` (a channel unconfirmed), the campaign is held at `status: "scheduled"`, `run.awaiting: "failure"`; `COLLECT_FEEDBACK` is refused until the founder resolves the unconfirmed channels. AHR-06 therefore only ever collects from a fully- or partially-published campaign whose live channels carry a `confirmationRef`.
+
+### 7.5 Guardrails enforced on AHR-05 (`evaluateGuard`)
+
+| Rule | Trigger | Effect |
+|---|---|---|
+| `AHR-05-R.claims-frozen` | An adaptation would drop/alter a cleared claim | Version `"failed"`, `claimsUnchanged: false`; flagged, not published. |
+| `AHR-05-R.scope` | Agent tries to add/drop channels or schedule outside `startDate..endDate` | Blocked; a `ScheduleConflict` is raised instead. |
+| `AHR-05-R.no-silent-skip` | An item would be skipped without a record | Blocked; raised as an exception for the founder. |
+| `AHR-05-R.retry-cap` | A channel is still unconfirmed after the initial send + 3 retries | Blocked; the agent stops and escalates — never retries forever, never skips. |
+| `AHR-01-R13.publish` | Any non-founder actor attempts `PUBLISH` (stricter for `print`) | Blocked; only the founder may publish. |
+
+### 7.6 Example — `deliveryReport` (complete) and (partial)
+
+```json
+{
+  "outcome": "complete",
+  "published": 3,
+  "failed": 0,
+  "escalated": false,
+  "attempts": [
+    { "channel": "web",   "attempts": 2, "retries": 1, "status": "published", "confirmationRef": "web-cw",   "reconciled": false },
+    { "channel": "email", "attempts": 4, "retries": 3, "status": "published", "confirmationRef": "email-1d", "reconciled": true  },
+    { "channel": "print", "attempts": 1, "retries": 0, "status": "published", "confirmationRef": "print-9a", "reconciled": false }
+  ]
+}
+```
+
+```json
+{
+  "outcome": "partial",
+  "published": 2,
+  "failed": 1,
+  "escalated": true,
+  "attempts": [
+    { "channel": "web",   "attempts": 4, "retries": 3, "status": "failed",    "confirmationRef": null,       "reconciled": false },
+    { "channel": "email", "attempts": 1, "retries": 0, "status": "published", "confirmationRef": "email-1d", "reconciled": false },
+    { "channel": "print", "attempts": 1, "retries": 0, "status": "published", "confirmationRef": "print-9a", "reconciled": false }
+  ]
+}
+```
+
+**Automated proof**: `npm run bench` — *UC-05 ext 6.a — bounded retry + late-result reconciliation, then collect*; *UC-05 ext 6.a — unconfirmed channel capped, escalated, never skipped silently*; *AHR-05 — AI per-channel captions, guard-safe (claims-frozen)*.
+
+### 7.7 Channel gateways & the Media Manager agent (`DI-02` / `SCRUM-100`)
+
+Distribution is served by gateways, not a live platform client. `src/lib/runtime/gateways.ts` defines the `DistributionChannelGateway` interface — `getChannelType()`, `supportsFormat()`, `isAvailable()`, `publish()` — and two **simulated** implementations, selected by channel type:
+
+| Gateway | `getChannelType` | Channels | `supportsFormat` | Release |
+|---|---|---|---|---|
+| `digitalGateway` | `"digital"` | `instagram`, `web`, `email` | `image` / `html` / `text` | Simulated submission (`publish()` → `DeliveryAttempt`) |
+| `physicalGateway` | `"physical"` | `print`, `digital_signage` (in-store signage) | `print` / `signage` / `image` | Simulated submission (`publish()` → `DeliveryAttempt`) |
+
+`channelTypeOf(channel)` maps a channel to its type and `selectGateway(channel)` returns the gateway; `runPublish()` publishes each scheduled item through `selectGateway(item.channel).publish(...)`. The two gateways are registered in `GATEWAYS: Record<ChannelType, DistributionChannelGateway>`. **No live platform client exists** — a real transport is added later by implementing the same interface.
+
+`src/lib/runtime/agents.ts` provides the Stage-1 class model as Stage-2 code: an abstract `Agent` base and `AIMediaManager extends Agent` (`slot: "media"`) whose `adapt()` / `schedule()` / `publish()` operations delegate to the step handlers.
+
+**Automated proof**: `npm run bench` — *DI-02 — Media Manager agent generalizes Agent; digital/physical gateways registered & selected*.
