@@ -1,8 +1,47 @@
-# The agents, on LangChain
+# The agents, on LangGraph
 
-Aisle's four agent seats run as LangChain ReAct agents. This note explains what
-that means in this codebase, and the two places where the framework is deliberately
-not in charge.
+Aisle's campaign bench is a LangGraph, and each seat inside it is a LangGraph
+agent. This note explains what that means in this codebase, and the two places
+where the framework is deliberately not in charge.
+
+The operation graph is `src/lib/runtime/operation-graph.ts`. `runEngine` invokes
+it once per command (`START`, `ADVANCE`, `APPROVE`, …). The nodes are the stages
+the desk already had — intake, trend, creative, revise, compliance, media — and
+the conditional edges are the old step pointer: a compliance failure goes to
+revise, a founder gate stops the graph, the next command enters again. The
+campaign document is still the record. The graph is how the run is traced and
+drawn.
+
+On a campaign's Runtime tab the same graph is drawn with the current step
+highlighted, and the compiled Mermaid (what LangGraph itself emits) is under
+"LangGraph definition".
+
+## Tracing
+
+LangGraph emits a trace for every invocation when LangSmith is turned on. The
+Aisle account is in the Asia Pacific region, so the endpoint has to be the
+APAC one. The US default rejects that key. Set these in `.env.local` and in
+the Vercel project:
+
+```
+LANGSMITH_TRACING=true
+LANGSMITH_ENDPOINT=https://apac.api.smith.langchain.com
+LANGSMITH_API_KEY=
+LANGSMITH_PROJECT=aisle
+LANGSMITH_WORKSPACE_ID=
+LANGCHAIN_CALLBACKS_BACKGROUND=false
+```
+
+`LANGSMITH_WORKSPACE_ID` is the id in the LangSmith URL (`/o/<workspace id>`).
+A tracing-only key is org-owned, so the workspace id is required. Leave the
+endpoint without a trailing slash. `LANGCHAIN_CALLBACKS_BACKGROUND=false`
+makes Next.js send the trace before the response ends.
+
+A launch then shows up as `aisle.operation.START` in the project named
+`aisle`, with the seat agent (`aisle_trend`, `aisle_creative`, …) nested under
+the node that called it. With the variables unset, nothing is sent and the
+desk still draws the graph. The Workspace settings page in LangSmith does not
+hold these values; it only switches the classic and new product experience.
 
 ```
 LangChain createAgent
@@ -24,6 +63,7 @@ LangChain createAgent
 | [`agent-tools.ts`](../src/lib/agents/agent-tools.ts) | The existing tool registry exposed to LangChain, unchanged in behaviour |
 | [`seats.ts`](../src/lib/agents/seats.ts) | The four agents: instructions, schema, budget |
 | [`agent-runtime.ts`](../src/lib/agents/agent-runtime.ts) | Run one seat, return a trace, fall back to rules on any failure |
+| [`operation-graph.ts`](../src/lib/runtime/operation-graph.ts) | The bench as a LangGraph: one node per stage, one invocation per command |
 | [`scripts/agents-suite.ts`](../scripts/agents-suite.ts) | Offline proof: tool calling, the budget, the fallback, seat isolation |
 
 Run the proof with `npm run test:agents` — no keys, no credits, no network.

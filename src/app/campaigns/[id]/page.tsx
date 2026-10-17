@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMemo, useState, type ReactNode } from "react";
 import { AgentLog } from "@/components/AgentLog";
+import { OperationGraph } from "@/components/OperationGraph";
 import { ChecksPanel } from "@/components/ChecksPanel";
 import { ChannelIcon } from "@/components/ChannelIcon";
 import { InstagramPost } from "@/components/InstagramPost";
@@ -927,6 +928,8 @@ export default function CampaignWorkspace() {
               hint={`${new Set(campaign.toolCalls.map((t) => t.tool)).size} distinct tool(s)`}
             />
           </div>
+
+          <OperationGraph step={run?.step} />
 
           {run?.awaiting ? (
             <div className="hairline border-l-4 border-signal p-4 text-sm">

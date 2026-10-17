@@ -1,5 +1,10 @@
 /**
- * The four agents of the one-person marketing company, as LangChain agents.
+ * The four agents of the one-person marketing company, as LangGraph agents.
+ *
+ * `createAgent` compiles each seat into a LangGraph. The campaign operation that
+ * calls them is its own graph in `runtime/operation-graph.ts`, so a run traces as
+ * the bench (intake, trend, creative, compliance, media) with the seat nested
+ * under the node that asked for it.
  *
  * Each seat is a ReAct agent with its own instructions, its own tools and a Zod
  * schema for its answer. The agent decides which tools to call and when to stop —
