@@ -9,7 +9,7 @@ import { operationMermaid } from "../src/lib/runtime/operation-graph";
 import { runEngine } from "../src/lib/runtime/engine";
 import { blankCampaign, defaultBrand } from "../src/lib/seed";
 import { defaultSettings } from "../src/lib/settings";
-import type { CompleteRequest, CompleteResult } from "../src/lib/llm/types";
+import type { CompleteResult } from "../src/lib/llm/types";
 
 const mermaid = await operationMermaid();
 for (const node of ["intake", "trend", "creative", "revise", "compliance", "media", "approve", "publish"]) {
@@ -37,7 +37,7 @@ const campaign = blankCampaign(
   settings,
 );
 
-const offline = async (_req: CompleteRequest): Promise<CompleteResult> => ({
+const offline = async (): Promise<CompleteResult> => ({
   provider: "Offline",
   providerId: "openai",
   modelId: "openai:gpt-6-luna",
