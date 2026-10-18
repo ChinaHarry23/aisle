@@ -4,17 +4,25 @@ import { useEffect, useState } from "react";
 
 type Status = { connected: boolean; updatedAt: string | null };
 
+function noticeFromSearch(): string | null {
+  if (typeof window === "undefined") return null;
+  const params = new URLSearchParams(window.location.search);
+  const flag = params.get("whichgrocer");
+  if (flag === "connected") {
+    return "WhichGrocer is connected. The next trend run will cite live catalogue prices.";
+  }
+  if (flag === "error") {
+    return params.get("message") || "WhichGrocer could not be connected.";
+  }
+  return null;
+}
+
 export function WhichGrocerConnect() {
   const [status, setStatus] = useState<Status | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(noticeFromSearch);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const flag = params.get("whichgrocer");
-    const message = params.get("message");
-    if (flag === "connected") setNotice("WhichGrocer is connected. The next trend run will cite live catalogue prices.");
-    if (flag === "error") setNotice(message || "WhichGrocer could not be connected.");
     let cancelled = false;
     void fetch("/api/whichgrocer/status")
       .then((response) => (response.ok ? (response.json() as Promise<Status>) : null))
