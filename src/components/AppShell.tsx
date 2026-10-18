@@ -12,6 +12,7 @@ import {
   Store,
   LineChart,
   Clapperboard,
+  Images,
   SlidersHorizontal,
   TrendingUp,
 } from "lucide-react";
@@ -32,6 +33,7 @@ const navGroups: { label?: string; end?: boolean; items: NavItem[] }[] = [
       { href: "/campaigns", label: "Campaigns", icon: Megaphone },
       { href: "/trends", label: "Trends", icon: TrendingUp },
       { href: "/studio", label: "Content Generation", icon: Clapperboard },
+      { href: "/library", label: "Library", icon: Images },
     ],
   },
   {

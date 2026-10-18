@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { CreativeStudio } from "@/components/studio/CreativeStudio";
 import { PageHeader } from "@/components/ui";
 import { useAisle } from "@/lib/store";
@@ -38,6 +39,13 @@ export default function StudioPage() {
           ) : null
         }
       />
+      <p className="text-sm text-ink-soft">
+        Finished posters stay on this account.{" "}
+        <Link href="/library" className="text-signal hover:underline">
+          Open the library
+        </Link>
+        .
+      </p>
       <CreativeStudio campaign={selected} />
     </div>
   );
