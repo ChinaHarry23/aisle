@@ -111,7 +111,14 @@ function readFile(file: File) {
   });
 }
 
-export function AdWorkbench({ defaultPrompt }: { defaultPrompt: string }) {
+export function AdWorkbench({
+  defaultPrompt,
+  referenceImages = [],
+}: {
+  defaultPrompt: string;
+  /** Product photo from the campaign. Generation builds the scene around it. */
+  referenceImages?: string[];
+}) {
   const settings = useAisle((s) => s.settings);
   const logo = useAisle((s) => s.brand.logoUrl) || null;
   const brandName = useAisle((s) => s.brand.retailerName) || "the brand";
@@ -121,7 +128,7 @@ export function AdWorkbench({ defaultPrompt }: { defaultPrompt: string }) {
     ? settings.imageModelId
     : models[0].id;
 
-  const [steps, setSteps] = useState<Step[]>([{ ...newStep(1), prompt: defaultPrompt }]);
+  const [steps, setSteps] = useState<Step[]>([{ ...newStep(1, referenceImages), prompt: defaultPrompt }]);
   const [aspect, setAspect] = useState<AspectRatio>("4:5");
   const [quality, setQuality] = useState<Quality>("high");
   const [count, setCount] = useState(1);

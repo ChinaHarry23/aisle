@@ -1,5 +1,6 @@
 /* eslint-disable @next/next/no-img-element */
 import { Bookmark, Heart, MessageCircle, Send } from "lucide-react";
+import { campaignMediaUrl } from "@/lib/media/url";
 import type { BrandProfile, Creative } from "@/lib/types";
 
 /**
@@ -7,9 +8,17 @@ import type { BrandProfile, Creative } from "@/lib/types";
  * image (or, until one exists, the ad drawn from the creative's own palette
  * and headline) with the generated caption underneath.
  */
-export function InstagramPost({ brand, creative }: { brand: BrandProfile; creative: Creative }) {
+export function InstagramPost({
+  brand,
+  creative,
+  campaignId,
+}: {
+  brand: BrandProfile;
+  creative: Creative;
+  campaignId?: string;
+}) {
   const handle = brand.retailerName.toLowerCase().replace(/[^a-z0-9]+/g, "");
-  const image = creative.generation?.url;
+  const image = campaignMediaUrl(campaignId, creative.id, creative.generation);
 
   return (
     <figure className="w-full max-w-[22rem] overflow-hidden border border-line bg-surface text-sm">

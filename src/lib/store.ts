@@ -5,7 +5,7 @@ import { persist } from "zustand/middleware";
 import { makeCreatives } from "./creatives";
 import { uid } from "./ids";
 import { requestGenerate } from "./media/client";
-import { fallbackBrief, posterPrompt, videoPrompt } from "./media/prompts";
+import { fallbackBrief, posterRequest, videoPrompt } from "./media/prompts";
 import { blankCampaign, defaultBrand, makeLog, migrateLegacyBrand, seedCampaigns } from "./seed";
 import {
   defaultSettings,
@@ -373,12 +373,7 @@ export const useAisle = create<Store>()(
                 : makeCreatives({ ...campaign, brief }, brief, 1);
             const next: Campaign["creatives"] = [];
             for (const cr of base) {
-              const generation = await requestGenerate({
-                kind: "image",
-                modelId,
-                prompt: posterPrompt(campaign, cr),
-                aspectRatio: "4:5",
-              });
+              const generation = await requestGenerate(posterRequest(campaign, cr, modelId));
               next.push({ ...cr, generation });
             }
             const cost = next.reduce((n, cr) => n + (cr.generation?.usage.costUsd ?? 0), 0);

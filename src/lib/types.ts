@@ -54,6 +54,12 @@ export type CampaignInput = {
   endDate: string;
   country: Country;
   notes: string;
+  /** What one unit costs the founder, in AUD. Used when recommending a clearance discount. */
+  unitCostAud?: number | null;
+  /** What the founder currently sells one unit for, in AUD. */
+  currentPriceAud?: number | null;
+  /** Product photo (a compressed data URL) the ad should feature, not invent. */
+  productImageUrl?: string | null;
   imageModelId?: string;
   videoModelId?: string;
   /** Ceiling the founder sets on automated spend for this campaign. */
@@ -85,6 +91,19 @@ export type Persona = {
   summary: string;
   channels: string[];
   motivations: string[];
+};
+
+/** Discount the trend step computed from the founder's prices and WhichGrocer. */
+export type PriceRecommendation = {
+  unitCostAud: number;
+  currentPriceAud: number;
+  marketPriceAud: number;
+  marketLabel: string;
+  recommendedPriceAud: number;
+  discountPct: number;
+  /** True when matching the catalogue would sell below cost, so the cut stops at cost. */
+  limitedByCost: boolean;
+  rationale: string;
 };
 
 export type CampaignBrief = {
@@ -232,6 +251,8 @@ export type Campaign = CampaignInput & {
   opportunities: Opportunity[];
   personas: Persona[];
   brief: CampaignBrief | null;
+  /** Set by the trend step when the founder supplied a cost and a current price. */
+  priceRecommendation?: PriceRecommendation | null;
   creatives: Creative[];
   complianceReports: ComplianceReport[];
   adaptations: ChannelAdaptation[];

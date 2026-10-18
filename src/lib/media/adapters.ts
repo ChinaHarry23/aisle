@@ -1,3 +1,7 @@
+import { createHash } from "node:crypto";
+import { googleAdapter } from "./providers/google";
+import { openaiAdapter } from "./providers/openai";
+import type { MediaModel as ProviderModel } from "./pr2-types";
 import type { GenerateRequest, MediaModel } from "./types";
 
 export class AdapterNotWiredError extends Error {
@@ -61,6 +65,20 @@ export function buildProviderBody(model: MediaModel, req: GenerateRequest): Reco
   }
 }
 
+function referenceImage(req: GenerateRequest) {
+  const raw = req.contextImages?.find((item) => item.startsWith("data:image/"));
+  if (!raw) return undefined;
+  const match = /^data:(image\/(?:jpeg|jpg|png|webp));base64,([A-Za-z0-9+/=\s]+)$/.exec(raw);
+  if (!match) return undefined;
+  const bytes = Buffer.from(match[2].replace(/\s/g, ""), "base64");
+  if (bytes.length < 32 || bytes.length > 4_000_000) return undefined;
+  return {
+    bytes,
+    mime: match[1] === "image/jpg" ? "image/jpeg" : match[1],
+    sha256: createHash("sha256").update(bytes).digest("hex"),
+  };
+}
+
 export async function callProvider(
   model: MediaModel,
   req: GenerateRequest,
@@ -70,7 +88,17 @@ export async function callProvider(
   if (!apiKey) {
     throw new AdapterNotWiredError(model.provider);
   }
-  // No provider is wired to a live endpoint yet; build the body so the mapping stays exercised.
+  const reference = referenceImage(req);
+  if (reference && model.kind === "image" && (model.providerId === "openai" || model.providerId === "google")) {
+    const adapter = model.providerId === "openai" ? openaiAdapter : googleAdapter;
+    const rendered = await adapter.generate(req, {
+      model: model as unknown as ProviderModel,
+      startImage: reference,
+      apiKey: userKey,
+    });
+    return { url: `data:${rendered.mime};base64,${rendered.bytes.toString("base64")}` };
+  }
+  // The remaining providers still only have a request mapping.
   void buildProviderBody(model, req);
   throw new AdapterNotWiredError(model.provider);
 }
