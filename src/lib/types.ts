@@ -5,6 +5,8 @@ import type {
   ChannelResultStatus,
   ChannelVersion,
   ComplianceAttempt,
+  DeliveryOutcome,
+  DeliveryReport,
   Evidence,
   PerformanceReport,
   PolicyDecision,
@@ -294,6 +296,13 @@ export type Campaign = CampaignInput & {
   recommendationDecision: RecommendationDecision | null;
   /** Declared per-channel report outcomes. See `ChannelResultStatus`. */
   collectorOverrides: Partial<Record<Channel, ChannelResultStatus>>;
+  /**
+   * AHR-05 / UC-05 ext 6.a — declared per-channel *publish* outcomes, so the
+   * simulated retry, failure and late-result paths are reproducible. Default `ok`.
+   */
+  publishOverrides?: Partial<Record<Channel, DeliveryOutcome>>;
+  /** AHR-05 record of the simulated publish: attempts, confirmations, reconciliations. */
+  deliveryReport?: DeliveryReport | null;
   /** Every guard evaluation, allowed or blocked. */
   policyDecisions: PolicyDecision[];
   /** Step-by-step trace of the current/last bench run. */

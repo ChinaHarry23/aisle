@@ -185,7 +185,7 @@ async function executeStep(w: Work, env: StepEnv): Promise<{ blocked: boolean; m
       return result;
     }
     case "media.receive": {
-      const result = await runMediaAdaptation(w);
+      const result = await runMediaAdaptation(w, env);
       if (result.blocked) return result;
       if (c.channelVersions.some((v) => v.status === "failed")) return result;
       const sched = runSchedule(w, env.allCampaigns);

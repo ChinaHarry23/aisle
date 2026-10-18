@@ -13,6 +13,14 @@ import type { Campaign, Channel, Country } from "@/lib/types";
 
 export const MAX_REVISION_ATTEMPTS = 3;
 
+/**
+ * AHR-05 / UC-05 ext 6.a — after its first submission, a channel is retried at
+ * most this many times, never indefinitely. Once the retries are spent the item
+ * is raised for the founder. So a permanently failing channel makes one initial
+ * send + MAX_PUBLISH_RETRIES retries before it is given up.
+ */
+export const MAX_PUBLISH_RETRIES = 3;
+
 /** Who asked for the work. Agents are not equal before the policy guard. */
 export type Actor = "founder" | "trend" | "creative" | "compliance" | "media" | "intake";
 
@@ -94,6 +102,7 @@ export type GuardedAction =
   | "CHANGE_CAMPAIGN_SCOPE"
   | "IMPORT_UNAUTHORISED_DATA"
   | "SKIP_ITEM_SILENTLY"
+  | "RETRY_EXHAUSTED"
   | "APPROVE_OWN_WORK"
   | "READ_INTERNAL_DATA"
   | "FOUNDER.DECIDE";
@@ -105,6 +114,7 @@ export type GuardRuleId =
   | "AHR-05-R.claims-frozen"
   | "AHR-05-R.scope"
   | "AHR-05-R.no-silent-skip"
+  | "AHR-05-R.retry-cap"
   | "AHR-02-R.privacy";
 
 export type PolicyDecision = {
@@ -192,6 +202,19 @@ export type ChannelVersion = {
   status: ChannelVersionStatus;
   proposedAt: string;
   postingReason: string;
+  /**
+   * How this channel's copy was written: "model" when the Media Manager's LLM
+   * produced a platform-native caption that kept every cleared claim, "template"
+   * when the deterministic adaptation was used (offline, or the model's caption
+   * was rejected by the claims guard). Absent on older records.
+   */
+  captionSource?: "model" | "template";
+  /**
+   * A self-contained, pasteable HTML embed for this channel: the campaign media
+   * plus the (claims-safe) caption with inline styles, so the marketing team can
+   * drop it straight into their own website. Absent on blocked/older versions.
+   */
+  embedHtml?: string;
   /** Set when the adaptation could not be produced for this channel. */
   failure?: string;
 };
@@ -217,6 +240,67 @@ export type RunScheduleItem = {
   note: string;
   channelVersionId: string;
   conflictIds: string[];
+};
+
+/* --------------------------------------------------------------- distribution */
+
+/**
+ * UC-05 ext 6.a — how a *simulated* channel submission behaves.
+ *
+ * The prototype has no live platform clients, so publishing is modelled. Rather
+ * than leave the failure, retry and late-result paths to a random seed, each
+ * channel can be *declared* to take one of these paths, exactly as AHR-06
+ * collection uses `collectorOverrides`. The default is `ok`.
+ */
+export type DeliveryOutcome =
+  | "ok" // confirmed on the first submission
+  | "retry_then_ok" // first submission(s) time out, a retry within the cap confirms
+  | "fail" // never confirms; the retry cap is spent → raised for the founder
+  | "late"; // times out at the cap, then a late confirmation is reconciled by item id
+
+export type DeliveryItemStatus = "published" | "failed";
+
+/**
+ * The record of one channel's simulated submission.
+ *
+ * `itemId` is the stable `RunScheduleItem.id`. It is the idempotency key: a late
+ * confirmation is matched back to the item it belongs to instead of producing a
+ * second publish, and a result for an unknown id is never invented into one.
+ */
+export type DeliveryAttempt = {
+  itemId: string;
+  channel: Channel;
+  /** Total submissions made: one initial send plus up to `MAX_PUBLISH_RETRIES` retries. */
+  attempts: number;
+  /** Retries used after the initial send (= attempts − 1), capped at `MAX_PUBLISH_RETRIES`. */
+  retries: number;
+  status: DeliveryItemStatus;
+  /** The channel's returned reference, once a submission is confirmed. */
+  confirmationRef: string | null;
+  /** True when a late result was matched to this item id rather than resubmitted. */
+  reconciled: boolean;
+  note: string;
+  at: string;
+};
+
+/**
+ * Whether the publish fully succeeded, succeeded for some channels, or produced
+ * nothing live. `partial` is the explicit "mixed run partially completed" marker
+ * (SCRUM-69): some channels confirmed, at least one did not.
+ */
+export type DeliveryOutcomeKind = "complete" | "partial" | "none";
+
+/** The outcome of the founder's publish: what actually went live, per channel. */
+export type DeliveryReport = {
+  id: string;
+  at: string;
+  attempts: DeliveryAttempt[];
+  published: number;
+  failed: number;
+  /** complete = all live, partial = mixed run, none = nothing confirmed. */
+  outcome: DeliveryOutcomeKind;
+  /** True when at least one channel did not confirm and was raised for the founder. */
+  escalated: boolean;
 };
 
 /* ---------------------------------------------------------------- feedback */

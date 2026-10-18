@@ -222,6 +222,27 @@ async function startAndAdvance(
   return s;
 }
 
+/**
+ * Drive the bench to a founder-approvable draft that the Media Manager can adapt.
+ *
+ * Since CC-03 (PR #7) a draft with an unsupported claim, or any review run without
+ * an authorised policy registry, escalates straight to Manual Review instead of
+ * auto-revising. The founder resolves that the way the desk does: request changes
+ * once, so the approved master is the cleaned revision rather than the v1 draft
+ * whose "guaranteed"/"number one" copy AHR-05 must (and does) refuse to adapt.
+ */
+async function startAndClear(...args: Parameters<typeof startAndAdvance>) {
+  const s = await startAndAdvance(...args);
+  if (s.campaign.complianceAttempts.at(-1)?.outcome === "manual_review") {
+    let r = await s.run({ type: "REQUEST_CHANGES", actor: "founder", note: "Remove the unsupported claims." });
+    let i = 0;
+    while ((r.canAdvance || s.campaign.run?.status === "running") && i++ < 12) {
+      r = await s.run({ type: "ADVANCE", actor: "founder" });
+    }
+  }
+  return s;
+}
+
 /* ------------------------------------------------- UC-01 ext 3.a / 4.a / 5.a */
 
 {
@@ -306,7 +327,7 @@ async function startAndAdvance(
 /* ---------------------------------------------------- AHR-05 distribution -- */
 
 {
-  const s = await startAndAdvance({ channels: ["instagram", "web", "email", "print"], budget: 18000 });
+  const s = await startAndClear({ channels: ["instagram", "web", "email", "print"], budget: 18000 });
   await s.run({ type: "APPROVE", actor: "founder", note: "Ship variant A." });
   let i = 0;
   let r = await s.run({ type: "ADVANCE", actor: "founder" });
@@ -362,7 +383,7 @@ async function startAndAdvance(
 /* -------------------------------------------- publish + AHR-06 feedback ---- */
 
 {
-  const s = await startAndAdvance({ channels: ["instagram", "web", "email"], budget: 12000 });
+  const s = await startAndClear({ channels: ["instagram", "web", "email"], budget: 12000 });
   await s.run({ type: "APPROVE", actor: "founder", note: "Go." });
   let i = 0;
   let r = await s.run({ type: "ADVANCE", actor: "founder" });
@@ -414,13 +435,230 @@ async function startAndAdvance(
   );
 }
 
+/* ----------------------------------- UC-05 ext 6.a — publish retry/reconcile */
+
+{
+  // The declared publish path drives the three cases UC-05 ext 6.a names without
+  // a random seed: a clean confirm, a retry inside the cap, and a late result
+  // that must be reconciled to the same item id rather than resubmitted.
+  const s = await startAndClear(
+    { channels: ["web", "email", "print"], budget: 12000 },
+    { publishOverrides: { web: "retry_then_ok", email: "late", print: "ok" } },
+  );
+  await s.run({ type: "APPROVE", actor: "founder", note: "Go." });
+  let i = 0;
+  let r = await s.run({ type: "ADVANCE", actor: "founder" });
+  while ((r.canAdvance || s.campaign.run?.status === "running") && i++ < 8) {
+    r = await s.run({ type: "ADVANCE", actor: "founder" });
+  }
+  assert.equal(s.campaign.status, "scheduled", "the run must reach Scheduled before publish");
+
+  const published = await s.run({ type: "PUBLISH", actor: "founder" });
+  assert.equal(s.campaign.status, "published", `publish failed: ${published.message}`);
+  const dr = s.campaign.deliveryReport;
+  assert.ok(dr, "the founder's publish must record a delivery report");
+  assert.equal(dr!.failed, 0, "no channel fails in this scenario");
+  assert.equal(dr!.published, s.campaign.channels.length, "every channel confirmed");
+  assert.equal(dr!.outcome, "complete", "all channels live → outcome complete");
+
+  const retried = dr!.attempts.find((a) => a.channel === "web");
+  assert.ok((retried?.attempts ?? 0) > 1, "the retry channel records more than one submission");
+  assert.equal(retried?.attempts, 2, "retry succeeds within the cap, not on the first try");
+  assert.equal(retried?.retries, 1, "exactly one retry was used before it confirmed");
+
+  const late = dr!.attempts.find((a) => a.channel === "email");
+  assert.ok(late?.reconciled, "the late channel is reconciled, not left silent");
+  assert.equal(late?.status, "published", "a reconciled late result ends published");
+
+  assert.ok(
+    dr!.attempts.every((a) => a.status !== "published" || a.confirmationRef),
+    "no channel is published without a confirmation (no outcome without a real submission)",
+  );
+  const ids = dr!.attempts.map((a) => a.itemId);
+  assert.equal(new Set(ids).size, ids.length, "one record per item id — reconciliation stays idempotent");
+  assert.ok(
+    s.campaign.schedule.every((x) => x.status === "published"),
+    "the schedule reflects what actually went live",
+  );
+
+  const collected = await s.run({ type: "COLLECT_FEEDBACK", actor: "founder" });
+  assert.ok(s.campaign.performanceReport, `collection failed: ${collected.message}`);
+  pass(
+    "UC-05 ext 6.a — bounded retry + late-result reconciliation, then collect",
+    dr!.attempts.map((a) => `${a.channel}:${a.status}${a.reconciled ? "(reconciled)" : ""}@${a.attempts}`).join(" "),
+  );
+}
+
+{
+  // One channel never confirms. It must not quietly publish the campaign: the
+  // retry cap is hit, the item is flagged for the founder, and results cannot be
+  // collected until delivery completes.
+  const s = await startAndClear(
+    { channels: ["web", "email", "print"], budget: 12000 },
+    { publishOverrides: { web: "fail" } },
+  );
+  await s.run({ type: "APPROVE", actor: "founder", note: "Go." });
+  let i = 0;
+  let r = await s.run({ type: "ADVANCE", actor: "founder" });
+  while ((r.canAdvance || s.campaign.run?.status === "running") && i++ < 8) {
+    r = await s.run({ type: "ADVANCE", actor: "founder" });
+  }
+  assert.equal(s.campaign.status, "scheduled", "the run must reach Scheduled before publish");
+
+  await s.run({ type: "PUBLISH", actor: "founder" });
+  assert.notEqual(s.campaign.status, "published", "an unconfirmed channel must not publish the campaign");
+  assert.equal(s.campaign.run?.awaiting, "failure", "the run parks for the founder");
+
+  const dr = s.campaign.deliveryReport!;
+  assert.ok(dr.failed >= 1, "the failing channel is recorded as failed");
+  assert.equal(dr.outcome, "partial", "some channels live, one failed → mixed run partially completed");
+  const webItem = dr.attempts.find((a) => a.channel === "web");
+  assert.equal(webItem?.status, "failed");
+  assert.equal(webItem?.retries, 3, "retried exactly three times (the cap), not indefinitely");
+  assert.equal(webItem?.attempts, 4, "one initial send + three retries");
+  assert.equal(webItem?.confirmationRef, null, "a failed submission carries no confirmation");
+  assert.ok(
+    s.campaign.policyDecisions.some((d) => d.rule === "AHR-05-R.retry-cap" && d.verdict === "block"),
+    "retry exhaustion leaves a guard record (no infinite retry, no silent skip)",
+  );
+
+  const collected = await s.run({ type: "COLLECT_FEEDBACK", actor: "founder" });
+  assert.ok(!s.campaign.performanceReport, "results cannot be collected before delivery completes");
+  void collected;
+  pass(
+    "UC-05 ext 6.a — unconfirmed channel capped, escalated, never skipped silently",
+    dr.attempts.map((a) => `${a.channel}:${a.status}@${a.attempts}`).join(" "),
+  );
+}
+
+/* ------------------------------ AHR-05 — AI per-channel captions (guard-safe) */
+
+{
+  // UC-05's AI step. The Media Manager's model writes a platform-native caption
+  // per channel. A caption that keeps every cleared claim is used; one that drops
+  // the cleared claims is rejected and the deterministic template stands — proving
+  // the LLM can only improve copy within the frozen-claims boundary.
+  const captionLlm: LlmStub = {
+    request: async (req: CompleteRequest) => {
+      let text: string | null = null;
+      if (req.agent === "media" && /caption/i.test(req.prompt)) {
+        const h = req.prompt.match(/Approved headline: "([^"]*)"/)?.[1] ?? "";
+        const sub = req.prompt.match(/Approved subhead: "([^"]*)"/)?.[1] ?? "";
+        const claims = req.prompt.match(/MUST NOT be reworded: (.+)/)?.[1]?.replace(/\.\s*$/, "") ?? "";
+        text = JSON.stringify({
+          captions: {
+            // Keeps the approved wording and every cleared claim → accepted.
+            web: `${h}. ${sub} ${claims}. Shop in store this week.`,
+            // Drops the cleared claims entirely → must be rejected by the guard.
+            email: "Limited time only. Shop today.",
+          },
+        });
+      }
+      return {
+        provider: "Scripted",
+        providerId: "openai" as const,
+        modelId: "openai:gpt-6-luna",
+        modelName: "Scripted",
+        status: text ? ("ok" as const) : ("unconfigured" as const),
+        usage: usageStub(),
+        text,
+        note: "suite: caption stub",
+        at: new Date().toISOString(),
+      };
+    },
+  };
+
+  const s = await startAndClear(
+    { channels: ["web", "email", "print"], budget: 12000 },
+    {},
+    { llm: captionLlm },
+  );
+  await s.run({ type: "APPROVE", actor: "founder", note: "Go." });
+  let i = 0;
+  let r = await s.run({ type: "ADVANCE", actor: "founder" });
+  while ((r.canAdvance || s.campaign.run?.status === "running") && i++ < 8) {
+    r = await s.run({ type: "ADVANCE", actor: "founder" });
+  }
+  const c = s.campaign;
+  const web = c.channelVersions.find((v) => v.channel === "web");
+  const email = c.channelVersions.find((v) => v.channel === "email");
+  assert.equal(web?.captionSource, "model", "a claims-safe model caption is used (UC-05 uses the AI agent)");
+  assert.equal(web?.claimsUnchanged, true, "the AI caption kept every cleared claim");
+  assert.equal(email?.captionSource, "template", "a caption that drops a cleared claim is rejected → template stands");
+  assert.ok(
+    c.log.some((e) => e.kind === "insight" && /caption/i.test(e.title)),
+    "the run records that the Media Manager's model wrote the captions",
+  );
+  // The pasteable website embed: media + the channel caption, ready for marketing.
+  assert.ok(web?.embedHtml && /<div class="aisle-ad"/.test(web.embedHtml), "a pasteable HTML embed is produced per channel");
+  assert.ok(
+    /<img |Campaign media/.test(web?.embedHtml ?? ""),
+    "the embed carries the campaign media (or a labelled placeholder when none was rendered)",
+  );
+  pass(
+    "AHR-05 — AI per-channel captions, guard-safe (claims-frozen)",
+    c.channelVersions.map((v) => `${v.channel}:${v.captionSource ?? "—"}`).join(" "),
+  );
+}
+
+/* ----------------------------------- DI-02 — Media Manager agent & gateways */
+
+{
+  const { selectGateway, channelTypeOf, GATEWAYS } = (await import(
+    pathToFileURL(path.join(root, "src/lib/runtime/gateways.ts")).href
+  )) as typeof import("../src/lib/runtime/gateways");
+  const { AIMediaManager, Agent } = (await import(
+    pathToFileURL(path.join(root, "src/lib/runtime/agents.ts")).href
+  )) as typeof import("../src/lib/runtime/agents");
+
+  // Channels route to the correct gateway by type (digital vs physical).
+  assert.equal(channelTypeOf("instagram"), "digital");
+  assert.equal(channelTypeOf("email"), "digital");
+  assert.equal(channelTypeOf("print"), "physical");
+  assert.equal(channelTypeOf("digital_signage"), "physical");
+  assert.equal(selectGateway("web").getChannelType("web"), "digital");
+  assert.equal(selectGateway("print").getChannelType("print"), "physical");
+
+  // The interface is implemented: getChannelType / supportsFormat / isAvailable / publish.
+  assert.ok(selectGateway("web").isAvailable("web"));
+  assert.ok(selectGateway("web").supportsFormat("web", "html"));
+  assert.ok(selectGateway("print").supportsFormat("print", "print"));
+  assert.ok(!selectGateway("print").supportsFormat("print", "html"), "a print gateway does not carry html");
+
+  // Simulated publish through a gateway honours the delivery contract.
+  const now = new Date().toISOString();
+  const okAttempt = selectGateway("web").publish({ id: "si_ok", channel: "web" }, "ok", now);
+  assert.equal(okAttempt.status, "published");
+  assert.ok(okAttempt.confirmationRef, "a confirmed submission carries a reference");
+  const failAttempt = selectGateway("print").publish({ id: "si_fail", channel: "print" }, "fail", now);
+  assert.equal(failAttempt.status, "failed");
+  assert.equal(failAttempt.retries, 3, "retried up to the cap, not indefinitely");
+  assert.equal(failAttempt.confirmationRef, null);
+
+  // Two gateways registered; no live platform client exists.
+  assert.equal(Object.keys(GATEWAYS).sort().join(","), "digital,physical");
+
+  // The AIMediaManager generalizes the shared Agent base; run ops are callable.
+  const mgr = new AIMediaManager();
+  assert.ok(mgr instanceof Agent, "AIMediaManager generalizes the shared Agent base");
+  assert.equal(mgr.slot, "media");
+  assert.equal(typeof mgr.adapt, "function");
+  assert.equal(typeof mgr.schedule, "function");
+  assert.equal(typeof mgr.publish, "function");
+
+  pass(
+    "DI-02 — Media Manager agent generalizes Agent; digital/physical gateways registered & selected",
+    `${GATEWAYS.digital.name} · ${GATEWAYS.physical.name}`,
+  );
+}
+
 /* ------------------------------------- UC-06 ext 4.a / 4.b — feedback gaps -- */
 
 {
   // Two channels report nothing: one is not authorised, one has not reported yet.
   // The outcomes are declared rather than left to a modelled edge case, so this
   // scenario tests the requirement instead of a random campaign id.
-  const s = await startAndAdvance(
+  const s = await startAndClear(
     { channels: ["print", "digital_signage"], budget: 6000 },
     { collectorOverrides: { print: "not_authorised", digital_signage: "late" } },
   );
