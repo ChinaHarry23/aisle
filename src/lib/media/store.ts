@@ -12,7 +12,7 @@
  * overrides the choice.
  */
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { getDatabase, type Database } from "@/lib/db";
@@ -135,4 +135,24 @@ export async function readMedia(url: string, kind: MediaKind, ownerId: string): 
   // Content addressing doubles as an integrity check on whatever the driver returned.
   if (sha256Hex(bytes) !== sha256) throw new Error("Stored media failed its integrity check.");
   return { bytes, mime, sha256 };
+}
+
+/** Drop one account's copy of a stored file. Another account's copy of the same bytes is left alone. */
+export async function deleteStoredMedia(url: string, ownerId: string): Promise<boolean> {
+  if (!isStoredMediaUrl(url) || !ownerId) return false;
+  const sha256 = url.slice(STORED_PREFIX.length);
+  if (!/^[a-f0-9]{64}$/.test(sha256)) return false;
+  const db = await getDatabase();
+  const rows = await db.query<{ mime: string; driver: string }>(
+    "select mime, driver from media_objects where id = $1 and owner_user_id = $2",
+    [rowId(sha256, ownerId), ownerId],
+  );
+  const row = rows[0];
+  if (!row) return false;
+  await db.execute("delete from media_objects where id = $1 and owner_user_id = $2", [rowId(sha256, ownerId), ownerId]);
+  if (row.driver !== "db") {
+    const mime = row.mime as MediaMime;
+    await unlink(path.join(/*turbopackIgnore: true*/ mediaRoot(), `${sha256}.${EXT[mime] ?? "bin"}`)).catch(() => undefined);
+  }
+  return true;
 }

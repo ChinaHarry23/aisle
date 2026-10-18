@@ -14,6 +14,7 @@ import { runGeneration } from "./generate";
 import { posterRequest } from "./prompts";
 import { MEDIA_ADAPTERS, providerKeysSet } from "./providers";
 import type { GenerateRequest, MediaModel as ProviderModel, ProviderId } from "./pr2-types";
+import { rememberAsset } from "./library";
 import { putMedia } from "./store";
 import { stubGenerate } from "./stub";
 import type { MediaGeneration } from "./types";
@@ -65,6 +66,24 @@ export async function renderCampaignPoster(input: {
       bytes: rendered.bytes,
       mime: rendered.mime,
     });
+    await rememberAsset({
+      ownerId: input.ownerId,
+      kind: "image",
+      mediaUrl: stored.url,
+      mime: rendered.mime,
+      campaignId: input.campaign.id,
+      campaignName: input.campaign.name,
+      product: input.campaign.product,
+      label: input.creative.headline,
+      prompt: req.prompt,
+      modelId: model.id,
+      modelName: model.name,
+      creativeId: input.creative.id,
+      costUsd: rendered.costUsd,
+      costEstimated: /no usage|list estimate/i.test(rendered.note ?? ""),
+      inputTokens: rendered.inputTokens,
+      outputTokens: rendered.outputTokens,
+    }).catch(() => undefined);
     const quoted = stubGenerate(req, `Live ${model.name}`);
     const inputTokens = rendered.inputTokens ?? quoted.usage.inputTokens;
     const outputTokens = rendered.outputTokens ?? quoted.usage.outputTokens;

@@ -123,6 +123,30 @@ create table if not exists media_objects (
   bytes         bytea,
   created_at    text not null
 );
+
+create table if not exists account_assets (
+  id             text primary key,
+  owner_user_id  text not null,
+  kind           text not null,
+  media_url      text not null,
+  mime           text not null,
+  campaign_id    text,
+  campaign_name  text,
+  product        text,
+  label          text,
+  prompt         text,
+  model_id       text,
+  model_name     text,
+  creative_id    text,
+  created_at     text not null,
+  removed_at     text,
+  cost_usd       real,
+  cost_estimated integer,
+  input_tokens   integer,
+  output_tokens  integer
+);
+
+create index if not exists account_assets_owner_idx on account_assets (owner_user_id, created_at);
 `;
 
 /** Columns added after the first release. Duplicates are expected and ignored. */
@@ -144,6 +168,10 @@ const ADDITIVE = [
   "alter table billing_customers add column subscription_event_at bigint",
   // Bumped when a password is replaced or an email is claimed by Google/Apple, which ends every older session.
   "alter table users add column session_version integer not null default 0",
+  "alter table account_assets add column cost_usd real",
+  "alter table account_assets add column cost_estimated integer",
+  "alter table account_assets add column input_tokens integer",
+  "alter table account_assets add column output_tokens integer",
 ];
 
 export async function migrate(db: Database) {
