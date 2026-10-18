@@ -34,23 +34,42 @@ type ImagesResponse = {
 export const openaiAdapter: MediaProviderAdapter = {
   id: "openai",
   keyEnv: ["OPENAI_API_KEY"],
-  async generate(req, { model, onQueued, signal }) {
+  async generate(req, { model, startImage, apiKey, onQueued, signal }) {
     if (model.kind !== "image") throw new ProviderError("OpenAI has no video model available.", { retryable: false });
-    const key = envValue("OPENAI_API_KEY");
+    const key = apiKey?.trim() || envValue("OPENAI_API_KEY");
     if (!key) throw new ProviderError("OPENAI_API_KEY is not set.", { retryable: false });
     const jobId = `openai:${randomUUID()}`;
     onQueued?.(jobId);
     const aspect = req.aspectRatio ?? "4:5";
     const quality = req.quality ?? (model.id.endsWith("-high") ? "high" : "medium");
+    const baseUrl = apiBase("OPENAI_API_BASE", "https://api.openai.com/v1");
     let body: ImagesResponse;
     try {
-      body = await providerJson<ImagesResponse>("OpenAI", `${apiBase("OPENAI_API_BASE", "https://api.openai.com/v1")}/images/generations`, {
-        headers: { Authorization: `Bearer ${key}` },
-        // JPEG keeps a poster well under the 4.5 MB a Vercel response can carry.
-        body: { model: model.apiModel, prompt: req.prompt, n: 1, size: SIZES[aspect], quality, output_format: "jpeg", output_compression: 92, moderation: "auto" },
-        timeoutMs: 240_000,
-        signal,
-      });
+      if (startImage) {
+        const form = new FormData();
+        form.set("model", model.apiModel);
+        form.set("prompt", req.prompt);
+        form.set("n", "1");
+        form.set("size", SIZES[aspect]);
+        form.set("quality", quality);
+        form.set("output_format", "jpeg");
+        form.set("output_compression", "92");
+        form.append("image", new Blob([new Uint8Array(startImage.bytes)], { type: startImage.mime }), "product.jpg");
+        body = await providerJson<ImagesResponse>("OpenAI", `${baseUrl}/images/edits`, {
+          headers: { Authorization: `Bearer ${key}` },
+          form,
+          timeoutMs: 240_000,
+          signal,
+        });
+      } else {
+        body = await providerJson<ImagesResponse>("OpenAI", `${baseUrl}/images/generations`, {
+          headers: { Authorization: `Bearer ${key}` },
+          // JPEG keeps a poster well under the 4.5 MB a Vercel response can carry.
+          body: { model: model.apiModel, prompt: req.prompt, n: 1, size: SIZES[aspect], quality, output_format: "jpeg", output_compression: 92, moderation: "auto" },
+          timeoutMs: 240_000,
+          signal,
+        });
+      }
     } catch (error) {
       if (error instanceof ProviderError && error.code === "moderation_blocked") {
         throw new ProviderError("OpenAI declined this prompt under its content policy. Nothing was charged; edit the brief before trying again.", { status: error.status, code: error.code, retryable: false });

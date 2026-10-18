@@ -1,3 +1,6 @@
+import { loadRules } from "../compliance/rules";
+import { checkSubmission } from "../compliance/checks";
+import { beginReview, submissionFor, assertReviewPermission, ComplianceSubmissionError } from "../compliance/service";
 /**
  * Agent step handlers.
  *
@@ -15,6 +18,7 @@ import type {
   BrandProfile,
   Campaign,
   CampaignBrief,
+  PriceRecommendation,
   Channel,
   ComplianceFinding,
   ComplianceReport,
@@ -36,7 +40,8 @@ import {
 } from "./decide";
 import { evaluateGuard } from "./guard";
 import { digestHash, inputDigest } from "./intake";
-import { shelfQuery } from "@/lib/retail/whichgrocer/query";
+import { isClearStock, recommendClearance } from "@/lib/retail/whichgrocer/clearance";
+import { aud, shelfQuery, type ShelfOffer } from "@/lib/retail/whichgrocer/query";
 import { channelBehaviourNote, toolByName, toToolCall, type ToolOutcome } from "./tools";
 import {
   MAX_REVISION_ATTEMPTS,
@@ -75,7 +80,7 @@ export type StepEnv = {
   settings: WorkspaceSettings;
   brand: BrandProfile;
   llm: LlmRuntime;
-  /** Signed-in founder. WhichGrocer prices are read for this account only. */
+  /** Signed-in founder. Shelf prices use the server WhichGrocer API key. */
   ownerUserId?: string;
   /** Every campaign in the workspace, for cross-campaign scheduling checks. */
   allCampaigns: Campaign[];
@@ -229,7 +234,7 @@ type Motif = Creative["motif"];
 
 export function motifPack(campaign: Campaign): Motif {
   const t = `${campaign.product} ${campaign.name} ${campaign.category} ${campaign.targetAudience}`.toLowerCase();
-  if (/jacket|parka|coat|outerwear|hoodie|apparel|knit/.test(t)) return "campus";
+  if (/jacket|parka|coat|outerwear|hoodie|knit/.test(t)) return "campus";
   if (/fruit|yoghurt|yogurt|grocery|produce|catalogue|peach|plum|veg|milk/.test(t)) return "produce";
   if (/coffee|bean|pantry|chocolate/.test(t)) return "pantry";
   return "editorial";
@@ -415,7 +420,10 @@ export function deterministicCopy(campaign: Campaign, version: number): Record<"
   const brief = campaign.brief;
   if (version === 1 || !brief) return v1Copy(campaign, motif);
   const fixed = v2Copy(campaign, motif, brief);
-  if (motif === "campus" || motif === "produce") return fixed;
+  const shoe = /shoe|sneaker|trainer|footwear|\brunning\b/.test(
+    `${campaign.product} ${campaign.notes ?? ""}`.toLowerCase(),
+  );
+  if (motif === "campus" || motif === "produce" || shoe) return fixed;
   return {
     A: {
       ...fixed.A,
@@ -460,10 +468,59 @@ function evidenceLine(e: Evidence) {
   return `${e.claim} — ${e.detail.slice(0, 140)} [${e.sourceName} · ${e.observedAt} · ${e.status} · ${e.confidence}%]`;
 }
 
-function trendFallbackDecision(campaign: Campaign, brand: BrandProfile): TrendDecision {
+function offersFromTool(data: unknown): ShelfOffer[] {
+  if (!data || typeof data !== "object") return [];
+  const offers = (data as { offers?: unknown }).offers;
+  if (!Array.isArray(offers)) return [];
+  return offers.filter(
+    (offer): offer is ShelfOffer =>
+      Boolean(offer) &&
+      typeof offer === "object" &&
+      typeof (offer as ShelfOffer).price === "number" &&
+      typeof (offer as ShelfOffer).store === "string" &&
+      typeof (offer as ShelfOffer).name === "string",
+  );
+}
+
+function pinClearance(decision: TrendDecision, recommendation: PriceRecommendation): TrendDecision {
+  if (recommendation.discountPct <= 0) {
+    const strip = (text: string) => text.replace(/\d+(\.\d+)?%\s+off/gi, "the current price");
+    return {
+      ...decision,
+      angle: strip(decision.angle),
+      keyMessage: strip(decision.keyMessage),
+      claimsAllowed: decision.claimsAllowed.filter((claim) => !/\d+(\.\d+)?%\s+off/i.test(claim)),
+    };
+  }
+  const tag = `${recommendation.discountPct}% off`;
+  const price = aud(recommendation.recommendedPriceAud);
+  return {
+    ...decision,
+    angle: decision.angle.includes(tag)
+      ? decision.angle
+      : `${tag} to meet the cheapest similar catalogue price. ${decision.angle}`.slice(0, 240),
+    keyMessage: decision.keyMessage.includes(tag) ? decision.keyMessage : `${tag} — now ${price}.`.slice(0, 160),
+    claimsAllowed: [
+      tag,
+      `Now ${price}`,
+      ...decision.claimsAllowed.filter((claim) => !/^\d+(\.\d+)?%\s+off/.test(claim)),
+    ].slice(0, 6),
+  };
+}
+
+function trendFallbackDecision(
+  campaign: Campaign,
+  brand: BrandProfile,
+  recommendation: PriceRecommendation | null,
+): TrendDecision {
   const motif = motifPack(campaign);
-  const angle =
-    motif === "campus"
+  const clearance =
+    recommendation && recommendation.discountPct > 0
+      ? `${recommendation.discountPct}% off, to ${aud(recommendation.recommendedPriceAud)}`
+      : null;
+  const angle = clearance
+    ? `Clear the stock: ${clearance}.`
+    : motif === "campus"
       ? "Campus weather, not wilderness."
       : motif === "produce"
         ? `This week's fruit, this week's breakfast.`
@@ -485,7 +542,7 @@ function trendFallbackDecision(campaign: Campaign, brand: BrandProfile): TrendDe
       },
     ],
     angle,
-    keyMessage: motif === "campus" ? "Weatherproof. Not wilderness." : `${campaign.product}, without the theatre.`,
+    keyMessage: clearance ?? (motif === "campus" ? "Weatherproof. Not wilderness." : `${campaign.product}, without the theatre.`),
     claimsAllowed:
       motif === "campus"
         ? ["Water-resistant shell", "Packs into its own pocket", "Cut for commuting"]
@@ -629,16 +686,65 @@ export async function runTrendResearch(
     needsFounder: false,
   });
 
+  const askedForPrices = isClearStock(c.objective) || c.unitCostAud != null || c.currentPriceAud != null;
+  const clearance = recommendClearance({
+    unitCostAud: c.unitCostAud,
+    currentPriceAud: c.currentPriceAud,
+    offers: offersFromTool(shelf.data),
+  });
+  if (clearance.ok) {
+    c.priceRecommendation = clearance.recommendation;
+    const priced = clearance.recommendation;
+    addEvidence(w, [
+      {
+        id: uid("ev"),
+        claim: `Cost ${aud(priced.unitCostAud)}, current price ${aud(priced.currentPriceAud)}.`,
+        detail: "Figures the founder entered for this product.",
+        sourceName: "Founder",
+        sourceRef: "campaign brief",
+        sourceKind: "founder_input",
+        observedAt: w.now.slice(0, 10),
+        fetchedAt: w.now,
+        status: "verified",
+        confidence: 100,
+        raisedBy: "trend",
+        usedFor: "Clearance price",
+      },
+    ]);
+    addEvent(
+      w,
+      "trend",
+      "insight",
+      priced.discountPct > 0 ? `Recommend ${priced.discountPct}% off` : "No clearance discount",
+      priced.rationale,
+    );
+  } else {
+    c.priceRecommendation = null;
+    if (askedForPrices) {
+      gaps.push({
+        id: uid("gap"),
+        kind: "missing_source",
+        detail: clearance.reason,
+        effect: "No discount percentage was recommended.",
+        needsFounder: c.unitCostAud == null || c.currentPriceAud == null,
+      });
+    }
+  }
+
   // ---- decision: the model prioritises, or the rules do
   const evidenceLines = w.campaign.evidence.map(evidenceLine);
-  const { decision, trace } = await decideTrendBrief({
+  const recommended = clearance.ok ? clearance.recommendation : null;
+  const decided = await decideTrendBrief({
     campaign: c,
     brand: env.brand,
     settings: env.settings,
     llm: env.llm,
     evidenceLines,
-    fallback: trendFallbackDecision(c, env.brand),
+    fallback: trendFallbackDecision(c, env.brand, recommended),
+    clearance: recommended,
   });
+  const decision = recommended ? pinClearance(decided.decision, recommended) : decided.decision;
+  const trace = decided.trace;
   addTrace(w, trace, "trend", "Brief prioritisation");
   for (const l of decision.limitations) {
     gaps.push({
@@ -710,10 +816,21 @@ export async function runTrendResearch(
       themeSuggestion: decision.angle,
     });
   }
+  if (c.priceRecommendation) {
+    const founderPrice = w.campaign.evidence.find((e) => e.usedFor === "Clearance price");
+    const cited = [...(founderPrice ? [founderPrice.id] : []), ...shelfEvidence.map((e) => e.id)];
+    pushFinding("Clearance discount", c.priceRecommendation.rationale, cited, 96, cited.length > 1 ? 90 : 70, {
+      themeSuggestion:
+        c.priceRecommendation.discountPct > 0 ? `${c.priceRecommendation.discountPct}% off` : "Hold the current price",
+      risk: c.priceRecommendation.limitedByCost ? "A deeper cut would sell below the founder's cost." : undefined,
+    });
+  }
 
   const priorNote = c.sharedContext.previousPerformanceNote;
   if (priorNote) {
-    const priorEvidence = w.campaign.evidence.find((e) => e.sourceKind === "founder_input");
+    const priorEvidence = w.campaign.evidence.find(
+      (e) => e.sourceKind === "founder_input" && e.usedFor !== "Clearance price",
+    );
     pushFinding(
       "Previous campaign feedback",
       priorNote,
@@ -869,7 +986,7 @@ export async function runCreativeGeneration(
   const withGen: Creative[] = [];
   for (const cr of creatives) {
     const generation = await env.renderPoster({ campaign: c, creative: cr, modelId });
-    withGen.push({ ...cr, generation });
+    withGen.push({ ...cr, createdAt: w.now, generation });
   }
   const mediaCost = withGen.reduce((n, cr) => n + (cr.generation?.usage.costUsd ?? 0), 0);
 
@@ -890,6 +1007,15 @@ export async function runCreativeGeneration(
     addEvent(w, "creative", "policy", "Media spend blocked", spend.reason, {
       policyDecisionId: spend.decision.id,
     });
+    addStep(
+      w,
+      version === 1 ? "creative.generate" : "creative.revise",
+      "creative",
+      "blocked",
+      "Image generation blocked",
+      spend.reason,
+      { policyDecisionId: spend.decision.id },
+    );
     return { message: spend.reason, blocked: true };
   }
 
@@ -914,20 +1040,24 @@ export async function runCreativeGeneration(
   ];
   c.updatedAt = stamp();
 
+  const pictures = withGen.filter((cr) => cr.generation?.url).length;
+  const photo = c.productImageUrl ? " The uploaded product photo was the reference." : "";
   addEvent(
     w,
     "creative",
     "output",
     `v${version} generated — variants A and B`,
-    `${withGen.map((cr) => `${cr.variant}: “${cr.headline}”`).join(" · ")} · ${modelId} · est. $${mediaCost.toFixed(3)}. Logged with inputs and creation date; not published.`,
+    `${withGen.map((cr) => `${cr.variant}: “${cr.headline}”`).join(" · ")} · ${modelId} · ${pictures} picture(s) · est. $${mediaCost.toFixed(3)}.${photo} Logged with inputs and creation date; not published.`,
   );
   addStep(
     w,
     version === 1 ? "creative.generate" : "creative.revise",
     "creative",
-    "ok",
+    pictures > 0 ? "ok" : "warn",
     `Submitted v${version} for compliance review`,
-    "Status Unpublished. Not sent to any distribution channel.",
+    pictures > 0
+      ? `${pictures} poster(s) rendered.${photo} Not sent to any distribution channel.`
+      : `The image step ran and no picture came back. ${withGen.find((cr) => cr.generation?.note)?.generation?.note ?? "Check the image model in Settings."}`,
   );
   // AHR-03 step 8: the draft goes to AHR-04 before anything else happens.
   setRun(w, { status: "running", step: "compliance.receive" });
@@ -1046,14 +1176,36 @@ export function deterministicReview(
   return { issues, summary };
 }
 
+export function receiveComplianceSubmission(w: Work, env: StepEnv) {
+  try {
+    const review = beginReview(w.campaign, env.brand, submissionFor(w.campaign, env.brand), w.now);
+    review.ruleSelection ??= loadRules(review.submission, w.now);
+    w.campaign.status = "compliance";
+    w.campaign.running = true;
+    setRun(w, { step: "compliance.review", status: "running" });
+    addStep(w, "compliance.receive", "compliance", "ok", "Review registered", "Exact submission retained before model execution.");
+    return { message: "Compliance request accepted; review checkpoint ready.", blocked: false };
+  } catch (error) {
+    if (!(error instanceof ComplianceSubmissionError)) throw error;
+    addEvent(w, "compliance", "flag", "Submission rejected", JSON.stringify(error.toJSON()));
+    w.campaign.running = false;
+    setRun(w, { status: "halted", haltedReason: error.message });
+    return { message: `${error.code}: ${error.message}`, blocked: true };
+  }
+}
+
 export async function runComplianceReview(
   w: Work,
   env: StepEnv,
 ): Promise<{ message: string; blocked: boolean }> {
   const c = w.campaign;
+  assertReviewPermission(c);
+  const submitted = submissionFor(c, env.brand);
+  const reviewRun = c.complianceReviewRuns?.find(r => r.pipelineRunId === c.run?.id && r.advertisementVersionId === submitted.advertisementVersionId && r.status === "UNDER_REVIEW");
+  if (!reviewRun) throw new ComplianceSubmissionError("VERSION_MISMATCH", "No active review exists for this exact version. Resubmit through compliance.receive.");
   c.status = "compliance";
   c.running = true;
-  const attemptNo = c.complianceAttempts.length + 1;
+  const attemptNo = reviewRun.attemptNumber;
   const copyBlob = c.creatives
     .map((cr) => `[${cr.variant}] ${cr.headline} — ${cr.subhead} — ${cr.caption}`)
     .join("\n");
@@ -1067,7 +1219,10 @@ export async function runComplianceReview(
   );
   addStep(w, "compliance.receive", "compliance", "ok", "Submission received", `Input digest recorded. Attempt ${attemptNo}.`);
 
-  const fallback = deterministicReview(c, env.brand);
+  const selection = reviewRun.ruleSelection ?? loadRules(reviewRun.submission, w.now);
+  reviewRun.ruleSelection = selection;
+  const checked = checkSubmission(reviewRun.submission, selection);
+  const fallback = { issues: checked.issues, summary: `${checked.issues.length} issue(s) identified against the submitted version.` };
   const { decision, trace } = await decideCompliance({
     campaign: c,
     brand: env.brand,
@@ -1076,10 +1231,13 @@ export async function runComplianceReview(
     copy: copyBlob,
     attempt: attemptNo,
     fallback,
+    rules: selection.rules,
   });
   addTrace(w, trace, "compliance", "Policy review");
 
-  const verdict = complianceFor(c, decision.issues);
+  const verdict = selection.problems.length || decision.issues.some(i => i.basis === "human_judgement")
+    ? { outcome: "manual_review" as const, risk: "high" as const, score: 0 }
+    : complianceFor(c, decision.issues);
   const digest = inputDigest(c);
   const attempt: ComplianceAttempt = {
     id: uid("ca"),
@@ -1094,13 +1252,8 @@ export async function runComplianceReview(
     score: verdict.score,
     summary: decision.summary,
     issues: decision.issues,
-    policyRefs: [
-      `${c.country} advertising and consumer law`,
-      "Brand banned and approved terms",
-      ...(c.channels.includes("print") ? ["Retailer catalogue policy"] : []),
-      ...(c.channels.includes("instagram") ? ["Instagram platform policy"] : []),
-    ],
-    policyComplete: Boolean(env.brand.countryRules[c.country]) && env.brand.bannedTerms.length > 0,
+    policyRefs: selection.rules.map(r => `${r.id}@${r.version}: ${r.source}`),
+    policyComplete: selection.problems.length === 0,
   };
 
   // Legacy-shaped report so existing views keep working.
@@ -1126,10 +1279,15 @@ export async function runComplianceReview(
           : "pass",
     summary: decision.summary,
     findings,
-    countryProfile: `${c.country} · ${env.brand.countryRules[c.country].slice(0, 140)}…`,
+    countryProfile: `${c.country} · ${(env.brand.countryRules[c.country] ?? "Missing country policy").slice(0, 140)}…`,
     attempt,
   };
 
+  reviewRun.status = "COMPLETED";
+  reviewRun.completedAt = w.now;
+  reviewRun.result = { status: verdict.outcome, findings: structuredClone(decision.issues),
+    rejectionReason: verdict.outcome === "pass" ? null : decision.summary,
+    limitations: checked.limitations, reportId: report.id };
   c.complianceAttempts = [...c.complianceAttempts, attempt];
   c.complianceReports = [...c.complianceReports, report];
   c.creatives = c.creatives.map((cr) => ({
@@ -1179,11 +1337,11 @@ export async function runComplianceReview(
       w,
       "compliance",
       "escalation",
-      `Revision limit reached (${MAX_REVISION_ATTEMPTS} attempts) — Manual Review Required`,
+      "Manual Review Required",
       "The automatic revision cycle stopped. All versions, inputs and rejection reasons are retained. Nothing is published or distributed.",
     );
-    addStep(w, "founder.gate", "compliance", "warn", "Escalated to manual review", "Three attempts spent; the founder takes over.");
-    setRun(w, { awaiting: "approval", awaitingDetail: "Manual review required: three compliance attempts did not clear the copy.", status: "awaiting_human", step: "founder.gate" });
+    addStep(w, "founder.gate", "compliance", "warn", "Escalated to manual review", "Policy, evidence, judgement or revision limits require human resolution.");
+    setRun(w, { awaiting: "approval", awaitingDetail: "Manual review required: resolve the recorded policy or content issues before approval.", status: "awaiting_human", step: "founder.gate" });
     return { message: "Escalated for manual review.", blocked: false };
   }
 

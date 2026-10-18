@@ -171,22 +171,12 @@ export function ChecksPanel({
   const earlier = rounds.slice(0, -1);
 
   // Only what the agent says about the version you are looking at.
+  // The report and the attempt store the same issue id. Keep the attempt's
+  // copy, which has the recommended fix, so the list does not render it twice.
   const flags: Flag[] = useMemo(() => {
-    const out: Flag[] = [];
-    for (const r of latest?.[1] ?? []) {
-      for (const f of r.findings) {
-        out.push({
-          id: f.id,
-          tone: "breach",
-          title: f.type,
-          excerpt: f.excerpt,
-          explanation: f.explanation,
-          source: f.rule,
-        });
-      }
-    }
+    const byId = new Map<string, Flag>();
     for (const i of attempt?.issues ?? []) {
-      out.push({
+      byId.set(i.id, {
         id: i.id,
         tone: i.basis === "confirmed_breach" ? "breach" : "judge",
         title: i.category.replace(/_/g, " "),
@@ -196,7 +186,20 @@ export function ChecksPanel({
         fix: i.recommendedCorrection,
       });
     }
-    return out;
+    for (const r of latest?.[1] ?? []) {
+      for (const f of r.findings) {
+        if (byId.has(f.id)) continue;
+        byId.set(f.id, {
+          id: f.id,
+          tone: "breach",
+          title: f.type,
+          excerpt: f.excerpt,
+          explanation: f.explanation,
+          source: f.rule,
+        });
+      }
+    }
+    return [...byId.values()];
   }, [latest, attempt]);
 
   const problems = flags.filter((f) => f.tone === "breach").length;
@@ -310,8 +313,8 @@ export function ChecksPanel({
                     </span>
                   </div>
                   <p className="mt-1 text-ink-soft">{reports[0].summary}</p>
-                  {reports.flatMap((r) => r.findings).map((f) => (
-                    <p key={f.id} className="mt-1 text-xs text-mute">
+                  {reports.flatMap((r) => r.findings).map((f, i) => (
+                    <p key={`${v}-${f.id}-${i}`} className="mt-1 text-xs text-mute">
                       Flagged “{f.excerpt}” · {f.rule}
                     </p>
                   ))}

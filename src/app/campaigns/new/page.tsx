@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import { Check, ChevronDown } from "lucide-react";
 import { IntakeChatbot } from "@/components/intake/IntakeChatbot";
+import { parseMoneyInput } from "@/lib/retail/whichgrocer/clearance";
 import { validateIntake } from "@/lib/runtime/intake";
 import { attachableRecommendation } from "@/lib/runtime/defaults";
 import type { CampaignInput, Channel, Country } from "@/lib/types";
@@ -48,7 +49,35 @@ function emptyBrief(): CampaignInput {
     endDate: isoDay(21),
     country: "AU",
     notes: "",
+    productImageUrl: null,
   };
+}
+
+function compressProductPhoto(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error ?? new Error("unreadable"));
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const max = 1280;
+        const scale = Math.min(1, max / Math.max(img.width, img.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(img.width * scale));
+        canvas.height = Math.max(1, Math.round(img.height * scale));
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("canvas"));
+          return;
+        }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", 0.85));
+      };
+      img.onerror = () => reject(new Error("image"));
+      img.src = String(reader.result);
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 function Field({
@@ -79,6 +108,10 @@ export default function NewCampaignPage() {
   const brand = useAisle((s) => s.brand);
   const campaigns = useAisle((s) => s.campaigns);
   const [form, setForm] = useState<CampaignInput>(emptyBrief);
+  const [costText, setCostText] = useState("");
+  const [priceText, setPriceText] = useState("");
+  const [imageError, setImageError] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const [attempted, setAttempted] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [mode, setMode] = useState<"form" | "chat">("form");
@@ -91,6 +124,29 @@ export default function NewCampaignPage() {
     setForm((f) => ({ ...f, [key]: value }));
   }
 
+  async function onProductImage(file: File | undefined) {
+    setImageError(null);
+    if (!file) return;
+    if (!/^image\/(jpeg|png|webp)$/.test(file.type)) {
+      setImageError("Choose a JPEG, PNG or WebP photo.");
+      return;
+    }
+    if (file.size > 8_000_000) {
+      setImageError("That photo is over 8 MB. Choose a smaller one.");
+      return;
+    }
+    try {
+      const url = await compressProductPhoto(file);
+      if (url.length > 1_200_000) {
+        setImageError("That photo is still too large after compression.");
+        return;
+      }
+      update("productImageUrl", url);
+    } catch {
+      setImageError("That photo could not be read.");
+    }
+  }
+
   function toggleChannel(ch: Channel) {
     setForm((f) => ({
       ...f,
@@ -101,13 +157,29 @@ export default function NewCampaignPage() {
   }
 
   /** The name is optional: it falls back to the product, so most people never type it. */
+  const costParsed = parseMoneyInput(costText);
+  const priceParsed = parseMoneyInput(priceText);
   const brief: CampaignInput = {
     ...form,
     name: form.name.trim() || (form.product.trim() ? `${form.product.trim()} campaign` : ""),
+    unitCostAud: typeof costParsed === "number" ? costParsed : null,
+    currentPriceAud: typeof priceParsed === "number" ? priceParsed : null,
   };
 
   /** The same checks the engine runs at launch, so a launch is never a surprise. */
-  const problems = validateIntake(brief, brand);
+  const problems = [
+    ...(costParsed === "invalid"
+      ? [{ field: "unitCostAud", message: "Enter the cost in dollars, such as 1.80.", clause: "Clearance price" }]
+      : []),
+    ...(priceParsed === "invalid"
+      ? [{ field: "currentPriceAud", message: "Enter the selling price in dollars, such as 3.50.", clause: "Clearance price" }]
+      : []),
+    ...validateIntake(brief, brand).filter(
+      (problem) =>
+        !(problem.field === "unitCostAud" && costParsed === "invalid") &&
+        !(problem.field === "currentPriceAud" && priceParsed === "invalid"),
+    ),
+  ];
   const errorFor = (...fields: string[]) =>
     attempted ? problems.find((p) => fields.includes(p.field))?.message : undefined;
   const hiddenProblems = problems.filter((p) => advancedFields.includes(p.field));
@@ -166,6 +238,55 @@ export default function NewCampaignPage() {
         </button>
       </div>
 
+      <div
+        className="hairline p-4"
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => {
+          e.preventDefault();
+          void onProductImage(e.dataTransfer.files?.[0]);
+        }}
+      >
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-[16rem] flex-1">
+            <p className="text-sm font-medium">Product photo</p>
+            <p className="mt-1 text-xs leading-relaxed text-mute">
+              Optional. The image step builds the ad around this picture instead of inventing the product. A basketball shoe is worn by an athlete dunking; the shoe in the photo stays the shoe.
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            {form.productImageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={form.productImageUrl} alt="Uploaded product" className="h-20 w-20 border border-line object-cover" />
+            ) : null}
+            <div className="flex flex-col items-start gap-1.5">
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={(e) => {
+                  void onProductImage(e.target.files?.[0]);
+                  e.target.value = "";
+                }}
+                className="sr-only"
+              />
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                className="rounded-full border border-line bg-surface px-3 py-1.5 text-sm font-medium hover:border-signal hover:text-signal-dark"
+              >
+                {form.productImageUrl ? "Replace photo" : "Upload photo"}
+              </button>
+              {form.productImageUrl ? (
+                <button type="button" onClick={() => update("productImageUrl", null)} className="text-xs text-mute hover:text-ink">
+                  Remove
+                </button>
+              ) : null}
+            </div>
+          </div>
+        </div>
+        {imageError ? <p className="mt-2 text-xs text-signal">{imageError}</p> : null}
+      </div>
+
       {mode === "chat" ? (
         <IntakeChatbot
           brand={brand}
@@ -194,6 +315,39 @@ export default function NewCampaignPage() {
               className={input}
             />
           </Field>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Field label="What it costs you" hint="AUD per unit" error={errorFor("unitCostAud")}>
+              <input
+                inputMode="decimal"
+                value={costText}
+                onChange={(e) => {
+                  setCostText(e.target.value);
+                  const parsed = parseMoneyInput(e.target.value);
+                  update("unitCostAud", typeof parsed === "number" ? parsed : null);
+                }}
+                placeholder="1.80"
+                data-invalid={errorFor("unitCostAud") ? "" : undefined}
+                className={input}
+              />
+            </Field>
+            <Field label="What you sell it for now" hint="AUD per unit" error={errorFor("currentPriceAud")}>
+              <input
+                inputMode="decimal"
+                value={priceText}
+                onChange={(e) => {
+                  setPriceText(e.target.value);
+                  const parsed = parseMoneyInput(e.target.value);
+                  update("currentPriceAud", typeof parsed === "number" ? parsed : null);
+                }}
+                placeholder="3.50"
+                data-invalid={errorFor("currentPriceAud") ? "" : undefined}
+                className={input}
+              />
+            </Field>
+          </div>
+          <p className="-mt-3 text-xs text-mute">
+            For a clear-stock campaign, the trend step compares these with live Coles, Woolworths and ALDI prices and recommends a discount. The discount will not go below your cost.
+          </p>
           <Field label="Who is it for?" error={errorFor("targetAudience")}>
             <input
               value={form.targetAudience}

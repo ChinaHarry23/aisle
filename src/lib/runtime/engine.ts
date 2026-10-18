@@ -1,3 +1,4 @@
+import { defaultSpendCap } from "./budget";
 /**
  * The run engine.
  *
@@ -11,7 +12,7 @@
 
 import { uid } from "@/lib/ids";
 import { requestGenerate } from "@/lib/media/client";
-import { posterPrompt } from "@/lib/media/prompts";
+import { posterRequest } from "@/lib/media/prompts";
 import type { MediaGeneration } from "@/lib/media/types";
 import type { Campaign, Creative } from "@/lib/types";
 import { makeLlmRuntime, type LlmRuntime } from "./decide";
@@ -23,7 +24,7 @@ export type EngineOptions = {
   llm?: LlmRuntime;
   /** Bounded work per ADVANCE so one HTTP call cannot run away. */
   maxSteps?: number;
-  /** Account whose WhichGrocer sign-in the trend step may use. */
+  /** Signed-in founder for this run. */
   ownerUserId?: string;
   /** Ad renderer. Defaults to the studio route; tests pass a stub. */
   renderPoster?: (input: {
@@ -40,12 +41,7 @@ async function defaultRenderPoster(input: {
   creative: Creative;
   modelId: string;
 }): Promise<MediaGeneration> {
-  return requestGenerate({
-    kind: "image",
-    modelId: input.modelId,
-    prompt: posterPrompt(input.campaign, input.creative),
-    aspectRatio: "4:5",
-  });
+  return requestGenerate(posterRequest(input.campaign, input.creative, input.modelId));
 }
 
 function newRun(campaignId: string, now: string): AgentRun {
@@ -101,12 +97,7 @@ function blankWork(campaign: Campaign, now: string): Work {
 }
 
 /** Founder-set ceiling for automated spend (UC-01 ext 13.a). */
-export function defaultSpendCap(campaign: Pick<Campaign, "budget" | "spendCapUsd">) {
-  if (typeof campaign.spendCapUsd === "number" && campaign.spendCapUsd > 0) {
-    return campaign.spendCapUsd;
-  }
-  return Math.max(5, Math.min(50, Math.round(campaign.budget * 0.002 * 100) / 100));
-}
+export { defaultSpendCap } from "./budget";
 
 function envFor(
   ctx: EngineContext,

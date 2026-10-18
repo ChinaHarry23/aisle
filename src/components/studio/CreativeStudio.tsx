@@ -35,6 +35,7 @@ export function CreativeStudio({ campaign }: { campaign?: Campaign }) {
       <AdWorkbench
         key={c?.id ?? "standalone"}
         defaultPrompt={c?.creatives[0] ? posterPrompt(c, c.creatives[0]) : ""}
+        referenceImages={c?.productImageUrl ? [c.productImageUrl] : []}
       />
     </div>
   );

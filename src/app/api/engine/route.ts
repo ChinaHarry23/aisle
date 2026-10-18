@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/current";
-import { demoWorkspace, loadWorkspace, type WorkspaceSnapshot } from "@/lib/auth/workspace";
+import { demoWorkspace, loadWorkspace, saveWorkspace, type WorkspaceSnapshot } from "@/lib/auth/workspace";
+import { renderCampaignPoster } from "@/lib/media/campaign-poster";
 import { lookupShelfPrices } from "@/lib/retail/whichgrocer/connection";
 import { runEngine } from "@/lib/runtime/engine";
 import { setShelfPriceLookup } from "@/lib/runtime/tools";
@@ -18,10 +19,10 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * One ADVANCE chains up to 12 steps. The slowest single step is a poster pass
- * (two cloud renders at up to 240 s each, ~480 s); a decision is at most 120 s.
- * No new step starts after STEP_BUDGET_S, so the last one still finishes (and
- * settles its credit hold) inside maxDuration. The client advances again.
+ * One request runs one agent step. A poster pass is two cloud renders, up to
+ * about 240 s each. Chaining that with compliance and a revision used to exceed
+ * maxDuration, the response never arrived, and the image step was lost. The
+ * browser asks for the next step.
  */
 export const maxDuration = 800;
 const MAX_STEPS_PER_REQUEST = 12;
@@ -101,7 +102,8 @@ export async function POST(request: Request) {
   const maxSteps =
     typeof body.maxSteps === "number" && Number.isFinite(body.maxSteps)
       ? Math.min(Math.max(0, Math.floor(body.maxSteps)), MAX_STEPS_PER_REQUEST)
-      : undefined;
+      : 1;
+  const userKey = request.headers.get("x-provider-key")?.trim() || undefined;
 
   try {
     const llm = trendAgentEnabled()
@@ -113,8 +115,27 @@ export async function POST(request: Request) {
       body.command,
       settings,
       brand,
-      { maxSteps, ownerUserId: user.id, llm },
+      {
+        maxSteps,
+        ownerUserId: user.id,
+        llm,
+        renderPoster: (input) =>
+          renderCampaignPoster({
+            campaign: input.campaign,
+            creative: input.creative,
+            modelId: input.modelId,
+            ownerId: user.id,
+            userKey,
+          }),
+      },
     );
+    try {
+      const latest = await loadWorkspace(user.id, user.role);
+      const rest = latest.campaigns.filter((item) => item.id !== result.campaign.id);
+      await saveWorkspace(user.id, { ...latest, campaigns: [result.campaign, ...rest] });
+    } catch {
+      // The browser still writes the workspace. A failed save must not drop the result.
+    }
     return NextResponse.json({
       campaign: result.campaign,
       run: result.run,
