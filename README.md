@@ -1,5 +1,8 @@
 # Aisle
 
+TA-02 Trend connection setup and acceptance evidence are documented in
+[docs/TA-02-TREND-CONNECTION.md](docs/TA-02-TREND-CONNECTION.md).
+
 Aisle is a first-draft **one-person AI marketing company** for a retailer (the seeded brand is **Woolworths**). One human founder supervises four agents: Trend Analyser → Image Generation → Compliance Checker (human-in-the-loop) → Media Manager.
 
 This README is for teammates who need to clone the repo, run it, and find their way around.
