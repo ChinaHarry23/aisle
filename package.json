@@ -31,7 +31,9 @@
     "test:agents": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/agents-suite.ts",
     "test:whichgrocer": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/whichgrocer-suite.ts",
     "test:graph": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/operation-graph-suite.ts",
-    "test:intake": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/intake-suite.ts"
+    "test:intake": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/intake-suite.ts",
+    "test:compliance": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/compliance-suite.ts",
+    "test:compliance-rules": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/compliance-rules-suite.ts"
   },
   "dependencies": {
     "@langchain/core": "1.2.17",

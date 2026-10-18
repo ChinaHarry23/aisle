@@ -17,6 +17,7 @@ import {
   addStep,
   setRun,
   runComplianceReview,
+  receiveComplianceSubmission,
   runCreativeGeneration,
   runFeedbackCollection,
   runMediaAdaptation,
@@ -69,6 +70,7 @@ function stageFor(state: OpState): StageNode {
     case "creative.revise":
       return "revise";
     case "compliance.receive":
+    case "compliance.review":
       return "compliance";
     case "media.receive":
       return "media";
@@ -160,7 +162,9 @@ async function executeStep(w: Work, env: StepEnv): Promise<{ blocked: boolean; m
       // is one beyond it. Reading the version off the creatives would repeat v1,
       // because a rejected draft keeps its version number.
       return runCreativeGeneration(w, env, Math.max(2, c.revisionCount + 1));
-    case "compliance.receive": {
+    case "compliance.receive":
+      return receiveComplianceSubmission(w, env);
+    case "compliance.review": {
       const result = await runComplianceReview(w, env);
       if (result.blocked) return result;
       const attempt = c.complianceAttempts.at(-1);
