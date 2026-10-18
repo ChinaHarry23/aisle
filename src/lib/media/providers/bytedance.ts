@@ -30,13 +30,13 @@ const LARGE: Record<AspectRatio, string> = { "4:5": "1728x2160", "3:4": "1728x23
 const COMPACT: Record<AspectRatio, string> = { "4:5": "1440x1800", "3:4": "1344x1792", "1:1": "1600x1600", "9:16": "1152x2048", "16:9": "2048x1152" };
 const DRAFT: Record<AspectRatio, string> = { "4:5": "1024x1280", "3:4": "960x1280", "1:1": "1024x1024", "9:16": "864x1536", "16:9": "1536x864" };
 
-function key() {
-  const value = envValue(KEY_ENV);
+function key(override?: string) {
+  const value = override?.trim() || envValue(KEY_ENV);
   if (!value) throw new ProviderError("ARK_API_KEY is not set.", { retryable: false });
   return value;
 }
 
-const headers = () => ({ Authorization: `Bearer ${key()}` });
+const headers = (override?: string) => ({ Authorization: `Bearer ${key(override)}` });
 
 /** Turn ModelArk's error codes into something the Studio can show. */
 function explain(error: unknown, what: string): unknown {
@@ -57,7 +57,7 @@ type ImagesResponse = {
   error?: { code?: string; message?: string };
 };
 
-async function seedream(req: GenerateRequest, { model, onQueued, signal }: ProviderContext): Promise<ProviderOutput> {
+async function seedream(req: GenerateRequest, { model, startImage, apiKey, onQueued, signal }: ProviderContext): Promise<ProviderOutput> {
   const aspect: AspectRatio = req.aspectRatio ?? "4:5";
   const is5 = model.apiModel.includes("seedream-5-0");
   const compact = model.apiModel.startsWith("dola-");
@@ -68,9 +68,18 @@ async function seedream(req: GenerateRequest, { model, onQueued, signal }: Provi
   let body: ImagesResponse;
   try {
     body = await providerJson<ImagesResponse>("ByteDance", `${base()}/images/generations`, {
-      headers: headers(),
+      headers: headers(apiKey),
       // watermark defaults to true (an "AI generated" label); JPEG keeps a poster small. 4.x only outputs JPEG.
-      body: { model: model.apiModel, prompt: req.prompt, size, response_format: "b64_json", watermark: false, ...(is5 ? { output_format: "jpeg" } : {}) },
+      // `image` is sent only when the founder uploaded a product photo, so a text poster keeps the same body.
+      body: {
+        model: model.apiModel,
+        prompt: req.prompt,
+        size,
+        response_format: "b64_json",
+        watermark: false,
+        ...(is5 ? { output_format: "jpeg" } : {}),
+        ...(startImage ? { image: `data:${startImage.mime};base64,${startImage.bytes.toString("base64")}` } : {}),
+      },
       timeoutMs: 180_000,
       signal,
     });

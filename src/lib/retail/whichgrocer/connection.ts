@@ -5,7 +5,7 @@
 
 import { getDatabase, isDatabaseUnavailable } from "@/lib/db";
 import { kvGet, kvSet } from "@/lib/db/kv";
-import { WhichGrocerAuthError, WhichGrocerMcp } from "./mcp";
+import { loadCatalogue, whichGrocerApiKey, WhichGrocerApiError } from "./api";
 import {
   exchangeCode,
   oauthMetadata,
@@ -185,17 +185,20 @@ export type ShelfLookup =
   | { ok: false; kind: "not_connected" | "outside_au" | "empty" | "unavailable"; reason: string };
 
 /**
- * Live catalogue prices for one product. No user id means the bench and any
- * signed-out run record the gap instead of calling WhichGrocer.
+ * Live catalogue prices for one product. The server key in WHICHGROCER_API_KEY
+ * is the credential. A missing key records the gap and does not call the API.
  */
-export async function lookupShelfPrices(input: {
-  userId?: string;
-  product: string;
-  category: string;
-  country: string;
-  at: string;
-  query?: string;
-}): Promise<ShelfLookup> {
+export async function lookupShelfPrices(
+  input: {
+    userId?: string;
+    product: string;
+    category: string;
+    country: string;
+    at: string;
+    query?: string;
+  },
+  fetchImpl: typeof fetch = fetch,
+): Promise<ShelfLookup> {
   const query = shelfQuery(input.query || input.product, input.category);
   if (input.country !== "AU") {
     return {
@@ -207,47 +210,24 @@ export async function lookupShelfPrices(input: {
   if (!query) {
     return { ok: false, kind: "empty", reason: "The brief has no product name to price." };
   }
-  if (!input.userId) {
-    return { ok: false, kind: "not_connected", reason: "WhichGrocer is not connected." };
+  if (!whichGrocerApiKey()) {
+    return { ok: false, kind: "not_connected", reason: "WhichGrocer API key is not set." };
   }
 
-  let token: string | null;
+  let found: ShelfOffer[];
   try {
-    token = await accessTokenFor(input.userId);
+    found = await loadCatalogue(query, fetchImpl);
   } catch (error) {
-    if (isDatabaseUnavailable(error)) {
-      return { ok: false, kind: "unavailable", reason: "The WhichGrocer connection could not be read." };
-    }
-    throw error;
-  }
-  if (!token) {
-    return { ok: false, kind: "not_connected", reason: "WhichGrocer is not connected." };
+    const reason = error instanceof Error ? error.message : "WhichGrocer did not answer.";
+    const rejected = error instanceof WhichGrocerApiError && (error.status === 401 || error.status === 403);
+    return {
+      ok: false,
+      kind: rejected ? "not_connected" : "unavailable",
+      reason: (rejected ? "WhichGrocer rejected the API key." : reason).slice(0, 180),
+    };
   }
 
-  const load = async (bearer: string) => new WhichGrocerMcp(bearer).search(query);
-  let searched: { offers: ShelfOffer[] };
-  try {
-    searched = await load(token);
-  } catch (error) {
-    if (error instanceof WhichGrocerAuthError) {
-      const row = await readConnection(input.userId);
-      const refreshed = row ? await refreshConnection(row) : null;
-      if (!refreshed) {
-        return { ok: false, kind: "not_connected", reason: "WhichGrocer sign-in expired. Connect it again in Settings." };
-      }
-      try {
-        searched = await load(refreshed.accessToken);
-      } catch (retry) {
-        const reason = retry instanceof Error ? retry.message : "WhichGrocer did not answer.";
-        return { ok: false, kind: "unavailable", reason: reason.slice(0, 180) };
-      }
-    } else {
-      const reason = error instanceof Error ? error.message : "WhichGrocer did not answer.";
-      return { ok: false, kind: "unavailable", reason: reason.slice(0, 180) };
-    }
-  }
-
-  const offers = comparisonOffers(searched.offers, query).slice(0, 4);
+  const offers = comparisonOffers(found, query).slice(0, 4);
   if (offers.length === 0) {
     return {
       ok: false,

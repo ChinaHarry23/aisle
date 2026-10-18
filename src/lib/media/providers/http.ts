@@ -176,14 +176,15 @@ type ErrorBody = { error?: { message?: string; code?: string | number; type?: st
 export async function providerJson<T>(
   provider: string,
   url: string,
-  init: { method?: string; headers: Record<string, string>; body?: unknown; timeoutMs: number; signal?: AbortSignal },
+  init: { method?: string; headers: Record<string, string>; body?: unknown; form?: FormData; timeoutMs: number; signal?: AbortSignal },
 ): Promise<T> {
   let response: Response;
+  const form = init.form;
   try {
     response = await fetch(url, {
-      method: init.method ?? (init.body === undefined ? "GET" : "POST"),
-      headers: { ...(init.body === undefined ? {} : { "Content-Type": "application/json" }), ...init.headers },
-      body: init.body === undefined ? undefined : JSON.stringify(init.body),
+      method: init.method ?? (init.body === undefined && !form ? "GET" : "POST"),
+      headers: { ...(form || init.body === undefined ? {} : { "Content-Type": "application/json" }), ...init.headers },
+      body: form ?? (init.body === undefined ? undefined : JSON.stringify(init.body)),
       redirect: "error",
       cache: "no-store",
       signal: signalFor(init.timeoutMs, init.signal),

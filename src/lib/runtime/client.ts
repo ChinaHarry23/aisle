@@ -9,6 +9,8 @@
  * truth — the same document the workspace API persists.
  */
 
+import { getByoKey } from "@/lib/media/byo-key";
+import { getModel } from "@/lib/media/catalog";
 import type { BrandProfile, Campaign } from "@/lib/types";
 import type { WorkspaceSettings } from "@/lib/settings";
 import type { Command, EngineResult } from "./types";
@@ -28,9 +30,16 @@ export async function sendCommand(
   maxSteps?: number,
 ): Promise<EngineResponse> {
   try {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    try {
+      const key = getByoKey(getModel(context.settings.imageModelId).providerId);
+      if (key) headers["x-provider-key"] = key;
+    } catch {
+      // An unknown image model still lets the text agents run.
+    }
     const res = await fetch("/api/engine", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({
         campaign,
         command,

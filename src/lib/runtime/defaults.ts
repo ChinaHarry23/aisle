@@ -36,6 +36,16 @@ export function withRuntimeDefaults(campaign: Campaign): Campaign {
     runSchedule: campaign.runSchedule ?? [],
     performanceReport: campaign.performanceReport ?? null,
     recommendationDecision: campaign.recommendationDecision ?? null,
+    unitCostAud: typeof campaign.unitCostAud === "number" && Number.isFinite(campaign.unitCostAud) ? campaign.unitCostAud : null,
+    currentPriceAud:
+      typeof campaign.currentPriceAud === "number" && Number.isFinite(campaign.currentPriceAud)
+        ? campaign.currentPriceAud
+        : null,
+    priceRecommendation: campaign.priceRecommendation ?? null,
+    productImageUrl:
+      typeof campaign.productImageUrl === "string" && campaign.productImageUrl.startsWith("data:image/")
+        ? campaign.productImageUrl
+        : null,
     policyDecisions,
     runSteps,
     toolCalls,

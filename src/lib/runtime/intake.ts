@@ -6,6 +6,7 @@
  * country or channel the founder did not provide.
  */
 
+import { clearanceFieldProblems } from "@/lib/retail/whichgrocer/clearance";
 import type { BrandProfile, Campaign, Channel, Country, CampaignInput } from "@/lib/types";
 
 export type ValidationProblem = {
@@ -45,6 +46,8 @@ export type IntakeInput = Pick<
   | "startDate"
   | "endDate"
   | "country"
+  | "unitCostAud"
+  | "currentPriceAud"
 >;
 
 /** Required fields, usable values, and brand/country-law configuration. */
@@ -154,6 +157,10 @@ export function validateIntake(input: IntakeInput, brand: BrandProfile | null): 
         clause: "UC-01 ext 5.a",
       });
     }
+  }
+
+  for (const problem of clearanceFieldProblems(input)) {
+    problems.push({ ...problem, clause: "Clearance price" });
   }
 
   return problems;

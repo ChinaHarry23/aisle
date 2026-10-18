@@ -3,7 +3,7 @@ import type { Campaign, CampaignBrief, Creative } from "./types";
 
 function pack(campaign: Campaign) {
   const t = `${campaign.product} ${campaign.name} ${campaign.category} ${campaign.targetAudience}`.toLowerCase();
-  if (/jacket|parka|coat|outerwear|hoodie|apparel|knit/.test(t)) return "campus" as const;
+  if (/jacket|parka|coat|outerwear|hoodie|knit/.test(t)) return "campus" as const;
   if (/fruit|yoghurt|yogurt|grocery|produce|catalogue|peach|plum|veg|milk/.test(t))
     return "produce" as const;
   if (/coffee|bean|pantry|chocolate/.test(t)) return "pantry" as const;

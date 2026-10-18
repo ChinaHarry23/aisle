@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { renderCampaignPoster } from "../../src/lib/media/campaign-poster";
 import { lookupShelfPrices } from "../../src/lib/retail/whichgrocer/connection";
 import { runEngine, type EngineOptions } from "../../src/lib/runtime/engine";
 import { setShelfPriceLookup } from "../../src/lib/runtime/tools";
@@ -26,7 +27,17 @@ export async function workOnce(repo: WorkflowRepository, workerId: string, optio
         campaign.run.status = "running"; campaign.running = true;
         command = { type: "ADVANCE", actor: "system" };
       }
-      const result = await runEngine({ campaigns: context, now: new Date().toISOString() }, campaign, command, job.input.settings, job.input.brand, { ...options, maxSteps: 1, ownerUserId: job.user_id });
+      const result = await runEngine({ campaigns: context, now: new Date().toISOString() }, campaign, command, job.input.settings, job.input.brand, {
+        ...options,
+        maxSteps: 1,
+        ownerUserId: job.user_id,
+        renderPoster: options.renderPoster ?? ((input) => renderCampaignPoster({
+          campaign: input.campaign,
+          creative: input.creative,
+          modelId: input.modelId,
+          ownerId: job.user_id,
+        })),
+      });
       const complete = !result.canAdvance;
       repo.checkpoint(job, result, complete);
       if (complete) return true;

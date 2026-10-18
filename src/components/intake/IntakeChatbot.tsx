@@ -173,6 +173,9 @@ export function IntakeChatbot({
       endDate: nextDraft.endDate || form.endDate,
       country: nextDraft.country || form.country,
       notes: nextDraft.notes || form.notes,
+      unitCostAud: form.unitCostAud ?? null,
+      currentPriceAud: form.currentPriceAud ?? null,
+      productImageUrl: form.productImageUrl ?? null,
     });
   }
 

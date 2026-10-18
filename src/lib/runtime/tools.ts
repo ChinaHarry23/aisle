@@ -512,9 +512,8 @@ type ShelfLookup = (input: {
 }) => Promise<ShelfLookupResult>;
 
 /**
- * The catalogue call needs the database and the WhichGrocer token, which cannot
- * be bundled into the browser. The API route and the worker install it. A run
- * without it records the price as unavailable.
+ * The catalogue call reads WHICHGROCER_API_KEY on the server. The API route and
+ * the worker install it. A run without that lookup records the price as unavailable.
  */
 let shelfLookup: ShelfLookup | null = null;
 
@@ -527,7 +526,7 @@ export const shelfPriceTool: ToolDefinition = {
   label: "Shelf prices (WhichGrocer)",
   agent: "trend",
   description:
-    "Reads live Australian catalogue prices for the product from WhichGrocer (Coles, Woolworths, ALDI and other connected retailers). Cites each price with the retailer page and the date WhichGrocer last saw it. Requires the founder's WhichGrocer sign-in.",
+    "Reads live Australian catalogue prices for the product from the WhichGrocer API (Coles, Woolworths, ALDI and other retailers). Cites each price with the retailer page and the date WhichGrocer last saw it. Uses the server WHICHGROCER_API_KEY.",
   args: ["query"],
   async run({ campaign, at, args, ownerUserId }) {
     const lookup =
@@ -547,7 +546,7 @@ export const shelfPriceTool: ToolDefinition = {
               query: args.query,
             })
           : { ok: false as const, kind: "not_connected", reason: "WhichGrocer is not connected." };
-    const sourceRef = "https://mcp.whichgrocer.com/mcp";
+    const sourceRef = "https://api.whichgrocer.com/v2";
     if (!lookup.ok) {
       const outside = lookup.kind === "outside_au";
       return {
@@ -574,7 +573,7 @@ export const shelfPriceTool: ToolDefinition = {
           detail: lookup.reason,
           effect: outside
             ? "No Australian shelf price was applied to this campaign."
-            : "The brief cannot cite a current Coles, Woolworths or ALDI price. Connect WhichGrocer in Settings, then run the trend step again.",
+            : "The brief cannot cite a current Coles, Woolworths or ALDI price. Set WHICHGROCER_API_KEY on the server, then run the trend step again.",
         },
       };
     }

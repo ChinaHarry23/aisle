@@ -18,8 +18,9 @@ import type { CompleteResult } from "@/lib/llm/types";
 import type { AgentSlot } from "@/lib/llm/types";
 import type { CompleteRequest } from "@/lib/llm/types";
 import { guidelinesPrompt } from "@/lib/guidelines";
+import { productScene } from "@/lib/media/prompts";
 import type { WorkspaceSettings } from "@/lib/settings";
-import type { BrandProfile, Campaign } from "@/lib/types";
+import type { BrandProfile, Campaign, PriceRecommendation } from "@/lib/types";
 import type { ChannelResult, ComplianceIssue, RecommendationPoint } from "./types";
 
 export type LlmRuntime = {
@@ -109,13 +110,19 @@ export async function decideTrendBrief(input: {
   llm: LlmRuntime;
   evidenceLines: string[];
   fallback: TrendDecision;
+  /** Arithmetic clearance discount. The model may explain it and must not replace the percentage. */
+  clearance?: PriceRecommendation | null;
 }): Promise<{ decision: TrendDecision; trace: DecisionTrace }> {
   const assignment = assignmentFor(input.campaign, input.settings, "trend");
+  const clearance = input.clearance;
   const prompt = [
     `Retailer: ${input.brand.retailerName}. Country: ${input.campaign.country}.`,
     `Product: ${input.campaign.product}. Category: ${input.campaign.category}.`,
     `Audience: ${input.campaign.targetAudience}. Objective: ${input.campaign.objective}.`,
     `Channels: ${input.campaign.channels.join(", ")}. Dates: ${input.campaign.startDate} → ${input.campaign.endDate}.`,
+    clearance
+      ? `Founder cost $${clearance.unitCostAud.toFixed(2)}. Current selling price $${clearance.currentPriceAud.toFixed(2)}.`
+      : "",
     `Brand tone: ${input.brand.tone}`,
     `Allowed terms: ${input.brand.approvedTerms.join(", ")}.`,
     `Banned terms (never use): ${input.brand.bannedTerms.join(", ")}.`,
@@ -123,6 +130,15 @@ export async function decideTrendBrief(input: {
     "Evidence collected by tools (source · date · status):",
     ...input.evidenceLines.map((l) => `- ${l}`),
     "",
+    clearance
+      ? [
+          "Clearance discount already computed from the founder's cost, current price, and WhichGrocer catalogue prices.",
+          `Use ${clearance.discountPct}% off, recommended price $${clearance.recommendedPriceAud.toFixed(2)}, anchored to ${clearance.marketLabel}.`,
+          clearance.rationale,
+          "Do not invent a different percentage or a different shelf price.",
+          "",
+        ].join("\n")
+      : "",
     "Decide the campaign brief from this evidence only. Do not invent market data.",
     "Reply with JSON only:",
     '{"priorities":[{"topic":"","relevance":0-100,"confidence":0-100,"theme":"","visual":""}],',
@@ -197,6 +213,9 @@ export async function decideCopy(input: {
     input.version > 1
       ? `This is revision ${input.version}. Compliance returned the last draft with: ${input.complianceNotes.join(" | ") || "no notes"}. Fix exactly those problems and keep the angle.`
       : "",
+    input.campaign.productImageUrl
+      ? `A product photo will be attached to the poster. The picture must show: ${productScene(input.campaign.product, input.campaign.category, input.campaign.notes ?? "")} The image prompt has to match that scene.`
+      : `Picture the product in use: ${productScene(input.campaign.product, input.campaign.category, input.campaign.notes ?? "")}`,
     "Every claim must be a verifiable product fact. No superlatives, no health claims, no guarantees.",
     'Reply with JSON only: {"variants":[{"variant":"A","kicker":"","headline":"","subhead":"","cta":"","caption":"","prompt":"image prompt"},{...B}]}',
   ]
