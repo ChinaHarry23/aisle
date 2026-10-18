@@ -133,7 +133,8 @@ export type ComplianceIssueCategory =
   | "copyright"
   | "audience_targeting"
   | "platform_policy"
-  | "brand_guideline";
+  | "brand_guideline"
+  | "inappropriate_content";
 
 /**
  * AHR-04 requires the checker to separate a confirmed breach from something a

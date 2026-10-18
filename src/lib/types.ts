@@ -1,3 +1,4 @@
+import type { ComplianceReviewRun } from "./compliance/service";
 import type { AdVideo, MediaGeneration, StudioRun } from "./media/types";
 import type {
   AgentRun,
@@ -125,6 +126,8 @@ export type Palette = {
 };
 
 export type Creative = {
+  /** Actual generation time; absent only on legacy drafts. */
+  createdAt?: string;
   id: string;
   variant: "A" | "B";
   version: number;
@@ -280,6 +283,7 @@ export type Campaign = CampaignInput & {
   trendGaps: TrendBriefGap[];
   /** Every version submitted to AHR-04, kept for audit. */
   complianceAttempts: ComplianceAttempt[];
+  complianceReviewRuns?: ComplianceReviewRun[];
   /** AHR-05 channel-ready versions, claim-frozen. */
   channelVersions: ChannelVersion[];
   /** AHR-05 conflicts flagged rather than silently resolved. */
