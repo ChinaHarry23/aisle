@@ -222,6 +222,27 @@ async function startAndAdvance(
   return s;
 }
 
+/**
+ * Drive the bench to a founder-approvable draft that the Media Manager can adapt.
+ *
+ * Since CC-03 (PR #7) a draft with an unsupported claim, or any review run without
+ * an authorised policy registry, escalates straight to Manual Review instead of
+ * auto-revising. The founder resolves that the way the desk does: request changes
+ * once, so the approved master is the cleaned revision rather than the v1 draft
+ * whose "guaranteed"/"number one" copy AHR-05 must (and does) refuse to adapt.
+ */
+async function startAndClear(...args: Parameters<typeof startAndAdvance>) {
+  const s = await startAndAdvance(...args);
+  if (s.campaign.complianceAttempts.at(-1)?.outcome === "manual_review") {
+    let r = await s.run({ type: "REQUEST_CHANGES", actor: "founder", note: "Remove the unsupported claims." });
+    let i = 0;
+    while ((r.canAdvance || s.campaign.run?.status === "running") && i++ < 12) {
+      r = await s.run({ type: "ADVANCE", actor: "founder" });
+    }
+  }
+  return s;
+}
+
 /* ------------------------------------------------- UC-01 ext 3.a / 4.a / 5.a */
 
 {
@@ -306,7 +327,7 @@ async function startAndAdvance(
 /* ---------------------------------------------------- AHR-05 distribution -- */
 
 {
-  const s = await startAndAdvance({ channels: ["instagram", "web", "email", "print"], budget: 18000 });
+  const s = await startAndClear({ channels: ["instagram", "web", "email", "print"], budget: 18000 });
   await s.run({ type: "APPROVE", actor: "founder", note: "Ship variant A." });
   let i = 0;
   let r = await s.run({ type: "ADVANCE", actor: "founder" });
@@ -362,7 +383,7 @@ async function startAndAdvance(
 /* -------------------------------------------- publish + AHR-06 feedback ---- */
 
 {
-  const s = await startAndAdvance({ channels: ["instagram", "web", "email"], budget: 12000 });
+  const s = await startAndClear({ channels: ["instagram", "web", "email"], budget: 12000 });
   await s.run({ type: "APPROVE", actor: "founder", note: "Go." });
   let i = 0;
   let r = await s.run({ type: "ADVANCE", actor: "founder" });
@@ -420,7 +441,7 @@ async function startAndAdvance(
   // The declared publish path drives the three cases UC-05 ext 6.a names without
   // a random seed: a clean confirm, a retry inside the cap, and a late result
   // that must be reconciled to the same item id rather than resubmitted.
-  const s = await startAndAdvance(
+  const s = await startAndClear(
     { channels: ["web", "email", "print"], budget: 12000 },
     { publishOverrides: { web: "retry_then_ok", email: "late", print: "ok" } },
   );
@@ -472,7 +493,7 @@ async function startAndAdvance(
   // One channel never confirms. It must not quietly publish the campaign: the
   // retry cap is hit, the item is flagged for the founder, and results cannot be
   // collected until delivery completes.
-  const s = await startAndAdvance(
+  const s = await startAndClear(
     { channels: ["web", "email", "print"], budget: 12000 },
     { publishOverrides: { web: "fail" } },
   );
@@ -547,7 +568,7 @@ async function startAndAdvance(
     },
   };
 
-  const s = await startAndAdvance(
+  const s = await startAndClear(
     { channels: ["web", "email", "print"], budget: 12000 },
     {},
     { llm: captionLlm },
@@ -637,7 +658,7 @@ async function startAndAdvance(
   // Two channels report nothing: one is not authorised, one has not reported yet.
   // The outcomes are declared rather than left to a modelled edge case, so this
   // scenario tests the requirement instead of a random campaign id.
-  const s = await startAndAdvance(
+  const s = await startAndClear(
     { channels: ["print", "digital_signage"], budget: 6000 },
     { collectorOverrides: { print: "not_authorised", digital_signage: "late" } },
   );
