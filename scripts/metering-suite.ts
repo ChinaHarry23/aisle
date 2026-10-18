@@ -369,14 +369,14 @@ try {
     const job = repo.enqueue("worker-beta", "metered-1", { campaign: workCampaign, campaigns: [], brand: defaultBrand, settings, command: { type: "START", actor: "founder" } });
     await workOnce(repo, "metering-worker", { renderPoster: stubPoster });
     assert.equal(repo.get("worker-beta", job.id).status, "completed");
-    assert.equal((await usageRows("worker-beta")).length, 0, "Cindy's worker does not thread billing");
+    assert.ok((await usageRows("worker-beta")).length > 0, "the worker bills the owner's agent calls");
 
     const ghostCampaign = { ...structuredClone(workCampaign), id: "ghost-campaign" };
     const calls = cloudCalls();
     repo.enqueue("ghost", "ghost-1", { campaign: ghostCampaign, campaigns: [], brand: defaultBrand, settings, command: { type: "START", actor: "founder" } });
     await workOnce(repo, "metering-worker", { renderPoster: stubPoster });
     assert.equal(cloudCalls(), calls, "an unknown user cannot spend the platform keys");
-    pass("the workflow worker completes jobs without threading billing through Cindy's engine");
+    pass("the workflow worker bills a known owner and refuses an unknown user");
   } finally {
     repo.close();
   }

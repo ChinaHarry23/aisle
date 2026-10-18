@@ -225,11 +225,9 @@ async function startAndAdvance(
 /**
  * Drive the bench to a founder-approvable draft that the Media Manager can adapt.
  *
- * Since CC-03 (PR #7) a draft with an unsupported claim, or any review run without
- * an authorised policy registry, escalates straight to Manual Review instead of
- * auto-revising. The founder resolves that the way the desk does: request changes
- * once, so the approved master is the cleaned revision rather than the v1 draft
- * whose "guaranteed"/"number one" copy AHR-05 must (and does) refuse to adapt.
+ * Since CC-03 (PR #7) a review run without an authorised policy registry escalates
+ * straight to Manual Review instead of auto-revising. The founder resolves that
+ * the way the desk does: request changes once, then approve the brief-written draft.
  */
 async function startAndClear(...args: Parameters<typeof startAndAdvance>) {
   const s = await startAndAdvance(...args);
@@ -314,7 +312,10 @@ async function startAndClear(...args: Parameters<typeof startAndAdvance>) {
   assert.equal(c.complianceAttempts[0].outcome, "manual_review");
   assert.equal(c.creatives[0].version, 1);
   assert.equal(c.status, "awaiting_approval");
-  assert.ok(c.complianceAttempts[0].issues.some(i => i.basis === "confirmed_breach"));
+  const painted = `${c.creatives[0].headline} ${c.creatives[1].headline} ${c.creatives[0].prompt}`;
+  assert.doesNotMatch(painted, /healthiest breakfast|miracle mornings|warmest jacket/i);
+  assert.match(c.creatives[0].prompt, /Northline Trail Parka/i);
+  assert.match(c.creatives[0].headline, /Weatherproof|Northline Trail Parka/i);
   pass("CC-03/04 — unavailable policy stops automatic work", "Exact submitted version retained; manual review required.");
 }
 {

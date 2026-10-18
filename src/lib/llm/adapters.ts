@@ -17,7 +17,7 @@ export function isLlmConfigured(model: LlmModel, localBaseUrl?: string) {
 export function systemFor(agent: CompleteRequest["agent"]) {
   const role = {
     trend:
-      "You are the Trend Analyser for a neighbourhood retailer. Return JSON: trends, opportunities, personas, brief.",
+      "You are the Trend Analyser for a neighbourhood retailer. Return one JSON object with priorities, angle, keyMessage, claimsAllowed, claimsAvoid, visualDirection, and limitations. The keyMessage is the poster headline for this product only.",
     creative:
       "You are the Image Generation agent. Return JSON for two ad variants (A/B): headline, subhead, cta, caption, prompt.",
     compliance:

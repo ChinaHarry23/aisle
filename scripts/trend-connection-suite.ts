@@ -22,24 +22,14 @@ const answer = {
 };
 let checks = 0;
 const pass = (name: string) => { checks++; console.log(`PASS ${name}`); };
-const enabledBefore = process.env.TA02_AGENT_ENABLED;
-try {
-  delete process.env.TA02_AGENT_ENABLED;
-  assert.equal(createServerTrendRuntime(), undefined);
-  process.env.TA02_AGENT_ENABLED = "true";
-  assert.equal(createServerTrendRuntime(), undefined);
-  pass("server integration is disabled unless explicitly set to 1");
-  process.env.TA02_AGENT_ENABLED = "1";
-  const serverRuntime = createServerTrendRuntime()!;
+{
+  const serverRuntime = createServerTrendRuntime();
   assert.equal((await serverRuntime.request({ ...request, modelId: "anthropic:claude-sonnet-5.5" })).status, "unconfigured");
   pass("server workflows reject unsupported providers");
   assert.equal((await serverRuntime.request({ ...request, modelId: "openai:gpt-6-luna" })).status, "no_credits");
-  const unmetered = createServerTrendRuntime({ kind: "unmetered", reason: "test" })!;
+  const unmetered = createServerTrendRuntime({ kind: "unmetered", reason: "test" });
   assert.equal((await unmetered.request({ ...request, modelId: "openai:gpt-6-luna" })).status, "no_credits");
   pass("server cloud calls cannot use absent or unmetered billing identities");
-} finally {
-  if (enabledBefore === undefined) delete process.env.TA02_AGENT_ENABLED;
-  else process.env.TA02_AGENT_ENABLED = enabledBefore;
 }
 assert.throws(() => createTrendAgentRuntime({ testCompletion: async (req) => stubComplete(req, "test") }), /mock/);
 pass("injected completions cannot masquerade as live mode");
@@ -184,22 +174,15 @@ try {
   const testSettings = structuredClone(settings);
   testSettings.localBaseUrl = req.localBaseUrl;
   testSettings.localModel = req.localModel;
-  const enabled = process.env.TA02_AGENT_ENABLED;
-  process.env.TA02_AGENT_ENABLED = "1";
-  try {
-    const decision = await decideTrendBrief({
-      campaign, brand: defaultBrand, settings: testSettings,
-      llm: createServerTrendRuntime()!, evidenceLines: ["Synthetic fixture only"],
-      fallback: { ...answer, claimsAllowed: ["Fallback claim must not appear in a live decision"] },
-    });
-    assert.equal(decision.trace.path, "live_model");
-    assert.equal(decision.decision.priorities[0].confidence, 20);
-    assert.deepEqual(decision.decision.claimsAllowed, []);
-    pass("server hook preserves low confidence and empty substantiated claims through decision parsing");
-  } finally {
-    if (enabled === undefined) delete process.env.TA02_AGENT_ENABLED;
-    else process.env.TA02_AGENT_ENABLED = enabled;
-  }
+  const decision = await decideTrendBrief({
+    campaign, brand: defaultBrand, settings: testSettings,
+    llm: createServerTrendRuntime(), evidenceLines: ["Synthetic fixture only"],
+    fallback: { ...answer, claimsAllowed: ["Fallback claim must not appear in a live decision"] },
+  });
+  assert.equal(decision.trace.path, "live_model");
+  assert.equal(decision.decision.priorities[0].confidence, 20);
+  assert.deepEqual(decision.decision.claimsAllowed, []);
+  pass("server hook preserves low confidence and empty substantiated claims through decision parsing");
   responseStatus = 503;
   const unavailable = await livePath.request(req);
   assert.equal(unavailable.status, "error");

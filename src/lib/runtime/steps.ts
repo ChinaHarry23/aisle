@@ -10,6 +10,7 @@ import { beginReview, submissionFor, assertReviewPermission, ComplianceSubmissio
  */
 
 import { uid } from "@/lib/ids";
+import { copyFromBrief } from "@/lib/media/brief-copy";
 import { getModelOrDefault } from "@/lib/media/catalog";
 import type { MediaGeneration } from "@/lib/media/types";
 import { makeLog } from "@/lib/seed";
@@ -269,173 +270,17 @@ export function palettesFor(motif: Motif): Record<"A" | "B", Palette> {
   };
 }
 
-/** Version 1 deliberately carries the claims the banned list forbids. */
-export function v1Copy(campaign: Campaign, motif: Motif): Record<"A" | "B", CopyVariant> {
-  if (motif === "campus") {
-    return {
-      A: {
-        variant: "A",
-        kicker: "Northline · Winter 26",
-        headline: "The warmest jacket in Australia",
-        subhead: `Guaranteed dry through ${campaign.targetAudience.split(",")[0].toLowerCase()} weather.`,
-        cta: "Shop the parka",
-        caption: `New ${campaign.product}. The warmest jacket in Australia — guaranteed.`,
-        prompt: "",
-      },
-      B: {
-        variant: "B",
-        kicker: "Drop",
-        headline: "Winter, but make it campus.",
-        subhead: "Australia's number one uni jacket. Risk-free warmth.",
-        cta: "See the drop",
-        caption: `${campaign.product} — number one on campus.`,
-        prompt: "",
-      },
-    };
-  }
-  if (motif === "produce") {
-    return {
-      A: {
-        variant: "A",
-        kicker: "Week 34 · Catalogue",
-        headline: "Australia's healthiest breakfast",
-        subhead: "Clinically proven goodness. Stone fruit + yoghurt, guaranteed ripe.",
-        cta: "Open the catalogue",
-        caption: "Australia's healthiest breakfast, only at Lane & Co.",
-        prompt: "",
-      },
-      B: {
-        variant: "B",
-        kicker: "Catalogue",
-        headline: "Miracle mornings",
-        subhead: "The healthiest shop in the neighbourhood.",
-        cta: "See specials",
-        caption: "Miracle produce, week 34.",
-        prompt: "",
-      },
-    };
-  }
-  return {
-    A: {
-      variant: "A",
-      kicker: campaign.category,
-      headline: `Australia's best ${campaign.product}`,
-      subhead: "Guaranteed results. Number one in its class.",
-      cta: "Shop now",
-      caption: `${campaign.product} — Australia's best. Guaranteed.`,
-      prompt: "",
-    },
-    B: {
-      variant: "B",
-      kicker: campaign.category,
-      headline: `${campaign.product}, miracle edition`,
-      subhead: "Risk-free. Clinically proven. The healthiest choice.",
-      cta: "Get it",
-      caption: `Don't miss ${campaign.product}.`,
-      prompt: "",
-    },
-  };
-}
-
-export function v2Copy(
-  campaign: Campaign,
-  motif: Motif,
-  brief: CampaignBrief,
-): Record<"A" | "B", CopyVariant> {
-  if (motif === "campus") {
-    return {
-      A: {
-        variant: "A",
-        kicker: "Northline · Winter 26",
-        headline: "Weatherproof. Not wilderness.",
-        subhead: `The ${campaign.product}. Cut for 8am lectures and 6pm southerlies.`,
-        cta: "Shop the parka",
-        caption: `${campaign.product}. Water-resistant shell, packs into its pocket. Made for campus weather — Lane & Co.`,
-        prompt: "",
-      },
-      B: {
-        variant: "B",
-        kicker: "Campus drop",
-        headline: "Winter, but make it campus.",
-        subhead: "Warmth that fits in a bag. No summit required.",
-        cta: "See the drop",
-        caption: `${campaign.product} — packable, water-resistant, priced like a neighbourhood shop.`,
-        prompt: "",
-      },
-    };
-  }
-  if (motif === "produce") {
-    const hero = campaign.product.split(/[+—]/)[0].trim();
-    return {
-      A: {
-        variant: "A",
-        kicker: "This week's catalogue",
-        headline: `${hero} is in.`,
-        subhead: `In season this week. ${campaign.product}.`,
-        cta: "Open this week's catalogue",
-        caption: `${campaign.product}. In season this week at Lane & Co.`,
-        prompt: "",
-      },
-      B: {
-        variant: "B",
-        kicker: "Weekly",
-        headline: `Make a week of ${hero.toLowerCase()}.`,
-        subhead: "In season this week — trays at the front.",
-        cta: "See specials",
-        caption: `${campaign.product}. Catalogue this week.`,
-        prompt: "",
-      },
-    };
-  }
-  return {
-    A: {
-      variant: "A",
-      kicker: campaign.category,
-      headline: brief.keyMessage,
-      subhead: `${campaign.product} for ${campaign.targetAudience}. ${brief.angle}`,
-      cta: "See the offer",
-      caption: `${campaign.product} — ${brief.angle} Lane & Co.`,
-      prompt: "",
-    },
-    B: {
-      variant: "B",
-      kicker: campaign.category,
-      headline: campaign.product,
-      subhead: brief.angle,
-      cta: "Shop",
-      caption: `${campaign.product}. ${brief.claimsAllowed[0] ?? ""}`.trim(),
-      prompt: "",
-    },
-  };
-}
-
 /**
- * Deterministic fallback copy.
- *
- * Version 1 carries the claims the brand list forbids, which is what makes the
- * AHR-04 revision loop visible in a demo. From version 2 the copy is clean for
- * the motifs where a fix is obvious; the generic editorial motif keeps one
- * unsupported superlative, which is how the *ineffective* revision — the case
- * that spends all three attempts and escalates — stays reachable without a live
- * model. Both paths are exercised by `scripts/bench-suite.ts`.
+ * Copy used when the creative model is unavailable, and the floor under a live answer.
+ * Both variants are written from this campaign's trend brief. Nothing here is a
+ * shared breakfast, campus, or category slogan.
  */
-export function deterministicCopy(campaign: Campaign, version: number): Record<"A" | "B", CopyVariant> {
-  const motif = motifPack(campaign);
-  const brief = campaign.brief;
-  if (version === 1 || !brief) return v1Copy(campaign, motif);
-  const fixed = v2Copy(campaign, motif, brief);
-  const shoe = /shoe|sneaker|trainer|footwear|\brunning\b/.test(
-    `${campaign.product} ${campaign.notes ?? ""}`.toLowerCase(),
-  );
-  if (motif === "campus" || motif === "produce" || shoe) return fixed;
-  return {
-    A: {
-      ...fixed.A,
-      subhead: `${fixed.A.subhead} Guaranteed to lift basket size.`,
-      caption: `${fixed.A.caption} Guaranteed results.`,
-    },
-    B: fixed.B,
-  };
+export function deterministicCopy(
+  campaign: Campaign,
+  notes: string[] = [],
+  banned: string[] = [],
+): Record<"A" | "B", CopyVariant> {
+  return copyFromBrief(campaign, banned, notes);
 }
 
 export function buildCreatives(
@@ -527,7 +372,7 @@ function trendFallbackDecision(
     : motif === "campus"
       ? "Campus weather, not wilderness."
       : motif === "produce"
-        ? `This week's fruit, this week's breakfast.`
+        ? `${campaign.product}, for ${campaign.targetAudience}.`
         : `One honest job ${campaign.product} does for ${campaign.targetAudience}.`;
   return {
     priorities: [
@@ -546,7 +391,7 @@ function trendFallbackDecision(
       },
     ],
     angle,
-    keyMessage: clearance ?? (motif === "campus" ? "Weatherproof. Not wilderness." : `${campaign.product}, without the theatre.`),
+    keyMessage: clearance ?? campaign.product.slice(0, 160),
     claimsAllowed:
       motif === "campus"
         ? ["Water-resistant shell", "Packs into its own pocket", "Cut for commuting"]
@@ -973,7 +818,7 @@ export async function runCreativeGeneration(
         : "Removing unsupported claims, keeping the angle.",
   );
 
-  const fallbackMap = deterministicCopy(c, version);
+  const fallbackMap = deterministicCopy(c, notes, env.brand.bannedTerms);
   const { variants, trace } = await decideCopy({
     campaign: c,
     brand: env.brand,
@@ -1232,6 +1077,7 @@ export async function runComplianceReview(
     brand: env.brand,
     settings: env.settings,
     llm: env.llm,
+    ownerId: env.ownerUserId,
     copy: copyBlob,
     attempt: attemptNo,
     fallback,

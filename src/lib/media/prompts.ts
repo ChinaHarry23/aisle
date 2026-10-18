@@ -41,23 +41,36 @@ export function productScene(product: string, category: string, notes = ""): str
 }
 
 export function posterPrompt(campaign: Campaign, creative: Creative) {
+  const brief = campaign.brief;
+  const scene =
+    creative.prompt?.trim() ||
+    [
+      brief?.angle ? `Angle from the trend brief: ${brief.angle}.` : "",
+      brief?.visualDirection ? `Visual direction from the trend brief: ${brief.visualDirection}.` : "",
+      `The product is ${campaign.product}.`,
+    ]
+      .filter(Boolean)
+      .join(" ");
   const reference = campaign.productImageUrl
     ? [
-        "The attached photo is the product. Keep its shape, colour and markings recognisable.",
+        "The attached photo is this product. Keep its shape, colour and markings recognisable.",
         productScene(campaign.product, campaign.category, campaign.notes ?? ""),
         "Do not depict a named real person, and do not replace the product with a different one.",
       ].join(" ")
-    : "No product photo was supplied, so illustrate the product honestly from the description.";
+    : "No product photo was supplied. Illustrate this exact product from the brief, not a generic category scene.";
   return [
     "Retail advertisement, 4:5, print quality.",
     reference,
     `Brand: ${campaign.sharedContext.retailer}.`,
     `Product: ${campaign.product}.`,
-    `Headline: ${creative.headline}.`,
-    creative.subhead,
-    campaign.brief?.visualDirection ?? campaign.sharedContext.brandTone,
-    "No competitor logos. Honest product, not stock-smile families.",
-  ].join(" ");
+    scene,
+    `Set only these words in type. Headline: “${creative.headline}”.`,
+    creative.subhead ? `Supporting line: “${creative.subhead}”.` : "",
+    `Call to action: “${creative.cta}”.`,
+    "No competitor logos. Do not add a slogan that is not in those lines.",
+  ]
+    .filter(Boolean)
+    .join(" ");
 }
 
 /** The image request for one poster, including the product photo when the founder uploaded one. */

@@ -66,6 +66,7 @@ export function withRuntimeDefaults(campaign: Campaign): Campaign {
       founderNotes: campaign.sharedContext.founderNotes ?? [],
       previousPerformanceNote: campaign.sharedContext.previousPerformanceNote ?? null,
       previousPerformanceFrom: campaign.sharedContext.previousPerformanceFrom ?? null,
+      intakeSummary: campaign.sharedContext.intakeSummary ?? null,
     },
   };
 }

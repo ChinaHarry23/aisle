@@ -14,6 +14,7 @@ import type { ComplianceRule } from "../compliance/rules";
 
 import { runComplete } from "@/lib/llm/complete";
 import { getLlmOrDefault } from "@/lib/llm/catalog";
+import { copySchema, trendBriefSchema } from "@/lib/llm/response-schemas";
 import type { CompleteResult } from "@/lib/llm/types";
 import type { AgentSlot } from "@/lib/llm/types";
 import type { CompleteRequest } from "@/lib/llm/types";
@@ -103,6 +104,50 @@ export type TrendDecision = {
   limitations: string[];
 };
 
+function recordOf(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+}
+
+function textOf(...values: unknown[]): string {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+}
+
+/** Accept the flat brief, or the nested `{ trends, brief }` shape a model sometimes returns. */
+function normalizeTrendReply(raw: unknown): TrendDecision | null {
+  const root = recordOf(raw);
+  if (!root) return null;
+  const trends = recordOf(root.trends);
+  const brief = recordOf(root.brief);
+  const source = { ...root, ...(trends ?? {}), ...(brief ?? {}) };
+  const prioritiesRaw = Array.isArray(source.priorities) ? source.priorities : [];
+  const priorities = prioritiesRaw.slice(0, 4).map((item) => {
+    const row = recordOf(item) ?? {};
+    return {
+      topic: textOf(row.topic).slice(0, 120),
+      relevance: clamp(row.relevance, 0, 100),
+      confidence: clamp(row.confidence, 0, 100),
+      theme: textOf(row.theme).slice(0, 120) || undefined,
+      visual: textOf(row.visual).slice(0, 160) || undefined,
+    };
+  }).filter((row) => row.topic);
+  const top = priorities[0];
+  const angle = textOf(source.angle, top?.theme, top?.topic);
+  const keyMessage = textOf(source.keyMessage, top?.theme, top?.topic, angle);
+  if (!angle || !keyMessage) return null;
+  return {
+    priorities,
+    angle: angle.slice(0, 240),
+    keyMessage: keyMessage.slice(0, 160),
+    claimsAllowed: stringList(source.claimsAllowed, [], 6, true),
+    claimsAvoid: stringList(source.claimsAvoid, [], 6, true),
+    visualDirection: textOf(source.visualDirection, top?.visual).slice(0, 240),
+    limitations: stringList(source.limitations, [], 5, true),
+  };
+}
+
 export async function decideTrendBrief(input: {
   campaign: Campaign;
   brand: BrandProfile;
@@ -115,6 +160,7 @@ export async function decideTrendBrief(input: {
 }): Promise<{ decision: TrendDecision; trace: DecisionTrace }> {
   const assignment = assignmentFor(input.campaign, input.settings, "trend");
   const clearance = input.clearance;
+  const search = getLlmOrDefault(assignment.modelId).toolApi === "responses";
   const prompt = [
     `Retailer: ${input.brand.retailerName}. Country: ${input.campaign.country}.`,
     `Product: ${input.campaign.product}. Category: ${input.campaign.category}.`,
@@ -128,6 +174,9 @@ export async function decideTrendBrief(input: {
     `Allowed terms: ${input.brand.approvedTerms.join(", ")}.`,
     `Banned terms (never use): ${input.brand.bannedTerms.join(", ")}.`,
     "",
+    input.campaign.sharedContext.intakeSummary
+      ? `Context formatted by intake:\n${input.campaign.sharedContext.intakeSummary}`
+      : "",
     "Evidence collected by tools (source · date · status):",
     ...input.evidenceLines.map((l) => `- ${l}`),
     "",
@@ -140,7 +189,14 @@ export async function decideTrendBrief(input: {
           "",
         ].join("\n")
       : "",
-    "Decide the campaign brief from this evidence only. Do not invent market data.",
+    search
+      ? [
+          "Search the public web for this exact product before you answer.",
+          "Find which pack sizes sell most, which flavours are most popular, and any current retail offer.",
+          "Put each finding you actually retrieved into priorities, and name the source in the theme.",
+          "If the search does not say, write that in limitations. Do not invent a ranking.",
+        ].join("\n")
+      : "Decide the campaign brief from this evidence only. Do not invent market data.",
     "Reply with JSON only:",
     '{"priorities":[{"topic":"","relevance":0-100,"confidence":0-100,"theme":"","visual":""}],',
     '"angle":"","keyMessage":"","claimsAllowed":["verifiable product facts only"],',
@@ -150,34 +206,30 @@ export async function decideTrendBrief(input: {
   const result = await input.llm.request({
     agent: "trend",
     modelId: assignment.modelId,
+    system:
+      "You are the Trend Analyser. Reply with one JSON object only: priorities, angle, keyMessage, claimsAllowed, claimsAvoid, visualDirection, limitations. keyMessage is this product's poster headline, written from the research. Do not reuse a slogan from another product.",
     prompt,
+    responseSchema: trendBriefSchema,
     localBaseUrl: input.settings.localBaseUrl,
     localModel: input.settings.localModel,
   });
-  const parsed = extractJson<TrendDecision>(result.text);
-  if (result.status === "ok" && parsed && typeof parsed.angle === "string") {
+  const parsed = normalizeTrendReply(extractJson<unknown>(result.text));
+  if (result.status === "ok" && parsed) {
     return {
       decision: {
-        priorities: Array.isArray(parsed.priorities)
-          ? parsed.priorities.slice(0, 4).map((p) => ({
-              topic: String(p.topic ?? "").slice(0, 120),
-              relevance: clamp(p.relevance, 0, 100),
-              confidence: clamp(p.confidence, 0, 100),
-              theme: p.theme ? String(p.theme).slice(0, 120) : undefined,
-              visual: p.visual ? String(p.visual).slice(0, 160) : undefined,
-            }))
-          : input.fallback.priorities,
-        angle: String(parsed.angle).slice(0, 240),
-        keyMessage: String(parsed.keyMessage ?? input.fallback.keyMessage).slice(0, 160),
-        claimsAllowed: stringList(parsed.claimsAllowed, input.fallback.claimsAllowed, 6, true),
-        claimsAvoid: stringList(parsed.claimsAvoid, input.fallback.claimsAvoid, 6, true),
-        visualDirection: String(parsed.visualDirection ?? input.fallback.visualDirection).slice(0, 240),
-        limitations: stringList(parsed.limitations, input.fallback.limitations, 5, true),
+        ...parsed,
+        visualDirection: parsed.visualDirection || input.fallback.visualDirection,
+        priorities: parsed.priorities.length ? parsed.priorities : input.fallback.priorities,
       },
       trace: traceFor("trend", assignment, result, true),
     };
   }
-  return { decision: input.fallback, trace: traceFor("trend", assignment, result, false) };
+  const failed = traceFor("trend", assignment, result, false);
+  const snippet = (result.text ?? "").replace(/\s+/g, " ").slice(0, 220);
+  return {
+    decision: input.fallback,
+    trace: { ...failed, note: snippet ? `${failed.note} Reply started: ${snippet}` : failed.note },
+  };
 }
 
 /* ------------------------------------------------------------------- copy --- */
@@ -203,21 +255,32 @@ export async function decideCopy(input: {
 }): Promise<{ variants: CopyVariant[]; trace: DecisionTrace }> {
   const assignment = assignmentFor(input.campaign, input.settings, "creative");
   const brief = input.campaign.brief;
+  const findings = (input.campaign.trendFindings ?? [])
+    .filter((finding) => finding.basis === "supported")
+    .slice(0, 5)
+    .map((finding) => finding.finding);
   const prompt = [
     `Write two ad variants (A and B) for ${input.brand.retailerName}, ${input.campaign.country}.`,
     `Product: ${input.campaign.product}. Audience: ${input.campaign.targetAudience}.`,
+    "Use the trend brief below. The headline, the supporting line, and the image prompt must be about this product and this angle.",
     brief ? `Angle: ${brief.angle}. Key message: ${brief.keyMessage}.` : "",
-    brief ? `Claims allowed: ${brief.claimsAllowed.join(", ")}.` : "",
+    brief ? `Visual direction: ${brief.visualDirection}.` : "",
+    brief ? `Claims allowed: ${brief.claimsAllowed.join(", ") || "none recorded"}.` : "",
+    brief?.claimsAvoid.length ? `Claims to avoid: ${brief.claimsAvoid.join(", ")}.` : "",
+    findings.length ? `Supported findings:\n${findings.map((line) => `- ${line}`).join("\n")}` : "",
     `Never use these banned terms: ${input.brand.bannedTerms.join(", ")}.`,
     `Brand tone: ${input.brand.tone}`,
     guidelinesPrompt(input.brand),
     input.version > 1
-      ? `This is revision ${input.version}. Compliance returned the last draft with: ${input.complianceNotes.join(" | ") || "no notes"}. Fix exactly those problems and keep the angle.`
+      ? `This is revision ${input.version}. Compliance returned the last draft with: ${input.complianceNotes.join(" | ") || "no notes"}. Fix exactly those problems and keep the trend brief's angle.`
       : "",
     input.campaign.productImageUrl
-      ? `A product photo will be attached to the poster. The picture must show: ${productScene(input.campaign.product, input.campaign.category, input.campaign.notes ?? "")} The image prompt has to match that scene.`
-      : `Picture the product in use: ${productScene(input.campaign.product, input.campaign.category, input.campaign.notes ?? "")}`,
-    "Every claim must be a verifiable product fact. No superlatives, no health claims, no guarantees.",
+      ? `A product photo will be attached. Keep that product recognisable. ${productScene(input.campaign.product, input.campaign.category, input.campaign.notes ?? "")}`
+      : `No product photo was supplied. ${productScene(input.campaign.product, input.campaign.category, input.campaign.notes ?? "")}`,
+    "The prompt field is the image-to-image instruction. It must keep the real product recognisable and describe only the scene from the trend brief.",
+    "headline, subhead and cta are the only words printed on the image. Write a different headline for A and B from this product's trend key message and findings.",
+    "Do not write 'without the theatre', 'no theatre', or any slogan that could fit a different product.",
+    "Every claim must be one of the allowed claims. No superlatives, no health claims, no guarantees.",
     'Reply with JSON only: {"variants":[{"variant":"A","kicker":"","headline":"","subhead":"","cta":"","caption":"","prompt":"image prompt"},{...B}]}',
   ]
     .filter(Boolean)
@@ -227,6 +290,7 @@ export async function decideCopy(input: {
     agent: "creative",
     modelId: assignment.modelId,
     prompt,
+    responseSchema: copySchema,
     localBaseUrl: input.settings.localBaseUrl,
     localModel: input.settings.localModel,
   });
@@ -278,6 +342,7 @@ export async function decideCompliance(input: {
   attempt: number;
   fallback: ComplianceDecision;
   rules?: ComplianceRule[];
+  ownerId?: string;
 }): Promise<{ decision: ComplianceDecision; trace: DecisionTrace }> {
   const assignment = assignmentFor(input.campaign, input.settings, "compliance");
   const policy = input.brand.countryRules[input.campaign.country];
@@ -294,6 +359,9 @@ export async function decideCompliance(input: {
     "Advertisement under review:",
     input.copy,
     "",
+    input.campaign.creatives.some((creative) => creative.generation?.url)
+      ? "Poster images are attached. Read the words printed on each image and judge the picture itself, not only the text above. Flag a claim, a person, or a pack that the image shows and the rules do not allow."
+      : "",
     "Identify every compliance issue. Separate a confirmed breach of a named rule from",
     "something that needs human judgement. Never approve anything: you may only flag.",
     'Reply with JSON only: {"issues":[{"category":"misleading_claim|unsupported_claim|missing_condition|price_accuracy|copyright|audience_targeting|platform_policy|brand_guideline",',
@@ -304,6 +372,9 @@ export async function decideCompliance(input: {
     agent: "compliance",
     modelId: assignment.modelId,
     prompt,
+    purpose: "compliance",
+    imageUrls: input.campaign.creatives.map((creative) => creative.generation?.url).filter((url): url is string => Boolean(url)),
+    ownerId: input.ownerId,
     localBaseUrl: input.settings.localBaseUrl,
     localModel: input.settings.localModel,
   });

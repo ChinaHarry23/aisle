@@ -236,6 +236,8 @@ export type SharedContext = {
   /** Campaign the attached note came from, for traceability (UC-06 step 12). */
   previousPerformanceFrom: string | null;
   founderNotes: string[];
+  /** Intake agent turned the founder's words into the context trend researches. */
+  intakeSummary?: string | null;
 };
 
 export type Campaign = CampaignInput & {
