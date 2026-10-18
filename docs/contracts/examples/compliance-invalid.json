@@ -1,0 +1,35 @@
+{
+  "campaignId": "campaign-example",
+  "advertisementVersionId": "adv_5a7150099384ed5c9d26ef5733442f71c0e619b3b0db9db484d21b814f8da8f7",
+  "version": 1,
+  "content": [],
+  "productInformation": "Cotton shirt",
+  "brandAssets": {
+    "retailerName": "Woolworths",
+    "logoUrl": "/woolworths-logo.jpg",
+    "guidelines": [],
+    "bannedTerms": [
+      "guaranteed",
+      "miracle",
+      "clinically proven",
+      "Australia's best",
+      "healthiest",
+      "risk-free",
+      "number one"
+    ],
+    "approvedTerms": [
+      "fresh",
+      "seasonal",
+      "Australian grown",
+      "everyday low price",
+      "quality",
+      "value"
+    ],
+    "countryRule": "Australian Consumer Law. No absolute superiority claims without substantiation. Health claims need evidence. Prices include GST unless stated. Promotional statements must not mislead a reasonable consumer."
+  },
+  "campaignObjective": "Product awareness",
+  "targetAudience": "Adults",
+  "country": "AU",
+  "targetPlatforms": [],
+  "limitations": []
+}

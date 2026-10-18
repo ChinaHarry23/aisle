@@ -36,6 +36,7 @@ export function WorkspaceSync({
         if (cancelled) return;
         await useAisle.persist.rehydrate();
         useAisle.getState().setHydrated();
+        void useAisle.getState().resumeRunning();
       } finally {
         skipSave.current = false;
       }

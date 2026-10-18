@@ -50,6 +50,9 @@ function toolArgHelp(tool: string, arg: string): string {
     "web.season_weather": {
       country: "Two-letter market code: AU, NZ, UK or US.",
     },
+    "web.shelf_prices": {
+      query: "The product to price, e.g. 'apple juice'. Australian catalogue only.",
+    },
   };
   return help[tool]?.[arg] ?? `The ${arg} argument.`;
 }

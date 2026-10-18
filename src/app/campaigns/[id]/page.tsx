@@ -20,6 +20,7 @@ import {
 import { cn } from "@/lib/cn";
 import { formatDate, formatNumber } from "@/lib/ids";
 import { channelLabel } from "@/lib/status";
+import { campaignCanAdvance } from "@/lib/runtime/resume";
 import { useAisle } from "@/lib/store";
 
 const tabs = [
@@ -75,6 +76,8 @@ export default function CampaignWorkspace() {
   const campaign = useAisle((s) => s.campaigns.find((c) => c.id === id));
   const brand = useAisle((s) => s.brand);
   const launch = useAisle((s) => s.launch);
+  const continueAgents = useAisle((s) => s.continueAgents);
+  const engineError = useAisle((s) => s.engineError);
   const pause = useAisle((s) => s.pause);
   const approve = useAisle((s) => s.approve);
   const reject = useAisle((s) => s.reject);
@@ -161,6 +164,16 @@ export default function CampaignWorkspace() {
                 Pause
               </button>
             ) : null}
+            {engineError && campaignCanAdvance(campaign) ? (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void continueAgents(campaign.id)}
+                className="rounded-full btn-primary px-4 py-2 text-sm font-medium disabled:opacity-50"
+              >
+                {busy ? "Working…" : "Continue agents"}
+              </button>
+            ) : null}
             {canPublish ? (
               <button
                 type="button"
@@ -186,6 +199,9 @@ export default function CampaignWorkspace() {
         <div className="mt-5">
           <AgentPipeline status={campaign.status} />
         </div>
+        {engineError && campaignCanAdvance(campaign) ? (
+          <p className="mt-3 text-sm text-signal">{engineError}</p>
+        ) : null}
         {run?.status === "running" || campaign.spend.blockedAttempts > 0 ? (
           <p className="mt-3 text-xs text-mute">
             {run?.status === "running" ? "Agents are working on this now. " : ""}
@@ -240,8 +256,33 @@ export default function CampaignWorkspace() {
             <dl className="mt-4 grid gap-3 text-sm">
               <Row k="Retailer" v={campaign.sharedContext.retailer} />
               <Row k="Product" v={campaign.sharedContext.product} />
+              {campaign.productImageUrl ? (
+                <div>
+                  <dt className="text-[11px] uppercase tracking-wider text-mute">Product photo</dt>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={campaign.productImageUrl} alt="" className="mt-1 h-20 w-20 border border-line object-cover" />
+                </div>
+              ) : null}
               <Row k="Audience" v={campaign.sharedContext.audience} />
               <Row k="Objective" v={campaign.sharedContext.objective} />
+              <Row
+                k="Your cost"
+                v={campaign.unitCostAud != null ? `$${campaign.unitCostAud.toFixed(2)}` : "Not entered"}
+              />
+              <Row
+                k="Your price"
+                v={campaign.currentPriceAud != null ? `$${campaign.currentPriceAud.toFixed(2)}` : "Not entered"}
+              />
+              <Row
+                k="Recommended discount"
+                v={
+                  campaign.priceRecommendation
+                    ? campaign.priceRecommendation.discountPct > 0
+                      ? `${campaign.priceRecommendation.discountPct}% off, to $${campaign.priceRecommendation.recommendedPriceAud.toFixed(2)}`
+                      : "No discount"
+                    : "Waiting on Trend Analyser"
+                }
+              />
               <Row k="Market" v={`${campaign.country} — ${brand.countryRules[campaign.country]}`} />
               <Row k="Tone" v={campaign.sharedContext.brandTone} />
               <Row
@@ -301,6 +342,37 @@ export default function CampaignWorkspace() {
 
       {tab === "research" ? (
         <section className="flex flex-col gap-8">
+          {campaign.priceRecommendation ? (
+            <div className="hairline p-4">
+              <SectionTitle
+                kicker="Clearance price"
+                title={
+                  campaign.priceRecommendation.discountPct > 0
+                    ? `${campaign.priceRecommendation.discountPct}% off`
+                    : "Hold the current price"
+                }
+              />
+              <p className="mt-3 text-sm leading-relaxed text-ink-soft">{campaign.priceRecommendation.rationale}</p>
+              <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-4">
+                <div>
+                  <dt className="text-mute">Your cost</dt>
+                  <dd>${campaign.priceRecommendation.unitCostAud.toFixed(2)}</dd>
+                </div>
+                <div>
+                  <dt className="text-mute">Your price</dt>
+                  <dd>${campaign.priceRecommendation.currentPriceAud.toFixed(2)}</dd>
+                </div>
+                <div>
+                  <dt className="text-mute">Similar shelf</dt>
+                  <dd>{campaign.priceRecommendation.marketLabel}</dd>
+                </div>
+                <div>
+                  <dt className="text-mute">Recommended</dt>
+                  <dd>${campaign.priceRecommendation.recommendedPriceAud.toFixed(2)}</dd>
+                </div>
+              </dl>
+            </div>
+          ) : null}
           <div>
             <SectionTitle kicker="Trends" title="What is worth promoting right now" />
             <ul className="mt-4 grid gap-3 md:grid-cols-2">
@@ -548,7 +620,7 @@ export default function CampaignWorkspace() {
                   return (
                     <li key={ch} className="hairline grid gap-6 overflow-hidden md:grid-cols-[auto_1fr]">
                       <div className="flex justify-center bg-paper-2 px-6 py-8">
-                        <InstagramPost brand={brand} creative={postCreative} />
+                        <InstagramPost brand={brand} creative={postCreative} campaignId={campaign.id} />
                       </div>
                       <div className="flex flex-col gap-4 p-5 md:py-8">
                         <div className="flex items-center gap-3">

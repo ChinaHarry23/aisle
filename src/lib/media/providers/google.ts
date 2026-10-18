@@ -18,14 +18,14 @@ const OMNI = { inPerM: 1.5, videoOutPerM: 17.5, textOutPerM: 9 };
 /** Nano Banana 2 text and thinking output; image output and input rates live in the catalog. */
 const IMAGE_TEXT_OUT_PER_M = 3;
 
-function key() {
-  const value = envValue(KEY_ENV);
+function key(override?: string) {
+  const value = override?.trim() || envValue(KEY_ENV);
   if (!value) throw new ProviderError("GOOGLE_AI_API_KEY is not set.", { retryable: false });
   return value;
 }
 
-function headers() {
-  return { "x-goog-api-key": key() };
+function headers(override?: string) {
+  return { "x-goog-api-key": key(override) };
 }
 
 type Usage = {
@@ -70,20 +70,30 @@ function videoAspect(req: GenerateRequest): "9:16" | "16:9" {
   return req.aspectRatio === "16:9" ? "16:9" : "9:16";
 }
 
-async function mediaBytes(content: Content, kind: "image" | "video", signal?: AbortSignal): Promise<Buffer> {
+async function mediaBytes(content: Content, kind: "image" | "video", signal?: AbortSignal, apiKey?: string): Promise<Buffer> {
   if (content.data) return Buffer.from(content.data, "base64");
-  return downloadFile("Google", content.uri!, { keyOrigin: new URL(base()).origin, headers: headers(), max: MEDIA_MAX_BYTES[kind], timeoutMs: 180_000, signal });
+  return downloadFile("Google", content.uri!, { keyOrigin: new URL(base()).origin, headers: headers(apiKey), max: MEDIA_MAX_BYTES[kind], timeoutMs: 180_000, signal });
 }
 
-async function nanoBanana(req: GenerateRequest, { model, onQueued, signal }: ProviderContext): Promise<ProviderOutput> {
+async function nanoBanana(req: GenerateRequest, { model, startImage, apiKey, onQueued, signal }: ProviderContext): Promise<ProviderOutput> {
   const jobId = `google:image:${randomUUID()}`;
   onQueued?.(jobId);
   const aspect: AspectRatio = req.aspectRatio ?? "4:5";
   const interaction = await providerJson<Interaction>("Google", `${base()}/interactions`, {
-    headers: headers(),
+    headers: headers(apiKey),
     // store:false: a poster prompt has no reason to sit on Google's side for 55 days.
     // quality "low" (smoke tests, drafts) asks for the 512px size at about two thirds of the 1K price.
-    body: { model: model.apiModel, input: req.prompt, store: false, response_format: { type: "image", aspect_ratio: aspect, image_size: req.quality === "low" ? "512px" : "1K" } },
+    body: {
+      model: model.apiModel,
+      input: startImage
+        ? [
+            { type: "image", data: startImage.bytes.toString("base64"), mime_type: startImage.mime },
+            { type: "text", text: req.prompt },
+          ]
+        : req.prompt,
+      store: false,
+      response_format: { type: "image", aspect_ratio: aspect, image_size: req.quality === "low" ? "512px" : "1K" },
+    },
     timeoutMs: 180_000,
     signal,
   });
@@ -91,7 +101,7 @@ async function nanoBanana(req: GenerateRequest, { model, onQueued, signal }: Pro
   if (!content) throw new ProviderError(interaction.error?.message ? `Google: ${interaction.error.message}` : "Google returned no image; the prompt may have been blocked by a safety filter.", { retryable: false });
   // The image exists and is billed from here on, even if its bytes never arrive.
   const { bytes, mime } = await afterSubmit(async () => {
-    const got = await mediaBytes(content, "image", signal);
+    const got = await mediaBytes(content, "image", signal, apiKey);
     return { bytes: got, mime: assertMediaBytes(got, "image") };
   });
   const billing = model.billing.mode === "tokens" ? model.billing : { textInPerM: 0.5, imageOutPerM: 60, estOutTokens: 1120 };

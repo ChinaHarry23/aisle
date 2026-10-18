@@ -1,3 +1,4 @@
+import type { ComplianceReviewRun } from "./compliance/service";
 import type { AdVideo, MediaGeneration, StudioRun } from "./media/types";
 import type {
   AgentRun,
@@ -56,6 +57,12 @@ export type CampaignInput = {
   endDate: string;
   country: Country;
   notes: string;
+  /** What one unit costs the founder, in AUD. Used when recommending a clearance discount. */
+  unitCostAud?: number | null;
+  /** What the founder currently sells one unit for, in AUD. */
+  currentPriceAud?: number | null;
+  /** Product photo (a compressed data URL) the ad should feature, not invent. */
+  productImageUrl?: string | null;
   imageModelId?: string;
   videoModelId?: string;
   /** Ceiling the founder sets on automated spend for this campaign. */
@@ -89,6 +96,19 @@ export type Persona = {
   motivations: string[];
 };
 
+/** Discount the trend step computed from the founder's prices and WhichGrocer. */
+export type PriceRecommendation = {
+  unitCostAud: number;
+  currentPriceAud: number;
+  marketPriceAud: number;
+  marketLabel: string;
+  recommendedPriceAud: number;
+  discountPct: number;
+  /** True when matching the catalogue would sell below cost, so the cut stops at cost. */
+  limitedByCost: boolean;
+  rationale: string;
+};
+
 export type CampaignBrief = {
   product: string;
   angle: string;
@@ -108,6 +128,8 @@ export type Palette = {
 };
 
 export type Creative = {
+  /** Actual generation time; absent only on legacy drafts. */
+  createdAt?: string;
   id: string;
   variant: "A" | "B";
   version: number;
@@ -234,6 +256,8 @@ export type Campaign = CampaignInput & {
   opportunities: Opportunity[];
   personas: Persona[];
   brief: CampaignBrief | null;
+  /** Set by the trend step when the founder supplied a cost and a current price. */
+  priceRecommendation?: PriceRecommendation | null;
   creatives: Creative[];
   complianceReports: ComplianceReport[];
   adaptations: ChannelAdaptation[];
@@ -261,6 +285,7 @@ export type Campaign = CampaignInput & {
   trendGaps: TrendBriefGap[];
   /** Every version submitted to AHR-04, kept for audit. */
   complianceAttempts: ComplianceAttempt[];
+  complianceReviewRuns?: ComplianceReviewRun[];
   /** AHR-05 channel-ready versions, claim-frozen. */
   channelVersions: ChannelVersion[];
   /** AHR-05 conflicts flagged rather than silently resolved. */

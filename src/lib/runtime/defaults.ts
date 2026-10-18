@@ -8,7 +8,7 @@
  */
 
 import type { Campaign } from "@/lib/types";
-import { defaultSpendCap } from "./engine";
+import { defaultSpendCap } from "./budget";
 import type { Evidence, PolicyDecision, RunStep, ToolCall } from "./types";
 
 export function withRuntimeDefaults(campaign: Campaign): Campaign {
@@ -30,11 +30,22 @@ export function withRuntimeDefaults(campaign: Campaign): Campaign {
     trendFindings: campaign.trendFindings ?? [],
     trendGaps: campaign.trendGaps ?? [],
     complianceAttempts: campaign.complianceAttempts ?? [],
+    complianceReviewRuns: campaign.complianceReviewRuns ?? [],
     channelVersions: campaign.channelVersions ?? [],
     scheduleConflicts: campaign.scheduleConflicts ?? [],
     runSchedule: campaign.runSchedule ?? [],
     performanceReport: campaign.performanceReport ?? null,
     recommendationDecision: campaign.recommendationDecision ?? null,
+    unitCostAud: typeof campaign.unitCostAud === "number" && Number.isFinite(campaign.unitCostAud) ? campaign.unitCostAud : null,
+    currentPriceAud:
+      typeof campaign.currentPriceAud === "number" && Number.isFinite(campaign.currentPriceAud)
+        ? campaign.currentPriceAud
+        : null,
+    priceRecommendation: campaign.priceRecommendation ?? null,
+    productImageUrl:
+      typeof campaign.productImageUrl === "string" && campaign.productImageUrl.startsWith("data:image/")
+        ? campaign.productImageUrl
+        : null,
     policyDecisions,
     runSteps,
     toolCalls,

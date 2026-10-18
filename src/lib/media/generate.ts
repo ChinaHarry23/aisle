@@ -7,7 +7,13 @@ export async function runGeneration(
   req: GenerateRequest,
   userKey?: string,
 ): Promise<GenerateResult> {
-  const model = getModel(req.modelId);
+  let model;
+  try {
+    model = getModel(req.modelId);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "Unknown media model.";
+    return stubGenerate(req, reason);
+  }
   const configured = Boolean(userKey) || isProviderConfigured(model.envKeys);
 
   if (!configured) {
