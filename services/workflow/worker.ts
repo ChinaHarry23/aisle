@@ -4,6 +4,9 @@ import { runEngine, type EngineOptions } from "../../src/lib/runtime/engine";
 import { setShelfPriceLookup } from "../../src/lib/runtime/tools";
 import type { Command } from "../../src/lib/runtime/types";
 import { WorkflowRepository } from "./repository";
+import { createServerTrendRuntime, trendAgentEnabled } from "../../src/lib/agents/trend-server";
+import { findUserById } from "../../src/lib/auth/users";
+import { billingFor } from "../../src/lib/billing/meter";
 
 setShelfPriceLookup(lookupShelfPrices);
 
@@ -26,7 +29,13 @@ export async function workOnce(repo: WorkflowRepository, workerId: string, optio
         campaign.run.status = "running"; campaign.running = true;
         command = { type: "ADVANCE", actor: "system" };
       }
-      const result = await runEngine({ campaigns: context, now: new Date().toISOString() }, campaign, command, job.input.settings, job.input.brand, { ...options, maxSteps: 1, ownerUserId: job.user_id });
+      // Recheck the owner's current role instead of trusting a saved/browser role.
+      let llm = options.llm;
+      if (!llm && trendAgentEnabled()) {
+        const owner = await findUserById(job.user_id);
+        llm = createServerTrendRuntime(owner ? billingFor(owner) : undefined);
+      }
+      const result = await runEngine({ campaigns: context, now: new Date().toISOString() }, campaign, command, job.input.settings, job.input.brand, { ...options, llm, maxSteps: 1, ownerUserId: job.user_id });
       const complete = !result.canAdvance;
       repo.checkpoint(job, result, complete);
       if (complete) return true;

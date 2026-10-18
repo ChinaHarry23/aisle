@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "test:trend-connection": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/trend-connection-suite.ts",
+    "demo:trend": "node --env-file-if-exists=.env.local --import ./scripts/service-loader.mjs --experimental-strip-types scripts/trend-example.ts",
     "dev": "next dev",
     "dev:services": "node scripts/dev-services.mjs",
     "workflow:api": "node --env-file-if-exists=.env.local --import ./scripts/service-loader.mjs --experimental-strip-types services/workflow/api.ts --serve",

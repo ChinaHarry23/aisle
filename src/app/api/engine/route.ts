@@ -11,6 +11,8 @@ import type { Command } from "@/lib/runtime/types";
 import type { Campaign } from "@/lib/types";
 import { workflowEnabled, submitWorkflow } from "@/lib/workflow/gateway";
 import { parseCommand, WorkflowError } from "@/lib/workflow/commands";
+import { createServerTrendRuntime, trendAgentEnabled } from "@/lib/agents/trend-server";
+import { billingForSession } from "@/lib/billing/meter";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -102,13 +104,16 @@ export async function POST(request: Request) {
       : undefined;
 
   try {
+    const llm = trendAgentEnabled()
+      ? createServerTrendRuntime(await billingForSession(user))
+      : undefined;
     const result = await runEngine(
       { campaigns, now: new Date().toISOString() },
       target,
       body.command,
       settings,
       brand,
-      { maxSteps, ownerUserId: user.id },
+      { maxSteps, ownerUserId: user.id, llm },
     );
     return NextResponse.json({
       campaign: result.campaign,

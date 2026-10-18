@@ -114,6 +114,7 @@ export async function decideTrendBrief(input: {
     `Retailer: ${input.brand.retailerName}. Country: ${input.campaign.country}.`,
     `Product: ${input.campaign.product}. Category: ${input.campaign.category}.`,
     `Audience: ${input.campaign.targetAudience}. Objective: ${input.campaign.objective}.`,
+    `Campaign budget: ${input.campaign.budget}. Do not change this constraint.`,
     `Channels: ${input.campaign.channels.join(", ")}. Dates: ${input.campaign.startDate} → ${input.campaign.endDate}.`,
     `Brand tone: ${input.brand.tone}`,
     `Allowed terms: ${input.brand.approvedTerms.join(", ")}.`,
@@ -143,18 +144,18 @@ export async function decideTrendBrief(input: {
         priorities: Array.isArray(parsed.priorities)
           ? parsed.priorities.slice(0, 4).map((p) => ({
               topic: String(p.topic ?? "").slice(0, 120),
-              relevance: clamp(p.relevance, 50, 99),
-              confidence: clamp(p.confidence, 40, 95),
+              relevance: clamp(p.relevance, 0, 100),
+              confidence: clamp(p.confidence, 0, 100),
               theme: p.theme ? String(p.theme).slice(0, 120) : undefined,
               visual: p.visual ? String(p.visual).slice(0, 160) : undefined,
             }))
           : input.fallback.priorities,
         angle: String(parsed.angle).slice(0, 240),
         keyMessage: String(parsed.keyMessage ?? input.fallback.keyMessage).slice(0, 160),
-        claimsAllowed: stringList(parsed.claimsAllowed, input.fallback.claimsAllowed, 6),
-        claimsAvoid: stringList(parsed.claimsAvoid, input.fallback.claimsAvoid, 6),
+        claimsAllowed: stringList(parsed.claimsAllowed, input.fallback.claimsAllowed, 6, true),
+        claimsAvoid: stringList(parsed.claimsAvoid, input.fallback.claimsAvoid, 6, true),
         visualDirection: String(parsed.visualDirection ?? input.fallback.visualDirection).slice(0, 240),
-        limitations: stringList(parsed.limitations, input.fallback.limitations, 5),
+        limitations: stringList(parsed.limitations, input.fallback.limitations, 5, true),
       },
       trace: traceFor("trend", assignment, result, true),
     };
@@ -408,8 +409,9 @@ function str(v: unknown, fallback: string) {
   return typeof v === "string" && v.trim() ? v.trim().slice(0, 600) : fallback;
 }
 
-function stringList(v: unknown, fallback: string[], max: number) {
+function stringList(v: unknown, fallback: string[], max: number, allowEmpty = false) {
   if (!Array.isArray(v)) return fallback;
+  if (allowEmpty && v.length === 0) return [];
   const list = v.filter((x): x is string => typeof x === "string" && x.trim().length > 0);
   return list.length ? list.slice(0, max).map((s) => s.slice(0, 120)) : fallback;
 }

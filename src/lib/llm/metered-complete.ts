@@ -226,6 +226,7 @@ async function callOpenAIChatTools(model: LlmModel, req: CompleteRequest) {
   const json = await postOpenAI("/chat/completions", {
     model: model.apiModel,
     reasoning_effort: "none",
+    ...(req.maxOutputTokens !== undefined ? { max_completion_tokens: req.maxOutputTokens } : {}),
     messages: openAIMessages(req),
     ...(req.tools?.length ? { tools: openAITools(req) } : {}),
   });
@@ -261,6 +262,7 @@ async function callOpenAIResponses(model: LlmModel, req: CompleteRequest) {
     model: model.apiModel,
     input,
     reasoning: { effort: model.effort ?? "low" },
+    ...(req.maxOutputTokens !== undefined ? { max_output_tokens: req.maxOutputTokens } : {}),
     ...(req.tools?.length
       ? {
           tools: req.tools.map((tool) => ({
