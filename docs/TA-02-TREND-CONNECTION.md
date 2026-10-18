@@ -40,9 +40,8 @@ every model-generated statement. Human review and evidence checks remain require
 
 ## Server enablement
 
-`TA02_AGENT_ENABLED=1` opts the website engine route and workflow worker into the
-new runtime. It defaults to off. Configure the flag on both processes if using
-durable workflows. No flag was enabled in a deployment during this task.
+The website engine route and the workflow worker always use this runtime. There is
+no enablement flag.
 
 - The route resolves billing from the signed-in user's current database record.
 - The worker resolves the job owner's current database role at each step.

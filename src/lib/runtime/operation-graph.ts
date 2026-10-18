@@ -244,6 +244,31 @@ async function intakeNode(state: OpState): Promise<Partial<OpState>> {
     return { work: w, stop: true, canAdvance: false, message: "This campaign is already running." };
   }
   const started = startIntake(w, state.env);
+  if (started.ok && state.env.llm.meta?.live) {
+    const formatted = await state.env.llm.request({
+      agent: "creative",
+      modelId: state.env.settings.agents.creative.modelId,
+      purpose: "intake",
+      prompt: [
+        "You are the intake assistant. Turn the founder's campaign into the context the trend researcher will search.",
+        "Do not invent prices, dates, or claims the founder did not give you.",
+        `Product: ${w.campaign.product}`,
+        `Category: ${w.campaign.category}`,
+        `Audience: ${w.campaign.targetAudience}`,
+        `Objective: ${w.campaign.objective}`,
+        `Country: ${w.campaign.country}`,
+        `Notes: ${w.campaign.notes || "none"}`,
+        'Reply with JSON only: {"context":"one paragraph the researcher can search from"}',
+      ].join("\n"),
+      localBaseUrl: state.env.settings.localBaseUrl,
+      localModel: state.env.settings.localModel,
+    });
+    const parsed = formatted.text?.match(/"context"\s*:\s*"([^"]+)"/);
+    if (formatted.status === "ok" && parsed?.[1]) {
+      w.campaign.sharedContext = { ...w.campaign.sharedContext, intakeSummary: parsed[1] };
+      addEvent(w, "intake", "output", "Intake formatted the brief", parsed[1]);
+    }
+  }
   return {
     work: w,
     stop: !started.ok,
@@ -593,11 +618,13 @@ export async function runOperation(
       stop: false,
     },
     {
-      runName: `aisle.operation.${input.command.type}`,
-      tags: ["aisle", "operation", input.command.type],
+      runName: `aisle.operation.${input.command.type}.${input.work.run?.step ?? "start"}`,
+      tags: ["aisle", "operation", input.command.type, input.work.run?.step ?? "start"],
       metadata: {
         campaignId: input.work.campaign.id,
+        thread_id: input.work.campaign.id,
         command: input.command.type,
+        step: input.work.run?.step ?? "start",
       },
       recursionLimit: 48,
       ...config,

@@ -121,6 +121,26 @@ export type CompleteRequest = {
   lastTurnIsToolResult?: boolean;
   /** Which tool call `prompt` answers, when `lastTurnIsToolResult` is set. */
   toolCallId?: string;
+  /**
+   * Send this OpenAI request through the live client instead of the unwired
+   * text adapter. Set by the campaign runtime for intake, trend, copy and compliance.
+   */
+  direct?: boolean;
+  /** Responses-API hosted web search. OpenAI runs it; we do not. */
+  webSearch?: boolean;
+  /** Poster data URLs for a vision review. */
+  images?: string[];
+  /** Stored poster URLs. The server runtime turns these into `images`. */
+  imageUrls?: string[];
+  /** Account that owns `imageUrls`. */
+  ownerId?: string;
+  /** Names the LangSmith span when this call is not the seat's usual job. */
+  purpose?: "intake" | "trend" | "copy" | "compliance";
+  /**
+   * Strict JSON schema sent to OpenAI so the reply matches the seat's parser.
+   * `schema` must set `additionalProperties: false` and list every property in `required`.
+   */
+  responseSchema?: { name: string; schema: Record<string, unknown> };
 };
 
 export type CompleteResult = {
