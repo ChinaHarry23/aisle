@@ -6,6 +6,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { AgentLog } from "@/components/AgentLog";
 import { OperationGraph } from "@/components/OperationGraph";
 import { ChecksPanel } from "@/components/ChecksPanel";
+import { ComplianceCheckerPanel } from "@/components/ComplianceCheckerPanel";
 import { ChannelIcon } from "@/components/ChannelIcon";
 import { InstagramPost } from "@/components/InstagramPost";
 import { CampaignContent } from "@/components/studio/CampaignContent";
@@ -28,6 +29,7 @@ const tabs = [
   "research",
   "studio",
   "compliance",
+  "approvals",
   "channels",
   "feedback",
   "runtime",
@@ -41,7 +43,8 @@ const tabLabels: Record<Tab, string> = {
   brief: "Overview",
   research: "Trends",
   studio: "Content Generation",
-  compliance: "Approvals",
+  compliance: "Compliance Checker",
+  approvals: "Approvals",
   channels: "Schedule",
   feedback: "Performance",
   log: "Activity",
@@ -122,8 +125,8 @@ export default function CampaignWorkspace() {
     );
   }
 
-  // When the campaign is waiting on the founder, open straight on the Checks tab.
-  const tab: Tab = pickedTab ?? (campaign.status === "awaiting_approval" ? "compliance" : "brief");
+  // When the campaign is waiting on the founder, open straight on the approval gate.
+  const tab: Tab = pickedTab ?? (campaign.status === "awaiting_approval" ? "approvals" : "brief");
   const canLaunch = ["draft", "paused", "rejected"].includes(campaign.status);
   const needsYou = campaign.status === "awaiting_approval";
   const canPublish = campaign.status === "scheduled";
@@ -237,12 +240,12 @@ export default function CampaignWorkspace() {
             className={cn(
               "shrink-0 px-3 py-2 text-sm",
               t === "runtime" && "ml-auto text-xs",
-              t === "compliance" && needsYou && "font-semibold text-signal",
+              t === "approvals" && needsYou && "font-semibold text-signal",
               tab === t ? "border-b-2 border-signal text-ink" : "text-mute hover:text-ink",
             )}
           >
             {tabLabels[t]}
-            {t === "compliance" && needsYou ? (
+            {t === "approvals" && needsYou ? (
               <span className="status-chip status-wait ml-2">Needs your approval</span>
             ) : null}
           </button>
@@ -576,14 +579,18 @@ export default function CampaignWorkspace() {
 
       {tab === "studio" ? <CampaignContent campaign={campaign} /> : null}
 
-      {tab === "compliance" ? <ChecksPanel
+      {tab === "compliance" ? <ComplianceCheckerPanel campaign={campaign} /> : null}
+
+      {tab === "approvals" ? (
+        <ChecksPanel
           campaign={campaign}
           note={note}
           onNote={setNote}
           onApprove={() => void approve(campaign.id, note)}
           onRequestChanges={() => void requestChanges(campaign.id, note || "Please revise to founder notes.")}
           onReject={() => void reject(campaign.id, note || "Killed by founder.")}
-        /> : null}
+        />
+      ) : null}
 
       {tab === "channels" ? (
         <section className="flex flex-col gap-4">

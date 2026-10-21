@@ -1,5 +1,6 @@
 "use client";
 
+import { ComplianceReviewHistory } from "./ComplianceReviewHistory";
 import { useMemo, useState } from "react";
 import { cn } from "@/lib/cn";
 import { channelLabel } from "@/lib/status";
@@ -217,12 +218,13 @@ export function ChecksPanel({
 
   if (!latest && !decision) {
     return (
-      <p className="text-sm text-mute">Checks appear here once the creative is ready for review.</p>
+      <ComplianceReviewHistory campaign={campaign} />
     );
   }
 
   return (
     <section className="flex flex-col gap-6">
+      <ComplianceReviewHistory campaign={campaign} />
       {/* 1. Triage */}
       <div
         className={cn(

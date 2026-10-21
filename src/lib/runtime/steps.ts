@@ -1,3 +1,4 @@
+import { buildReport } from "../compliance/report";
 import { loadRules } from "../compliance/rules";
 import { checkSubmission } from "../compliance/checks";
 import { beginReview, submissionFor, assertReviewPermission, ComplianceSubmissionError } from "../compliance/service";
@@ -54,7 +55,6 @@ import {
   type ChannelVersion,
   type ComplianceAttempt,
   type ComplianceIssue,
-  type ComplianceOutcome,
   type DeliveryAttempt,
   type Evidence,
   type PerformanceReport,
@@ -915,26 +915,6 @@ export async function runCreativeGeneration(
 
 /* -------------------------------------------------------------- compliance -- */
 
-function complianceFor(
-  c: Campaign,
-  issues: ComplianceIssue[],
-): { outcome: ComplianceOutcome; risk: "low" | "medium" | "high"; score: number } {
-  const high = issues.some((i) => i.severity === "high" && i.basis === "confirmed_breach");
-  const judgement = issues.some((i) => i.basis === "human_judgement");
-  const medium = issues.some((i) => i.severity === "medium");
-  const attempt = c.complianceAttempts.length + 1;
-
-  if (high) {
-    return {
-      outcome: attempt >= MAX_REVISION_ATTEMPTS ? "manual_review" : "changes_required",
-      risk: "high",
-      score: Math.min(48, 20 + attempt * 6),
-    };
-  }
-  if (medium || judgement) return { outcome: "pass", risk: "medium", score: 68 };
-  return { outcome: "pass", risk: "low", score: 92 };
-}
-
 /** Deterministic review — the floor the model's review is merged onto. */
 export function deterministicReview(
   c: Campaign,
@@ -1085,9 +1065,19 @@ export async function runComplianceReview(
   });
   addTrace(w, trace, "compliance", "Policy review");
 
-  const verdict = selection.problems.length || decision.issues.some(i => i.basis === "human_judgement")
-    ? { outcome: "manual_review" as const, risk: "high" as const, score: 0 }
-    : complianceFor(c, decision.issues);
+  const structuredReport = buildReport(reviewRun, decision.issues, checked.limitations, uid("cp"), w.now);
+  // CC-07 still owns the legacy revision cap; escalation never turns a finding into a pass.
+  if (structuredReport.status === "CHANGES_REQUIRED" && attemptNo >= MAX_REVISION_ATTEMPTS)
+    structuredReport.status = "MANUAL_REVIEW_REQUIRED";
+  reviewRun.report = structuredReport;
+  const verdict = {
+    outcome: structuredReport.status === "PASSED" ? "pass" as const : structuredReport.status === "CHANGES_REQUIRED" ? "changes_required" as const : "manual_review" as const,
+    risk: decision.issues.some(i => i.severity === "high") || selection.problems.length ? "high" as const : decision.issues.length ? "medium" as const : "low" as const,
+    score: structuredReport.status === "PASSED" ? 100 : 0,
+  };
+  decision.summary = structuredReport.status === "PASSED"
+    ? "No unresolved findings in the configured automated checks; final human approval remains required."
+    : `${structuredReport.unresolvedCount} unresolved finding(s), ${selection.problems.length} policy problem(s). ${structuredReport.status.replace(/_/g, " ")}.`;
   const digest = inputDigest(c);
   const attempt: ComplianceAttempt = {
     id: uid("ca"),
@@ -1116,7 +1106,7 @@ export async function runComplianceReview(
     rule: i.rule,
   }));
   const report: ComplianceReport = {
-    id: uid("cp"),
+    id: structuredReport.id,
     creativeId: c.creatives[0]?.id ?? "unknown",
     version: attempt.creativeVersion,
     risk: verdict.risk,
@@ -1124,7 +1114,7 @@ export async function runComplianceReview(
     verdict:
       verdict.outcome === "changes_required"
         ? "revise"
-        : verdict.risk === "medium"
+        : verdict.outcome === "manual_review"
           ? "escalate"
           : "pass",
     summary: decision.summary,

@@ -1,0 +1,15 @@
+{
+  "documentId": "replace-with-stable-document-id",
+  "title": "Replace with actual document title",
+  "publisher": "Replace with actual publisher",
+  "sourceUrl": "https://publisher.example/path/to/document",
+  "version": "replace-with-source-version-or-snapshot-label",
+  "jurisdiction": "AU",
+  "kind": "regulator_guidance",
+  "platforms": [],
+  "effectiveFrom": null,
+  "effectiveTo": null,
+  "downloadedAt": "2026-10-18T00:00:00Z",
+  "checkedAt": "2026-10-18T00:00:00Z",
+  "reviewAfter": "2026-11-18"
+}

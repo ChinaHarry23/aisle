@@ -1,4 +1,5 @@
 import type { ComplianceRule } from "../compliance/rules";
+import { comparisonPrompt, validateComparison } from "../compliance/document-review";
 /**
  * The LLM decision layer.
  *
@@ -345,6 +346,38 @@ export async function decideCompliance(input: {
   ownerId?: string;
 }): Promise<{ decision: ComplianceDecision; trace: DecisionTrace }> {
   const assignment = assignmentFor(input.campaign, input.settings, "compliance");
+  const uploaded = input.brand.guidelines ?? [];
+  let documentIssues: ComplianceIssue[] = [];
+  let documentSummary = "";
+  if (uploaded.length) {
+    // Keep the complete document text. Oversized input requires review, not silent truncation.
+    const sources = uploaded.map(d => ({ ...d, version: d.uploadedAt }));
+    const modelResult = sources.reduce((n, d) => n + d.text.length, 0) <= 60000
+      ? await input.llm.request({
+        agent: "compliance", modelId: assignment.modelId, direct: true, purpose: "compliance",
+        prompt: comparisonPrompt(input.copy, input.campaign.country, input.campaign.channels.join(", "), sources),
+        localBaseUrl: input.settings.localBaseUrl, localModel: input.settings.localModel,
+      }) : null;
+    let reviewed;
+    try {
+      if (modelResult?.status === "ok") reviewed = validateComparison(extractJson(modelResult.text), input.copy, sources, input.attempt);
+    } catch { /* Invalid evidence cannot clear the campaign. */ }
+    documentIssues = reviewed?.findings.map((f, i) => ({
+      id: `doc_${input.attempt}_${i}`, category: "brand_guideline", basis: "human_judgement",
+      severity: f.severity, excerpt: f.advertisementQuote,
+      explanation: `${f.explanation}${f.citationVerified ? "" : " Citation could not be verified."}`,
+      rule: f.sourceQuote,
+      policySource: sources.find(d => d.id === f.documentId)?.name ?? "Unknown uploaded document",
+      policyDate: "", recommendedCorrection: f.improvement,
+    })) ?? [];
+    const limitations = reviewed?.limitations ?? ["Uploaded-document comparison could not be completed. Check model configuration and document size."];
+    if (limitations.length) documentIssues.push({
+      id: `doc_limit_${input.attempt}`, category: "brand_guideline", basis: "human_judgement", severity: "medium",
+      excerpt: "Uploaded documents", explanation: limitations.join(" "), rule: "Review coverage",
+      policySource: "Uploaded document review", policyDate: "", recommendedCorrection: "Have a human reviewer resolve missing evidence and document applicability.",
+    });
+    documentSummary = reviewed?.summary ?? limitations.join(" ");
+  }
   const policy = input.brand.countryRules[input.campaign.country];
   const prompt = [
     `You are the Compliance Checker for ${input.brand.retailerName}. Country: ${input.campaign.country}. Attempt ${input.attempt} of 3.`,
@@ -394,16 +427,36 @@ export async function decideCompliance(input: {
     }));
     // The deterministic pass is still merged in: a model must not be able to
     // clear a banned term that the brand list forbids outright.
-    const merged = mergeIssues(input.fallback.issues, issues);
+    const merged = mergeIssues(mergeIssues(input.fallback.issues, documentIssues), issues);
     return {
       decision: {
         issues: merged,
-        summary: str(parsed.summary, input.fallback.summary),
+        summary: [documentSummary, str(parsed.summary, input.fallback.summary)].filter(Boolean).join(" "),
       },
       trace: traceFor("compliance", assignment, result, true),
     };
   }
-  return { decision: input.fallback, trace: traceFor("compliance", assignment, result, false) };
+  const coverageIssue: ComplianceIssue = {
+    id: `llm_coverage_${input.attempt}`,
+    category: "brand_guideline",
+    basis: "human_judgement",
+    severity: "medium",
+    excerpt: input.campaign.creatives.some((creative) => creative.generation?.url)
+      ? "Advertisement text and poster images"
+      : "Advertisement text",
+    explanation: "The AI text and image review could not be completed, so automated checks cannot establish full review coverage.",
+    rule: "Review coverage",
+    policySource: "Compliance model",
+    policyDate: "",
+    recommendedCorrection: "Complete a supported multimodal review or have a human reviewer inspect the advertisement.",
+  };
+  return {
+    decision: {
+      issues: mergeIssues(mergeIssues(input.fallback.issues, documentIssues), [coverageIssue]),
+      summary: [documentSummary, "AI text and image review needs human follow-up."].filter(Boolean).join(" "),
+    },
+    trace: traceFor("compliance", assignment, result, false),
+  };
 }
 
 /* ----------------------------------------------------------- channel captions -- */

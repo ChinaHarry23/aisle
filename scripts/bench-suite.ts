@@ -308,6 +308,8 @@ async function startAndClear(...args: Parameters<typeof startAndAdvance>) {
   const c = s.campaign;
   assert.equal(c.complianceReviewRuns?.length, 1);
   assert.equal(c.complianceReviewRuns?.[0].status, "COMPLETED");
+  assert.equal(c.complianceReviewRuns?.[0].report?.status, "MANUAL_REVIEW_REQUIRED");
+  assert.equal(c.complianceReports.at(-1)?.verdict, "escalate");
   assert.ok(c.complianceReviewRuns?.[0].ruleSelection?.problems.length);
   assert.equal(c.complianceAttempts[0].outcome, "manual_review");
   assert.equal(c.creatives[0].version, 1);
