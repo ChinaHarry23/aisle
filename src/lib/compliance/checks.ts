@@ -22,11 +22,14 @@ export function checkSubmission(s: ComplianceSubmission, selection: RuleSelectio
     if (ad.imageUrl) add("copyright", ad.creativeId, "Image ownership/licensing and embedded text have not been verified.", "Provide asset licence/ownership evidence and review the image.", "human_judgement", "review.asset-rights", "Internal review completeness check", "");
     if (/\b(children|minors|under.?18|kids)\b/i.test(s.targetAudience)) add("audience_targeting", s.targetAudience, "Campaign targets a potentially protected age group.", "Obtain an audience-specific policy and human targeting review.", "human_judgement", "review.audience", "Internal review completeness check", "", "high");
     for (const rule of selection.rules) {
+      // Broad legal standards need contextual evaluation by the compliance model
+      // or a human; they are not deterministic phrase matches by themselves.
+      if (rule.mode === "manual") continue;
       const matches = rule.terms.filter(t => lower.includes(t.toLowerCase()));
       const missing = rule.terms.filter(t => !lower.includes(t.toLowerCase()));
-      if (rule.mode === "manual" || (rule.mode === "forbidden_phrase" && matches.length) || (rule.mode === "required_phrase" && missing.length))
+      if ((rule.mode === "forbidden_phrase" && matches.length) || (rule.mode === "required_phrase" && missing.length))
         add(rule.category, `${ad.creativeId}: ${(rule.mode === "required_phrase" ? missing : matches).join(", ") || "whole advertisement"}`, rule.reason, rule.correction,
-          rule.mode === "manual" ? "human_judgement" : "confirmed_breach", rule.id, rule.source, rule.effectiveDate, rule.severity);
+          "confirmed_breach", rule.id, rule.source, rule.effectiveDate, rule.severity);
     }
   }
   limitations.push("Automated checks inspect supplied text and configured rules; image interpretation, legal applicability and independent evidence verification require human review where uncertain.");

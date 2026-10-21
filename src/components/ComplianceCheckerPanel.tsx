@@ -3,6 +3,7 @@
 import { AlertTriangle, CheckCircle2, FileCheck2, ImageIcon } from "lucide-react";
 import { ComplianceReviewHistory } from "@/components/ComplianceReviewHistory";
 import { cn } from "@/lib/cn";
+import { formatDate } from "@/lib/ids";
 import { campaignMediaUrl } from "@/lib/media/url";
 import type { Campaign } from "@/lib/types";
 import type { ComplianceIssue } from "@/lib/runtime/types";
@@ -61,6 +62,13 @@ export function ComplianceCheckerPanel({ campaign }: { campaign: Campaign }) {
     createdAt: creative.createdAt ?? campaign.createdAt,
     generationInputs: { prompt: creative.prompt },
   }));
+  const advertisementLabels = new Map(
+    ads.map((advertisement, index) => [
+      advertisement.creativeId,
+      `Advertisement ${String.fromCharCode(65 + index)} — ${advertisement.headline}`,
+    ]),
+  );
+  const explainExcerpt = (excerpt: string) => advertisementLabels.get(excerpt) ?? excerpt;
 
   return (
     <section className="flex flex-col gap-6" aria-label="Compliance Checker">
@@ -81,11 +89,11 @@ export function ComplianceCheckerPanel({ campaign }: { campaign: Campaign }) {
           <div className="flex items-center justify-between gap-3">
             <h3 className="font-medium">Advertisement received</h3>
             <span className="text-xs text-mute">
-              {submission ? `v${submission.version} · ${submission.advertisementVersionId.slice(0, 16)}…` : legacyReport ? `v${legacyReport.version} · legacy sample` : "Waiting for submission"}
+              {submission ? `Version ${submission.version} · ${submission.content.length} advertisement(s)` : legacyReport ? `Version ${legacyReport.version} · legacy sample` : "Waiting for submission"}
             </span>
           </div>
 
-          {ads.length ? ads.map((ad) => {
+          {ads.length ? ads.map((ad, advertisementIndex) => {
             const creative = campaign.creatives.find((item) => item.id === ad.creativeId);
             const image = creative && creative.generation?.url === ad.imageUrl
               ? campaignMediaUrl(campaign.id, creative.id, creative.generation)
@@ -93,7 +101,7 @@ export function ComplianceCheckerPanel({ campaign }: { campaign: Campaign }) {
             return (
               <article key={ad.creativeId} className="hairline overflow-hidden">
                 <div className="border-b border-line bg-paper-2 px-4 py-2 text-xs text-mute">
-                  {ad.creativeId} · submitted {new Date(ad.createdAt).toLocaleString()}
+                  Advertisement {String.fromCharCode(65 + advertisementIndex)} · submitted {formatDate(ad.createdAt, true)}
                 </div>
                 {image ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -131,7 +139,7 @@ export function ComplianceCheckerPanel({ campaign }: { campaign: Campaign }) {
                 </p>
                 {run ? (
                   <p className="mt-2 text-xs text-mute">
-                    Attempt {run.attemptNumber}/3 · {run.ruleSelection?.rules.length ?? 0} authorised rule(s) selected · {run.submission.brandAssets.guidelines.length} uploaded document(s) captured · {run.submission.content.filter((ad) => ad.imageUrl).length} image attachment(s)
+                    Attempt {run.attemptNumber}/3 · {run.ruleSelection?.rules.length ?? 0} binding local/global rule(s) · {run.ruleSelection?.referenceRules?.length ?? 0} non-binding foreign reference(s) · {run.submission.brandAssets.guidelines.length} uploaded document(s) · {run.submission.content.filter((ad) => ad.imageUrl).length} image attachment(s)
                   </p>
                 ) : null}
               </div>
@@ -149,7 +157,7 @@ export function ComplianceCheckerPanel({ campaign }: { campaign: Campaign }) {
                     </span>
                     <span className="text-xs text-mute">{finding.severity} · {finding.basis === "confirmed_breach" ? "confirmed breach" : "human judgement"}</span>
                   </div>
-                  <blockquote className="my-3 border-l-2 border-[var(--danger)] pl-3 font-serif text-base">“{finding.excerpt}”</blockquote>
+                  <blockquote className="my-3 border-l-2 border-[var(--danger)] pl-3 font-serif text-base">“{explainExcerpt(finding.excerpt)}”</blockquote>
                   <p className="text-sm">{finding.explanation}</p>
                   <div className="mt-3 border-t border-line pt-3 text-xs text-mute">
                     <p><strong className="text-ink">Citation:</strong> {finding.rule}</p>

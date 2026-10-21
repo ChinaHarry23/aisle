@@ -11,6 +11,7 @@ const rules: ComplianceRule[] = types.map(type => ({ id: type, source: "test-onl
 const registry = { authorisedSources: ["test-only"], rules };
 const selection = selectRules(registry, s, now);
 assert.equal(selection.problems.length, 0);
+assert.equal(selection.referenceRules?.length ?? 0, 0);
 assert.ok(selectRules(null, s, now).problems.length);
 assert.ok(selectRules({ ...registry, authorisedSources: [] }, s, now).problems.some(p => p.includes("Unauthorised")));
 assert.ok(selectRules(registry, s, "2027-01-01T00:00:00Z").problems.some(p => p.includes("Outdated")));
@@ -19,6 +20,11 @@ assert.ok(selectRules({ ...registry, rules: rules.map(r => ({ ...r, conflictsWit
 assert.ok(selectRules(registry, { ...s, country: "NZ" }, now).problems.length);
 assert.ok(selectRules(registry, { ...s, targetPlatforms: ["instagram"] }, now).problems.some(p => p.includes("instagram")));
 assert.equal(selectRules({ ...registry, rules: rules.map(r => ({ ...r, audiencePattern: "children" })) }, s, now).rules.length, 0);
+const foreignOnly = { ...registry, rules: rules.map(r => ({ ...r, jurisdiction: "NZ" })) };
+const foreignSelection = selectRules(foreignOnly, s, now);
+assert.equal(foreignSelection.rules.length, 0);
+assert.ok(foreignSelection.referenceRules?.some(r => r.type === "advertising_law"));
+assert.ok(foreignSelection.problems.some(p => p.includes("non-binding context")));
 const original = JSON.stringify(s);
 const checked = checkSubmission(s, selection);
 assert.equal(JSON.stringify(s), original);

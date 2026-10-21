@@ -1,6 +1,6 @@
 # Local compliance knowledge base (Step A)
 
-This is the evidence-storage and retrieval layer. It does not yet connect to the compliance agent, change review outcomes, approve ads, or search online. The existing JSON rule registry remains unchanged. No legal documents or fabricated legal rules are bundled.
+This is the evidence-storage and retrieval layer. It does not yet connect to the compliance agent, change review outcomes, approve ads, or search online. The separate JSON rule registry includes a small, manually reviewed official-source starter set for AU, NZ, UK and US; it is not a complete legal library and does not import the source documents into this knowledge base.
 
 ## Setup and import
 

@@ -1062,6 +1062,7 @@ export async function runComplianceReview(
     attempt: attemptNo,
     fallback,
     rules: selection.rules,
+    referenceRules: selection.referenceRules,
   });
   addTrace(w, trace, "compliance", "Policy review");
 
