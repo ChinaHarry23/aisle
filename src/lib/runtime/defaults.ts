@@ -12,7 +12,7 @@ import { defaultSpendCap } from "./budget";
 import type { Evidence, PolicyDecision, RunStep, ToolCall } from "./types";
 
 export function withRuntimeDefaults(campaign: Campaign): Campaign {
-  const internalDataAuthorised = campaign.internalDataAuthorised !== false;
+  const internalDataAuthorised = campaign.internalDataAuthorised === true;
   const capUsd =
     campaign.spend?.capUsd && campaign.spend.capUsd > 0
       ? campaign.spend.capUsd

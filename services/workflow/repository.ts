@@ -1,3 +1,4 @@
+import { retailUploadSchema } from "../../src/lib/trend/internal-retail";
 import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
@@ -105,8 +106,12 @@ export class WorkflowRepository {
           notes: typeof raw.notes === "string" ? raw.notes : "",
           spendCapUsd: raw.spendCapUsd,
         };
+        const retail = raw.internalDataAuthorised === true && raw.retailUpload !== undefined ? retailUploadSchema.safeParse(raw.retailUpload) : null;
+        if (retail && !retail.success) throw new WorkflowError("Invalid aggregate retail upload.");
         const prior = attachableRecommendation(this.campaigns(user));
-        const fresh = { ...blankCampaign(fields, input.brand, prior?.note ?? null, input.settings, prior?.fromCampaignId ?? null), id: raw.id, internalDataAuthorised: raw.internalDataAuthorised === true };
+        const fresh = { ...blankCampaign(fields, input.brand, prior?.note ?? null, input.settings, prior?.fromCampaignId ?? null), id: raw.id, internalDataAuthorised: raw.internalDataAuthorised === true,
+          ...(retail?.success ? {retailUpload:retail.data} : {}),
+          ...(raw.dataAccessPolicy === undefined ? {} : { dataAccessPolicy: { externalSources: Array.isArray(raw.dataAccessPolicy?.externalSources) ? raw.dataAccessPolicy.externalSources.filter((name: unknown): name is string => typeof name === "string") : [] } }) };
         if (current) { fresh.log = current.log; fresh.createdAt = current.createdAt; }
         current = fresh;
         this.db.prepare("insert into workflow_campaigns(user_id,campaign_id,snapshot) values(?,?,?) on conflict(user_id,campaign_id) do update set snapshot=excluded.snapshot").run(user, current.id, JSON.stringify(current));

@@ -118,16 +118,19 @@ async function anthropicSearch(apiModel: string, query: string) {
 }
 
 /** One billed web search on the model assigned to the Trend seat. */
-export async function searchWithModel(modelId: string, query: string, billing: BillingContext | undefined): Promise<WebSearchResult> {
+export async function searchWithModel(modelId: string, query: string, billing: BillingContext | undefined, conservativeCharge?: number): Promise<WebSearchResult> {
   const model = getLlmOrDefault(modelId);
   const skipped = (summary: string): WebSearchResult => ({ status: "skipped", summary, text: "", citations: [], costUsd: 0, modelName: model.name });
   if (model.providerId === "local") return skipped("The Trend seat is local, so it cannot run a provider web search.");
+  if (!['openai','anthropic'].includes(model.providerId)) return skipped('This provider has no configured web-search adapter.');
   if (!billing) return skipped("Web search was not sent because no account is paying for this call.");
-  const hold = await holdCredits(billing, worstCaseUsd(model, { prompt: query }));
+  if (!process.env[model.providerId === 'openai' ? 'OPENAI_API_KEY' : 'ANTHROPIC_API_KEY']) return skipped('Provider web-search credential is not configured.');
+  if (conservativeCharge !== undefined && (!Number.isFinite(conservativeCharge) || conservativeCharge <= 0)) return skipped('Invalid research search-cost bound.');
+  const hold = await holdCredits(billing, conservativeCharge ?? worstCaseUsd(model, { prompt: query }));
   if (!hold) return skipped(`${model.name} web search was skipped: not enough credits.`);
   try {
     const found = model.providerId === "openai" ? await openaiSearch(model.apiModel, query) : await anthropicSearch(model.apiModel, query);
-    const costUsd = found.inputTokens != null && found.outputTokens != null ? llmCostUsd(model, found.inputTokens, found.outputTokens) : worstCaseUsd(model, { prompt: query });
+    const costUsd = conservativeCharge ?? (found.inputTokens != null && found.outputTokens != null ? llmCostUsd(model, found.inputTokens, found.outputTokens) : worstCaseUsd(model, { prompt: query }));
     await settleHold(hold, costUsd, { modelId: model.id, note: "Trend web search" });
     const citations = found.citations;
     if (!found.text && citations.length === 0) {
@@ -142,7 +145,8 @@ export async function searchWithModel(modelId: string, query: string, billing: B
       modelName: model.name,
     };
   } catch (error) {
-    await releaseHold(hold);
-    return { status: "error", summary: clean(error instanceof Error ? error.message : "Web search failed."), text: "", citations: [], costUsd: 0, modelName: model.name };
+    if (conservativeCharge) await settleHold(hold, conservativeCharge, {modelId:model.id,note:'Configured conservative search estimate; failed response may still incur provider charges.'});
+    else await releaseHold(hold);
+    return { status: "error", summary: clean(error instanceof Error ? error.message : "Web search failed."), text: "", citations: [], costUsd: conservativeCharge ?? 0, modelName: model.name };
   }
 }

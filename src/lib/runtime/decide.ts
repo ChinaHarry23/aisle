@@ -24,6 +24,7 @@ import type { BrandProfile, Campaign, PriceRecommendation } from "@/lib/types";
 import type { ChannelResult, ComplianceIssue, RecommendationPoint } from "./types";
 
 export type LlmRuntime = {
+  research?: import("@/lib/trend/contracts").ResearchRunner;
   request: (req: CompleteRequest) => Promise<CompleteResult>;
   /** Identifies the transport so the run trace can say what decision path was used. */
   meta?: { label: string; live: boolean };
@@ -94,6 +95,7 @@ function assignmentFor(campaign: Campaign, settings: WorkspaceSettings, agent: A
 /* -------------------------------------------------------------- trend brief -- */
 
 export type TrendDecision = {
+  researchAnalysis?: import('@/lib/trend/contracts').ResearchAnalysis[];
   priorities: { topic: string; relevance: number; confidence: number; theme?: string; visual?: string }[];
   angle: string;
   keyMessage: string;

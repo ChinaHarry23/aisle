@@ -26,6 +26,8 @@ export type EngineOptions = {
   maxSteps?: number;
   /** Signed-in founder for this run. */
   ownerUserId?: string;
+  /** Checked before and after research calls, and before handoff. */
+  researchAllowed?: () => boolean | Promise<boolean>;
   /** Ad renderer. Defaults to the studio route; tests pass a stub. */
   renderPoster?: (input: {
     campaign: Campaign;
@@ -79,7 +81,7 @@ function blankWork(campaign: Campaign, now: string): Work {
       toolCalls: campaign.toolCalls ?? [],
       performanceReport: campaign.performanceReport ?? null,
       recommendationDecision: campaign.recommendationDecision ?? null,
-      internalDataAuthorised: campaign.internalDataAuthorised !== false,
+      internalDataAuthorised: campaign.internalDataAuthorised === true,
       spend: campaign.spend ?? {
         inferenceUsd: 0,
         mediaUsd: 0,
@@ -137,6 +139,7 @@ export async function runEngine(
   const maxSteps = options.maxSteps ?? DEFAULT_MAX_STEPS;
   const w = blankWork(campaign, ctx.now);
   const env = envFor(ctx, w.campaign, settings, brand, llm, options.renderPoster ?? defaultRenderPoster, options.ownerUserId);
+  env.researchAllowed = options.researchAllowed;
   let canAdvance = false;
 
   if (!w.run || !activeRun(w.run)) {

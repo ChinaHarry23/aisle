@@ -179,7 +179,7 @@ export type ShelfLookup =
       claim: string;
       detail: string;
       sourceRef: string;
-      observedAt: string;
+      observedAt: string | null;
       summary: string;
     }
   | { ok: false; kind: "not_connected" | "outside_au" | "empty" | "unavailable"; reason: string };
@@ -218,7 +218,7 @@ export async function lookupShelfPrices(
   try {
     found = await loadCatalogue(query, fetchImpl);
   } catch (error) {
-    const reason = error instanceof Error ? error.message : "WhichGrocer did not answer.";
+    const reason = error instanceof WhichGrocerApiError ? `WhichGrocer request failed (HTTP ${error.status}).` : "WhichGrocer network or response error.";
     const rejected = error instanceof WhichGrocerApiError && (error.status === 401 || error.status === 403);
     return {
       ok: false,

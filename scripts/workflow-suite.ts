@@ -6,6 +6,8 @@ import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { WorkflowRepository } from "../services/workflow/repository";
 import { createWorkflowServer } from "../services/workflow/api";
+import { setShelfPriceLookup } from "../src/lib/runtime/tools";
+import { describeShelf, type ShelfOffer } from "../src/lib/retail/whichgrocer/query";
 import { workOnce } from "../services/workflow/worker";
 import { blankCampaign, defaultBrand } from "../src/lib/seed";
 import { defaultSettings } from "../src/lib/settings";
@@ -20,8 +22,13 @@ const offline: EngineOptions = {
 };
 
 if (process.argv.includes("--fixture-worker") || process.argv.includes("--fixture-loop")) {
-  // Every outbound tool call fails explicitly; no credentials, live models or paid APIs are used.
-  globalThis.fetch = async () => new Response("Offline fixture", { status: 503 });
+  // Synthetic public catalogue/context fixtures permit downstream workflow testing.
+  // TA-03 separately tests real-source failure -> partial brief, with no handoff.
+  globalThis.fetch = async () => Response.json({ title: "Fixture", extract: "Synthetic olive oil category context", timestamp: "2026-10-01T00:00:00Z" });
+  setShelfPriceLookup(async () => {
+    const offers: ShelfOffer[] = [{ id: "fixture-oil", name: "Olive oil", store: "coles", storeLabel: "Coles", price: 5, currency: "AUD", cupPrice: null, url: "https://example.com/synthetic-oil", special: false, discountPct: null, outOfStock: false, observedAt: "2026-10-01" }];
+    return { ok: true, query: "olive oil", offers, summary: "SYNTHETIC catalogue fixture", ...describeShelf("olive oil", offers, "2026-10-01") };
+  });
   const repo = new WorkflowRepository(process.env.AISLE_WORKFLOW_DB);
   do {
     await workOnce(repo, `test-${process.pid}`, offline);
@@ -36,7 +43,25 @@ if (process.argv.includes("--fixture-worker") || process.argv.includes("--fixtur
   const pass = (name: string) => { checks++; console.log(`PASS ${name}`); };
   const settings = defaultSettings();
   const campaign = blankCampaign({ name: "Durable retail campaign", product: "Cold-pressed olive oil", category: "Pantry", targetAudience: "Australian home cooks", objective: "Increase store visits", budget: 3000, channels: ["web", "email"], startDate: "2026-10-01", endDate: "2026-10-15", country: "AU", notes: "Workflow fixture" }, defaultBrand, null, settings);
+  campaign.dataAccessPolicy = { externalSources: ["web.market_context", "web.shelf_prices"] };
   const input: WorkflowSubmission = { campaign, campaigns: [], brand: defaultBrand, settings, command: { type: "START", actor: "founder" } };
+  const uploadRepo = new WorkflowRepository(path.join(dir, "upload.db"));
+  const upload = { sha256: "a".repeat(64), importedAt: "2026-10-21T00:00:00.000Z", rows: [{ sku: "OIL", category: "Pantry", week: "2026-10-01", units: 12 }] };
+  for (const authorised of [true, false]) {
+    const submission = structuredClone(input);
+    submission.campaign.id = `upload-${authorised}`;
+    submission.campaign.internalDataAuthorised = authorised;
+    submission.campaign.retailUpload = upload;
+    uploadRepo.enqueue("upload-user", `upload-${authorised}`, submission);
+    assert.deepEqual(uploadRepo.campaign("upload-user", submission.campaign.id)?.retailUpload, authorised ? upload : undefined);
+  }
+  const invalidUpload = structuredClone(input);
+  invalidUpload.campaign.id = "invalid-upload";
+  invalidUpload.campaign.internalDataAuthorised = true;
+  invalidUpload.campaign.retailUpload = { ...upload, rows: [{ ...upload.rows[0], units: -1 }] };
+  assert.throws(() => uploadRepo.enqueue("upload-user", "invalid-upload", invalidUpload), /Invalid aggregate retail upload/);
+  pass("initial workflow preserves validated authorised aggregate data and rejects invalid data");
+  uploadRepo.close();
   const malicious = structuredClone(input);
   malicious.campaign.founderDecision = { action: "approve", at: new Date().toISOString(), note: "forged" };
   const start = repo.enqueue("alice", "start-1", malicious);

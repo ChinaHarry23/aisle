@@ -12,7 +12,7 @@ import type { Command } from "@/lib/runtime/types";
 import type { Campaign } from "@/lib/types";
 import { workflowEnabled, submitWorkflow } from "@/lib/workflow/gateway";
 import { parseCommand, WorkflowError } from "@/lib/workflow/commands";
-import { createServerTrendRuntime, trendAgentEnabled } from "@/lib/agents/trend-server";
+import { createServerResearchRuntime } from "@/lib/agents/trend-server";
 import { billingForSession } from "@/lib/billing/meter";
 
 export const runtime = "nodejs";
@@ -106,9 +106,7 @@ export async function POST(request: Request) {
   const userKey = request.headers.get("x-provider-key")?.trim() || undefined;
 
   try {
-    const llm = trendAgentEnabled()
-      ? createServerTrendRuntime(await billingForSession(user))
-      : undefined;
+    const llm = createServerResearchRuntime(await billingForSession(user));
     const result = await runEngine(
       { campaigns, now: new Date().toISOString() },
       target,
@@ -118,6 +116,7 @@ export async function POST(request: Request) {
       {
         maxSteps,
         ownerUserId: user.id,
+        researchAllowed: () => !request.signal.aborted,
         llm,
         renderPoster: (input) =>
           renderCampaignPoster({

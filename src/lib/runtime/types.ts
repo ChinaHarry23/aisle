@@ -53,13 +53,19 @@ export type Evidence = {
   sourceRef: string;
   sourceKind: SourceKind;
   /** ISO date the underlying information describes (not when we fetched it). */
-  observedAt: string;
+  observedAt: string | null;
+  /** Meaning of observedAt; null means the source supplied no information date. */
+  dateBasis?: "revision" | "source_record" | "unknown";
+  /** Forecast validity is separate from its publication date. */
+  coverage?: { start: string; end: string; location: string };
   fetchedAt: string;
   status: EvidenceStatus;
   confidence: number;
   /** Which agent raised it. */
   raisedBy: Actor;
   usedFor: string;
+  research?: { category: import('@/lib/trend/contracts').ResearchCategory; channel?: string; geography: string;
+    queryScope: string; permission: 'allowed'; quality: 'snippet' | 'unassessed'; transformation?: string };
 };
 
 export type TrendFinding = {

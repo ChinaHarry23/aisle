@@ -12,6 +12,7 @@
  * keeps the per-seat tool sets honest.
  */
 
+import { redact } from "@/lib/trend/source-tools";
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
 import type { BrandProfile, Campaign } from "@/lib/types";
@@ -28,6 +29,7 @@ import {
  * category or a country, and the tools coerce what they need.
  */
 export function toolSchema(definition: ToolDefinition) {
+  if (definition.schema) return definition.schema;
   const shape: Record<string, z.ZodString> = {};
   for (const arg of definition.args) {
     shape[arg] = z.string().describe(toolArgHelp(definition.name, arg));
@@ -65,6 +67,7 @@ export type AgentToolContext = {
   /** Runs the tool and records the call. Supplied by the engine. */
   execute: (name: string, args: Record<string, string>) => Promise<ToolOutcome>;
   /** Called for every call the agent makes, for the run trace. */
+  names?: readonly string[];
   onCall?: (name: string, args: Record<string, string>, outcome: ToolOutcome) => void;
 };
 
@@ -77,7 +80,7 @@ export type AgentToolContext = {
  * adapt, instead of the agent loop dying on an exception.
  */
 export function agentTools(agent: ToolAgent, context: AgentToolContext): DynamicStructuredTool[] {
-  return TOOL_REGISTRY.filter((definition) => definition.agent === agent).map((definition) =>
+  return TOOL_REGISTRY.filter((definition) => definition.agent === agent && (!context.names || context.names.includes(definition.name))).map((definition) =>
     new DynamicStructuredTool({
       name: definition.name,
       description: definition.description,
@@ -92,12 +95,14 @@ export function agentTools(agent: ToolAgent, context: AgentToolContext): Dynamic
         }
         const outcome = await context.execute(definition.name, flat);
         context.onCall?.(definition.name, flat, outcome);
-        return JSON.stringify({
+        const payload = {
           status: outcome.status,
           summary: outcome.summary,
           data: outcome.data,
+          evidence: outcome.evidence,
           ...(outcome.gap ? { gap: outcome.gap } : {}),
-        });
+        };
+        return JSON.stringify(payload, (_key, value) => agent === "trend" && typeof value === "string" ? redact(value) : value);
       },
     }),
   );

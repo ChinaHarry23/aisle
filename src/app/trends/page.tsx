@@ -198,20 +198,6 @@ export default function TrendsPage() {
   const [dragging, setDragging] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
-  const findings = useMemo(
-    () =>
-      campaigns.flatMap((c) =>
-        c.trendFindings.map((f) => ({
-          finding: f,
-          campaign: c,
-          citations: f.evidenceIds
-            .map((id) => c.evidence.find((e) => e.id === id))
-            .filter((e): e is NonNullable<typeof e> => Boolean(e)),
-        })),
-      ),
-    [campaigns],
-  );
-
   const activity = useMemo(
     () =>
       campaigns
@@ -278,10 +264,34 @@ export default function TrendsPage() {
     <div className="flex flex-col gap-8">
       <PageHeader
         eyebrow="Trend Analyser"
-        title="Where we look for trends"
-        description="Turn on the sources you trust. We read them before drafting a brief and cite them in the findings. With none turned on, we use public data and mark anything we've inferred."
+        title="Research reports & decisions"
+        description="Find each campaign’s research report, see what is still missing, and review requests for your input."
       />
 
+      <section aria-label="Campaign research reports">
+        <SectionTitle title="Campaign reports" />
+        <p className="mt-2 text-sm text-mute">Open a report for all research categories, evidence, conclusions and limitations.</p>
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          {campaigns.map(c => { const areas=c.researchCoverage ?? [];const count=areas.filter(a=>a.analysis).length;const requests=c.trendGaps.filter(g=>g.needsFounder).length;return <article key={c.id} className="hairline p-5">
+            <div className="flex flex-wrap items-center justify-between gap-2"><span className="status-chip status-wait">{c.researchAttempts?.length ? 'Draft · validation pending' : 'No verified research run'}</span>{requests>0&&<span className="text-xs text-signal">{requests} need your input</span>}</div>
+            <h3 className="mt-3 font-serif text-xl">{c.name}</h3><p className="mt-2 text-sm text-mute">{c.country} · {c.startDate} – {c.endDate}</p>
+            <p className="mt-3 text-sm">{count} / {areas.length || 7+c.channels.length} research areas assessed</p>
+            <div className="mt-4 flex flex-wrap gap-4 text-sm text-signal"><Link href={`/campaigns/${c.id}?tab=research`}>Open full report →</Link>{requests>0&&<Link href={`/campaigns/${c.id}?tab=research#research-decisions`}>Review requests →</Link>}</div>
+          </article>;})}
+          {!campaigns.length&&<p className="text-sm text-mute">Create a campaign to start a research report.</p>}
+        </div>
+      </section>
+      <section aria-label="Research requests across campaigns">
+        <SectionTitle title="Needs your attention" />
+        <p className="mt-2 text-sm text-mute">Research clarification and evidence review are separate from advertising approval. Approving a decision cannot replace missing evidence.</p>
+        <ul className="mt-4 space-y-3">{campaigns.flatMap(c=>c.trendGaps.filter(g=>g.needsFounder).map(g=><li key={`${c.id}:${g.id}`} className="hairline p-4">
+          <p className="text-xs text-signal">{c.name} · {g.kind.replaceAll('_',' ')}</p><h3 className="mt-2 font-medium">{g.detail}</h3><p className="mt-2 text-sm text-mute">Impact: {g.effect}</p><Link className="mt-3 inline-block text-sm text-signal" href={`/campaigns/${c.id}?tab=research#research-decisions`}>See evidence and next action →</Link>
+        </li>))}</ul>
+        {!campaigns.some(c=>c.trendGaps.some(g=>g.needsFounder))&&<p className="mt-4 rounded-xl border border-line p-4 text-sm text-mute">No research decisions are waiting for you. Reports without a verified run still need research; this is not a completion signal.</p>}
+      </section>
+      <details className="hairline p-5">
+        <summary className="cursor-pointer font-medium">Research source workspace · optional configuration</summary>
+        <p className="my-4 text-sm text-mute">Saved sources are candidate inputs, not verified findings. Adding or enabling a source does not prove that a research run used it. Check each report’s execution records. Authorise retail exports within the relevant campaign.</p>
       <div className="flex flex-col gap-4">
         <SourcePanel
           title="Websites"
@@ -359,38 +369,7 @@ export default function TrendsPage() {
         </SourcePanel>
       </div>
 
-      <section>
-        <SectionTitle title="Findings" />
-        {findings.length === 0 ? (
-          <p className="mt-3 text-sm text-mute">
-            No findings yet. They appear here once a campaign completes trend analysis.
-          </p>
-        ) : (
-          <ul className="mt-4 flex flex-col gap-3">
-            {findings.map(({ finding: f, campaign, citations }) => (
-              <li key={`${campaign.id}-${f.id}`} className="hairline p-4">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <h3 className="font-medium">{f.topic}</h3>
-                  <span className={cn("status-chip", f.basis === "supported" ? "risk-low" : "risk-mid")}>
-                    {f.basis === "supported" ? "Sourced" : "Assumption"}
-                  </span>
-                </div>
-                <p className="mt-2 text-sm leading-relaxed text-ink-soft">{f.finding}</p>
-                <div className="mt-4 flex flex-wrap justify-between gap-2 border-t border-line pt-3 text-xs text-mute">
-                  <span>
-                    {citations.length > 0
-                      ? `Source: ${citations.map((c) => c.sourceName).join(", ")}`
-                      : "No source cited"}
-                  </span>
-                  <Link href={`/campaigns/${campaign.id}`} className="hover:text-signal">
-                    {campaign.name}
-                  </Link>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      </details>
 
       {activity.length > 0 ? (
         <section>

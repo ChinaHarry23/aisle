@@ -1,0 +1,536 @@
+{
+  "at": "2026-10-20T07:28:25.136Z",
+  "mode": "LIVE PUBLIC DATA ONLY. No LLM and no paid API. Weather is optional context, not demand evidence.",
+  "results": [
+    {
+      "name": "calendar.public_holidays",
+      "args": {
+        "year": "2026"
+      },
+      "status": "ok",
+      "summary": "Calendar retrieved; a holiday alone does not establish consumer preference.",
+      "evidence": [
+        {
+          "id": "ev_0vzkn3o99k",
+          "claim": "Retrieved cultural material",
+          "detail": "No public holidays in the requested campaign window. This does not mean there are no cultural events.",
+          "sourceName": "Nager.Date",
+          "sourceRef": "https://nagerholidays.com/api/v3/publicholidays/2026/AU",
+          "sourceKind": "external_public",
+          "observedAt": null,
+          "dateBasis": "unknown",
+          "fetchedAt": "2026-10-20T07:28:25.136Z",
+          "status": "verified",
+          "confidence": 0,
+          "raisedBy": "trend",
+          "usedFor": "Source material only; not a validated conclusion.",
+          "research": {
+            "category": "cultural",
+            "geography": "AU",
+            "queryScope": "Rain jacket Apparel AU local cultural events calendar  2026 2026",
+            "permission": "allowed",
+            "quality": "unassessed",
+            "transformation": "National and subdivision calendar records; subdivision relevance and cultural significance require review."
+          }
+        }
+      ]
+    },
+    {
+      "name": "web.historical_weather",
+      "args": {},
+      "status": "ok",
+      "summary": "Historical city weather retrieved for comparison.",
+      "evidence": [
+        {
+          "id": "ev_so7ocezcqp",
+          "claim": "Retrieved seasonal material",
+          "detail": "{\"time\":[\"2025-10-20\",\"2025-10-21\",\"2025-10-22\",\"2025-10-23\",\"2025-10-24\",\"2025-10-25\",\"2025-10-26\"],\"temperature_2m_max\":[33.3,21.6,38.3,24.1,23.2,24.3,24.7],\"temperature_2m_min\":[16.5,17.8,17.9,16.9,16.3,13.9,15.9],\"precipitation_sum\":[0,0,0,0.1,0.1,0,1.5]}",
+          "sourceName": "Open-Meteo Historical Weather",
+          "sourceRef": "https://archive-api.open-meteo.com/v1/archive?latitude=-33.87&longitude=151.21&start_date=2025-10-20&end_date=2025-10-26&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=auto",
+          "sourceKind": "external_public",
+          "observedAt": null,
+          "dateBasis": "unknown",
+          "fetchedAt": "2026-10-20T07:28:25.136Z",
+          "status": "verified",
+          "confidence": 0,
+          "raisedBy": "trend",
+          "usedFor": "Source material only; not a validated conclusion.",
+          "research": {
+            "category": "seasonal",
+            "geography": "AU",
+            "queryScope": "Rain jacket Apparel AU seasonal retail demand  2026 2026",
+            "permission": "allowed",
+            "quality": "unassessed",
+            "transformation": "Previous-year comparison for Sydney only, not a national observation or future forecast."
+          },
+          "coverage": {
+            "start": "2025-10-20",
+            "end": "2025-10-26",
+            "location": "Sydney"
+          }
+        }
+      ]
+    },
+    {
+      "name": "stats.abs_spending",
+      "args": {
+        "mode": "metadata",
+        "flow": "",
+        "key": ""
+      },
+      "status": "ok",
+      "summary": "ABS spending dataflow discovery; no measurement yet.",
+      "evidence": [],
+      "metadata": {
+        "metadataUrl": "https://data.api.abs.gov.au/rest/dataflow/ABS/all/latest?references=none",
+        "flows": [
+          {
+            "id": "ABS_C16_T21_LGA",
+            "version": "1.0.0",
+            "name": "Census 2016, Total Household Income (Weekly) by Household Composition (LGA)",
+            "nonProduction": true
+          },
+          {
+            "id": "ABS_C16_T21_SA",
+            "version": "1.0.0",
+            "name": "Census 2016, Total Household Income (Weekly) by Household Composition (SA2+)",
+            "nonProduction": true
+          },
+          {
+            "id": "ABS_C16_T23_LGA",
+            "version": "1.0.0",
+            "name": "Census 2016, Household Composition By Number Of Persons Usually Resident (LGA)",
+            "nonProduction": true
+          },
+          {
+            "id": "ABS_C16_T23_SA",
+            "version": "1.0.0",
+            "name": "Census 2016, Household Composition By Number Of Persons Usually Resident (SA2+)",
+            "nonProduction": true
+          },
+          {
+            "id": "ABS_C16_T23_TS_LGA",
+            "version": "1.0.0",
+            "name": "Census Time Series 2016, 2011, 2006: T23 Household Composition By Number Of Persons Usually Resident (LGA)",
+            "nonProduction": true
+          },
+          {
+            "id": "ABS_C16_T23_TS_SA",
+            "version": "1.0.0",
+            "name": "Census Time Series 2016, 2011, 2006: T23 Household Composition By Number Of Persons Usually Resident (SA2+)",
+            "nonProduction": true
+          },
+          {
+            "id": "ABS_CENSUS2011_B23",
+            "version": "1.0.0",
+            "name": "B23 Relationship in Household by Age by Sex",
+            "nonProduction": true
+          },
+          {
+            "id": "ABS_CENSUS2011_B23_LGA",
+            "version": "1.0.0",
+            "name": "B23 Relationship in Household by Age by Sex (LGA)",
+            "nonProduction": true
+          },
+          {
+            "id": "ABS_CENSUS2011_B23_SA1_SA",
+            "version": "1.0.0",
+            "name": "B23 Relationship in Household by Age by Sex (SA1 SA)",
+            "nonProduction": true
+          },
+          {
+            "id": "ABS_CENSUS2011_B28",
+            "version": "1.0.0",
+            "name": "B28 Total Household Income (weekly) by Household Composition",
+            "nonProduction": true
+          },
+          {
+            "id": "ABS_CENSUS2011_B28_LGA",
+            "version": "1.0.0",
+            "name": "B28 Total Household Income (weekly) by Household Composition (LGA)",
+            "nonProduction": true
+          },
+          {
+            "id": "ABS_CENSUS2011_B28_SA1_SA",
+            "version": "1.0.0",
+            "name": "B28 Total Household Income (weekly) by Household Composition (SA1 SA)",
+            "nonProduction": true
+          },
+          {
+            "id": "ABS_CENSUS2011_B30",
+            "version": "1.0.0",
+            "name": "B30 Household Composition by Number of Persons Usually Resident",
+            "nonProduction": true
+          },
+          {
+            "id": "ABS_CENSUS2011_B30_LGA",
+            "version": "1.0.0",
+            "name": "B30 Household Composition by Number of Persons Usually Resident (LGA)",
+            "nonProduction": true
+          },
+          {
+            "id": "ABS_CENSUS2011_B30_SA1_SA",
+            "version": "1.0.0",
+            "name": "B30 Household Composition by Number of Persons Usually Resident (SA1 SA)",
+            "nonProduction": true
+          },
+          {
+            "id": "ABS_CENSUS2011_T14",
+            "version": "1.0.0",
+            "name": "T14 Dwelling Structure by Household Composition and Family Composition",
+            "nonProduction": true
+          },
+          {
+            "id": "ABS_CENSUS2011_T14_LGA",
+            "version": "1.0.0",
+            "name": "T14 Dwelling Structure by Household Composition and Family Composition (LGA)",
+            "nonProduction": true
+          },
+          {
+            "id": "ABS_CENSUS2011_T16",
+            "version": "1.0.0",
+            "name": "T16 Dwelling Structure and Number of Bedrooms by Number of Persons Usually Resident for Family Households",
+            "nonProduction": true
+          },
+          {
+            "id": "ABS_CENSUS2011_T16_LGA",
+            "version": "1.0.0",
+            "name": "T16 Dwelling Structure and Number of Bedrooms by Number of Persons Usually Resident for Family Households (LGA)",
+            "nonProduction": true
+          },
+          {
+            "id": "ABS_CENSUS2011_T17",
+            "version": "1.0.0",
+            "name": "T17 Dwelling Structure and Number of Bedrooms by Number of Persons Usually Resident for Group Households",
+            "nonProduction": true
+          },
+          {
+            "id": "ABS_CENSUS2011_T17_LGA",
+            "version": "1.0.0",
+            "name": "T17 Dwelling Structure and Number of Bedrooms by Number of Persons Usually Resident for Group Households (LGA)",
+            "nonProduction": true
+          },
+          {
+            "id": "ABS_CENSUS2011_T24",
+            "version": "1.0.0",
+            "name": "T24 Total Household Income (weekly) by Rent (weekly)",
+            "nonProduction": true
+          },
+          {
+            "id": "ABS_CENSUS2011_T24_LGA",
+            "version": "1.0.0",
+            "name": "T24 Total Household Income (weekly) by Rent (weekly) (LGA)",
+            "nonProduction": true
+          },
+          {
+            "id": "ABS_HH_PROV",
+            "version": "1.0.0",
+            "name": "Projected households, Australia, 2021 to 2046",
+            "nonProduction": true
+          },
+          {
+            "id": "C21_G27_CED",
+            "version": "1.0.0",
+            "name": "Census 2021, G27 Relationship in household by age by sex, Commonwealth Electoral Divisions (CED 2021 boundaries)",
+            "nonProduction": true
+          },
+          {
+            "id": "C21_G27_LGA",
+            "version": "1.0.0",
+            "name": "Census 2021, G27 Relationship in household by age by sex, Local Government Area 2021 (LGA 2021 boundaries)",
+            "nonProduction": true
+          },
+          {
+            "id": "C21_G27_POA",
+            "version": "1.0.0",
+            "name": "Census 2021, G27 Relationship in household by age by sex, Postal Areas (POA)",
+            "nonProduction": true
+          },
+          {
+            "id": "C21_G27_RA",
+            "version": "1.0.0",
+            "name": "Census 2021, G27 Relationship in household by age by sex, Remoteness Areas (RA)",
+            "nonProduction": true
+          },
+          {
+            "id": "C21_G27_SA2",
+            "version": "1.0.0",
+            "name": "Census 2021, G27 Relationship in household by age by sex, Main Statistical Areas Level 2 and up (SA2+)",
+            "nonProduction": true
+          },
+          {
+            "id": "C21_G27_SAL",
+            "version": "1.0.0",
+            "name": "Census 2021, G27 Relationship in household by age by sex, Suburbs and Localities (SAL)",
+            "nonProduction": true
+          },
+          {
+            "id": "C21_G27_SED",
+            "version": "1.0.0",
+            "name": "Census 2021, G27 Relationship in household by age by sex, State Electoral Divisions (SED 2021 boundaries)",
+            "nonProduction": true
+          },
+          {
+            "id": "C21_G27_SUA",
+            "version": "1.0.0",
+            "name": "Census 2021, G27 Relationship in household by age by sex, Significant Urban Areas (SUA)",
+            "nonProduction": true
+          },
+          {
+            "id": "C21_G27_UCL",
+            "version": "1.0.0",
+            "name": "Census 2021, G27 Relationship in household by age by sex, Urban Centres, Localities and Section of State (UCL/SOS/SOSR)",
+            "nonProduction": true
+          },
+          {
+            "id": "C21_G33_CED",
+            "version": "1.0.0",
+            "name": "Census 2021, G33 Total household income (weekly) by household composition, Commonwealth Electoral Divisions (CED 2021 boundaries)",
+            "nonProduction": true
+          },
+          {
+            "id": "C21_G33_LGA",
+            "version": "1.0.0",
+            "name": "Census 2021, G33 Total household income (weekly) by household composition, Local Government Area 2021 (LGA 2021 boundaries)",
+            "nonProduction": true
+          },
+          {
+            "id": "C21_G33_POA",
+            "version": "1.0.0",
+            "name": "Census 2021, G33 Total household income (weekly) by household composition, Postal Areas (POA)",
+            "nonProduction": true
+          },
+          {
+            "id": "C21_G33_RA",
+            "version": "1.0.0",
+            "name": "Census 2021, G33 Total household income (weekly) by household composition, Remoteness Areas (RA)",
+            "nonProduction": true
+          },
+          {
+            "id": "C21_G33_SA2",
+            "version": "1.0.0",
+            "name": "Census 2021, G33 Total household income (weekly) by household composition, Main Statistical Areas Level 2 and up (SA2+)",
+            "nonProduction": true
+          },
+          {
+            "id": "C21_G33_SAL",
+            "version": "1.0.0",
+            "name": "Census 2021, G33 Total household income (weekly) by household composition, Suburbs and Localities (SAL)",
+            "nonProduction": true
+          },
+          {
+            "id": "C21_G33_SED",
+            "version": "1.0.0",
+            "name": "Census 2021, G33 Total household income (weekly) by household composition, State Electoral Divisions (SED 2021 boundaries)",
+            "nonProduction": true
+          },
+          {
+            "id": "C21_G33_SUA",
+            "version": "1.0.0",
+            "name": "Census 2021, G33 Total household income (weekly) by household composition, Significant Urban Areas (SUA)",
+            "nonProduction": true
+          },
+          {
+            "id": "C21_G33_UCL",
+            "version": "1.0.0",
+            "name": "Census 2021, G33 Total household income (weekly) by household composition, Urban Centres, Localities and Section of State (UCL/SOS/SOSR)",
+            "nonProduction": true
+          },
+          {
+            "id": "C21_G35_CED",
+            "version": "1.0.0",
+            "name": "Census 2021, G35 Household composition by number of persons usually resident, Commonwealth Electoral Divisions (CED 2021 boundaries)",
+            "nonProduction": true
+          },
+          {
+            "id": "C21_G35_LGA",
+            "version": "1.0.0",
+            "name": "Census 2021, G35 Household composition by number of persons usually resident, Local Government Area 2021 (LGA 2021 boundaries)",
+            "nonProduction": true
+          },
+          {
+            "id": "C21_G35_POA",
+            "version": "1.0.0",
+            "name": "Census 2021, G35 Household composition by number of persons usually resident, Postal Areas (POA)",
+            "nonProduction": true
+          },
+          {
+            "id": "C21_G35_RA",
+            "version": "1.0.0",
+            "name": "Census 2021, G35 Household composition by number of persons usually resident, Remoteness Areas (RA)",
+            "nonProduction": true
+          },
+          {
+            "id": "C21_G35_SA2",
+            "version": "1.0.0",
+            "name": "Census 2021, G35 Household composition by number of persons usually resident, Main Statistical Areas Level 2 and up (SA2+)",
+            "nonProduction": true
+          },
+          {
+            "id": "C21_G35_SAL",
+            "version": "1.0.0",
+            "name": "Census 2021, G35 Household composition by number of persons usually resident, Suburbs and Localities (SAL)",
+            "nonProduction": true
+          },
+          {
+            "id": "C21_G35_SED",
+            "version": "1.0.0",
+            "name": "Census 2021, G35 Household composition by number of persons usually resident, State Electoral Divisions (SED 2021 boundaries)",
+            "nonProduction": true
+          },
+          {
+            "id": "C21_G35_SUA",
+            "version": "1.0.0",
+            "name": "Census 2021, G35 Household composition by number of persons usually resident, Significant Urban Areas (SUA)",
+            "nonProduction": true
+          },
+          {
+            "id": "C21_G35_UCL",
+            "version": "1.0.0",
+            "name": "Census 2021, G35 Household composition by number of persons usually resident, Urban Centres, Localities and Section of State (UCL/SOS/SOSR)",
+            "nonProduction": true
+          },
+          {
+            "id": "C21_G42_CED",
+            "version": "1.0.0",
+            "name": "Census 2021, G42 Dwelling structure by household composition and family composition, Commonwealth Electoral Divisions (CED 2021 boundaries)",
+            "nonProduction": true
+          },
+          {
+            "id": "C21_G42_LGA",
+            "version": "1.0.0",
+            "name": "Census 2021, G42 Dwelling structure by household composition and family composition, Local Government Area 2021 (LGA 2021 boundaries)",
+            "nonProduction": true
+          },
+          {
+            "id": "C21_G42_POA",
+            "version": "1.0.0",
+            "name": "Census 2021, G42 Dwelling structure by household composition and family composition, Postal Areas (POA)",
+            "nonProduction": true
+          },
+          {
+            "id": "C21_G42_RA",
+            "version": "1.0.0",
+            "name": "Census 2021, G42 Dwelling structure by household composition and family composition, Remoteness Areas (RA)",
+            "nonProduction": true
+          },
+          {
+            "id": "C21_G42_SA2",
+            "version": "1.0.0",
+            "name": "Census 2021, G42 Dwelling structure by household composition and family composition, Main Statistical Areas Level 2 and up (SA2+)",
+            "nonProduction": true
+          },
+          {
+            "id": "C21_G42_SAL",
+            "version": "1.0.0",
+            "name": "Census 2021, G42 Dwelling structure by household composition and family composition, Suburbs and Localities (SAL)",
+            "nonProduction": true
+          },
+          {
+            "id": "C21_G42_SED",
+            "version": "1.0.0",
+            "name": "Census 2021, G42 Dwelling structure by household composition and family composition, State Electoral Divisions (SED 2021 boundaries)",
+            "nonProduction": true
+          },
+          {
+            "id": "C21_G42_SUA",
+            "version": "1.0.0",
+            "name": "Census 2021, G42 Dwelling structure by household composition and family composition, Significant Urban Areas (SUA)",
+            "nonProduction": true
+          },
+          {
+            "id": "C21_G42_UCL",
+            "version": "1.0.0",
+            "name": "Census 2021, G42 Dwelling structure by household composition and family composition, Urban Centres, Localities and Section of State (UCL/SOS/SOSR)",
+            "nonProduction": true
+          },
+          {
+            "id": "C21_T14_LGA",
+            "version": "1.0.0",
+            "name": "Census 2021, T14 Dwelling structure by household composition and family composition, Time Series, Local Government Area 2021 (LGA 2021 boundaries)",
+            "nonProduction": true
+          },
+          {
+            "id": "C21_T14_SA2",
+            "version": "1.0.0",
+            "name": "Census 2021, T14 Dwelling structure by household composition and family composition, Time Series, Main Statistical Areas Level 2 and up (SA2+)",
+            "nonProduction": true
+          },
+          {
+            "id": "C21_T16_LGA",
+            "version": "1.0.0",
+            "name": "Census 2021, T16 Dwelling structure and number of bedrooms by number of persons usually resident for family households, Time Series, Local Government Area 2021 (LGA 2021 boundaries)",
+            "nonProduction": true
+          },
+          {
+            "id": "C21_T16_SA2",
+            "version": "1.0.0",
+            "name": "Census 2021, T16 Dwelling structure and number of bedrooms by number of persons usually resident for family households, Time Series, Main Statistical Areas Level 2 and up (SA2+)",
+            "nonProduction": true
+          },
+          {
+            "id": "C21_T17_LGA",
+            "version": "1.0.0",
+            "name": "Census 2021, T17 Dwelling structure and number of bedrooms by number of persons usually resident for group households, Time Series, Local Government Area 2021 (LGA 2021 boundaries)",
+            "nonProduction": true
+          },
+          {
+            "id": "C21_T17_SA2",
+            "version": "1.0.0",
+            "name": "Census 2021, T17 Dwelling structure and number of bedrooms by number of persons usually resident for group households, Time Series, Main Statistical Areas Level 2 and up (SA2+)",
+            "nonProduction": true
+          },
+          {
+            "id": "C21_T24_LGA",
+            "version": "1.0.0",
+            "name": "Census 2021, T24 Total household income (weekly) by rent (weekly), Time Series, Local Government Area 2021 (LGA 2021 boundaries)",
+            "nonProduction": true
+          },
+          {
+            "id": "C21_T24_SA2",
+            "version": "1.0.0",
+            "name": "Census 2021, T24 Total household income (weekly) by rent (weekly), Time Series, Main Statistical Areas Level 2 and up (SA2+)",
+            "nonProduction": true
+          },
+          {
+            "id": "COVID_HI",
+            "version": "1.0.0",
+            "name": "Household Impacts of COVID-19 Survey, Household Income",
+            "nonProduction": true
+          },
+          {
+            "id": "COVID_HS",
+            "version": "1.0.0",
+            "name": "Household Impacts of COVID-19 Survey, Household Spending",
+            "nonProduction": true
+          },
+          {
+            "id": "COVID_SALTS",
+            "version": "1.0.0",
+            "name": "Household Impacts of COVID-19 Survey by Sex, Age and Location",
+            "nonProduction": true
+          },
+          {
+            "id": "COVID_SC",
+            "version": "1.0.0",
+            "name": "Household Impacts of COVID-19 Survey, Selected Characteristics",
+            "nonProduction": true
+          },
+          {
+            "id": "HSI_M",
+            "version": "1.6.0",
+            "name": "Monthly Household Spending Indicator",
+            "nonProduction": true
+          },
+          {
+            "id": "HSI_Q",
+            "version": "1.2.0",
+            "name": "Quarterly Household Spending Indicator",
+            "nonProduction": true
+          }
+        ],
+        "instruction": "Select a production spending flow, then request its metadata to discover dimension order and codes."
+      }
+    }
+  ]
+}

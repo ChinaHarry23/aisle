@@ -1,0 +1,111 @@
+{
+  "mode": "LIVE EXTERNAL RETRIEVAL — no LLM, no synthetic evidence",
+  "executedAt": "2026-10-18T10:41:59.429Z",
+  "scope": {
+    "product": "Apple juice",
+    "country": "AU",
+    "startDate": "2026-10-18",
+    "endDate": "2026-10-21"
+  },
+  "calls": [
+    {
+      "tool": "retail.internal_signals",
+      "status": "skipped",
+      "summary": "Internal retail data is not authorised — skipped.",
+      "gap": {
+        "kind": "unauthorised",
+        "detail": "POS and catalogue history excluded: explicit permission is absent.",
+        "effect": "No internal demand, basket or sales measurements are claimed."
+      }
+    },
+    {
+      "tool": "web.market_context",
+      "status": "ok",
+      "summary": "Public reference for \"Apple juice\" (revision: 2026-10-07)."
+    },
+    {
+      "tool": "web.competitor_scan",
+      "status": "empty",
+      "summary": "Public search returned no usable index for this query.",
+      "gap": {
+        "kind": "missing_source",
+        "detail": "The public search index returned nothing for this category in this country.",
+        "effect": "Competitor behaviour is not asserted; only brand rules constrain the copy."
+      }
+    },
+    {
+      "tool": "web.season_weather",
+      "status": "ok",
+      "summary": "Sydney: 21.1°C max / 12.7°C min, 1 wet day(s) in the 2026-10-18–2026-10-21 window.",
+      "gap": {
+        "kind": "low_confidence",
+        "detail": "Forecast covers 4 complete days in Sydney, 2026-10-18–2026-10-21; one city is not the entire country.",
+        "effect": "Forecast context only; not evidence of demand or historical market trends."
+      }
+    },
+    {
+      "tool": "web.shelf_prices",
+      "status": "empty",
+      "summary": "WhichGrocer API key is not set.",
+      "gap": {
+        "kind": "missing_source",
+        "detail": "WhichGrocer API key is not set.",
+        "effect": "The brief cannot cite a current Coles, Woolworths or ALDI price. Set WHICHGROCER_API_KEY on the server, then run the trend step again."
+      }
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev_7d9jm8dgjn",
+      "claim": "Public reference: Apple juice",
+      "detail": "Apple juice is a fruit juice made by the maceration and pressing of an apple. The resulting expelled juice may be further treated by enzymatic and centrifugal clarification to remove the starch and pectin, which hold fine particulate in suspension, and then pasteurized for packaging in glass, metal, or aseptic processing system containers, or further treated by dehydration processes to a concentrate.",
+      "sourceName": "Wikipedia REST API",
+      "sourceRef": "https://en.wikipedia.org/wiki/Apple_juice",
+      "sourceKind": "external_public",
+      "observedAt": "2026-10-07",
+      "fetchedAt": "2026-10-18T10:41:59.433Z",
+      "dateBasis": "revision",
+      "status": "verified",
+      "confidence": 72,
+      "raisedBy": "trend",
+      "usedFor": "Category context only; not demand or consumer preference evidence"
+    },
+    {
+      "id": "ev_3caq4njhmx",
+      "claim": "Campaign-window conditions in Sydney",
+      "detail": "Forecast for 2026-10-18–2026-10-21: daily maxima averaging 21.1°C, minima 12.7°C, 1 day(s) with ≥1 mm precipitation.",
+      "sourceName": "Open-Meteo forecast API",
+      "sourceRef": "https://api.open-meteo.com/v1/forecast?latitude=-33.87&longitude=151.21&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=auto&forecast_days=16",
+      "sourceKind": "external_public",
+      "observedAt": null,
+      "fetchedAt": "2026-10-18T10:42:01.392Z",
+      "dateBasis": "unknown",
+      "coverage": {
+        "start": "2026-10-18",
+        "end": "2026-10-21",
+        "location": "Sydney"
+      },
+      "status": "verified",
+      "confidence": 79,
+      "raisedBy": "trend",
+      "usedFor": "Seasonal and channel timing"
+    },
+    {
+      "id": "ev_b5tzgelhmy",
+      "claim": "No shelf price retrieved for \"apple juice\"",
+      "detail": "WhichGrocer API key is not set. No catalogue price was used for this part of the brief.",
+      "sourceName": "WhichGrocer",
+      "sourceRef": "https://api.whichgrocer.com/v2",
+      "sourceKind": "external_public",
+      "observedAt": null,
+      "fetchedAt": "2026-10-18T10:42:02.697Z",
+      "dateBasis": "unknown",
+      "status": "unavailable",
+      "confidence": 100,
+      "raisedBy": "trend",
+      "usedFor": "Source availability"
+    }
+  ],
+  "liveSourceCount": 2,
+  "completeTrendBrief": false
+}

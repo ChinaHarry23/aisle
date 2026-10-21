@@ -1,3 +1,5 @@
+import { redact } from "@/lib/trend/source-tools";
+import { attachResearchAnalysis, coverageFor, unavailable } from "@/lib/trend/contracts";
 import { loadRules } from "../compliance/rules";
 import { checkSubmission } from "../compliance/checks";
 import { beginReview, submissionFor, assertReviewPermission, ComplianceSubmissionError } from "../compliance/service";
@@ -86,6 +88,8 @@ export type StepEnv = {
   llm: LlmRuntime;
   /** Signed-in founder. Shelf prices use the server WhichGrocer API key. */
   ownerUserId?: string;
+  /** Checked before and after research calls, and before handoff. */
+  researchAllowed?: () => boolean | Promise<boolean>;
   /** Every campaign in the workspace, for cross-campaign scheduling checks. */
   allCampaigns: Campaign[];
   /**
@@ -182,6 +186,7 @@ export async function callTool(
   name: string,
   args: Record<string, string>,
   env: StepEnv,
+  override?: ToolOutcome,
 ): Promise<ToolOutcome> {
   const tool = toolByName(name);
   const started = Date.now();
@@ -197,17 +202,20 @@ export async function callTool(
     w.campaign.toolCalls = [...w.campaign.toolCalls, call];
     return outcome;
   }
-  const outcome = await tool.run({
+  if (agent === "trend" && env.researchAllowed && !await env.researchAllowed()) {
+    return { status: "skipped", summary: "Research paused; no new request started.", evidence: [], data: null };
+  }
+  const outcome = override ?? await tool.run({
     campaign: w.campaign,
     brand: env.brand,
-    at: w.now,
+    at: new Date().toISOString(),
     args,
     ownerUserId: env.ownerUserId,
   });
   const call = toToolCall({
     agent,
     tool: name,
-    args,
+    args: agent === "trend" ? Object.fromEntries(Object.entries(args).map(([key, value]) => [key, key === "url" ? value.split(/[?#]/)[0].replace(/\/\/[^/]*@/, "//[removed]@") : redact(value)])) : args,
     outcome,
     latencyMs: Date.now() - started,
     at: w.now,
@@ -469,7 +477,7 @@ export function buildCreatives(
 }
 
 function evidenceLine(e: Evidence) {
-  return `${e.claim} — ${e.detail.slice(0, 140)} [${e.sourceName} · ${e.observedAt} · ${e.status} · ${e.confidence}%]`;
+  return `${e.id}: ${e.claim} — ${e.detail.slice(0, 140)} [${e.sourceName} · ${e.sourceRef} · information date: ${e.observedAt ?? "unknown"} (${e.dateBasis ?? "source_record"}) · retrieved: ${e.fetchedAt} · ${e.status} · ${e.confidence}%]${e.coverage ? ` Coverage: ${e.coverage.location}, ${e.coverage.start}–${e.coverage.end}.` : ""} Use: ${e.usedFor}.`;
 }
 
 function offersFromTool(data: unknown): ShelfOffer[] {
@@ -598,6 +606,24 @@ export async function runTrendResearch(
   void target;
   const toolResults: ToolOutcome[] = [];
 
+  let agentDecision: Awaited<ReturnType<NonNullable<LlmRuntime['research']>>> = null;
+  let shelf = unavailable('No shelf prices selected.');
+  let retail = unavailable('Internal signals not selected.', 'skipped');
+  c.researchMode = env.llm.research ? 'agent' : 'legacy';
+  if (env.llm.research) {
+    agentDecision = await env.llm.research({
+      campaign: c, brand: env.brand, settings: env.settings, at: w.now,
+      allowed: async () => env.researchAllowed ? await env.researchAllowed() : true,
+      execute: async (name, args, override) => {
+        const outcome = await callTool(w, 'trend', name, args, env, override);
+        toolResults.push(outcome);
+        if (name === 'web.shelf_prices') shelf = outcome;
+        if (name === 'retail.internal_signals') retail = outcome;
+        return outcome;
+      },
+      onFailedUsage: cost => { c.spend.inferenceUsd += cost; },
+    });
+  } else {
   const market = await callTool(
     w,
     "trend",
@@ -610,7 +636,7 @@ export async function runTrendResearch(
   const weather = await callTool(w, "trend", "web.season_weather", { country: c.country }, env);
   toolResults.push(weather);
 
-  const shelf = await callTool(
+  shelf = await callTool(
     w,
     "trend",
     "web.shelf_prices",
@@ -628,7 +654,7 @@ export async function runTrendResearch(
   );
   toolResults.push(competitor);
 
-  const retail = await callTool(
+  retail = await callTool(
     w,
     "trend",
     "retail.internal_signals",
@@ -636,6 +662,8 @@ export async function runTrendResearch(
     env,
   );
   toolResults.push(retail);
+
+  }
 
   // UC-02 ext 4.b: if internal data is not authorised, say so rather than guess.
   if (retail.status === "skipped") {
@@ -678,7 +706,7 @@ export async function runTrendResearch(
         kind: outcome.gap.kind,
         detail: outcome.gap.detail,
         effect: outcome.gap.effect,
-        needsFounder: outcome.gap.kind !== "unauthorised",
+        needsFounder: outcome.gap.kind === "missing_source" || outcome.gap.kind === "conflict" || outcome.gap.kind === "outdated",
       });
     }
   }
@@ -735,10 +763,31 @@ export async function runTrendResearch(
     }
   }
 
+  c.researchCoverage = coverageFor(c, toolResults.flatMap(result => result.evidence));
+  if (env.researchAllowed && !await env.researchAllowed()) {
+    c.trendGaps = gaps;
+    c.status = "paused";
+    c.running = false;
+    setRun(w, { status: "paused", step: "trend.receive", haltedReason: "Research paused; explicit resume required." });
+    addStep(w, "trend.research", "trend", "blocked", "Research paused", "Retrieved provenance retained; no decision or handoff performed.");
+    return { message: "Research paused.", blocked: true };
+  }
+
   // ---- decision: the model prioritises, or the rules do
-  const evidenceLines = w.campaign.evidence.map(evidenceLine);
+  // Previous runs remain auditable but cannot satisfy this retrieval's readiness.
+  const currentEvidence = toolResults.flatMap(result => result.evidence);
+  c.researchCoverage = coverageFor(c, currentEvidence);
+  if (env.llm.research) {
+    for (const area of c.researchCoverage) gaps.push({id:uid('gap'),kind:area.status === 'missing' ? 'missing_source' : 'low_confidence',
+      detail:`${area.category}${area.channel ? ' / '+area.channel : ''}: ${area.limitation}`,effect:'TA-04 must assess relevance, currency and claim-level support before COMPLETE.',needsFounder:true});
+    // Retrieval does not certify all Stage 1 research conclusions. TA-04 owns that assessment.
+  }
+  const evidenceLines = currentEvidence.map(evidenceLine);
   const recommended = clearance.ok ? clearance.recommendation : null;
-  const decided = await decideTrendBrief({
+  const decided = agentDecision ?? (env.llm.research ? {
+    decision: { ...trendFallbackDecision(c, env.brand, recommended), priorities: [], claimsAllowed: [], limitations: ['Research agent did not complete. Partial evidence retained; no claimed model success.'] },
+    trace: {agent:'trend' as const,modelId:'unavailable',modelName:'Research unavailable',status:'error' as const,path:'deterministic_fallback' as const,note:'No second decision call or duplicate fixed-source run.',usage:{inputTokens:0,outputTokens:0,totalTokens:0,costUsd:0,billedAs:'not called',estimate:true,latencyMs:0}},
+  } : await decideTrendBrief({
     campaign: c,
     brand: env.brand,
     settings: env.settings,
@@ -746,8 +795,9 @@ export async function runTrendResearch(
     evidenceLines,
     fallback: trendFallbackDecision(c, env.brand, recommended),
     clearance: recommended,
-  });
+  }));
   const decision = recommended ? pinClearance(decided.decision, recommended) : decided.decision;
+  attachResearchAnalysis(c.researchCoverage ?? [], decided.decision.researchAnalysis);
   const trace = decided.trace;
   addTrace(w, trace, "trend", "Brief prioritisation");
   for (const l of decision.limitations) {
@@ -761,7 +811,7 @@ export async function runTrendResearch(
   }
 
   // ---- findings: supported findings cite evidence, the rest are labelled assumptions
-  const byKind = (kind: Evidence["sourceKind"]) => w.campaign.evidence.filter((e) => e.sourceKind === kind);
+  const byKind = (kind: Evidence["sourceKind"]) => currentEvidence.filter((e) => e.sourceKind === kind);
   const findings: TrendFinding[] = [];
   const usedEvidence = new Set<string>();
 
@@ -918,7 +968,10 @@ export async function runTrendResearch(
       motivations: decision.claimsAllowed.slice(0, 3),
     },
   ];
-  c.sharedContext = { ...c.sharedContext, approvedClaims: decision.claimsAllowed };
+  const paused = env.researchAllowed ? !await env.researchAllowed() : false;
+  const insufficient = !currentEvidence.some(e => e.status === "verified" && e.sourceKind === "external_public")
+    || gaps.some(g => g.needsFounder);
+  c.sharedContext = { ...c.sharedContext, approvedClaims: paused || insufficient ? [] : decision.claimsAllowed };
   c.updatedAt = stamp();
 
   const assumptions = findings.filter((f) => f.basis === "assumption").length;
@@ -935,9 +988,17 @@ export async function runTrendResearch(
     "trend.brief",
     "trend",
     gaps.some((g) => g.needsFounder) ? "warn" : "ok",
-    "Brief handed to Image Generation",
+    paused || insufficient ? "Partial trend brief stored" : "Brief handed to Image Generation",
     `${brief.keyMessage} · claims allowed: ${brief.claimsAllowed.slice(0, 3).join(", ")}`,
   );
+  if (paused || insufficient) {
+    c.status = "paused";
+    c.running = false;
+    const reason = paused ? "Research paused; explicit resume required." : "Partial trend brief: resolve evidence limitations and explicitly resume research before handoff.";
+    setRun(w, { status: "paused", step: "trend.receive", haltedReason: reason });
+    addStep(w, "trend.brief", "trend", "blocked", "Partial brief — no creative handoff", reason);
+    return { message: reason, blocked: true };
+  }
   // Hand-off: the same ADVANCE continues into AHR-03.
   setRun(w, { status: "running", step: "creative.receive" });
   return { message: "Trend brief complete.", blocked: false };

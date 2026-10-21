@@ -1,4 +1,6 @@
 /** Server opt-in only. Model selection remains in trusted workspace settings. */
+import { createTrendResearch, researchEnabled } from "./trend-research";
+import { makeLlmRuntime } from "@/lib/runtime/decide";
 import { createTrendAgentRuntime } from "./trend-runtime";
 import { getLlmModel } from "@/lib/llm/catalog";
 import { stubComplete } from "@/lib/llm/stub";
@@ -28,4 +30,10 @@ export function createServerTrendRuntime(billing?: BillingContext): LlmRuntime |
       return runtime.request(req);
     },
   };
+}
+
+/** Normal TA-03 server path; TA-02's opt-in smoke-test adapter is retained above. */
+export function createServerResearchRuntime(billing?: BillingContext): LlmRuntime {
+  const baseline = createServerTrendRuntime(billing) ?? makeLlmRuntime();
+  return { ...baseline, research: researchEnabled() ? createTrendResearch(billing) : async () => null };
 }

@@ -68,7 +68,7 @@
 | `country` | `Country` | Yes | One of `"AU" \| "NZ" \| "UK" \| "US"` | `UC-01 ext 4.a` | Selects `brand.countryRules[country]` and Open-Meteo centroid. |
 | `notes` | `string` | Optional | String (sliced to `<= 4000` chars on command boundary); assistant-drafted notes are prefixed until founder-confirmed | — | Merged into `sharedContext.founderNotes`. |
 | `spendCapUsd` | `number` | Optional | Finite number `> 0` when supplied | `UC-01 ext 13.a` | Defaults via `defaultSpendCap()` to `clamp(round(budget * 0.002, 2), 5, 50)` USD. |
-| `internalDataAuthorised` | `boolean` | Optional | Boolean (`true` allows `retail.internal_signals`; `false` blocks via `AHR-02-R.privacy`) | `UC-02 ext 4.b` | Defaults to `true` in `withRuntimeDefaults()`; explicit `=== true` in `repository.enqueue()`. |
+| `internalDataAuthorised` | `boolean` | Optional | Boolean (`true` allows `retail.internal_signals`; `false` blocks via `AHR-02-R.privacy`) | `UC-02 ext 4.b` | TA-03: defaults to `false`; explicit `=== true` is required in defaults, engine, repository and tool. Permission alone does not connect a POS source. |
 | `fieldSources` | `Partial<Record<keyof CampaignInput, "founder" \| "assistant">>` | Optional | Provenance map recording whether each field was typed by the founder or drafted by the intake assistant | `CE-07 / CE-08` | Displayed on the campaign Brief and Runtime tabs. |
 | `intakeLog` | `AgentEvent[]` | Optional | Conversation transcript (`agent: "intake"`, `kind: "intake"`) appended to `campaign.log` on creation | `CE-08` | Preserves the intake assistant transcript for audit. |
 
@@ -364,3 +364,28 @@ Distribution is served by gateways, not a live platform client. `src/lib/runtime
 `src/lib/runtime/agents.ts` provides the Stage-1 class model as Stage-2 code: an abstract `Agent` base and `AIMediaManager extends Agent` (`slot: "media"`) whose `adapt()` / `schedule()` / `publish()` operations delegate to the step handlers.
 
 **Automated proof**: `npm run bench` — *DI-02 — Media Manager agent generalizes Agent; digital/physical gateways registered & selected*.
+
+
+## TA-03 evidence contract amendment (18 October 2026)
+
+`campaign.evidence` remains the evidence ledger. `observedAt` now accepts `null`
+(unknown information date); `fetchedAt` always records retrieval time. Optional
+`dateBasis` distinguishes page revision, source record and unknown dates. Forecast
+`coverage` records its validity window and sample city separately. Existing string
+dates remain compatible. A successful fetch is not proof of a general market trend.
+
+`campaign.dataAccessPolicy.externalSources` optionally narrows the registered
+public-source allowlist; an empty list denies all external research. An absent
+policy uses the fixed prototype policy documented in [TA-03](../TA-03-AUTHORISED-EVIDENCE.md).
+The durable repository persists the policy on initial intake. It is not generated
+by the LLM. Internal access is denied unless explicitly true.
+
+Trend research pauses before creative handoff when no usable external evidence
+exists or unresolved source/conflict/currency gaps need founder attention. Partial
+briefs and provenance remain stored; `approvedClaims` is empty while blocked.
+This is a minimum retrieval gate, not the complete UC-02 category-sufficiency and
+founder-resolution workflow. See the TA-03 document for those remaining boundaries.
+
+### TA-03 required-area execution (21 October 2026, local)
+
+`Campaign.researchAttempts` records category, optional channel, tool, status, summary and evidence IDs for mandatory collection. `researchCoverage` includes every mandatory area and each selected channel even when missing/blocked. Its optional `analysis` is a source-cited draft; retrieval and syntactically valid citations never certify COMPLETE. `retailUpload` holds explicitly authorised validated aggregate rows plus file SHA-256/import time; raw customer data is rejected. See `docs/TA-03-AUTHORISED-EVIDENCE.md` for scope and unresolved acceptance items.

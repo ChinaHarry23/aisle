@@ -1,0 +1,62 @@
+{
+  "mode": "MOCK ONLY, no provider calls",
+  "traces": [
+    {
+      "scenario": "grocery",
+      "mode": "MOCK ONLY",
+      "selected": [
+        "web.search",
+        "web.search_trends",
+        "web.search_trends",
+        "web.search",
+        "web.search",
+        "web.search",
+        "web.search",
+        "web.search",
+        "web.search",
+        "web.scrape_page",
+        "web.search",
+        "web.scrape_page",
+        "web.scrape_page",
+        "web.scrape_page",
+        "web.scrape_page",
+        "calendar.public_holidays",
+        "web.scrape_page",
+        "web.scrape_page",
+        "web.scrape_page",
+        "web.search",
+        "web.search_trends"
+      ],
+      "turns": 2
+    },
+    {
+      "scenario": "apparel",
+      "mode": "MOCK ONLY",
+      "selected": [
+        "web.search",
+        "web.search_trends",
+        "web.search_trends",
+        "web.search",
+        "web.search",
+        "web.search",
+        "web.search",
+        "web.search",
+        "web.search",
+        "web.scrape_page",
+        "web.search",
+        "web.scrape_page",
+        "web.scrape_page",
+        "web.scrape_page",
+        "web.scrape_page",
+        "calendar.public_holidays",
+        "web.scrape_page",
+        "web.scrape_page",
+        "web.scrape_page",
+        "web.search",
+        "calendar.public_holidays"
+      ],
+      "turns": 2
+    }
+  ],
+  "checks": 14
+}

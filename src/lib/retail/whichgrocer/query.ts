@@ -67,7 +67,7 @@ function asText(value: unknown): string | null {
 
 function asDay(value: unknown): string | null {
   const text = asText(value);
-  return text && /^\d{4}-\d{2}-\d{2}/.test(text) ? text.slice(0, 10) : null;
+  return text && /^\d{4}-\d{2}-\d{2}/.test(text) && Number.isFinite(Date.parse(text)) ? text.slice(0, 10) : null;
 }
 
 function offerFromRecord(record: Record<string, unknown>): ShelfOffer | null {
@@ -190,7 +190,7 @@ export function describeShelf(query: string, offers: ShelfOffer[], at: string): 
   claim: string;
   detail: string;
   sourceRef: string;
-  observedAt: string;
+  observedAt: string | null;
 } {
   const priced = [...offers].sort((a, b) => a.price - b.price);
   const claim = `${query}: ${priced.map((offer) => `${offer.storeLabel} ${aud(offer.price)}`).join(", ")}`;
@@ -206,8 +206,9 @@ export function describeShelf(query: string, offers: ShelfOffer[], at: string): 
     return `${offer.storeLabel} — ${offer.name} ${aud(offer.price)}${cup}${special}${stock}`;
   });
   const observedAt =
-    priced.map((offer) => offer.observedAt).find((day) => day) ??
-    (at.length >= 10 ? at.slice(0, 10) : new Date().toISOString().slice(0, 10));
+    priced.length > 0 && priced.every(offer => offer.observedAt === priced[0].observedAt)
+      ? priced[0].observedAt : null;
+  void at; // Retrieval time must never substitute for a missing source date.
   const sourceRef = priced.find((offer) => offer.url)?.url ?? "https://www.whichgrocer.com/";
   return {
     claim: claim.slice(0, 180),

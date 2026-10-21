@@ -80,6 +80,7 @@ type Store = {
   /** Show the founder what the policy layer does with an out-of-bounds attempt. */
   attemptBlocked: (id: string, action: GuardedAction, note?: string) => Promise<string>;
   resetDemo: () => void;
+  attachRetailUpload: (id: string, upload: NonNullable<Campaign['retailUpload']>) => void;
   setStudio: (id: string, patch: Partial<Pick<Campaign, "videoDurationSec" | "spendCapUsd">>) => void;
   generatePosters: (id: string) => Promise<void>;
   generateAdVideo: (id: string) => Promise<void>;
@@ -351,6 +352,7 @@ export const useAisle = create<Store>()(
             engineError: null,
           }),
 
+        attachRetailUpload: (id, upload) => set(s => ({campaigns:s.campaigns.map(c => c.id === id && !c.running ? {...c,retailUpload:upload,internalDataAuthorised:true,updatedAt:new Date().toISOString()} : c)})),
         setStudio: (id, patch) =>
           set((s) => ({
             campaigns: s.campaigns.map((c) =>

@@ -49,6 +49,8 @@ const offline = async (): Promise<CompleteResult> => ({
   at: new Date().toISOString(),
 });
 
+const originalFetch = globalThis.fetch;
+globalThis.fetch = async () => new Response("Offline fixture", { status: 503 });
 const started = await runEngine(
   { campaigns: [campaign], now: "2026-10-17T00:00:00.000Z" },
   campaign,
@@ -57,7 +59,8 @@ const started = await runEngine(
   defaultBrand,
   { llm: { request: offline }, maxSteps: 1, renderPoster: async () => { throw new Error("poster is later"); } },
 );
-assert.equal(started.campaign.status, "analysing");
+globalThis.fetch = originalFetch;
+assert.equal(started.campaign.status, "paused");
 assert.notEqual(started.campaign.run?.step, "intake.validate");
-assert.equal(started.canAdvance, true);
-console.log(`PASS launch entered the graph at ${started.campaign.run?.step}`);
+assert.equal(started.canAdvance, false);
+console.log(`PASS missing evidence blocks the graph at ${started.campaign.run?.step}`);
