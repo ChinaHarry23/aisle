@@ -41,7 +41,7 @@ import {
   type LlmRuntime,
   type TrendDecision,
 } from "./decide";
-import { selectGateway } from "./gateways";
+import { channelTypeOf, selectGateway } from "./gateways";
 import { evaluateGuard } from "./guard";
 import { digestHash, inputDigest } from "./intake";
 import { isClearStock, recommendClearance } from "@/lib/retail/whichgrocer/clearance";
@@ -1378,6 +1378,72 @@ export function deriveClearedClaims(c: Campaign): string[] {
   return present.length > 0 ? present : candidates;
 }
 
+/**
+ * DI-03 — receive the AHR-04-approved advertisement and verify the distribution
+ * context before any adaptation begins. Records the compliance approval id and the
+ * authorised channel access (loaded from the gateways), and refuses — with a founder
+ * notification — if the ad is not approved or required context is missing.
+ */
+export function verifyDistributionContext(w: Work): { ok: boolean; reason: string | null } {
+  const c = w.campaign;
+  const approved =
+    c.founderDecision?.action === "approve" ||
+    c.complianceAttempts.some((a) => a.outcome === "pass");
+  const complianceApprovalId =
+    [...c.complianceAttempts].reverse().find((a) => a.outcome === "pass")?.id ??
+    c.complianceAttempts.at(-1)?.id ??
+    null;
+
+  const missing: string[] = [];
+  if (!c.channels?.length) missing.push("channels");
+  if (!c.startDate) missing.push("startDate");
+  if (!c.endDate) missing.push("endDate");
+  if (!c.country) missing.push("country");
+  if (!c.targetAudience?.trim()) missing.push("targetAudience");
+
+  // Authorised access to each selected channel, loaded from the channel gateways.
+  const channels = c.channels.map((channel) => ({
+    channel,
+    type: channelTypeOf(channel),
+    available: selectGateway(channel).isAvailable(channel),
+  }));
+  const unavailable = channels.filter((ch) => !ch.available).map((ch) => ch.channel);
+
+  const ok = approved && missing.length === 0 && unavailable.length === 0;
+  const reason = !approved
+    ? "The advertisement is not AHR-04 approved; distribution may not begin."
+    : missing.length > 0
+      ? `Required distribution context is missing: ${missing.join(", ")}.`
+      : unavailable.length > 0
+        ? `No authorised access to ${unavailable.join(", ")}.`
+        : null;
+
+  c.distributionContext = { verifiedAt: w.now, ok, complianceApprovalId, channels, missing, reason };
+
+  if (!ok) {
+    addEvent(
+      w,
+      "media",
+      "escalation",
+      "Distribution refused — founder required",
+      `${reason} Nothing is adapted or scheduled until the founder resolves it.`,
+    );
+    setRun(w, { awaiting: "failure", awaitingDetail: reason, status: "awaiting_human", step: "media.receive" });
+    c.running = false;
+  } else {
+    addEvent(
+      w,
+      "media",
+      "handoff",
+      "Distribution context verified",
+      `Approved ad accepted (compliance approval ${complianceApprovalId ?? "n/a"}). Authorised channels: ${channels
+        .map((ch) => `${ch.channel}(${ch.type})`)
+        .join(", ")}.`,
+    );
+  }
+  return { ok, reason };
+}
+
 export async function runMediaAdaptation(
   w: Work,
   env: StepEnv,
@@ -1385,6 +1451,12 @@ export async function runMediaAdaptation(
   const c = w.campaign;
   const hero = c.creatives.find((x) => x.variant === "A") ?? c.creatives[0];
   if (!hero) return { message: "No approved creative to adapt.", blocked: true };
+
+  // DI-03 — verify the approved ad and distribution context before adapting.
+  const verified = verifyDistributionContext(w);
+  if (!verified.ok) {
+    return { message: verified.reason ?? "Distribution context invalid.", blocked: true };
+  }
 
   c.status = "scheduling";
   c.running = true;
@@ -1915,6 +1987,53 @@ export function deterministicRecommendation(
  * (never silently dropped), the campaign is held at Scheduled, and the run parks
  * for the founder — the guard records that the cap, not an infinite retry, was hit.
  */
+/**
+ * DI-08 — handle a late channel result. A result that returns after the publish
+ * loop has moved on is matched to its item by the stable item id and recorded as
+ * fact; it is never turned into a second publish (an item already Published is left
+ * alone). A result for an id we no longer hold — e.g. a cancelled item — is ignored
+ * rather than invented into a publish. Pause/resume stays owned by the run (the
+ * pipeline), never the individual item.
+ */
+export function reconcileLateResult(
+  c: Campaign,
+  itemId: string,
+  confirmationRef: string,
+  now: string,
+): "reconciled" | "already_published" | "ignored_unknown" {
+  const item = c.runSchedule.find((i) => i.id === itemId);
+  if (!item) return "ignored_unknown";
+  if (item.status === "published") return "already_published";
+
+  c.runSchedule = c.runSchedule.map((i) => (i.id === itemId ? { ...i, status: "published" } : i));
+  c.schedule = c.schedule.map((s) => (s.id === itemId ? { ...s, status: "published" } : s));
+  if (c.deliveryReport) {
+    const attempts = c.deliveryReport.attempts.map((a) =>
+      a.itemId === itemId
+        ? {
+            ...a,
+            status: "published" as const,
+            confirmationRef,
+            reconciled: true,
+            note: `Late result reconciled to item ${itemId} (ref ${confirmationRef}); no duplicate publish.`,
+            at: now,
+          }
+        : a,
+    );
+    const published = attempts.filter((a) => a.status === "published").length;
+    const failed = attempts.filter((a) => a.status === "failed").length;
+    c.deliveryReport = {
+      ...c.deliveryReport,
+      attempts,
+      published,
+      failed,
+      outcome: failed === 0 ? "complete" : published > 0 ? "partial" : "none",
+      escalated: failed > 0,
+    };
+  }
+  return "reconciled";
+}
+
 export function runPublish(w: Work): { escalated: boolean } {
   const c = w.campaign;
   const attempts: DeliveryAttempt[] = [];
@@ -1931,6 +2050,7 @@ export function runPublish(w: Work): { escalated: boolean } {
         status: "failed",
         confirmationRef: null,
         reconciled: false,
+        latencyMs: 0,
         note: "Channel version was blocked during adaptation, so it was never submitted.",
         at: w.now,
       });

@@ -279,8 +279,28 @@ export type DeliveryAttempt = {
   confirmationRef: string | null;
   /** True when a late result was matched to this item id rather than resubmitted. */
   reconciled: boolean;
+  /** Publish-and-confirm latency for this item, in ms (simulated). 0 when never submitted. */
+  latencyMs: number;
   note: string;
   at: string;
+};
+
+/**
+ * DI-03 — the distribution context verified before any adaptation begins. Records
+ * that the ad was AHR-04-approved, the compliance approval id, and which channels
+ * the gateways can carry. `ok: false` means distribution was refused.
+ */
+export type DistributionContext = {
+  verifiedAt: string;
+  ok: boolean;
+  /** Id of the passing AHR-04 compliance attempt this release rests on. */
+  complianceApprovalId: string | null;
+  /** Authorised access per selected channel, loaded from the channel gateways. */
+  channels: { channel: Channel; type: "digital" | "physical"; available: boolean }[];
+  /** Required context fields that were missing (empty when ok). */
+  missing: string[];
+  /** Why distribution was refused, when ok is false. */
+  reason: string | null;
 };
 
 /**
