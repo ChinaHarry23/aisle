@@ -17,6 +17,7 @@ import {
 } from "./settings";
 import { sendCommand, type EngineResponse } from "./runtime/client";
 import { attachableRecommendation, withRuntimeDefaults } from "./runtime/defaults";
+import { isArchived } from "./campaign-lifecycle";
 import { campaignCanAdvance, mergeCampaignLists } from "./runtime/resume";
 import type {
   ChannelResultStatus,
@@ -30,6 +31,8 @@ type Store = {
   hydrated: boolean;
   brand: BrandProfile;
   campaigns: Campaign[];
+  /** Permanently deleted campaign ids. They are not re-seeded. */
+  retiredCampaignIds: string[];
   settings: WorkspaceSettings;
   /** Last message the engine returned, surfaced on the desk. */
   engineMessage: string | null;
@@ -41,6 +44,7 @@ type Store = {
     brand: BrandProfile;
     campaigns: Campaign[];
     settings: WorkspaceSettings;
+    retiredCampaignIds?: string[];
   }) => void;
   updateBrand: (partial: Partial<BrandProfile>) => void;
   updateSettings: (partial: Partial<WorkspaceSettings>) => void;
@@ -51,6 +55,11 @@ type Store = {
   toggleTrendSource: (id: string) => void;
   removeTrendSource: (id: string) => void;
   createCampaign: (input: CampaignInput) => string;
+  /** Move a campaign off the board. Agents stop. It can be restored from the trash. */
+  archiveCampaign: (id: string) => Promise<void>;
+  restoreCampaign: (id: string) => Promise<void>;
+  /** Remove a trashed campaign for good. */
+  deleteCampaign: (id: string) => Promise<void>;
   /** AHR-01 → AHR-02. Validates the brief, then runs the bench to the next gate. */
   launch: (id: string) => Promise<void>;
   /** Pick up a run that is still marked running, including after a failed hand-off. */
@@ -97,9 +106,17 @@ type Store = {
  */
 function applyResult(s: Store, result: EngineResponse): Partial<Store> {
   const next = result.campaign;
-  const exists = s.campaigns.some((c) => c.id === next.id);
+  if (s.retiredCampaignIds.includes(next.id)) {
+    return { engineMessage: result.message, engineError: result.error ?? null };
+  }
+  const previous = s.campaigns.find((c) => c.id === next.id);
+  const campaign =
+    previous && isArchived(previous) && !isArchived(next) && next.archivedAt !== null
+      ? { ...next, archivedAt: previous.archivedAt, running: false }
+      : next;
+  const exists = Boolean(previous);
   return {
-    campaigns: exists ? s.campaigns.map((c) => (c.id === next.id ? next : c)) : [next, ...s.campaigns],
+    campaigns: exists ? s.campaigns.map((c) => (c.id === campaign.id ? campaign : c)) : [campaign, ...s.campaigns],
     engineMessage: result.message,
     engineError: result.error ?? null,
   };
@@ -193,10 +210,29 @@ export const useAisle = create<Store>()(
         if (options.pumpAfter !== false && result.canAdvance) await pump(id);
       }
 
+      async function saveDesk() {
+        const snap = get();
+        try {
+          await fetch("/api/workspace", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              brand: snap.brand,
+              campaigns: snap.campaigns,
+              retiredCampaignIds: snap.retiredCampaignIds,
+              settings: snap.settings,
+            }),
+          });
+        } catch {
+          // The workspace sync retries this snapshot while the tab stays open.
+        }
+      }
+
       return {
         hydrated: false,
         brand: defaultBrand,
         campaigns: seedCampaigns(defaultBrand),
+        retiredCampaignIds: [],
         settings: defaultSettings(),
         engineMessage: null,
         engineError: null,
@@ -204,13 +240,17 @@ export const useAisle = create<Store>()(
         setHydrated: () => set({ hydrated: true }),
         hydrateFromServer: (data) => {
           const state = get();
+          const retired = [...new Set([...(state.retiredCampaignIds ?? []), ...(data.retiredCampaignIds ?? [])])];
           const remote = (data.campaigns ?? []).map(withRuntimeDefaults);
           // Before the first server read, the store holds demo seeds. Only a
           // command already in flight from this tab is worth keeping.
           const local = state.hydrated ? state.campaigns : state.campaigns.filter((c) => state.busy[c.id]);
           set({
             brand: data.brand,
-            campaigns: mergeCampaignLists(local, remote, state.busy).map(withRuntimeDefaults),
+            campaigns: mergeCampaignLists(local, remote, state.busy)
+              .filter((campaign) => !retired.includes(campaign.id))
+              .map(withRuntimeDefaults),
+            retiredCampaignIds: retired,
             settings: withSettingsDefaults(data.settings),
             hydrated: true,
           });
@@ -290,6 +330,37 @@ export const useAisle = create<Store>()(
           return campaign.id;
         },
 
+        archiveCampaign: async (id) => {
+          const current = get().campaigns.find((campaign) => campaign.id === id);
+          if (!current || isArchived(current)) return;
+          if (current.running) {
+            await command(id, { type: "PAUSE", actor: "founder" }, { pumpAfter: false });
+          }
+          const archivedAt = new Date().toISOString();
+          set((s) => ({
+            campaigns: s.campaigns.map((campaign) =>
+              campaign.id === id ? { ...campaign, archivedAt, running: false, updatedAt: archivedAt } : campaign,
+            ),
+          }));
+          await saveDesk();
+        },
+        restoreCampaign: async (id) => {
+          const updatedAt = new Date().toISOString();
+          set((s) => ({
+            campaigns: s.campaigns.map((campaign) =>
+              campaign.id === id ? { ...campaign, archivedAt: null, updatedAt } : campaign,
+            ),
+          }));
+          await saveDesk();
+        },
+        deleteCampaign: async (id) => {
+          set((s) => ({
+            campaigns: s.campaigns.filter((campaign) => campaign.id !== id),
+            retiredCampaignIds: s.retiredCampaignIds.includes(id) ? s.retiredCampaignIds : [...s.retiredCampaignIds, id],
+          }));
+          await saveDesk();
+        },
+
         launch: async (id) => {
           await command(id, { type: "START", actor: "founder" });
         },
@@ -349,6 +420,7 @@ export const useAisle = create<Store>()(
           set({
             brand: defaultBrand,
             campaigns: seedCampaigns(defaultBrand),
+            retiredCampaignIds: [],
             settings: defaultSettings(),
             busy: {},
             engineMessage: null,
@@ -541,6 +613,7 @@ export const useAisle = create<Store>()(
       partialize: (s) => ({
         brand: s.brand,
         campaigns: s.campaigns,
+        retiredCampaignIds: s.retiredCampaignIds,
         settings: s.settings,
       }),
       merge: (persisted, current) => {
@@ -558,6 +631,7 @@ export const useAisle = create<Store>()(
             };
           })(),
           campaigns: (p.campaigns ?? current.campaigns).map(withRuntimeDefaults),
+          retiredCampaignIds: p.retiredCampaignIds ?? current.retiredCampaignIds,
           settings: withSettingsDefaults(
             p.settings ??
               (p.brand?.imageModelId || p.brand?.videoModelId

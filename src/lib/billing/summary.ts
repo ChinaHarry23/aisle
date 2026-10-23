@@ -4,7 +4,7 @@
 
 import type { UserRole } from "@/lib/auth/types";
 import { getDatabase } from "@/lib/db";
-import { balanceMilli, recentLedger, type LedgerEntry } from "./ledger";
+import { balanceMilli, creditMeter, recentLedger, type LedgerEntry } from "./ledger";
 import { billingFor, isUnlimited } from "./meter";
 import { currentPlan, type Plan } from "./plan";
 import { createCheckoutSession, openPortal, rowFromOtherMode, stripeReady, type BillingUser } from "./stripe";
@@ -18,9 +18,13 @@ export type SubscriptionSummary = {
 
 export type BillingSummary = {
   plan: Plan;
-  /** Team desks (on a hosted install, only the listed ones): nothing is charged, usage is recorded at zero. */
+  /** Team desks (on a hosted install, only the listed ones): nothing is charged, and the credit amount is still logged. */
   unlimited: boolean;
   balanceMilli: number;
+  /** Credits spent since the latest grant. */
+  spentMilli: number;
+  /** spentMilli + balanceMilli. The bar runs from used to left across this pool. */
+  allowanceMilli: number;
   subscription: SubscriptionSummary | null;
   ledger: LedgerEntry[];
   stripeReady: boolean;
@@ -67,14 +71,17 @@ export async function billingSummary(
 ): Promise<BillingSummary> {
   // First, so a brand-new account's free grant is in the ledger read below.
   const balance = await balanceMilli(user.id);
-  const [subscription, ledger] = await Promise.all([
+  const [subscription, ledger, meter] = await Promise.all([
     subscriptionFor(user.id),
     options.ledger === false ? Promise.resolve([]) : recentLedger(user.id, 30),
+    creditMeter(user.id, balance),
   ]);
   return {
     plan: currentPlan(),
     unlimited: isUnlimited(billingFor(user)),
     balanceMilli: balance,
+    spentMilli: meter.spentMilli,
+    allowanceMilli: meter.allowanceMilli,
     subscription,
     ledger,
     stripeReady: stripeReady(),

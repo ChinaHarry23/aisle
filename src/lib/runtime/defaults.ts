@@ -7,6 +7,7 @@
  * `withRuntimeDefaults` before the engine or a view touches it.
  */
 
+import { isArchived } from "@/lib/campaign-lifecycle";
 import type { Campaign } from "@/lib/types";
 import { defaultSpendCap } from "./budget";
 import type { Evidence, PolicyDecision, RunStep, ToolCall } from "./types";
@@ -82,7 +83,7 @@ export function attachableRecommendation(
   campaigns: Campaign[],
 ): { note: string; fromCampaignId: string; fromCampaignName: string } | null {
   const published = campaigns
-    .filter((c) => c.status === "published" && c.performanceReport && c.recommendationDecision)
+    .filter((c) => !isArchived(c) && c.status === "published" && c.performanceReport && c.recommendationDecision)
     .sort((a, b) => (a.performanceReport!.at < b.performanceReport!.at ? 1 : -1));
 
   for (const c of published) {
@@ -95,7 +96,7 @@ export function attachableRecommendation(
 
   // Seeded history carries a plain recommendation without a decision record.
   const seeded = campaigns.find(
-    (c) => c.status === "published" && !c.recommendationDecision && c.performance?.recommendation,
+    (c) => !isArchived(c) && c.status === "published" && !c.recommendationDecision && c.performance?.recommendation,
   );
   if (seeded?.performance?.recommendation) {
     return {

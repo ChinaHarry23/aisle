@@ -37,11 +37,77 @@ A tracing-only key is org-owned, so the workspace id is required. Leave the
 endpoint without a trailing slash. `LANGCHAIN_CALLBACKS_BACKGROUND=false`
 makes Next.js send the trace before the response ends.
 
+On a live server runtime the four Stage 1 services are the LangGraph seats.
+`decideTrendBrief`, `decideCopy`, `decideCompliance` and `decideRecommendation`
+ask `aisle_trend`, `aisle_creative`, `aisle_compliance` and `aisle_media`.
+The orchestrator still collects authorised evidence, checks banned terms,
+merges the deterministic compliance findings, and applies the answer. If the
+seat cannot run, the one-shot model call and then the rules stand, which is
+what the offline bench uses.
+
 A launch then shows up as `aisle.operation.START` in the project named
 `aisle`, with the seat agent (`aisle_trend`, `aisle_creative`, …) nested under
 the node that called it. With the variables unset, nothing is sent and the
 desk still draws the graph. The Workspace settings page in LangSmith does not
 hold these values; it only switches the classic and new product experience.
+
+## Studio
+
+Studio only draws a graph that an Agent Server is serving. A trace written by
+the Next.js process into the project named `aisle` has no graph, which is why
+that project says Studio is not available.
+
+With `npm run studio` running, a campaign launch from the desk is sent to that
+server's **operation** graph instead of invoking the bench inside Next.js. The
+thread is the graph you open in Studio, and the same run is the trace in
+`aisle`. The Technical tab links straight to that thread. Set
+`AISLE_GRAPH_URL=off` to keep the desk in-process. Production stays in-process
+until `AISLE_GRAPH_URL` points at a deployed Agent Server.
+
+`langgraph.json` registers the bench and the five seats. From the repo:
+
+```
+npm run studio
+```
+
+That starts the dev server on `http://127.0.0.1:2024` and opens Studio on the
+host for `LANGSMITH_ENDPOINT` (APAC, for this account). The host is IPv4 on
+purpose: on this machine `localhost` binds to IPv6 only, and Studio then
+cannot reach it. If the browser opens the US host, stop it and run:
+
+```
+npx langgraphjs dev --host 127.0.0.1 --studio-url https://apac.smith.langchain.com
+```
+
+Pick **operation** for a campaign. The other graphs — **trend**, **creative**,
+**compliance**, **media**, and **intake** — are the seats on their own. Open
+the local server, not the tracing project: the project holds the trace, and
+the server is what draws the graph.
+
+**operation** is the campaign bench. The input is a campaign id (blank uses
+`AISLE_STUDIO_CAMPAIGN_ID`, then the first draft) and a founder command
+(`START`, `ADVANCE`, …). Hydrate loads that campaign from the workspace. The
+same nodes the desk runs then execute, and the updated campaign is saved back.
+`userId` blank uses `AISLE_STUDIO_USER_ID`, then the dev-alex desk.
+
+The seat graphs are the `createAgent` graphs: their instructions, Zod answer,
+call budget, and — for trend — the real tool registry. In graph mode the input
+also has `campaignId`, `userId` and `modelId`. Blank means the same defaults as
+the bench. A tool call is recorded on the campaign and the spend is added to
+its meter. Chat mode uses those defaults. Threads and time travel are the dev
+server's checkpointer (`.langgraph_api`, not committed).
+
+The server may warn `Failed to get organization ID` while it is starting.
+A tracing-only key cannot list sessions, so the Studio link has no
+`organizationId`. Runs still trace when `LANGSMITH_WORKSPACE_ID` is set. You
+are already in the `aisle` workspace; open the local server from there.
+
+Safari blocks localhost. Use `npx langgraphjs dev --tunnel` and paste the
+tunnel URL into Studio. Current Chrome also needs local-network access allowed
+for `smith.langchain.com`, or the page fails with `Failed to fetch`.
+
+`npm run test:studio` checks the drawing and one offline launch. It does not
+call a model provider.
 
 ```
 LangChain createAgent

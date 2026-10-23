@@ -452,7 +452,7 @@ export default function NewCampaignPage() {
                     ))}
                   </select>
                 </Field>
-                <Field label="Market" hint="Sets compliance rules" error={errorFor("country")}>
+                <Field label="Market" hint="Chooses that country's law index" error={errorFor("country")}>
                   <select
                     value={form.country}
                     onChange={(e) => update("country", e.target.value as Country)}

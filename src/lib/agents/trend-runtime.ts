@@ -5,7 +5,6 @@
 import { buildAgent, trendBriefSchema } from "./seats";
 import { MeteredChatModel } from "./metered-chat-model";
 import { runComplete } from "@/lib/llm/metered-complete";
-import { runComplete as legacyComplete } from "@/lib/llm/complete";
 import { getLlmModel } from "@/lib/llm/catalog";
 import { stubComplete } from "@/lib/llm/stub";
 import type { BillingContext } from "@/lib/billing/meter";
@@ -29,7 +28,7 @@ export function createTrendAgentRuntime(options: {
     async request(req) {
       if (req.agent !== "trend") {
         if (mock) throw new Error("TA-02 mock runtime only accepts Trend requests.");
-        return legacyComplete(req);
+        return complete(req, options.billing);
       }
       // getLlmModel throws for unknown IDs rather than silently choosing another model.
       getLlmModel(req.modelId);

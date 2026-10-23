@@ -28,9 +28,10 @@ import {
 } from "./steps";
 import { MAX_REVISION_ATTEMPTS, type AgentRun, type Command } from "./types";
 
-type OpState = {
+export type OpState = {
   work: Work;
-  env: StepEnv;
+  /** Null only for a Studio run, which keeps the env off the checkpoint and fills `rememberOperationEnv`. */
+  env: StepEnv | null;
   command: Command;
   maxSteps: number;
   taken: number;
@@ -41,9 +42,29 @@ type OpState = {
   stop: boolean;
 };
 
+const envByCampaign = new Map<string, StepEnv>();
+
+/**
+ * Park a StepEnv outside the graph state.
+ *
+ * Studio checkpoints every channel. `StepEnv` holds `renderPoster` and the model
+ * function, which a checkpoint cannot store, so a Studio run leaves `env` null
+ * and nodes read the env from here.
+ */
+export function rememberOperationEnv(campaignId: string, env: StepEnv) {
+  envByCampaign.set(campaignId, env);
+}
+
+function envOf(state: OpState): StepEnv {
+  if (state.env) return state.env;
+  const cached = envByCampaign.get(state.work.campaign.id);
+  if (!cached) throw new Error("Operation graph has no StepEnv for this campaign.");
+  return cached;
+}
+
 const GraphState = Annotation.Root({
   work: Annotation<Work>(),
-  env: Annotation<StepEnv>(),
+  env: Annotation<StepEnv | null>(),
   command: Annotation<Command>(),
   maxSteps: Annotation<number>(),
   taken: Annotation<number>(),
@@ -56,11 +77,46 @@ const GraphState = Annotation.Root({
 const STAGE_NODES = ["trend", "creative", "revise", "compliance", "media", "unhandled"] as const;
 type StageNode = (typeof STAGE_NODES)[number];
 
+/**
+ * Destinations each branch is allowed to name.
+ *
+ * Without this list LangGraph treats a conditional edge as able to reach every
+ * node, and Studio draws that mesh. These are the transitions in the Stage 1
+ * process: a command enters one handler, intake hands to trend, a revision
+ * returns to creative, and an advance follows the run pointer.
+ */
+export const COMMAND_DESTINATIONS = [
+  "intake",
+  "advance",
+  "approve",
+  "request_changes",
+  "reject",
+  "pause",
+  "publish",
+  "collect_feedback",
+  "decide_recommendation",
+  "resolve_conflict",
+  "boundary_check",
+] as const;
+
+export const stageDestinations = {
+  trend: "trend",
+  creative: "creative",
+  revise: "revise",
+  compliance: "compliance",
+  media: "media",
+  unhandled: "unhandled",
+  [END]: END,
+} as const;
+
+export const intakeDestinations = { trend: "trend", [END]: END } as const;
+export const reviseDestinations = { revise: "revise", [END]: END } as const;
+
 function isHalted(run: AgentRun): boolean {
   return run.status === "complete" || run.status === "halted";
 }
 
-function stageFor(state: OpState): StageNode {
+export function stageFor(state: OpState): StageNode {
   switch (state.work.run?.step) {
     case "trend.receive":
       return "trend";
@@ -202,7 +258,7 @@ async function executeStep(w: Work, env: StepEnv): Promise<{ blocked: boolean; m
 function settle(state: OpState, blocked: boolean, message: string): Partial<OpState> {
   const run = state.work.run!;
   if (state.command.type === "ADVANCE") {
-    setRun(state.work, { stepsTaken: run.stepsTaken + 1, updatedAt: state.env.now });
+    setRun(state.work, { stepsTaken: run.stepsTaken + 1, updatedAt: envOf(state).now });
   }
   const taken = state.taken + 1;
   const human = ["founder.gate", "media.schedule"].includes(state.work.run!.step);
@@ -218,12 +274,12 @@ function settle(state: OpState, blocked: boolean, message: string): Partial<OpSt
   return { work: state.work, message, blocked, taken, canAdvance, stop: false };
 }
 
-async function stageNode(state: OpState): Promise<Partial<OpState>> {
-  const outcome = await executeStep(state.work, state.env);
+export async function stageNode(state: OpState): Promise<Partial<OpState>> {
+  const outcome = await executeStep(state.work, envOf(state));
   return settle(state, outcome.blocked, outcome.message);
 }
 
-function afterStage(state: OpState): StageNode | typeof END {
+export function afterStage(state: OpState): StageNode | typeof END {
   if (state.command.type !== "ADVANCE") return END;
   if (state.taken >= state.maxSteps || state.blocked) return END;
   const run = state.work.run!;
@@ -231,7 +287,7 @@ function afterStage(state: OpState): StageNode | typeof END {
   return stageFor(state);
 }
 
-async function intakeNode(state: OpState): Promise<Partial<OpState>> {
+export async function intakeNode(state: OpState): Promise<Partial<OpState>> {
   const w = state.work;
   if (w.campaign.status !== "draft" && w.campaign.status !== "paused") {
     addEvent(
@@ -243,11 +299,12 @@ async function intakeNode(state: OpState): Promise<Partial<OpState>> {
     );
     return { work: w, stop: true, canAdvance: false, message: "This campaign is already running." };
   }
-  const started = startIntake(w, state.env);
-  if (started.ok && state.env.llm.meta?.live) {
-    const formatted = await state.env.llm.request({
+  const env = envOf(state);
+  const started = startIntake(w, env);
+  if (started.ok && env.llm.meta?.live) {
+    const formatted = await env.llm.request({
       agent: "creative",
-      modelId: state.env.settings.agents.creative.modelId,
+      modelId: env.settings.agents.creative.modelId,
       purpose: "intake",
       prompt: [
         "You are the intake assistant. Turn the founder's campaign into the context the trend researcher will search.",
@@ -260,8 +317,8 @@ async function intakeNode(state: OpState): Promise<Partial<OpState>> {
         `Notes: ${w.campaign.notes || "none"}`,
         'Reply with JSON only: {"context":"one paragraph the researcher can search from"}',
       ].join("\n"),
-      localBaseUrl: state.env.settings.localBaseUrl,
-      localModel: state.env.settings.localModel,
+      localBaseUrl: env.settings.localBaseUrl,
+      localModel: env.settings.localModel,
     });
     const parsed = formatted.text?.match(/"context"\s*:\s*"([^"]+)"/);
     if (formatted.status === "ok" && parsed?.[1]) {
@@ -277,7 +334,7 @@ async function intakeNode(state: OpState): Promise<Partial<OpState>> {
   };
 }
 
-function beginAdvance(state: OpState): Partial<OpState> {
+export function beginAdvance(state: OpState): Partial<OpState> {
   const run = state.work.run!;
   const gate = ["founder.gate", "media.schedule"].includes(run.step);
   if (run.status !== "running" || gate) {
@@ -290,7 +347,7 @@ function beginAdvance(state: OpState): Partial<OpState> {
   return { stop: false };
 }
 
-async function approveNode(state: OpState): Promise<Partial<OpState>> {
+export async function approveNode(state: OpState): Promise<Partial<OpState>> {
   if (state.command.type !== "APPROVE") return { stop: true };
   const w = state.work;
   const c = w.campaign;
@@ -302,11 +359,11 @@ async function approveNode(state: OpState): Promise<Partial<OpState>> {
       target: `${c.channels.join(", ")}`,
       triggeredBy: "founder.gate",
     },
-    state.env.now,
+    envOf(state).now,
   );
   w.policy.push(outcome.decision);
   c.policyDecisions = [...c.policyDecisions, outcome.decision];
-  c.founderDecision = { action: "approve", note: state.command.note, at: state.env.now };
+  c.founderDecision = { action: "approve", note: state.command.note, at: envOf(state).now };
   c.sharedContext = {
     ...c.sharedContext,
     founderNotes: state.command.note ? [...c.sharedContext.founderNotes, state.command.note] : c.sharedContext.founderNotes,
@@ -325,11 +382,11 @@ async function approveNode(state: OpState): Promise<Partial<OpState>> {
   return { work: w, stop: false };
 }
 
-async function requestChangesNode(state: OpState): Promise<Partial<OpState>> {
+export async function requestChangesNode(state: OpState): Promise<Partial<OpState>> {
   if (state.command.type !== "REQUEST_CHANGES") return { stop: true };
   const w = state.work;
   const c = w.campaign;
-  c.founderDecision = { action: "changes", note: state.command.note, at: state.env.now };
+  c.founderDecision = { action: "changes", note: state.command.note, at: envOf(state).now };
   c.sharedContext = {
     ...c.sharedContext,
     founderNotes: [...c.sharedContext.founderNotes, state.command.note],
@@ -350,13 +407,13 @@ async function requestChangesNode(state: OpState): Promise<Partial<OpState>> {
   return { work: w, stop: false };
 }
 
-async function rejectNode(state: OpState): Promise<Partial<OpState>> {
+export async function rejectNode(state: OpState): Promise<Partial<OpState>> {
   if (state.command.type !== "REJECT") return {};
   const w = state.work;
   const c = w.campaign;
   c.status = "rejected";
   c.running = false;
-  c.founderDecision = { action: "reject", note: state.command.note, at: state.env.now };
+  c.founderDecision = { action: "reject", note: state.command.note, at: envOf(state).now };
   c.creatives = c.creatives.map((cr) => ({ ...cr, status: "rejected" }));
   setRun(w, { status: "halted", haltedReason: "Rejected by the founder." });
   c.run = w.run;
@@ -364,7 +421,7 @@ async function rejectNode(state: OpState): Promise<Partial<OpState>> {
   return { work: w, canAdvance: false, message: "Rejected." };
 }
 
-async function pauseNode(state: OpState): Promise<Partial<OpState>> {
+export async function pauseNode(state: OpState): Promise<Partial<OpState>> {
   const w = state.work;
   w.campaign.status = "paused";
   w.campaign.running = false;
@@ -381,14 +438,14 @@ async function pauseNode(state: OpState): Promise<Partial<OpState>> {
   return { work: w, canAdvance: false, message: "Paused." };
 }
 
-async function publishNode(state: OpState): Promise<Partial<OpState>> {
+export async function publishNode(state: OpState): Promise<Partial<OpState>> {
   const w = state.work;
   const c = w.campaign;
   if (c.status !== "scheduled") {
     addEvent(w, "media", "escalation", "Publish refused", `Nothing is scheduled (status ${c.status}).`);
     return { work: w, canAdvance: false, message: "Nothing scheduled to publish." };
   }
-  const result = await runFeedbackCollection(w, state.env, { publish: true });
+  const result = await runFeedbackCollection(w, envOf(state), { publish: true });
   // Publishing closes distribution; collecting results stays a separate,
   // explicit founder choice, so the run parks at the feedback step.
   if (!result.blocked) {
@@ -402,17 +459,17 @@ async function publishNode(state: OpState): Promise<Partial<OpState>> {
   return { work: w, canAdvance: false, message: result.message };
 }
 
-async function collectNode(state: OpState): Promise<Partial<OpState>> {
+export async function collectNode(state: OpState): Promise<Partial<OpState>> {
   const w = state.work;
   if (w.campaign.status !== "published") {
     w.campaign.running = false;
     return { work: w, canAdvance: false, message: "Publish the campaign before collecting results (UC-06 ext 2.a)." };
   }
-  const result = await runFeedbackCollection(w, state.env, { publish: false });
+  const result = await runFeedbackCollection(w, envOf(state), { publish: false });
   return { work: w, canAdvance: false, message: result.message };
 }
 
-async function decideNode(state: OpState): Promise<Partial<OpState>> {
+export async function decideNode(state: OpState): Promise<Partial<OpState>> {
   if (state.command.type !== "DECIDE_RECOMMENDATION") return {};
   const w = state.work;
   const c = w.campaign;
@@ -424,7 +481,7 @@ async function decideNode(state: OpState): Promise<Partial<OpState>> {
     action: state.command.action,
     text,
     note: state.command.note ?? "",
-    at: state.env.now,
+    at: envOf(state).now,
     author: "Human Founder",
     attachedToCampaignId: null,
   };
@@ -447,7 +504,7 @@ async function decideNode(state: OpState): Promise<Partial<OpState>> {
   return { work: w, canAdvance: false, message: `Recommendation ${state.command.action}.` };
 }
 
-async function resolveNode(state: OpState): Promise<Partial<OpState>> {
+export async function resolveNode(state: OpState): Promise<Partial<OpState>> {
   if (state.command.type !== "RESOLVE_CONFLICT") return {};
   const command = state.command;
   const w = state.work;
@@ -466,7 +523,7 @@ async function resolveNode(state: OpState): Promise<Partial<OpState>> {
   return { work: w, canAdvance: false, message: `Conflict resolved. ${unresolved} remaining.` };
 }
 
-async function boundaryNode(state: OpState): Promise<Partial<OpState>> {
+export async function boundaryNode(state: OpState): Promise<Partial<OpState>> {
   if (state.command.type !== "ATTEMPT_BLOCKED") return {};
   const w = state.work;
   const c = w.campaign;
@@ -483,7 +540,7 @@ async function boundaryNode(state: OpState): Promise<Partial<OpState>> {
       kind: c.channels.includes("print") ? "catalogue_cover" : "social",
       triggeredBy: "founder.boundary_check",
     },
-    state.env.now,
+    envOf(state).now,
   );
   w.policy.push(outcome.decision);
   c.policyDecisions = [...c.policyDecisions, outcome.decision];
@@ -504,7 +561,7 @@ async function boundaryNode(state: OpState): Promise<Partial<OpState>> {
   return { work: w, canAdvance: false, message: outcome.reason };
 }
 
-function routeCommand(state: OpState): string {
+export function routeCommand(state: OpState): string {
   switch (state.command.type) {
     case "START":
       return "intake";
@@ -552,14 +609,14 @@ function buildOperationGraph() {
     .addNode("media", stageNode)
     .addNode("unhandled", stageNode)
     .addEdge(START, "route")
-    .addConditionalEdges("route", routeCommand)
-    .addConditionalEdges("intake", (state) => (state.stop ? END : "trend"))
-    .addConditionalEdges("advance", (state) => (state.stop ? END : stageFor(state)))
+    .addConditionalEdges("route", routeCommand, [...COMMAND_DESTINATIONS])
+    .addConditionalEdges("intake", (state) => (state.stop ? END : "trend"), intakeDestinations)
+    .addConditionalEdges("advance", (state) => (state.stop ? END : stageFor(state)), stageDestinations)
     .addEdge("approve", "media")
-    .addConditionalEdges("request_changes", (state) => (state.stop ? END : "revise"));
+    .addConditionalEdges("request_changes", (state) => (state.stop ? END : "revise"), reviseDestinations);
 
   for (const name of STAGE_NODES) {
-    graph.addConditionalEdges(name, afterStage);
+    graph.addConditionalEdges(name, afterStage, stageDestinations);
   }
 
   for (const name of ["reject", "pause", "publish", "collect_feedback", "decide_recommendation", "resolve_conflict", "boundary_check"] as const) {

@@ -15,6 +15,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { z } from "zod";
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { MeteredChatModel, MeteredCallUnavailable, toTurns, MAX_MODEL_CALLS_PER_RUN } from "../src/lib/agents/metered-chat-model";
+import { LangChainTracer } from "@langchain/core/tracers/tracer_langchain";
 import { agentTools, toolNamesFor, toolSchema } from "../src/lib/agents/agent-tools";
 import { buildAgent, complianceSchema } from "../src/lib/agents/seats";
 import { runComplete } from "../src/lib/llm/metered-complete";
@@ -324,6 +325,44 @@ try {
     "no seat gets another seat's tools",
   );
   pass(`each seat only receives its own tools (trend: ${trendNames.length}, media: ${mediaNames.length})`);
+
+  const traced = new MeteredChatModel({
+    agent: "compliance",
+    modelId: "openai:gpt-6.1-sol",
+    billing: undefined,
+    complete: async () => ({
+      provider: "OpenAI",
+      providerId: "openai",
+      modelId: "openai:gpt-6.1-sol",
+      modelName: "GPT-6.1 Sol",
+      status: "ok",
+      text: "ok",
+      note: "test",
+      at: "2026-10-18T00:00:00.000Z",
+      usage: {
+        inputTokens: 3544,
+        outputTokens: 1052,
+        totalTokens: 4596,
+        costUsd: 0.01761,
+        billedAs: "test",
+        estimate: false,
+        latencyMs: 1,
+      },
+    }),
+  });
+  const reported = await traced.invoke([new HumanMessage("Review this.")]);
+  assert.equal(reported.usage_metadata?.input_tokens, 3544);
+  assert.equal(reported.usage_metadata?.output_tokens, 1052);
+  assert.equal(reported.usage_metadata?.total_tokens, 4596);
+  assert.equal((reported.usage_metadata as { total_cost?: number } | undefined)?.total_cost, 0.01761);
+  const ls = traced.getLsParams({});
+  assert.equal(ls.ls_model_name, "gpt-6.1-sol");
+  assert.equal(ls.ls_provider, "openai");
+  const run = { outputs: { generations: [[{ message: reported }]] }, extra: {} as { metadata?: { usage_metadata?: { input_tokens?: number; total_cost?: number } } } };
+  new LangChainTracer().onLLMEnd(run as never);
+  assert.equal(run.extra.metadata?.usage_metadata?.input_tokens, 3544);
+  assert.equal(run.extra.metadata?.usage_metadata?.total_cost, 0.01761);
+  pass("agent model reports LangSmith usage_metadata and the model name");
 } finally {
   fake.close();
   await once(fake, "close");

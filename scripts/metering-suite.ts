@@ -76,6 +76,12 @@ const cloud = await fakeServer(async (req, res) => {
     const message = mode === "refusal" ? { content: null, refusal: "I can't help with that." } : { content: offlineDecision(req.body) };
     return void res.end(JSON.stringify({ choices: [{ message, finish_reason: "stop" }], usage: { prompt_tokens: 1000, completion_tokens: 500 } }));
   }
+  if (req.path === "/v1/responses") {
+    return void res.end(JSON.stringify({
+      output_text: "{\"outcome\":\"manual_review\",\"issues\":[],\"summary\":\"Poster read.\"}",
+      usage: { input_tokens: 900, output_tokens: 80 },
+    }));
+  }
   if (req.path === "/v1/messages") {
     if (mode === "refusal") {
       return void res.end(JSON.stringify({ content: [], stop_reason: "refusal", stop_details: { category: "cyber" }, usage: { input_tokens: 1200, output_tokens: 3 } }));
@@ -162,6 +168,42 @@ try {
   assert.match(unmetered.note, /not wired yet/i);
   assert.equal(cloudCalls(), before);
   pass("no billing context fails closed with no network call; unmetered still hits Cindy's unwired adapter");
+
+  /* ------------------------- compliance vision stays on the signed-in model */
+  const sol = getLlmModel("openai:gpt-6.1-sol");
+  const poster = "data:image/jpeg;base64," + "a".repeat(64);
+  const textHold = worstCaseUsd(sol, { prompt: "Read the poster.", agent: "compliance" });
+  const visionHold = worstCaseUsd(sol, { prompt: "Read the poster.", agent: "compliance", images: [poster, poster] });
+  assert(visionHold > textHold, "two posters increase the credit hold");
+  await setBalance("vision-1", 1000 * MILLI);
+  const localBefore = local.seen.length;
+  const cloudBefore = cloud.seen.length;
+  const reviewed = await runComplete({
+    agent: "compliance",
+    modelId: "openai:gpt-6.1-sol",
+    prompt: "Read the poster.",
+    images: [poster, poster],
+    direct: true,
+    localBaseUrl: `${local.base}/v1`,
+    localModel: "mtplx-flash-next-optimized-speed",
+  }, beta("vision-1"));
+  assert.equal(reviewed.status, "ok", reviewed.note);
+  assert.equal(reviewed.modelId, "openai:gpt-6.1-sol");
+  assert.equal(cloud.seen.at(-1)?.path, "/v1/responses");
+  assert.equal(local.seen.length, localBefore, "the posters are not sent to the unsigned local runtime");
+  assert.equal(cloud.seen.length, cloudBefore + 1);
+  assert((await usageRows("vision-1")).length > 0, "the signed-in account is charged for the compliance call");
+  const unsigned = await runComplete({
+    agent: "compliance",
+    modelId: "openai:gpt-6.1-sol",
+    prompt: "Read the poster.",
+    images: [poster],
+    direct: true,
+    localBaseUrl: `${local.base}/v1`,
+  }, undefined);
+  assert.equal(unsigned.status, "no_credits");
+  assert.equal(local.seen.length, localBefore, "a missing credit hold does not fall through to the local server");
+  pass("a compliance check with posters reserves credits and stays on the signed-in model");
 
   /* ------------------------------------ out of credits: stop or go local */
   await setBalance("broke-1", 0);

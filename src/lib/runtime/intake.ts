@@ -143,20 +143,6 @@ export function validateIntake(input: IntakeInput, brand: BrandProfile | null): 
         clause: "UC-01 ext 5.a",
       });
     }
-    if (!brand.bannedTerms?.length) {
-      problems.push({
-        field: "brand",
-        message: "Brand banned-terms list is empty — compliance cannot check claims.",
-        clause: "UC-01 ext 5.a",
-      });
-    }
-    if (isCountry(input.country) && !brand.countryRules?.[input.country]?.trim()) {
-      problems.push({
-        field: "brand",
-        message: `No advertising-law profile is stored for ${input.country}.`,
-        clause: "UC-01 ext 5.a",
-      });
-    }
   }
 
   for (const problem of clearanceFieldProblems(input)) {

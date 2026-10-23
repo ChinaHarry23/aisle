@@ -18,7 +18,7 @@
 
 import { createHash, randomUUID } from "node:crypto";
 import { getDatabase, type Database } from "@/lib/db";
-import { freeCredits, freeGrantsPerDay, MILLI, PLAN } from "./plan";
+import { freeCredits, freeGrantsPerDay, MILLI, milliForCost, PLAN } from "./plan";
 
 export type LedgerReason = "free_grant" | "monthly_reset" | "usage" | "dev_usage" | "adjust" | "expired";
 
@@ -435,13 +435,24 @@ export async function parkSettle(ref: string, chargedMilli: number): Promise<boo
   return rows.length > 0;
 }
 
-/** What a dev desk would have paid; recorded at zero so the owner can see real costs. */
+/**
+ * A dev desk is not charged. The credit amount that call would have used is
+ * still written on the ledger, and the balance is left alone.
+ */
 export async function recordDevUsage(
   userId: string,
   input: { ref: string; modelId?: string; costUsd: number; note?: string },
 ): Promise<void> {
   const db = await getDatabase();
-  await writeLedger(db, { userId, deltaMilli: 0, reason: "dev_usage", ...input });
+  await writeLedger(db, {
+    userId,
+    deltaMilli: -milliForCost(input.costUsd),
+    reason: "dev_usage",
+    ref: input.ref,
+    modelId: input.modelId,
+    costUsd: input.costUsd,
+    note: input.note,
+  });
 }
 
 /* ---------- Grants from Stripe ---------- */
@@ -553,6 +564,30 @@ export async function adjustCredits(userId: string, deltaMilli: number, note: st
   const after = Number(rows[0]?.balance_milli ?? 0);
   await writeLedger(db, { userId, deltaMilli, reason: "adjust", ref: randomUUID(), balanceAfterMilli: after, note });
   return after;
+}
+
+/** Spend since the latest credit grant, plus the pool those credits came from. */
+export async function creditMeter(userId: string, balance: number): Promise<{ spentMilli: number; allowanceMilli: number }> {
+  const db = await getDatabase();
+  const grants = await db.query<{ created_at: string }>(
+    `select created_at from credit_ledger
+     where user_id = $1 and delta_milli > 0 and reason in ('free_grant', 'monthly_reset', 'adjust')
+     order by created_at desc limit 1`,
+    [userId],
+  );
+  const since = grants[0]?.created_at;
+  const rows = await db.query<{ spent: number | string }>(
+    since
+      ? `select coalesce(sum(case when delta_milli < 0 then -delta_milli else 0 end), 0) as spent
+         from credit_ledger
+         where user_id = $1 and created_at > $2 and reason in ('usage', 'dev_usage')`
+      : `select coalesce(sum(case when delta_milli < 0 then -delta_milli else 0 end), 0) as spent
+         from credit_ledger
+         where user_id = $1 and reason in ('usage', 'dev_usage')`,
+    since ? [userId, since] : [userId],
+  );
+  const spentMilli = Math.max(0, Number(rows[0]?.spent ?? 0));
+  return { spentMilli, allowanceMilli: Math.max(balance + spentMilli, balance) };
 }
 
 export async function recentLedger(userId: string, limit = 25): Promise<LedgerEntry[]> {

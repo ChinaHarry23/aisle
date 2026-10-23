@@ -14,11 +14,14 @@
  * and the run trace stay exactly where they were.
  */
 
-import { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import { AIMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
+import { BaseChatModel, type LangSmithParams } from "@langchain/core/language_models/chat_models";
+import { AIMessage, ToolMessage, type BaseMessage, type UsageMetadata } from "@langchain/core/messages";
+import { LangChainTracer } from "@langchain/core/tracers/tracer_langchain";
 import type { ChatGeneration, ChatResult } from "@langchain/core/outputs";
 import type { Runnable } from "@langchain/core/runnables";
 import type { BillingContext } from "@/lib/billing/meter";
+import { getLlmOrDefault } from "@/lib/llm/catalog";
+import { langsmithUsage } from "@/lib/llm/estimate";
 import type { ChatTurn, CompleteRequest, CompleteResult, MeteredAgentId, ToolCall, ToolSpec } from "@/lib/llm/types";
 
 /** Running total of everything one agent run has spent. */
@@ -229,6 +232,19 @@ export class MeteredChatModel extends BaseChatModel {
     return "aisle-metered";
   }
 
+  /**
+   * LangSmith prices and groups a chat run by these fields. `_llmType()` alone
+   * is reported as model "Other", which is why the project total stayed at $0.
+   */
+  override getLsParams(_options: this["ParsedCallOptions"]): LangSmithParams {
+    const model = getLlmOrDefault(this.config.modelId);
+    return {
+      ls_provider: model.providerId,
+      ls_model_name: model.apiModel,
+      ls_model_type: "chat",
+    };
+  }
+
   /** LangChain calls this to advertise tools to the model. */
   bindTools(tools: unknown[]): Runnable {
     const specs = tools.map(toToolSpec).filter((spec): spec is ToolSpec => spec !== null);
@@ -283,6 +299,7 @@ export class MeteredChatModel extends BaseChatModel {
 
     const message = new AIMessage({
       content: result.text ?? "",
+      usage_metadata: langsmithUsage(getLlmOrDefault(result.modelId), result.usage) as UsageMetadata,
       ...(result.toolCalls?.length
         ? {
             tool_calls: result.toolCalls.map((call) => ({
@@ -363,6 +380,31 @@ function toToolSpec(candidate: unknown): ToolSpec | null {
  * reject inside a function's parameters. Everything else passes through, so a
  * schema's `required` list and nested objects survive intact.
  */
+/**
+ * LangChain copies `usage_metadata` onto the LangSmith run through a merger that
+ * keeps token counts and drops `total_cost`. Put the cost back before the run is
+ * posted, or the project total stays $0 for a model LangSmith cannot price.
+ */
+const tracerWithCost = LangChainTracer.prototype as typeof LangChainTracer.prototype & { __aisleCost?: boolean };
+if (!tracerWithCost.__aisleCost) {
+  const original = tracerWithCost.onLLMEnd;
+  tracerWithCost.onLLMEnd = function (run) {
+    original.call(this, run);
+    const metadata = run.extra?.metadata?.usage_metadata as (UsageMetadata & { input_cost?: number; output_cost?: number; total_cost?: number }) | undefined;
+    const batches = (run.outputs as { generations?: { message?: AIMessage }[][] } | undefined)?.generations ?? [];
+    for (const batch of batches) {
+      for (const generation of batch) {
+        const source = generation.message?.usage_metadata as (UsageMetadata & { input_cost?: number; output_cost?: number; total_cost?: number }) | undefined;
+        if (!metadata || source?.total_cost == null) continue;
+        metadata.input_cost = source.input_cost;
+        metadata.output_cost = source.output_cost;
+        metadata.total_cost = source.total_cost;
+      }
+    }
+  };
+  tracerWithCost.__aisleCost = true;
+}
+
 function jsonSchemaForProvider(schema: unknown): Record<string, unknown> {
   if (!schema || typeof schema !== "object") return { type: "object", properties: {} };
   const rest = { ...(schema as Record<string, unknown>) };

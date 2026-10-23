@@ -243,6 +243,11 @@ export type SharedContext = {
 export type Campaign = CampaignInput & {
   id: string;
   status: CampaignStatus;
+  /**
+   * Set when the founder moves the campaign to the trash.
+   * `null` is an explicit restore. Omitting the field does not restore it.
+   */
+  archivedAt?: string | null;
   createdAt: string;
   updatedAt: string;
   revisionCount: number;
@@ -325,6 +330,74 @@ export type Campaign = CampaignInput & {
   validationProblems: { field: string; message: string; clause: string }[];
 };
 
+/** Weekly sales extract for one ranged article. */
+export type RetailPos = {
+  periodFrom: string;
+  periodTo: string;
+  weeks: number;
+  units: number;
+  unitsYearAgo: number;
+  velocityVsLastYearPct: number;
+  storesRanged: number;
+  avgUnitsPerStoreWeek: number;
+  avgPriceAud: number;
+  basketAttachLiftPct: number;
+};
+
+/** What is on the shelf in the current catalogue. */
+export type RetailCatalogue = {
+  asOf: string;
+  ranged: boolean;
+  aisle: string;
+  shelfPriceAud: number;
+  promoPriceAud: number | null;
+  promoMechanic: string | null;
+  promoEnds: string | null;
+  pairedWith: string[];
+  attachRatePct: number;
+  heroOnlyAttachRatePct: number;
+  note: string;
+};
+
+/** One observed price or claim at another banner. */
+export type RetailCompetitor = {
+  retailer: string;
+  observedAt: string;
+  channel: string;
+  shelfPriceAud: number;
+  onPromotion: boolean;
+  promoMechanic: string | null;
+  observation: string;
+};
+
+/** One article in a retail data file. POS, catalogue and competitors share this sku. */
+export type RetailProduct = {
+  sku: string;
+  name: string;
+  brandName: string;
+  category: string;
+  subcategory: string;
+  aliases?: string[];
+  pos: RetailPos;
+  catalogue: RetailCatalogue;
+  competitors: RetailCompetitor[];
+};
+
+/**
+ * Retail data file, schema 1.0.
+ * Stored on the brand after upload. The demo copies also live in `src/data/retail/`.
+ */
+export type RetailDataset = {
+  schemaVersion: "1.0";
+  fileName: string;
+  uploadedAt: string;
+  retailer: { id: string; name: string; country: Country };
+  currency: "AUD";
+  extractedAt: string;
+  note: string;
+  products: RetailProduct[];
+};
+
 /** A brand-guideline document the founder uploaded; only its extracted text is kept. */
 export type GuidelineDoc = {
   id: string;
@@ -353,4 +426,6 @@ export type BrandProfile = {
   countryRules: Record<Country, string>;
   /** Uploaded guideline documents the agents must follow. Absent on older workspaces. */
   guidelines?: GuidelineDoc[];
+  /** POS file uploaded on Brand. Absent until the founder uploads one. */
+  retailData?: RetailDataset | null;
 };

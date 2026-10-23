@@ -111,6 +111,12 @@ export const complianceSchema = z.object({
     }),
   ),
   summary: z.string().describe("The review result in one or two sentences."),
+  outcome: z
+    .enum(["pass", "changes_required", "manual_review"])
+    .optional()
+    .describe(
+      "pass only when issues is empty. changes_required when the copy must be rewritten. manual_review when a person must decide. pass does not approve or publish.",
+    ),
 });
 
 export const recommendationSchema = z.object({
@@ -208,9 +214,12 @@ Rules you must not break:
   judgement. Put the first in "confirmed_breach" and the second in
   "human_judgement" — do not blur them.
 - Cite the specific rule for every issue, and say exactly what to change.
-- A banned term is a confirmed breach. There is no context in which it passes.
+- A banned term you find in the advertisement is a confirmed breach. There is no context in which it passes.
 - If the policy you would need is missing or unclear, say so as an issue rather
-  than assuming the advertisement is fine.`;
+  than assuming the advertisement is fine.
+- Set outcome to pass only when issues is empty, changes_required when the copy
+  must be rewritten, or manual_review when a person must decide. pass does not
+  approve or publish the advertisement.`;
 
 const MEDIA_SYSTEM = `You are the Media Manager for a neighbourhood retailer.
 
@@ -262,13 +271,7 @@ export type BuiltAgent<T> = {
   invoke: (input: { task: string; context?: string }) => Promise<T>;
 };
 
-/**
- * Build one seat.
- *
- * `tools` is the seat's own registry slice, so an agent cannot call a tool that
- * belongs to another seat even if it asks for one by name.
- */
-export function buildAgent<T>(options: {
+type SeatOptions<T> = {
   seat: AgentSeat;
   /** A ready chat model, so the caller can read its usage meter afterwards. */
   chat?: MeteredChatModel;
@@ -278,15 +281,31 @@ export function buildAgent<T>(options: {
   schema: z.ZodType<T>;
   /** Overrides the default instructions, for the art-director seat. */
   instructions?: string;
-}): BuiltAgent<T> {
-  const chat = options.chat ?? new MeteredChatModel(options.model!);
+  /** Studio passes the assistant context so LangSmith can show the fields. */
+  contextSchema?: z.ZodObject<z.ZodRawShape>;
+  /** Extra channels merged with the message state. Studio uses these as the run form. */
+  stateSchema?: z.ZodObject<z.ZodRawShape>;
+  /** Appended after the call-budget middleware. */
+  extraMiddleware?: NonNullable<Parameters<typeof createAgent>[0]["middleware"]>;
+};
 
-  const agent = createAgent({
+/**
+ * The LangGraph behind one seat.
+ *
+ * `buildAgent` wraps this with the text-or-tool answer parser the engine uses.
+ * Studio serves the graph itself, so threads, time travel and the drawing stay
+ * on the Agent Server.
+ */
+export function compileSeatAgent<T>(options: SeatOptions<T>) {
+  const chat = options.chat ?? new MeteredChatModel(options.model!);
+  return createAgent({
     model: chat,
     tools: options.tools,
     systemPrompt: options.instructions ?? INSTRUCTIONS[options.seat],
     responseFormat: options.schema,
     name: `aisle_${options.seat}`,
+    ...(options.contextSchema ? { contextSchema: options.contextSchema } : {}),
+    ...(options.stateSchema ? { stateSchema: options.stateSchema } : {}),
     middleware: [
       // The cost guarantee: a run cannot exceed the credit envelope it reserved.
       modelCallLimitMiddleware({
@@ -297,8 +316,19 @@ export function buildAgent<T>(options: {
         runLimit: MAX_MODEL_CALLS_PER_RUN * 2,
         exitBehavior: "error",
       }),
+      ...(options.extraMiddleware ?? []),
     ],
   });
+}
+
+/**
+ * Build one seat.
+ *
+ * `tools` is the seat's own registry slice, so an agent cannot call a tool that
+ * belongs to another seat even if it asks for one by name.
+ */
+export function buildAgent<T>(options: SeatOptions<T>): BuiltAgent<T> {
+  const agent = compileSeatAgent(options);
 
   return {
     seat: options.seat,

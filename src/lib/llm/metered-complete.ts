@@ -12,6 +12,7 @@ import { formatCredits, milliForCost } from "@/lib/billing/plan";
 import { callLlm, isLlmConfigured, systemFor } from "./adapters";
 import { getLlmOrDefault } from "./catalog";
 import { estimateLlmUsage, llmCostUsd, usageFromProvider, worstCaseUsd } from "./estimate";
+import { traceModelCall } from "./langsmith";
 import { parseToolArgs } from "@/lib/pr2-shims";
 import { traceable } from "langsmith/traceable";
 import { stubComplete } from "./stub";
@@ -45,6 +46,10 @@ export async function runComplete(req: CompleteRequest, billing?: BillingContext
   const started = Date.now();
 
   const toLocal = async (why: string) => {
+    // Poster checks carry images and must stay on the signed-in vision model.
+    // The account's local URL is not given that key, so a free reroute is the
+    // 401 that dropped GPT-6.1 Sol at the compliance step.
+    if (req.direct || req.images?.length) return false;
     const local = getLlmOrDefault("local:custom");
     if (!isLlmConfigured(local, req.localBaseUrl || process.env.LOCAL_LLM_BASE_URL)) return false;
     reroute = `${why} This decision ran free on the local model instead of ${assigned.name}.`;
@@ -93,23 +98,13 @@ export async function runComplete(req: CompleteRequest, billing?: BillingContext
       inputTokens?: number;
       outputTokens?: number;
       toolCalls?: ToolCall[];
-    } =
-      model.providerId === "openai" && (active.direct || active.webSearch || active.images?.length)
-        ? await traceable((m: LlmModel, r: CompleteRequest) =>
-            m.toolApi === "responses" ? callOpenAIResponses(m, r) : callOpenAIChatTools(m, r), {
-            name: active.purpose === "intake"
-              ? "intake.chat"
-              : active.webSearch
-                ? "trend.web_search"
-                : active.images?.length
-                  ? "compliance.vision"
-                  : `${active.agent}.openai`,
-            run_type: "llm",
-            metadata: { model: model.apiModel, webSearch: Boolean(active.webSearch) },
-          })(model, active)
-        : active.tools?.length || active.history?.length
-          ? await callLlmWithTools(model, active)
-          : await callLlm(model, active);
+    } = await traceModelCall(model, active, () => {
+      if (model.providerId === "openai" && (active.direct || active.webSearch || active.images?.length)) {
+        return model.toolApi === "responses" ? callOpenAIResponses(model, active) : callOpenAIChatTools(model, active);
+      }
+      if (active.tools?.length || active.history?.length) return callLlmWithTools(model, active);
+      return callLlm(model, active);
+    });
     const latencyMs = Date.now() - started;
     const reported = live.inputTokens != null && live.outputTokens != null;
     const usage = reported

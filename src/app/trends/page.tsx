@@ -6,6 +6,7 @@ import { Trash2, Upload } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { formatDate } from "@/lib/ids";
 import type { TrendSource, TrendSourceKind } from "@/lib/settings";
+import { isArchived } from "@/lib/campaign-lifecycle";
 import { useAisle } from "@/lib/store";
 import { PageHeader, SectionTitle } from "@/components/ui";
 
@@ -200,7 +201,7 @@ export default function TrendsPage() {
 
   const findings = useMemo(
     () =>
-      campaigns.flatMap((c) =>
+      campaigns.filter((c) => !isArchived(c)).flatMap((c) =>
         c.trendFindings.map((f) => ({
           finding: f,
           campaign: c,
@@ -215,6 +216,7 @@ export default function TrendsPage() {
   const activity = useMemo(
     () =>
       campaigns
+        .filter((c) => !isArchived(c))
         .flatMap((c) => c.log.filter((e) => e.agent === "trend").map((e) => ({ ...e, campaign: c })))
         .sort((a, b) => b.at.localeCompare(a.at))
         .slice(0, 8),

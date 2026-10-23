@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, type ReactNode } from "react";
 import type { PublicUser } from "@/lib/auth/types";
+import { retainCampaignLifecycle } from "@/lib/campaign-lifecycle";
 import { useAisle } from "@/lib/store";
 
 export function WorkspaceSync({
@@ -27,7 +28,7 @@ export function WorkspaceSync({
         if (!res.ok) throw new Error("workspace");
         const data = (await res.json()) as Pick<
           ReturnType<typeof useAisle.getState>,
-          "brand" | "campaigns" | "settings"
+          "brand" | "campaigns" | "settings" | "retiredCampaignIds"
         > & { workflow?: boolean };
         if (cancelled) return;
         serviceMode = data.workflow === true;
@@ -51,9 +52,16 @@ export function WorkspaceSync({
         if (!response.ok || cancelled) return;
         const data = await response.json() as { campaigns: ReturnType<typeof useAisle.getState>["campaigns"]; workflowCampaignIds: string[] };
         if (cancelled) return;
-        const managed = new Map(data.campaigns.filter(c => data.workflowCampaignIds.includes(c.id)).map(c => [c.id, c]));
+        const managedIds = new Set(data.workflowCampaignIds);
         skipSave.current = true;
-        useAisle.setState(s => ({ campaigns: [...s.campaigns.map(c => managed.get(c.id) ?? c), ...[...managed.values()].filter(c => !s.campaigns.some(x => x.id === c.id))] }));
+        useAisle.setState(s => {
+          const incoming = data.campaigns.filter(c => managedIds.has(c.id));
+          const campaigns = retainCampaignLifecycle(s.campaigns, s.retiredCampaignIds, [
+            ...s.campaigns.map(c => incoming.find(item => item.id === c.id) ?? c),
+            ...incoming.filter(item => !s.campaigns.some(c => c.id === item.id)),
+          ]);
+          return { campaigns };
+        });
       } catch { /* Keep the last confirmed snapshot until the service is reachable. */ }
       finally { skipSave.current = false; }
     }, 2000);
@@ -63,6 +71,7 @@ export function WorkspaceSync({
       if (
         state.brand === prev.brand &&
         state.campaigns === prev.campaigns &&
+        state.retiredCampaignIds === prev.retiredCampaignIds &&
         state.settings === prev.settings
       ) {
         return;
@@ -76,6 +85,7 @@ export function WorkspaceSync({
           body: JSON.stringify({
             brand: snap.brand,
             campaigns: snap.campaigns,
+            retiredCampaignIds: snap.retiredCampaignIds,
             settings: snap.settings,
           }),
         });
