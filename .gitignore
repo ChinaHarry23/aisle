@@ -55,3 +55,7 @@ next-env.d.ts
 
 # Local acceptance transcripts contain third-party excerpts; publish summaries only.
 /docs/TA-03-LIVE-ACCEPTANCE*.json
+
+# TA-04 local source transcripts and browser/account audit captures.
+/docs/TA-04-LIVE-*.json
+/docs/TA-04-*.png

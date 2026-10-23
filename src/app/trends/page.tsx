@@ -272,8 +272,8 @@ export default function TrendsPage() {
         <SectionTitle title="Campaign reports" />
         <p className="mt-2 text-sm text-mute">Open a report for all research categories, evidence, conclusions and limitations.</p>
         <div className="mt-4 grid gap-4 lg:grid-cols-2">
-          {campaigns.map(c => { const areas=c.researchCoverage ?? [];const count=areas.filter(a=>a.analysis).length;const requests=c.trendGaps.filter(g=>g.needsFounder).length;return <article key={c.id} className="hairline p-5">
-            <div className="flex flex-wrap items-center justify-between gap-2"><span className="status-chip status-wait">{c.researchAttempts?.length ? 'Draft · validation pending' : 'No verified research run'}</span>{requests>0&&<span className="text-xs text-signal">{requests} need your input</span>}</div>
+          {campaigns.map(c => { const areas=c.researchCoverage ?? [];const count=areas.filter(a=>a.analysis).length;const requests=c.trendQuality ? c.trendRequests?.filter(r=>r.status==='pending').length??0 : c.trendGaps.filter(g=>g.needsFounder).length;return <article key={c.id} className="hairline p-5">
+            <div className="flex flex-wrap items-center justify-between gap-2"><span className="status-chip status-wait">{c.trendQuality ? c.trendQuality.status==='COMPLETE' ? 'Evidence review passed' : c.status==='rejected'?'Analysis ended · partial report':'Incomplete · needs evidence' : c.researchAttempts?.length ? 'Draft · validation pending' : 'No verified research run'}</span>{requests>0&&<span className="text-xs text-signal">{requests} need your input</span>}</div>
             <h3 className="mt-3 font-serif text-xl">{c.name}</h3><p className="mt-2 text-sm text-mute">{c.country} · {c.startDate} – {c.endDate}</p>
             <p className="mt-3 text-sm">{count} / {areas.length || 7+c.channels.length} research areas assessed</p>
             <div className="mt-4 flex flex-wrap gap-4 text-sm text-signal"><Link href={`/campaigns/${c.id}?tab=research`}>Open full report →</Link>{requests>0&&<Link href={`/campaigns/${c.id}?tab=research#research-decisions`}>Review requests →</Link>}</div>
@@ -284,10 +284,10 @@ export default function TrendsPage() {
       <section aria-label="Research requests across campaigns">
         <SectionTitle title="Needs your attention" />
         <p className="mt-2 text-sm text-mute">Research clarification and evidence review are separate from advertising approval. Approving a decision cannot replace missing evidence.</p>
-        <ul className="mt-4 space-y-3">{campaigns.flatMap(c=>c.trendGaps.filter(g=>g.needsFounder).map(g=><li key={`${c.id}:${g.id}`} className="hairline p-4">
+        <ul className="mt-4 space-y-3">{campaigns.flatMap(c=>c.trendGaps.filter(g=>g.needsFounder&&(!c.trendQuality||c.trendRequests?.some(r=>r.id===g.id&&r.status==='pending'))).map(g=><li key={`${c.id}:${g.id}`} className="hairline p-4">
           <p className="text-xs text-signal">{c.name} · {g.kind.replaceAll('_',' ')}</p><h3 className="mt-2 font-medium">{g.detail}</h3><p className="mt-2 text-sm text-mute">Impact: {g.effect}</p><Link className="mt-3 inline-block text-sm text-signal" href={`/campaigns/${c.id}?tab=research#research-decisions`}>See evidence and next action →</Link>
         </li>))}</ul>
-        {!campaigns.some(c=>c.trendGaps.some(g=>g.needsFounder))&&<p className="mt-4 rounded-xl border border-line p-4 text-sm text-mute">No research decisions are waiting for you. Reports without a verified run still need research; this is not a completion signal.</p>}
+        {!campaigns.some(c=>c.trendGaps.some(g=>g.needsFounder&&(!c.trendQuality||c.trendRequests?.some(r=>r.id===g.id&&r.status==='pending'))))&&<p className="mt-4 rounded-xl border border-line p-4 text-sm text-mute">No research decisions are waiting for you. Reports without a verified run still need research; this is not a completion signal.</p>}
       </section>
       <details className="hairline p-5">
         <summary className="cursor-pointer font-medium">Research source workspace · optional configuration</summary>

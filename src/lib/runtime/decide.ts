@@ -29,6 +29,7 @@ import type { BrandProfile, Campaign, Creative, PriceRecommendation } from "@/li
 import type { ChannelResult, ComplianceIssue, RecommendationPoint } from "./types";
 
 export type LlmRuntime = {
+  quality?: import("@/lib/trend/quality-contracts").QualityRunner;
   research?: import("@/lib/trend/contracts").ResearchRunner;
   request: (req: CompleteRequest) => Promise<CompleteResult>;
   /** Identifies the transport so the run trace can say what decision path was used. */

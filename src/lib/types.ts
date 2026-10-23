@@ -225,6 +225,7 @@ export type AgentEvent = {
 };
 
 export type SharedContext = {
+  trendBrief?:{version:number;contextVersion:string;status:'INCOMPLETE'|'COMPLETE';evidenceIds:string[];findings:import('@/lib/trend/quality-contracts').FindingReview[];limitations:string[]};
   retailer: string;
   product: string;
   audience: string;
@@ -292,6 +293,10 @@ export type Campaign = CampaignInput & {
   trendGaps: TrendBriefGap[];
   researchAttempts?: import('@/lib/trend/contracts').ResearchAttempt[];
   researchModelTurns?: import('@/lib/trend/contracts').ResearchModelTurn[];
+  trendQualityHistory?: import('@/lib/trend/quality-contracts').TrendQuality[];
+  trendQuality?: import('@/lib/trend/quality-contracts').TrendQuality;
+  trendRequests?: import('@/lib/trend/quality-contracts').ReviewRequest[];
+  trendSupplementarySources?: {url:string;category:import('@/lib/trend/contracts').ResearchCategory;channel?:string}[];
   researchCoverage?: import('@/lib/trend/contracts').ResearchCoverage[];
   researchMode?: 'agent' | 'legacy';
   /** Every version submitted to AHR-04, kept for audit. */

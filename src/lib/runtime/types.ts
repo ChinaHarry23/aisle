@@ -410,6 +410,8 @@ export type ToolCall = {
 export type RunStepId =
   | "intake.validate"
   | "trend.receive"
+  | "trend.quality"
+  | "trend.handoff"
   | "trend.research"
   | "trend.brief"
   | "creative.receive"
@@ -461,6 +463,8 @@ export type AgentRun = {
 /* ------------------------------------------------------------------ commands */
 
 export type Command =
+  | import("@/lib/trend/quality-contracts").TrendResolution
+  | {type:"CANCEL_TREND";actor:"founder";note:string}
   /** Validate the brief, write the shared context, hand to the Trend Analyser. */
   | { type: "START"; actor: "founder"; note?: string }
   | { type: "PAUSE"; actor: "founder"; note?: string }

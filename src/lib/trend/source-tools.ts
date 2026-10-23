@@ -62,10 +62,14 @@ const scrapeTool=define('web.scrape_page','Firecrawl read an allowlisted origina
     const response=await fetch(url,{redirect:'error',cache:'no-store',signal:AbortSignal.timeout(12_000),headers:{Accept:'text/html, text/plain'}});
     if(!/text\/(html|plain)/i.test(response.headers.get('content-type') ?? '')) return unavailable('Public source is not readable HTML/plain text; configure extraction for this format.');
     const raw=await boundedResponse(response);
-    const text=redact(raw.replace(/<(script|style|noscript)\b[^>]*>[\s\S]*?<\/\1>/gi,' ').replace(/<[^>]+>/g,' ').replace(/&nbsp;|&#160;/g,' ').replace(/&amp;/g,'&').replace(/\s+/g,' ').trim());
+    // Read machine-declared publication dates; never substitute fetch time.
+    const published=date(raw.match(/<meta[^>]+(?:property|name)=["']article:published_time["'][^>]+content=["']([^"']+)/i)?.[1]
+      ?? raw.match(/["']datePublished["']\s*:\s*["']([^"']+)/i)?.[1]);
+    const body=raw.match(/<(?:main|article)\b[^>]*>([\s\S]*?)<\/(?:main|article)>/i)?.[1]??raw;
+    const text=redact(body.replace(/<(script|style|noscript|nav|header|footer)\b[^>]*>[\s\S]*?<\/\1>/gi,' ').replace(/<[^>]+>/g,' ').replace(/&nbsp;|&#160;/g,' ').replace(/&amp;/g,'&').replace(/\s+/g,' ').trim());
     if(!text)return unavailable('No readable public text.');
     if(/incapsula incident id|request unsuccessful|access denied|verify (?:that )?you are (?:a )?human|enable javascript and cookies to continue/i.test(text.slice(0,1200)))return unavailable('Public source returned an access challenge, not research content.');
-    const evidence=[item(input,input.args.category as ResearchCategory,'Public source text',url,text,null,{channel:input.args.channel,transformation:'Bounded public HTML/plain text; scripts and styles removed. First 2400 characters only; publication date unknown.'})];
+    const evidence=[item(input,input.args.category as ResearchCategory,'Public source text',url,text,published,{channel:input.args.channel,transformation:'Bounded public main/article text; scripts/navigation removed. First 2400 characters only. Publication date from declared article metadata/JSON-LD when present; otherwise unknown.'})];
     return result(evidence,{sources:evidence},'Public text retrieved directly; relevance and publication date require review.');
   }
   const response=record(await json('https://api.firecrawl.dev/v2/scrape',{method:'POST',headers:{Authorization:`Bearer ${process.env.FIRECRAWL_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({url,formats:['markdown'],onlyMainContent:true,timeout:10000})}));

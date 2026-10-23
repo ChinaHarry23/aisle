@@ -26,7 +26,7 @@ export async function workOnce(repo: WorkflowRepository, workerId: string, optio
       const context = [...job.input.campaigns.filter(c => !managed.some(m => m.id === c.id)), ...managed];
       if (repo.pauseRequested(job)) command = { type: "PAUSE", actor: "founder" };
       // Resume a pause from its saved step; START must not repeat trend research.
-      if (command.type === "START" && campaign.status === "paused" && campaign.run && campaign.run.step !== "intake.validate") {
+      if (command.type === "START" && campaign.status === "paused" && campaign.run && campaign.run.step !== "intake.validate" && !campaign.trendQuality) {
         campaign.run.status = "running"; campaign.running = true;
         command = { type: "ADVANCE", actor: "system" };
       }

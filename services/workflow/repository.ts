@@ -1,3 +1,4 @@
+import {recordStoredTrend} from '../../src/lib/trend/quality';
 import { retailUploadSchema } from "../../src/lib/trend/internal-retail";
 import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
@@ -119,7 +120,7 @@ export class WorkflowRepository {
       // These are explicit founder-controlled settings, never generated results or approvals.
       // A paused research job can receive a new aggregate export on explicit
       // START. Preserve the durable scope/results; import only validated inputs.
-      if (command.type === 'START' && current.status === 'paused') {
+      if ((command.type === 'START' || command.type === 'RESOLVE_TREND' && command.action === 'provide_data') && current.status === 'paused') {
         if (input.campaign.internalDataAuthorised === true && input.campaign.retailUpload !== undefined) {
           const retail=retailUploadSchema.safeParse(input.campaign.retailUpload);
           if(!retail.success)throw new WorkflowError('Invalid aggregate retail upload.');
@@ -173,6 +174,7 @@ export class WorkflowRepository {
     this.transaction(() => {
       const row = this.raw(job.user_id, job.id);
       if (row.worker !== job.worker || row.status !== "running") throw new WorkflowError("Worker lease was lost; result was not committed.", 409);
+      recordStoredTrend(result.campaign);
       const revision = row.revision + 1;
       this.db.prepare("update workflow_campaigns set snapshot=?,revision=? where user_id=? and campaign_id=?").run(JSON.stringify(result.campaign), revision, job.user_id, job.campaign_id);
       this.db.prepare("update workflow_jobs set result=?,next_command=?,status=?,message=?,updated_at=?,revision=? where id=?")

@@ -57,6 +57,8 @@ type Store = {
   resumeRunning: () => Promise<void>;
   /** Ask the bench to continue one campaign. */
   continueAgents: (id: string) => Promise<void>;
+  resolveTrend: (id:string, resolution:import("@/lib/trend/quality-contracts").TrendResolution)=>Promise<void>;
+  cancelTrend: (id:string,note:string)=>Promise<void>;
   pause: (id: string) => Promise<void>;
   approve: (id: string, note: string) => Promise<void>;
   reject: (id: string, note: string) => Promise<void>;
@@ -294,6 +296,8 @@ export const useAisle = create<Store>()(
         launch: async (id) => {
           await command(id, { type: "START", actor: "founder" });
         },
+        resolveTrend:async(id,resolution)=>{await command(id,resolution);},
+        cancelTrend:async(id,note)=>{await command(id,{type:'CANCEL_TREND',actor:'founder',note},{pumpAfter:false});},
         pause: async (id) => {
           await command(id, { type: "PAUSE", actor: "founder" }, { pumpAfter: false });
         },

@@ -1,3 +1,6 @@
+import { contextVersion } from '@/lib/trend/quality-contracts';
+import { evaluateQuality,trendReadyForHandoff } from '@/lib/trend/quality';
+import { validateIntake } from './intake';
 import { redact } from "@/lib/trend/source-tools";
 import { attachResearchAnalysis, coverageFor, unavailable } from "@/lib/trend/contracts";
 import { buildReport } from "../compliance/report";
@@ -421,6 +424,15 @@ export async function runTrendResearch(
   env: StepEnv,
 ): Promise<{ message: string; blocked: boolean }> {
   const c = w.campaign;
+  const contextProblems=validateIntake(c,env.brand);
+  if(env.llm.quality&&contextProblems.length){
+    const q=evaluateQuality(c,null,w.now,'context_invalid');
+    const reason=contextProblems.map(p=>`${p.field}: ${p.message}`).join(' ');
+    q.resumeStep=2;q.requests=[{id:`${w.run?.id}:context`,runId:w.run!.id,contextVersion:contextVersion(c),reviewVersion:q.version,category:'context',findingIds:[],reason,question:'Please correct the campaign context.',neededData:reason,options:['correct_context','decline'],status:'pending',requestedAt:w.now}];
+    c.trendQuality=q;c.trendRequests=[...(c.trendRequests??[]).map(r=>r.status==='pending'?{...r,status:'superseded' as const}:r),...q.requests];
+    c.status='paused';c.running=false;setRun(w,{status:'paused',step:'trend.quality',awaiting:'trend_clarification',awaitingDetail:reason});
+    addEvent(w,'trend','escalation','Campaign clarification required',reason);return {message:reason,blocked:true};
+  }
   c.status = "analysing";
   c.running = true;
   addEvent(
@@ -821,6 +833,12 @@ export async function runTrendResearch(
       motivations: decision.claimsAllowed.slice(0, 3),
     },
   ];
+  if(env.llm.quality){
+    c.sharedContext={...c.sharedContext,approvedClaims:[]};
+    setRun(w,{status:'running',step:'trend.quality',awaiting:null,awaitingDetail:null});
+    addStep(w,'trend.brief','trend','warn','Draft collected — quality review next','Retrieval and model analysis cannot certify evidence sufficiency.');
+    return {message:'Research collected. Evidence review pending.',blocked:false};
+  }
   const paused = env.researchAllowed ? !await env.researchAllowed() : false;
   const insufficient = !currentEvidence.some(e => e.status === "verified" && e.sourceKind === "external_public")
     || gaps.some(g => g.needsFounder);
@@ -865,6 +883,13 @@ export async function runCreativeGeneration(
   version: number,
 ): Promise<{ message: string; blocked: boolean }> {
   const c = w.campaign;
+  if(c.trendQuality || c.researchMode==='agent'){
+    if(!trendReadyForHandoff(c)||env.researchAllowed&&!await env.researchAllowed()){
+      c.status='paused';c.running=false;setRun(w,{status:'paused',step:'trend.handoff',haltedReason:'Current evidence-backed brief is not ready for handoff.'});
+      return {message:'Content generation blocked: insufficient, unsaved or unresolved research.',blocked:true};
+    }
+    if(!c.trendQuality!.handedOffAt){c.trendQuality!.handedOffAt=w.now;addEvent(w,'creative','handoff','Stored trend brief accepted',`Accepted research version ${c.trendQuality!.version} for context ${c.trendQuality!.contextVersion}.`);}
+  }
   if (!c.brief) return { message: "No brief to work from.", blocked: true };
   c.status = version === 1 ? "generating" : "revising";
   c.running = true;

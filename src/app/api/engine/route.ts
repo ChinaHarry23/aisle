@@ -1,3 +1,6 @@
+import {withWorkspaceLock,requestInlinePause,resumeInlineResearch,inlineResearchAllowed} from '@/lib/trend/inline-state';
+import {recordStoredTrend} from '@/lib/trend/quality';
+import {retailUploadSchema} from '@/lib/trend/internal-retail';
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/current";
 import { demoWorkspace, loadWorkspace, saveWorkspace, type WorkspaceSnapshot } from "@/lib/auth/workspace";
@@ -69,7 +72,13 @@ type Body = {
  * produced. Inline mode still depends on browser ADVANCE requests. Service mode
  * submits durable jobs to the independent worker, which survives closing the tab.
  */
-export async function POST(request: Request) {
+export async function POST(request:Request){
+ const owner=await getCurrentUser();if(!owner)return NextResponse.json({error:'Sign in first.'},{status:401});
+ const preview=await request.clone().json().catch(()=>null);
+ if(['PAUSE','CANCEL_TREND'].includes(preview?.command?.type)&&typeof preview?.campaign?.id==='string')requestInlinePause(owner.id,preview.campaign.id);
+ return withWorkspaceLock(owner.id,()=>handlePost(request));
+}
+async function handlePost(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
 
@@ -94,10 +103,22 @@ export async function POST(request: Request) {
   }
 
   const stored = await loadWorkspaceSafely(user.id, user.role);
-  const brand = (body.brand as typeof stored.brand) ?? stored.brand;
+  const brand = stored.brand;
   const settings = stored.settings;
   const campaigns = (body.campaigns ?? []).map(withRuntimeDefaults);
-  const target = withRuntimeDefaults(body.campaign);
+  const existing=stored.campaigns.find(c=>c.id===body.campaign!.id);
+  const protectedResearch=existing?.trendQuality||existing?.researchMode==='agent';
+  const target = withRuntimeDefaults(protectedResearch?structuredClone(existing!):body.campaign);
+  let command:Command;
+  try{
+    command=parseCommand(body.command);
+    if(protectedResearch&&(command.type==='RESOLVE_TREND'||command.type==='CANCEL_TREND'||command.type==='START')){
+      if(command.type==='RESOLVE_TREND'&&command.action==='provide_data'&&body.campaign.internalDataAuthorised&&body.campaign.retailUpload){
+        target.retailUpload=retailUploadSchema.parse(body.campaign.retailUpload);target.internalDataAuthorised=true;
+      }
+    }
+    if(!existing&&body.campaign.trendQuality)throw new WorkflowError('No stored research version exists for this campaign.',409);
+  }catch(error){return NextResponse.json({error:error instanceof Error?error.message:'Invalid command.'},{status:409});}
 
   const maxSteps =
     typeof body.maxSteps === "number" && Number.isFinite(body.maxSteps)
@@ -106,17 +127,18 @@ export async function POST(request: Request) {
   const userKey = request.headers.get("x-provider-key")?.trim() || undefined;
 
   try {
+    if(command.type==='START'||command.type==='RESOLVE_TREND')resumeInlineResearch(user.id,target.id);
     const llm = createServerResearchRuntime(await billingForSession(user));
     const result = await runEngine(
       { campaigns, now: new Date().toISOString() },
       target,
-      body.command,
+      command,
       settings,
       brand,
       {
         maxSteps,
         ownerUserId: user.id,
-        researchAllowed: () => !request.signal.aborted,
+        researchAllowed: () => !request.signal.aborted && inlineResearchAllowed(user.id,target.id),
         llm,
         renderPoster: (input) =>
           renderCampaignPoster({
@@ -129,11 +151,17 @@ export async function POST(request: Request) {
       },
     );
     try {
+      recordStoredTrend(result.campaign);
       const latest = await loadWorkspace(user.id, user.role);
       const rest = latest.campaigns.filter((item) => item.id !== result.campaign.id);
       await saveWorkspace(user.id, { ...latest, campaigns: [result.campaign, ...rest] });
     } catch {
-      // The browser still writes the workspace. A failed save must not drop the result.
+      if(result.campaign.trendQuality){
+        result.campaign.trendQuality.storedVersion=null;
+        result.campaign.status='paused';result.campaign.running=false;result.run.status='paused';
+        result.run.haltedReason='Research storage failed; current work retained. Retry storage before handoff.';
+        result.canAdvance=false;result.message=result.run.haltedReason;
+      }
     }
     return NextResponse.json({
       campaign: result.campaign,

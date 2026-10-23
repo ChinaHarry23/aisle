@@ -37,6 +37,7 @@
     "test:intake": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/intake-suite.ts",
     "test:compliance": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/compliance-suite.ts",
     "test:compliance-rules": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/compliance-rules-suite.ts",
+    "test:trend-quality": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/trend-quality-suite.ts",
     "test:trend-evidence": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/trend-evidence-suite.ts",
     "demo:trend-evidence": "node --env-file-if-exists=.env.local --import ./scripts/service-loader.mjs --experimental-strip-types scripts/trend-evidence-example.ts",
     "test:trend-research": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/trend-research-suite.ts",

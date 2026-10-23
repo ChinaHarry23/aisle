@@ -1,5 +1,6 @@
 "use client";
 
+import {ResearchDecisions} from './ResearchDecisions';
 import Link from 'next/link';
 import type { Campaign } from '@/lib/types';
 import { coverageFor, type ResearchCategory } from '@/lib/trend/contracts';
@@ -14,9 +15,10 @@ export function TrendReport({campaign}: {campaign:Campaign}) {
   const areas=campaign.researchCoverage ?? coverageFor(campaign,[]);
   const analysed=areas.filter(a=>a.analysis).length;
   const retrieved=areas.filter(a=>a.evidenceIds.length).length;
-  const attention=campaign.trendGaps.filter(g=>g.needsFounder);
+  const quality=campaign.trendQuality;
+  const attention=quality ? campaign.trendRequests?.filter(r=>r.status==='pending')??[] : campaign.trendGaps.filter(g=>g.needsFounder);
   const recorded=Boolean(campaign.researchAttempts?.length);
-  const draft=recorded ? 'Draft · evidence review pending' : 'No verified research run';
+  const draft=quality ? quality.status==='COMPLETE' ? quality.storedVersion===quality.version ? quality.handedOffAt ? 'Complete · handed to content generation' : 'Complete · stored' : 'Evidence passed · awaiting storage' : campaign.status==='rejected'?'Analysis ended · partial report':'Incomplete · evidence needs review' : recorded ? 'Draft · evidence review pending' : 'No verified research run';
   return <div className="space-y-8">
     <section className="hairline overflow-hidden" aria-label="Trend report overview">
       <div className="border-b border-line bg-paper-2 p-5 md:p-7">
@@ -26,9 +28,10 @@ export function TrendReport({campaign}: {campaign:Campaign}) {
         <p className="mt-3 text-sm text-mute">{recorded ? 'The report below retains results and gaps for every required research area. Retrieval is not evidence approval.' : 'This campaign has no recorded run of the current research workflow. Any existing findings below are legacy or sample material, not a completed research report.'}</p>
         <dl className="mt-5 grid grid-cols-3 gap-3 border-t border-line pt-4">
           <div><dt className="text-xs text-mute">Areas with sources</dt><dd className="mt-1 text-xl">{retrieved} / {areas.length}</dd></div>
-          <div><dt className="text-xs text-mute">Draft assessments</dt><dd className="mt-1 text-xl">{analysed} / {areas.length}</dd></div>
+          <div><dt className="text-xs text-mute">{quality ? 'Areas reviewed' : 'Draft assessments'}</dt><dd className="mt-1 text-xl">{quality ? quality.assessment?.areas.length??0 : analysed} / {areas.length}</dd></div>
           <div><dt className="text-xs text-mute">Needs your input</dt><dd className="mt-1 text-xl">{attention.length}</dd></div>
         </dl>
+        {quality&&<div className="mt-4 rounded-lg border border-line p-3 text-sm"><p>{quality.requiredCategories.filter(c=>c.supported).length} / 7 report categories supported · Version {quality.version}</p><p className="mt-1 text-xs text-mute">{quality.status==='COMPLETE'?'Main findings have passed evidence validation. Disclosed limitations remain part of the report.':'Valid partial findings are retained. Content generation stays blocked until evidence is sufficient and required decisions are resolved.'}</p></div>}
         <nav className="mt-5 flex flex-wrap gap-4 text-sm text-signal" aria-label="Report sections"><a href="#research-areas">Research areas</a><a href="#research-conclusions">Conclusions & recommendations</a><a href="#research-decisions">Your decisions</a></nav>
       </div>
       {Boolean(campaign.researchModelTurns?.length) && <details className="border-b border-line p-5 md:px-7">
@@ -40,13 +43,14 @@ export function TrendReport({campaign}: {campaign:Campaign}) {
         <p className="mt-1 text-sm text-mute">Seasonal and cultural influences are checked separately. Each selected channel has its own assessment.</p>
         <div className="mt-5 grid gap-4 lg:grid-cols-2">
           {areas.map((area,i)=><article className="rounded-xl border border-line p-4" key={`${area.category}:${area.channel ?? ''}`}>
-            <div className="flex items-start justify-between gap-3"><h4 className="font-medium"><span className="mr-2 text-mute">{String(i+1).padStart(2,'0')}</span>{' '}{labels[area.category]}{area.channel ? ` · ${area.channel}` : ''}</h4><span className="shrink-0 text-xs text-signal">{area.analysis ? area.analysis.evidenceIds.length ? 'Draft assessment' : 'Assessed · evidence gap' : area.evidenceIds.length ? 'Sources retrieved' : area.attempts?.length ? 'Blocked / no evidence' : 'Not run'}</span></div>
+            <div className="flex items-start justify-between gap-3"><h4 className="font-medium"><span className="mr-2 text-mute">{String(i+1).padStart(2,'0')}</span>{' '}{labels[area.category]}{area.channel ? ` · ${area.channel}` : ''}</h4><span className="shrink-0 text-xs text-signal">{quality ? quality.researchAreas.find(a=>a.category===area.category&&a.channel===area.channel)?.supported ? 'Evidence supported' : 'Evidence gap' : area.analysis ? area.analysis.evidenceIds.length ? 'Draft assessment' : 'Assessed · evidence gap' : area.evidenceIds.length ? 'Sources retrieved' : area.attempts?.length ? 'Blocked / no evidence' : 'Not run'}</span></div>
             <p className="mt-3 text-sm leading-relaxed">{area.analysis?.summary ?? 'No source-supported assessment is available yet.'}</p>
-            <p className="mt-2 text-xs leading-relaxed text-mute">{area.analysis?.limitation || area.limitation}</p>
+            <p className="mt-2 text-xs leading-relaxed text-mute">{quality ? [quality.researchAreas.find(a=>a.category===area.category&&a.channel===area.channel)?.reason,area.analysis?.limitation].filter(Boolean).join(' ') : area.analysis?.limitation || area.limitation}</p>
             <details className="mt-4 border-t border-line pt-3"><summary className="cursor-pointer text-sm text-signal">Evidence & execution · {area.evidenceIds.length} sources</summary>
               <ul className="mt-3 space-y-2 text-xs text-mute">{(area.attempts ?? []).map((a,index)=><li key={index}>{a.phase === 'agent' ? 'Agent selected · ' : a.phase === 'mandatory' ? 'Coverage check · ' : ''}{a.tool} · {a.status}<p>{a.summary}</p></li>)}{!area.attempts?.length && <li>No execution recorded.</li>}</ul>
               {area.evidenceIds.map(id=>{const e=campaign.evidence.find(source=>source.id===id);return e ? <div className="mt-3 border-t border-line pt-3 text-xs" key={id}>
                 <p className="font-medium">{e.sourceName}</p>{e.sourceName === "WhichGrocer" && <a className="text-signal underline" href="https://www.whichgrocer.com" target="_blank" rel="noreferrer">Product data by WhichGrocer</a>}<p className="mt-1 text-mute">Information date: {e.observedAt ?? 'Unknown'} · Retrieved: {e.fetchedAt}</p>
+                {quality?.evidence.find(r=>r.id===id)&&<p className="mt-2 text-mute">Quality: {quality.evidence.find(r=>r.id===id)!.accepted?'Accepted for supporting findings':'Excluded from support'} · {quality.evidence.find(r=>r.id===id)!.currency}<br/>{quality.evidence.find(r=>r.id===id)!.reason}<br/>{quality.evidence.find(r=>r.id===id)!.exclusions.join(' ')}</p>}
                 <p className="mt-2 break-words leading-relaxed">{e.detail}</p>{/^https?:\/\//.test(e.sourceRef) ? <a className="mt-2 inline-block text-signal underline" href={e.sourceRef} target="_blank" rel="noreferrer">Read source ↗</a>:<p className="mt-2 break-all text-mute">{e.sourceRef}</p>}
               </div>:null;})}
             </details>
@@ -57,9 +61,9 @@ export function TrendReport({campaign}: {campaign:Campaign}) {
 
     <section id="research-conclusions" className="hairline p-5 md:p-7" aria-label="Research conclusions">
       <h3 className="font-serif text-xl">Conclusions & recommendations</h3>
-      <p className="mt-2 text-sm text-mute">{recorded ? 'Draft recommendations require supporting evidence and sufficiency checks before handoff.' : 'Existing sample or legacy recommendations are shown for reference only.'}</p>
+      <p className="mt-2 text-sm text-mute">{quality?.status==='COMPLETE' ? 'Evidence-backed recommendations with the limitations disclosed below.' : recorded ? 'Draft recommendations require supporting evidence and sufficiency checks before handoff.' : 'Existing sample or legacy recommendations are shown for reference only.'}</p>
       <div className="mt-5 grid gap-6 md:grid-cols-2">
-        <div><h4 className="font-medium">Market summary & prioritised findings</h4>{campaign.trendFindings.length ? <ol className="mt-3 space-y-3">{campaign.trendFindings.map(f=><li key={f.id} className="text-sm"><strong>{f.topic}</strong><span className="ml-2 text-xs text-mute">{f.evidenceIds.length ? 'Source cited · review required' : 'Assumption'} · {recorded ? 'Confidence not validated' : `confidence ${f.confidence}%`}</span><p className="mt-1 text-ink-soft">{f.finding}</p><p className="mt-1 text-xs text-mute">{recorded ? 'Relevance review pending' : `Relevance ${f.relevance}%`} · {f.evidenceIds.length} cited records</p><ul className="mt-2 space-y-1 text-xs text-mute">{f.evidenceIds.map(id=>{const e=campaign.evidence.find(source=>source.id===id);return <li key={id}>{e ? <>{e.sourceName} · {e.observedAt ?? 'Date unknown'} · {e.status} {/^https?:\/\//.test(e.sourceRef)&&<a className="text-signal underline" href={e.sourceRef} target="_blank" rel="noreferrer">Read source</a>}</> : 'Source record unavailable'}</li>;})}</ul></li>)}</ol>:<p className="mt-2 text-sm text-mute">Awaiting analysis.</p>}</div>
+        <div><h4 className="font-medium">Market summary & prioritised findings</h4>{campaign.trendFindings.length ? <ol className="mt-3 space-y-3">{campaign.trendFindings.map(f=><li key={f.id} className="text-sm"><strong>{f.topic}</strong><span className="ml-2 text-xs text-mute">{quality ? quality.findings.find(v=>v.id===f.id)?.supported?'Evidence supported':'Assumption / insufficient evidence' : f.evidenceIds.length ? 'Source cited · review required' : 'Assumption'} · {quality ? `${quality.findings.find(v=>v.id===f.id)?.confidence??'unassessed'} confidence` : recorded ? 'Confidence not validated' : `confidence ${f.confidence}%`}</span><p className="mt-1 text-ink-soft">{f.finding}</p><p className="mt-1 text-xs text-mute">{quality ? quality.findings.find(v=>v.id===f.id)?.relevance??'Relevance unassessed' : recorded ? 'Relevance review pending' : `Relevance ${f.relevance}%`} · {f.evidenceIds.length} cited records</p><ul className="mt-2 space-y-1 text-xs text-mute">{f.evidenceIds.map(id=>{const e=campaign.evidence.find(source=>source.id===id);return <li key={id}>{e ? <>{e.sourceName} · {e.observedAt ?? 'Date unknown'} · {e.status} {/^https?:\/\//.test(e.sourceRef)&&<a className="text-signal underline" href={e.sourceRef} target="_blank" rel="noreferrer">Read source</a>}</> : 'Source record unavailable'}</li>;})}</ul></li>)}</ol>:<p className="mt-2 text-sm text-mute">Awaiting analysis.</p>}</div>
         <div className="space-y-5"><div><h4 className="font-medium">Opportunities</h4>{campaign.opportunities.length ? <ol className="mt-2 space-y-2">{campaign.opportunities.map(o=><li key={o.id} className="text-sm"><strong>{o.rank}. {o.title}</strong><p className="text-ink-soft">{o.why}</p></li>)}</ol>:<p className="mt-2 text-sm text-mute">Awaiting evidence-backed opportunities.</p>}</div>
           <div><h4 className="font-medium">Risks & sensitivities</h4><ul className="mt-2 space-y-2 text-sm">{campaign.trendFindings.filter(f=>f.risk).map(f=><li key={f.id}>{f.risk}</li>)}{!campaign.trendFindings.some(f=>f.risk)&&<li className="text-mute">No risk assessment recorded. This does not mean no risks exist.</li>}</ul></div>
           <div><h4 className="font-medium">Recommended theme</h4><p className="mt-2 text-sm text-ink-soft">{campaign.brief?.angle || 'Awaiting supported theme recommendations.'}</p></div>
@@ -72,7 +76,7 @@ export function TrendReport({campaign}: {campaign:Campaign}) {
     <section id="research-decisions" className="hairline border-l-4 border-l-signal p-5 md:p-7" aria-label="Research decisions">
       <div className="flex flex-wrap justify-between gap-2"><h3 className="font-serif text-xl">Needs your attention</h3><span className="status-chip status-wait">{attention.length} research requests</span></div>
       <p className="mt-2 text-sm text-mute">A decision may allow further research or clarify the brief. It cannot certify unsupported findings or authorise publication.</p>
-      {attention.length ? <ul className="mt-5 space-y-4">{attention.map(g=><li key={g.id} className="rounded-xl border border-line p-4">
+      {quality ? <ResearchDecisions campaign={campaign}/> : attention.length ? <ul className="mt-5 space-y-4">{campaign.trendGaps.filter(g=>g.needsFounder).map(g=><li key={g.id} className="rounded-xl border border-line p-4">
         <h4 className="font-medium">{g.kind==='missing_source' ? 'More evidence needed' : g.kind==='conflict' ? 'Conflicting evidence needs review' : 'Evidence quality needs review'}</h4>
         <dl className="mt-3 space-y-2 text-sm"><div><dt className="font-medium">Why you are seeing this</dt><dd className="text-ink-soft">{g.detail}</dd></div><div><dt className="font-medium">What is affected</dt><dd className="text-ink-soft">{g.effect}</dd></div><div><dt className="font-medium">Next action</dt><dd className="text-ink-soft">{g.kind==='missing_source' ? 'Check source access in Settings or provide an authorised aggregate export below, then request another research run.' : 'Review the cited sources and record clarification with the project owner. This request stays open until the research workflow reassesses the evidence.'}</dd></div></dl>
         <p className="mt-3 text-xs text-mute">Awaiting evidence / assessment · approval cannot clear this automatically.</p>
