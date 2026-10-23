@@ -147,6 +147,11 @@ export default function CampaignWorkspace() {
               {campaign.product} · {campaign.targetAudience} ·{" "}
               {campaign.country}
             </p>
+            {campaign.imageRevisionNote && campaign.complianceReports.length > 0 ? (
+              <p className="mt-2 max-w-xl text-sm text-ink-soft">
+                The pictures were revised after the compliance report. Check the new images before approving.
+              </p>
+            ) : null}
           </div>
           <div className="flex flex-wrap items-center gap-2 md:pt-1">
             {canLaunch ? (

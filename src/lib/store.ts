@@ -4,6 +4,8 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { makeCreatives } from "./creatives";
 import { uid } from "./ids";
+import { getByoKey } from "./media/byo-key";
+import { getModel } from "./media/catalog";
 import { requestGenerate } from "./media/client";
 import { fallbackBrief, posterRequest, videoPrompt } from "./media/prompts";
 import { blankCampaign, defaultBrand, makeLog, migrateLegacyBrand, seedCampaigns } from "./seed";
@@ -82,6 +84,8 @@ type Store = {
   resetDemo: () => void;
   setStudio: (id: string, patch: Partial<Pick<Campaign, "videoDurationSec" | "spendCapUsd">>) => void;
   generatePosters: (id: string) => Promise<void>;
+  /** Edit the posters already generated, using the founder's description of the mistake. */
+  revisePosters: (id: string, note: string) => Promise<{ ok: true; message: string } | { ok: false; error: string }>;
   generateAdVideo: (id: string) => Promise<void>;
 };
 
@@ -415,6 +419,49 @@ export const useAisle = create<Store>()(
           } finally {
             set((s) => ({
               campaigns: s.campaigns.map((c) => (c.id === id ? { ...c, studioBusy: null } : c)),
+            }));
+          }
+        },
+
+        revisePosters: async (id, note) => {
+          const campaign = get().campaigns.find((c) => c.id === id);
+          if (!campaign) return { ok: false, error: "Campaign not found." };
+          set((s) => ({
+            campaigns: s.campaigns.map((c) => (c.id === id ? { ...c, studioBusy: "posters" } : c)),
+          }));
+          try {
+            const headers: Record<string, string> = { "Content-Type": "application/json" };
+            try {
+              const key = getByoKey(getModel(campaign.imageModelId || get().settings.imageModelId).providerId);
+              if (key) headers["x-provider-key"] = key;
+            } catch {
+              // A missing catalogue entry still lets the server use its own key.
+            }
+            const res = await fetch("/api/studio/revise", {
+              method: "POST",
+              headers,
+              body: JSON.stringify({ campaignId: id, note }),
+            });
+            const json = (await res.json().catch(() => null)) as {
+              campaign?: Campaign;
+              error?: string;
+              message?: string;
+            } | null;
+            if (!res.ok || !json?.campaign) {
+              return { ok: false, error: json?.error ?? "The pictures could not be revised." };
+            }
+            const next = json.campaign;
+            set((s) => ({
+              campaigns: s.campaigns.map((c) => (c.id === id ? { ...next, studioBusy: null } : c)),
+            }));
+            return { ok: true, message: json.message ?? "Pictures revised." };
+          } catch {
+            return { ok: false, error: "The pictures could not be revised." };
+          } finally {
+            set((s) => ({
+              campaigns: s.campaigns.map((c) =>
+                c.id === id && c.studioBusy === "posters" ? { ...c, studioBusy: null } : c,
+              ),
             }));
           }
         },

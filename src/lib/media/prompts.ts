@@ -40,7 +40,11 @@ export function productScene(product: string, category: string, notes = ""): str
   return "Show an appealing adult using this exact product in the situation that would make someone buy it. Keep its shape, colour and markings recognisable. The person is not a named real person, and never a child.";
 }
 
-export function posterPrompt(campaign: Campaign, creative: Creative) {
+export function posterPrompt(
+  campaign: Campaign,
+  creative: Creative,
+  options?: { correction?: string; editing?: boolean },
+) {
   const brief = campaign.brief;
   const scene =
     creative.prompt?.trim() ||
@@ -58,7 +62,7 @@ export function posterPrompt(campaign: Campaign, creative: Creative) {
         "Do not depict a named real person, and do not replace the product with a different one.",
       ].join(" ")
     : "No product photo was supplied. Illustrate this exact product from the brief, not a generic category scene.";
-  return [
+  const base = [
     "Retail advertisement, 4:5, print quality.",
     reference,
     `Brand: ${campaign.sharedContext.retailer}.`,
@@ -71,15 +75,26 @@ export function posterPrompt(campaign: Campaign, creative: Creative) {
   ]
     .filter(Boolean)
     .join(" ");
+  const correction = options?.correction?.trim();
+  if (!correction) return base;
+  const lead = options?.editing
+    ? "Edit the supplied advertisement. Keep the product, the people, the headline and the layout. Fix only this mistake, and make the action physically possible:"
+    : "Draw the advertisement again. Fix this mistake, and make the action physically possible:";
+  return [lead, correction, base].join(" ");
 }
 
 /** The image request for one poster, including the product photo when the founder uploaded one. */
-export function posterRequest(campaign: Campaign, creative: Creative, modelId: string): GenerateRequest {
+export function posterRequest(
+  campaign: Campaign,
+  creative: Creative,
+  modelId: string,
+  options?: { correction?: string },
+): GenerateRequest {
   const reference = campaign.productImageUrl ? [campaign.productImageUrl] : undefined;
   return {
     kind: "image",
     modelId,
-    prompt: posterPrompt(campaign, creative),
+    prompt: posterPrompt(campaign, creative, { correction: options?.correction }),
     aspectRatio: "4:5",
     quality: "medium",
     inputFidelity: reference ? "high" : undefined,
