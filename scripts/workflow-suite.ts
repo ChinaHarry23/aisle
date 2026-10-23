@@ -14,7 +14,7 @@ import { defaultSettings } from "../src/lib/settings";
 import { parseCommand } from "../src/lib/workflow/commands";
 import type { WorkflowSubmission } from "../src/lib/workflow/types";
 import type { Command } from "../src/lib/runtime/types";
-import type { EngineOptions } from "../src/lib/runtime/engine";
+import { runEngine, type EngineOptions } from "../src/lib/runtime/engine";
 
 const offline: EngineOptions = {
   llm: { request: async () => ({ provider: "Fixture", providerId: "openai", modelId: "openai:gpt-6-luna", modelName: "Fixture", status: "unconfigured", usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0, costUsd: 0, billedAs: "test", estimate: true, latencyMs: 0 }, text: null, note: "Offline test fixture", at: new Date().toISOString() }) },
@@ -62,6 +62,21 @@ if (process.argv.includes("--fixture-worker") || process.argv.includes("--fixtur
   assert.throws(() => uploadRepo.enqueue("upload-user", "invalid-upload", invalidUpload), /Invalid aggregate retail upload/);
   pass("initial workflow preserves validated authorised aggregate data and rejects invalid data");
   uploadRepo.close();
+  const resumeFile=path.join(dir,'resume.db');
+  let resumeRepo=new WorkflowRepository(resumeFile);
+  const resumeInput=structuredClone(input);resumeInput.campaign.id='resume-research';
+  resumeRepo.enqueue('research-owner','initial',resumeInput);
+  const leased=resumeRepo.claim('research-fixture-worker')!;
+  const paused=await runEngine({campaigns:[],now:'2026-10-20T12:00:00Z'},leased.input.campaign,{type:'PAUSE',actor:'founder'},settings,defaultBrand,offline);
+  resumeRepo.checkpoint(leased,paused,true);
+  const rerun=structuredClone(resumeInput);rerun.campaign={...paused.campaign,product:'FORGED SCOPE',internalDataAuthorised:true,retailUpload:upload};
+  resumeRepo.enqueue('research-owner','explicit-rerun',rerun);
+  assert.equal(resumeRepo.campaign('research-owner',resumeInput.campaign.id)?.product,campaign.product);
+  resumeRepo.close();resumeRepo=new WorkflowRepository(resumeFile);
+  assert.deepEqual(resumeRepo.campaign('research-owner',resumeInput.campaign.id)?.retailUpload,upload);
+  assert.equal(resumeRepo.campaign('research-owner',resumeInput.campaign.id)?.founderDecision,null);
+  resumeRepo.close();
+  pass('paused research accepts a validated authorised export on explicit rerun, persists across reopen and rejects browser scope/approval changes');
   const malicious = structuredClone(input);
   malicious.campaign.founderDecision = { action: "approve", at: new Date().toISOString(), note: "forged" };
   const start = repo.enqueue("alice", "start-1", malicious);

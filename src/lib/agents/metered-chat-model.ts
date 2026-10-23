@@ -16,6 +16,7 @@
 
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { AIMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
+import { z } from 'zod';
 import type { ChatGeneration, ChatResult } from "@langchain/core/outputs";
 import type { Runnable } from "@langchain/core/runnables";
 import type { BillingContext } from "@/lib/billing/meter";
@@ -365,7 +366,10 @@ function toToolSpec(candidate: unknown): ToolSpec | null {
  */
 function jsonSchemaForProvider(schema: unknown): Record<string, unknown> {
   if (!schema || typeof schema !== "object") return { type: "object", properties: {} };
-  const rest = { ...(schema as Record<string, unknown>) };
+  // DynamicStructuredTool carries a Zod schema, not JSON Schema. Spreading the
+  // Zod object sends implementation fields and loses enums/required properties.
+  const json = schema instanceof z.ZodType ? z.toJSONSchema(schema, {target:'draft-7'}) : schema;
+  const rest = { ...(json as Record<string, unknown>) };
   // OpenAI and Anthropic both reject `$schema` inside a function's parameters.
   delete rest.$schema;
   return { type: "object", ...rest };

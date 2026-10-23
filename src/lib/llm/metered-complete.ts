@@ -13,6 +13,7 @@ import { callLlm, isLlmConfigured, systemFor } from "./adapters";
 import { getLlmOrDefault } from "./catalog";
 import { estimateLlmUsage, llmCostUsd, usageFromProvider, worstCaseUsd } from "./estimate";
 import { parseToolArgs } from "@/lib/pr2-shims";
+import { traceable } from "langsmith/traceable";
 import { stubComplete } from "./stub";
 import type { CompleteRequest, CompleteResult, LlmModel, ToolCall } from "./types";
 
@@ -93,9 +94,22 @@ export async function runComplete(req: CompleteRequest, billing?: BillingContext
       outputTokens?: number;
       toolCalls?: ToolCall[];
     } =
-      active.tools?.length || active.history?.length
-        ? await callLlmWithTools(model, active)
-        : await callLlm(model, active);
+      model.providerId === "openai" && (active.direct || active.webSearch || active.images?.length)
+        ? await traceable((m: LlmModel, r: CompleteRequest) =>
+            m.toolApi === "responses" ? callOpenAIResponses(m, r) : callOpenAIChatTools(m, r), {
+            name: active.purpose === "intake"
+              ? "intake.chat"
+              : active.webSearch
+                ? "trend.web_search"
+                : active.images?.length
+                  ? "compliance.vision"
+                  : `${active.agent}.openai`,
+            run_type: "llm",
+            metadata: { model: model.apiModel, webSearch: Boolean(active.webSearch) },
+          })(model, active)
+        : active.tools?.length || active.history?.length
+          ? await callLlmWithTools(model, active)
+          : await callLlm(model, active);
     const latencyMs = Date.now() - started;
     const reported = live.inputTokens != null && live.outputTokens != null;
     const usage = reported
@@ -182,6 +196,14 @@ function openAIMessages(req: CompleteRequest): Record<string, unknown>[] {
   }
   if (req.lastTurnIsToolResult) {
     messages.push({ role: "tool", tool_call_id: req.toolCallId, content: req.prompt });
+  } else if (req.images?.length) {
+    messages.push({
+      role: "user",
+      content: [
+        { type: "text", text: req.prompt },
+        ...req.images.map((url) => ({ type: "image_url", image_url: { url } })),
+      ],
+    });
   } else {
     messages.push({ role: "user", content: req.prompt });
   }
@@ -228,7 +250,15 @@ async function callOpenAIChatTools(model: LlmModel, req: CompleteRequest) {
     reasoning_effort: "none",
     ...(req.maxOutputTokens !== undefined ? { max_completion_tokens: req.maxOutputTokens } : {}),
     messages: openAIMessages(req),
-    ...(req.tools?.length ? { tools: openAITools(req) } : {}),
+    ...(req.tools?.length ? { tools: openAITools(req), ...(req.toolChoice ? {tool_choice:req.toolChoice} : {}) } : {}),
+    ...(req.responseSchema
+      ? {
+          response_format: {
+            type: "json_schema",
+            json_schema: { name: req.responseSchema.name, strict: true, schema: req.responseSchema.schema },
+          },
+        }
+      : {}),
   });
   const message = (json.choices as { message?: { content?: string; tool_calls?: { id?: string; function?: { name?: string; arguments?: string } }[] } }[] | undefined)?.[0]?.message;
   const usage = json.usage as { prompt_tokens?: number; completion_tokens?: number } | undefined;
@@ -256,31 +286,52 @@ async function callOpenAIResponses(model: LlmModel, req: CompleteRequest) {
     }
   }
   if (req.lastTurnIsToolResult) input.push({ type: "function_call_output", call_id: req.toolCallId, output: req.prompt });
-  else input.push({ role: "user", content: req.prompt });
+  else if (req.images?.length) {
+    input.push({
+      role: "user",
+      content: [
+        { type: "input_text", text: req.prompt },
+        ...req.images.map((url) => ({ type: "input_image", image_url: url })),
+      ],
+    });
+  } else input.push({ role: "user", content: req.prompt });
 
+  const tools = [
+    ...(req.webSearch ? [{ type: "web_search" }] : []),
+    ...(req.tools ?? []).map((tool) => ({
+      type: "function",
+      name: tool.name,
+      description: tool.description,
+      parameters: tool.parameters,
+    })),
+  ];
   const json = await postOpenAI("/responses", {
     model: model.apiModel,
     input,
     reasoning: { effort: model.effort ?? "low" },
     ...(req.maxOutputTokens !== undefined ? { max_output_tokens: req.maxOutputTokens } : {}),
-    ...(req.tools?.length
+    ...(tools.length ? { tools, ...(req.toolChoice ? {tool_choice:req.toolChoice} : {}) } : {}),
+    ...(req.responseSchema
       ? {
-          tools: req.tools.map((tool) => ({
-            type: "function",
-            name: tool.name,
-            description: tool.description,
-            parameters: tool.parameters,
-          })),
+          text: {
+            format: {
+              type: "json_schema",
+              name: req.responseSchema.name,
+              strict: true,
+              schema: req.responseSchema.schema,
+            },
+          },
         }
       : {}),
   });
-  const output = (json.output as { type?: string; call_id?: string; name?: string; arguments?: string; content?: { type?: string; text?: string }[] }[]) ?? [];
-  const text = output
-    .filter((item) => item.type === "message")
-    .flatMap((item) => item.content ?? [])
+  const output = (json.output as { type?: string; call_id?: string; name?: string; arguments?: string; text?: string; content?: { type?: string; text?: string }[] }[]) ?? [];
+  const nested = output
+    .filter((item) => item.type === "message" || item.type === "output_text")
+    .flatMap((item) => item.content ?? (item.text ? [{ type: "output_text", text: item.text }] : []))
     .filter((part) => part.type === "output_text" && part.text)
     .map((part) => part.text)
     .join("");
+  const text = nested || (typeof json.output_text === "string" ? json.output_text : "");
   const toolCalls: ToolCall[] = output
     .filter((item) => item.type === "function_call" && item.name)
     .map((item, index) => ({
@@ -297,7 +348,23 @@ async function callOpenAIResponses(model: LlmModel, req: CompleteRequest) {
   };
 }
 
-async function callLlmWithTools(
+/** Provider-safe aliases must also round-trip through assistant/tool history. */
+async function callLlmWithTools(model: LlmModel, req: CompleteRequest) {
+  if (model.providerId === "local") return callProviderTools(model, req);
+  const aliases = new Map((req.tools ?? []).map(t => [t.name, t.name.replace(/[^a-zA-Z0-9_-]/g, c => `_${c.charCodeAt(0).toString(16)}_`)]));
+  if (new Set(aliases.values()).size !== aliases.size || [...aliases.values()].some(name => name.length > 64)) throw Error('Tool alias collision or unsupported length.');
+  // A collection phase may narrow the current tool list. Earlier calls still
+  // need the same provider-safe names in history even when no longer offered.
+  const wireName = (name: string) => aliases.get(name) ?? name.replace(/[^a-zA-Z0-9_-]/g, c => `_${c.charCodeAt(0).toString(16)}_`);
+  const wire: CompleteRequest = {...req, tools:req.tools?.map(t => ({...t,name:wireName(t.name)})),
+    history:req.history?.map(turn => turn.role === 'assistant' ? {...turn,toolCalls:turn.toolCalls?.map(call => ({...call,name:wireName(call.name)}))}
+      : turn.role === 'tool' ? {...turn,...(turn.name ? {name:wireName(turn.name)} : {})} : turn)};
+  const result = await callProviderTools(model, wire);
+  const originals = new Map([...aliases].map(([original,alias]) => [alias,original]));
+  return {...result, ...(result.toolCalls ? {toolCalls:result.toolCalls.map(call => ({...call,name:originals.get(call.name) ?? call.name}))} : {})};
+}
+
+async function callProviderTools(
   model: LlmModel,
   req: CompleteRequest,
 ): Promise<{ text: string; inputTokens?: number; outputTokens?: number; toolCalls?: ToolCall[] }> {

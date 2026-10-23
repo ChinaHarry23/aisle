@@ -117,6 +117,19 @@ export class WorkflowRepository {
         this.db.prepare("insert into workflow_campaigns(user_id,campaign_id,snapshot) values(?,?,?) on conflict(user_id,campaign_id) do update set snapshot=excluded.snapshot").run(user, current.id, JSON.stringify(current));
       }
       // These are explicit founder-controlled settings, never generated results or approvals.
+      // A paused research job can receive a new aggregate export on explicit
+      // START. Preserve the durable scope/results; import only validated inputs.
+      if (command.type === 'START' && current.status === 'paused') {
+        if (input.campaign.internalDataAuthorised === true && input.campaign.retailUpload !== undefined) {
+          const retail=retailUploadSchema.safeParse(input.campaign.retailUpload);
+          if(!retail.success)throw new WorkflowError('Invalid aggregate retail upload.');
+          current.retailUpload=retail.data;
+          current.internalDataAuthorised=true;
+        } else if (input.campaign.internalDataAuthorised === false) {
+          current.internalDataAuthorised=false;
+          current.retailUpload=undefined;
+        }
+      }
       if (Number.isFinite(input.campaign.spendCapUsd) && input.campaign.spendCapUsd! > 0) current.spendCapUsd = input.campaign.spendCapUsd;
       if (command.type === "COLLECT_FEEDBACK") {
         const valid = ["ok", "no_data", "not_authorised", "late", "incomplete", "excluded"];

@@ -7,7 +7,7 @@ import { RESEARCH_CATEGORIES, sourcePermitted, unavailable, type ResearchCategor
 export const RESEARCH_TOOL_IDS = ['web.search', 'web.scrape_page', 'web.search_trends', 'stats.abs_spending', 'calendar.public_holidays', 'web.historical_weather', 'retail.specials', 'retail.price_stats'] as const;
 const categorySchema = z.enum(RESEARCH_CATEGORIES);
 const querySchema = z.object({ category: categorySchema, channel: z.string().max(40).optional() }).strict();
-const sourceHosts = ['abs.gov.au', 'aihw.gov.au', 'accc.gov.au', 'bom.gov.au', 'australia.com', 'visitnsw.com', 'nagerholidays.com', 'business.gov.au', 'thinkwithgoogle.com', 'business.instagram.com', 'facebook.com', 'meta.com', 'support.google.com', 'developers.google.com', 'mailchimp.com', 'coles.com.au', 'woolworths.com.au', 'aldi.com.au', 'iga.com.au', 'stats.govt.nz', 'ons.gov.uk', 'census.gov'];
+export const sourceHosts = ['abs.gov.au', 'aihw.gov.au', 'accc.gov.au', 'bom.gov.au', 'australia.com', 'visitnsw.com', 'nagerholidays.com', 'business.gov.au', 'thinkwithgoogle.com', 'business.instagram.com', 'facebook.com', 'meta.com', 'support.google.com', 'developers.google.com', 'mailchimp.com', 'coles.com.au', 'woolworths.com.au', 'aldi.com.au', 'iga.com.au', 'stats.govt.nz', 'ons.gov.uk', 'census.gov'];
 export function publicSourceUrl(raw: string): string | null {
   try { const url = new URL(raw); const hosts = [...sourceHosts, ...(process.env.TREND_SOURCE_DOMAINS ?? '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean)];
     if (/^[\d.]+$/.test(url.hostname) || url.hostname.includes(':') || !url.hostname.includes('.') || /\.(local|localhost|internal|test)$/.test(url.hostname) || url.protocol !== 'https:' || url.username || url.password || (url.port && url.port !== '443') || url.search || url.hash || !hosts.some(h => url.hostname === h || url.hostname.endsWith('.'+h))) return null;
@@ -64,6 +64,7 @@ const scrapeTool=define('web.scrape_page','Firecrawl read an allowlisted origina
     const raw=await boundedResponse(response);
     const text=redact(raw.replace(/<(script|style|noscript)\b[^>]*>[\s\S]*?<\/\1>/gi,' ').replace(/<[^>]+>/g,' ').replace(/&nbsp;|&#160;/g,' ').replace(/&amp;/g,'&').replace(/\s+/g,' ').trim());
     if(!text)return unavailable('No readable public text.');
+    if(/incapsula incident id|request unsuccessful|access denied|verify (?:that )?you are (?:a )?human|enable javascript and cookies to continue/i.test(text.slice(0,1200)))return unavailable('Public source returned an access challenge, not research content.');
     const evidence=[item(input,input.args.category as ResearchCategory,'Public source text',url,text,null,{channel:input.args.channel,transformation:'Bounded public HTML/plain text; scripts and styles removed. First 2400 characters only; publication date unknown.'})];
     return result(evidence,{sources:evidence},'Public text retrieved directly; relevance and publication date require review.');
   }
@@ -71,6 +72,7 @@ const scrapeTool=define('web.scrape_page','Firecrawl read an allowlisted origina
   const data=record(response.data),metadata=record(data.metadata);const finalUrl=publicSourceUrl(String(metadata.sourceURL??url));
   if(!finalUrl || new URL(finalUrl).hostname!==new URL(url).hostname)return unavailable('Redirected source rejected.','skipped');
   const content=typeof data.markdown==='string'?data.markdown:'';if(!content)return unavailable('Source has no readable content.');
+  if(/incapsula incident id|request unsuccessful|access denied|verify (?:that )?you are (?:a )?human|enable javascript and cookies to continue/i.test(content.slice(0,1200)))return unavailable('Extractor returned an access challenge, not research content.');
   const evidence=[item(input,input.args.category as ResearchCategory,'Firecrawl Scrape',finalUrl,content,date(metadata.publishedTime??metadata['article:published_time']),{channel:input.args.channel,transformation:'First 2400 characters; not the full report. Assess sampling and methodology.'})];
   return result(evidence,{sources:evidence},'Original public text retrieved; publication date remains unknown when absent.');
 });

@@ -20,7 +20,7 @@ SerpApi and WhichGrocer require their own access for their specialised data. Goo
 
 ## Report and completion
 
-Campaign data stores `researchAttempts`, `researchCoverage`, evidence IDs, and optional per-category `researchAnalysis`. The report displays each area even for old runs with no execution record, each attempted tool/result, source text/URL, retrieval time, information date or unknown, and limitations. A unique analysis with category-matching returned citation IDs is required before displaying a draft assessment. Invalid/omitted/cross-category citations cannot populate it. This syntactic check does not certify semantic support.
+Campaign data stores `researchAttempts`, `researchCoverage`, evidence IDs, and optional per-category `researchAnalysis`. The report displays each area even for old runs with no execution record, each attempted tool/result, source text/URL, retrieval time, information date or unknown, and limitations. A unique analysis with category-matching returned citation IDs can populate a draft assessment. An explicit no-citation limitation can be displayed only as an assessed evidence gap. Invalid or cross-category citation IDs are rejected; general market assessments do not acquire a separate channel dimension merely because the model repeats the selected channel. This syntactic check does not certify semantic support.
 
 The research decision receives the collected records and is instructed to return every category/channel. Missing model access or omitted analysis leaves an explicit incomplete area. TA-04 evidence sufficiency and TA-05/06 prioritisation/final synthesis remain separate acceptance work. This implementation conservatively retains PARTIAL and blocks creative handoff; it does not pretend all of AHR-02 is complete.
 
@@ -30,7 +30,7 @@ An authenticated import endpoint and Trends-panel consent/upload control accept 
 
 ## Bounds and configuration
 
-Maximum 32 uncached tool attempts, six model turns, 24,000-token conservative envelope and 180 seconds checked before each action. In-flight requests have their own timeout; the run timer does not forcibly abort an already-running model request. Source policy, pause, argument schema, campaign remaining budget and same-run cache are checked by application code.
+Maximum 32 uncached tool attempts, six model turns, 48,000-token conservative envelope (including a conservative reservation for the next request and 4,000 output tokens) and 180 seconds checked before each action. In-flight requests have their own timeout; the run timer does not forcibly abort an already-running model request. Source policy, pause, argument schema, campaign remaining budget and same-run cache are checked by application code.
 
 Provider prices are not invented. Configure conservative per-call USD charges in `TREND_PROVIDER_SEARCH_MAX_USD`, `TREND_FIRECRAWL_SEARCH_MAX_USD`, `TREND_FIRECRAWL_SCRAPE_MAX_USD`, `TREND_SERPAPI_MAX_USD`, and `TREND_WHICHGROCER_MAX_USD` for paid paths being used. `TREND_RESEARCH_MAX_USD` bounds research charges. Provider-search conservative charges include possible model/search service fees and may apply even after an ambiguous failed response; this is an estimate, not the provider invoice. Keys remain server-side. Missing settings create explicit blocked records, never fabricated evidence.
 
@@ -53,8 +53,11 @@ prioritised findings, opportunities, risks, themes, visual directions and limita
 The separate attention section states why input is needed, its impact and next actions.
 Advertising approval links explicitly target the compliance tab; a research gap is
 never cleared by an advertising approval or by UI counters. The current data model
-has no certified COMPLETE report state or durable research decision-resolution
-contract, so the UI labels draft/not-run honestly. TA-04/09 acceptance remains open.
+has no certified COMPLETE report state or evidence-waiver approval. The UI labels draft/not-run honestly. A paused campaign can explicitly rerun research after a validated authorised export is attached; durable workflow storage preserves that input without accepting browser changes to approved scope or runtime results. TA-04/09 sufficiency and broader decision acceptance remain separate.
 
 These UI requirements were appended to existing SCRUM-29 (TA-03), preserving its
 previous description, parent SCRUM-14, and In Progress status. No other issue changed.
+
+## Agent routing repair — 23 October 2026
+
+DynamicStructuredTool Zod schemas are converted to actual JSON Schema before transport, retaining enum values, required arguments and strict object keys. The initial coverage pass performs one scoped request per area/channel; the model selects original-page and specialist follow-up tools itself. Collection offers only real external tools with required tool choice until two distinct types execute. Assessment then offers the final schema without more research tools. Primitive numeric/string formatting is normalised before LangChain validation; unknown keys and invalid enum values are still rejected. Per-turn offered/selected tool names, validation outcomes and usage are recorded without private prompt contents. Full source outcomes remain in the engine, while feedback to the model is bounded and does not duplicate the same data as evidence. Unvalidated findings do not inherit fixed confidence percentages from the legacy path.

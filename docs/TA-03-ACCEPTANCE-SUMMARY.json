@@ -1,0 +1,198 @@
+{
+  "verifiedAt": "2026-10-23T08:22:23.646Z",
+  "mode": "Real model and public tools; synthetic campaign inputs; no advertising generation or publication",
+  "cases": [
+    {
+      "product": "Apple juice",
+      "category": "Grocery",
+      "model": "openai:gpt-6-luna",
+      "channels": [
+        "web"
+      ],
+      "checks": {
+        "allAreasAttempted": true,
+        "allAreasAssessed": true,
+        "twoAgentToolTypes": true,
+        "twoToolTypesCited": true,
+        "validToolArguments": true,
+        "safePartial": true,
+        "liveModel": true
+      },
+      "retrievedCandidates": 51,
+      "assessments": 8,
+      "status": "paused",
+      "estimatedInferenceUsd": 0.40113,
+      "modelTurns": [
+        {
+          "turn": 1,
+          "phase": "collection",
+          "offeredTools": [
+            "web.season_weather",
+            "web.shelf_prices",
+            "web.search",
+            "web.scrape_page",
+            "web.search_trends",
+            "calendar.public_holidays",
+            "web.historical_weather",
+            "stats.abs_spending",
+            "retail.specials",
+            "retail.price_stats"
+          ],
+          "selectedTools": [
+            "web.scrape_page",
+            "web.scrape_page",
+            "calendar.public_holidays"
+          ],
+          "status": "ok",
+          "modelId": "openai:gpt-6-luna",
+          "tokens": 2508,
+          "invalidTools": []
+        },
+        {
+          "turn": 2,
+          "phase": "assessment",
+          "offeredTools": [
+            "extract-2"
+          ],
+          "selectedTools": [
+            "extract-2"
+          ],
+          "status": "ok",
+          "modelId": "openai:gpt-6-luna",
+          "tokens": 3783,
+          "invalidTools": []
+        }
+      ],
+      "agentCalls": [
+        {
+          "tool": "web.scrape_page",
+          "category": "current_market",
+          "status": "ok",
+          "evidenceIds": [
+            "ev_13qt29y4hk"
+          ],
+          "citedEvidenceIds": [
+            "ev_13qt29y4hk"
+          ],
+          "sourceUrls": [
+            "https://www.abs.gov.au/statistics/health/food-and-nutrition/consumption-food-groups-australian-dietary-guidelines/latest-release"
+          ]
+        },
+        {
+          "tool": "web.scrape_page",
+          "category": "competitor",
+          "status": "empty",
+          "evidenceIds": [],
+          "citedEvidenceIds": [],
+          "sourceUrls": []
+        },
+        {
+          "tool": "calendar.public_holidays",
+          "category": "cultural",
+          "status": "ok",
+          "evidenceIds": [
+            "ev_1jek0j04li"
+          ],
+          "citedEvidenceIds": [
+            "ev_1jek0j04li"
+          ],
+          "sourceUrls": [
+            "https://nagerholidays.com/api/v3/publicholidays/2026/AU"
+          ]
+        }
+      ]
+    },
+    {
+      "product": "Rain jacket",
+      "category": "Apparel",
+      "model": "openai:gpt-6-luna",
+      "channels": [
+        "email"
+      ],
+      "checks": {
+        "allAreasAttempted": true,
+        "allAreasAssessed": true,
+        "twoAgentToolTypes": true,
+        "twoToolTypesCited": true,
+        "validToolArguments": true,
+        "safePartial": true,
+        "liveModel": true
+      },
+      "retrievedCandidates": 63,
+      "assessments": 8,
+      "status": "paused",
+      "estimatedInferenceUsd": 0.40115,
+      "modelTurns": [
+        {
+          "turn": 1,
+          "phase": "collection",
+          "offeredTools": [
+            "web.season_weather",
+            "web.shelf_prices",
+            "web.search",
+            "web.scrape_page",
+            "web.search_trends",
+            "calendar.public_holidays",
+            "web.historical_weather",
+            "stats.abs_spending",
+            "retail.specials",
+            "retail.price_stats"
+          ],
+          "selectedTools": [
+            "web.scrape_page",
+            "calendar.public_holidays"
+          ],
+          "status": "ok",
+          "modelId": "openai:gpt-6-luna",
+          "tokens": 2487,
+          "invalidTools": []
+        },
+        {
+          "turn": 2,
+          "phase": "assessment",
+          "offeredTools": [
+            "extract-4"
+          ],
+          "selectedTools": [
+            "extract-4"
+          ],
+          "status": "ok",
+          "modelId": "openai:gpt-6-luna",
+          "tokens": 3770,
+          "invalidTools": []
+        }
+      ],
+      "agentCalls": [
+        {
+          "tool": "web.scrape_page",
+          "category": "historical_market",
+          "status": "ok",
+          "evidenceIds": [
+            "ev_uvcf0wmv7w"
+          ],
+          "citedEvidenceIds": [
+            "ev_uvcf0wmv7w"
+          ],
+          "sourceUrls": [
+            "https://www.abs.gov.au/articles/retail-trade-journey-through-75-years-retail-statistics"
+          ]
+        },
+        {
+          "tool": "calendar.public_holidays",
+          "category": "cultural",
+          "status": "ok",
+          "evidenceIds": [
+            "ev_hdfz967vfd"
+          ],
+          "citedEvidenceIds": [
+            "ev_hdfz967vfd"
+          ],
+          "sourceUrls": [
+            "https://nagerholidays.com/api/v3/publicholidays/2026/AU"
+          ]
+        }
+      ]
+    }
+  ],
+  "noCredentialCase": "Passing normal-runtime regression: no outbound request, zero inference spend, explicit category gaps, no handoff"
+}

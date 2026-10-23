@@ -3,7 +3,7 @@ import { importRetailCsv, internalRetailOutcome } from '../src/lib/trend/interna
 import { blankCampaign, defaultBrand } from '../src/lib/seed';
 import { defaultSettings } from '../src/lib/settings';
 import { researchTools, publicSourceUrl, parseCsv, boundedResponse } from '../src/lib/trend/source-tools';
-import { createTrendResearch, researchEnabled } from '../src/lib/agents/trend-research';
+import { createTrendResearch, researchEnabled, researchModelResult } from '../src/lib/agents/trend-research';
 import { createServerResearchRuntime } from '../src/lib/agents/trend-server';
 import { runEngine } from '../src/lib/runtime/engine';
 import { stubComplete } from '../src/lib/llm/stub';
@@ -59,6 +59,8 @@ try{
  delete process.env.FIRECRAWL_API_KEY;
  globalThis.fetch=async()=>new Response('<html><script>unsafe()</script><p>Public retail survey</p></html>',{headers:{'Content-Type':'text/html'}});
  const direct=await tool('web.scrape_page').run({...base,args:{url:'https://www.abs.gov.au/statistics/example',category:'purchase_preference'}});
+ globalThis.fetch=async()=>new Response('<html>Request unsuccessful. Incapsula incident ID: 1234</html>',{headers:{'Content-Type':'text/html'}});
+ assert.equal((await tool('web.scrape_page').run({...base,args:{url:'https://www.coles.com.au/product/123',category:'competitor'}})).evidence.length,0);
  assert.equal(direct.status,'ok');assert.ok(!direct.evidence[0].detail.includes('unsafe'));assert.equal(direct.evidence[0].observedAt,null);
  process.env.FIRECRAWL_API_KEY='synthetic-key';
  pass('authorised aggregate CSV preserves file hash and weekly totals, excludes SKU/customer data; direct public extraction works without Firecrawl');
@@ -76,9 +78,10 @@ try{
  const traces:unknown[]=[];
  for(const scenario of ['grocery','apparel']){
   let turn=0;const selected:string[]=[];const toolResults:string[]=[];
-  globalThis.fetch=async(url)=>String(url).includes('nagerholidays')?Response.json([]):Response.json({data:{web:[{url:'https://www.abs.gov.au/statistics/example',description:'Synthetic market report'}]},related_queries:{top:[{query:'synthetic',value:100}]}});
+  globalThis.fetch=async(url)=>String(url).includes('nagerholidays')?Response.json([]):Response.json({data:{web:Array.from({length:8},(_,i)=>({url:`https://www.abs.gov.au/statistics/example-${i}`,description:'Synthetic market report '.repeat(40)}))},related_queries:{top:[{query:'synthetic',value:100}]}});
   const runner=createTrendResearch(undefined,{mode:'mock',complete:async req=>{
-   turn++;assert.equal(req.maxOutputTokens,2400);assert.ok(req.tools?.some(t=>t.name==='web.search'));
+   turn++;assert.ok(Buffer.byteLength(JSON.stringify(req)) < 40000, 'many retrieved records must fit the model request envelope');assert.equal(req.maxOutputTokens,4000);if(turn===1)assert.ok(req.tools?.some(t=>t.name==='web.search'));
+   if(turn===1){assert.equal(req.toolChoice,'required');assert.ok(req.tools?.every(t=>t.name.includes('.')));const schema=req.tools!.find(t=>t.name==='web.search')!.parameters;assert.deepEqual(schema.required,['category']);assert.equal(schema.additionalProperties,false);assert.ok((schema.properties as {category:{enum:string[]}}).category.enum.includes('purchase_preference'));assert.ok(!('def' in schema));}
    if(turn===1)return {...stubComplete(req,'MOCK'),status:'ok',text:null,toolCalls:scenario==='grocery'?[{id:'c1',name:'web.search',args:{category:'purchase_preference'}},{id:'c2',name:'web.search_trends',args:{kind:'RELATED_QUERIES'}}]:[{id:'c1',name:'web.search',args:{category:'seasonal'}},{id:'c2',name:'calendar.public_holidays',args:{year:'2026'}}]};
    assert.ok(req.lastTurnIsToolResult);assert.ok(req.history?.some(t=>t.role==='tool'));
    toolResults.push(req.prompt);return {...stubComplete(req,'MOCK'),status:'ok',text:JSON.stringify(answer)};
@@ -87,14 +90,16 @@ try{
   const result=await runner({campaign,brand:defaultBrand,settings,at,allowed:async()=>true,onFailedUsage:()=>{},execute:async(name,args,override)=>{selected.push(name);return override??toolByName(name)!.run({...base,campaign,args});}});
   assert.ok(result);assert.equal(result.trace.status,'stubbed');assert.equal(turn,2);assert.ok(selected.length >= 11);assert.equal((campaign.researchAttempts?.filter(a => a.tool !== 'calendar.public_holidays').length ?? 0) >= 9,true);assert.ok(toolResults.length);traces.push({scenario,mode:'MOCK ONLY',selected,turns:turn});
  }
- pass('two scoped contexts use different tool plans; real LangChain loop feeds paired tool results back to mock model');
+ assert.equal(researchModelResult({...scraped,data:{duplicate:'x'.repeat(20000)}}).data,undefined);
+ assert.equal(researchModelResult({status:'ok',summary:'metadata',data:{dimensions:'x'.repeat(5000)},evidence:[]}).metadataOmitted,true);
+ pass('two scoped contexts use different tool plans; real LangChain loop feeds paired bounded tool results back to mock model');
  let turn=0,realTools=0;const runner=createTrendResearch(undefined,{mode:'mock',complete:async req=>{
   if(++turn===1)return {...stubComplete(req,'MOCK'),status:'ok',text:null,toolCalls:[{id:'1',name:'web.search',args:{category:'current_market'}},{id:'2',name:'web.search',args:{category:'current_market'}}]};
   return {...stubComplete(req,'MOCK'),status:'ok',text:JSON.stringify(answer)};
  }});
  globalThis.fetch=async()=>{realTools++;return Response.json({data:{web:[]}});};
  const engine=await runEngine({campaigns:[c],now:at},c,{type:'START',actor:'founder'},settings,defaultBrand,{llm:{request:async()=>{throw Error('Duplicate decision');},research:runner},renderPoster:async()=>{throw Error('Unexpected handoff');}});
- assert.equal(realTools,12);assert.equal(engine.campaign.status,'paused');assert.equal(engine.campaign.researchCoverage?.length,9);assert.deepEqual(engine.campaign.sharedContext.approvedClaims,[]);assert.ok(engine.campaign.toolCalls.length >= 14);assert.match(engine.campaign.toolCalls.at(-1)!.summary,/cache/);assert.equal(engine.campaign.researchAttempts?.filter(a=>a.tool==='web.search').length,9);assert.deepEqual(engine.campaign.channels,c.channels);assert.equal(engine.campaign.product,c.product);
+ assert.equal(realTools,11);assert.equal(engine.campaign.status,'paused');assert.ok(engine.campaign.trendFindings.every(f=>f.confidence===0),'unvalidated research must not inherit legacy confidence percentages');assert.equal(engine.campaign.researchCoverage?.length,9);assert.deepEqual(engine.campaign.sharedContext.approvedClaims,[]);assert.ok(engine.campaign.toolCalls.length >= 13);assert.match(engine.campaign.toolCalls.at(-1)!.summary,/cache/);assert.equal(engine.campaign.researchAttempts?.filter(a=>a.tool==='web.search'&&a.phase==='mandatory').length,9);assert.deepEqual(engine.campaign.channels,c.channels);assert.equal(engine.campaign.product,c.product);
  pass('same-run duplicate requests are cached; partial coverage blocks handoff without duplicate legacy tools or decision');
  const coverage=coverageFor(c,scraped.evidence);assert.equal(coverage.filter(x=>x.status==='retrieved').length,1);assert.equal(coverage.filter(x=>x.category==='channel'&&x.status==='missing').length,2);
  pass('coverage distinguishes every selected channel; one preference source cannot cover other areas');
@@ -102,10 +107,18 @@ try{
  const preference=coverage.find(a=>a.category==='purchase_preference')!;
  attachResearchAnalysis(coverage,[{category:'purchase_preference',summary:'Invented citation',evidenceIds:['unknown'],limitation:''}]);assert.equal(preference.analysis,undefined);
  attachResearchAnalysis(coverage,[{category:'purchase_preference',summary:'Synthetic draft',evidenceIds:[scraped.evidence[0].id],limitation:'Fixture only'}]);assert.equal(coverage.find(a=>a.category==='purchase_preference')?.analysis?.summary,'Synthetic draft');
+ attachResearchAnalysis(coverage,[{category:'historical_market',channel:'web',summary:'No reliable series was obtained.',evidenceIds:[],limitation:'Missing series; no market conclusion can be drawn.'}]);assert.equal(coverage.find(a=>a.category==='historical_market')?.analysis?.evidenceIds.length,0);
  const blocked={...c};let io=0;
  await createTrendResearch(undefined,{mode:'mock',complete:async()=>{throw Error('Model unavailable');}})({campaign:blocked,brand:defaultBrand,settings,at,allowed:async()=>false,onFailedUsage:()=>{},execute:async(_name,_args,override)=>{if(!override)io++;return override!;}});
  assert.equal(io,0);assert.equal(new Set(blocked.researchAttempts?.map(a=>a.category)).size,8);assert.ok(blocked.researchAttempts?.every(a=>a.status==='skipped'));
  pass('all categories and selected channels are planned; pause prevents I/O and records each blocked area; fabricated citations rejected');
+ delete process.env.OPENAI_API_KEY;delete process.env.ANTHROPIC_API_KEY;delete process.env.SERPAPI_API_KEY;delete process.env.FIRECRAWL_API_KEY;delete process.env.WHICHGROCER_API_KEY;delete process.env.LOCAL_LLM_BASE_URL;
+ let noCredentialIo=0;globalThis.fetch=async()=>{noCredentialIo++;throw Error('No outbound I/O expected');};
+ const cloudSettings=defaultSettings();cloudSettings.agents.trend={provider:'openai',modelId:'openai:gpt-6-luna'};cloudSettings.localBaseUrl='';
+ process.env.TREND_PROVIDER_SEARCH_MAX_USD='0.05';
+ const noKeys=await runEngine({campaigns:[c],now:at},c,{type:'START',actor:'founder'},cloudSettings,defaultBrand,{llm:createServerResearchRuntime(),renderPoster:async()=>{throw Error('No handoff');}});
+ assert.equal(noCredentialIo,0);assert.equal(noKeys.campaign.status,'paused');assert.equal(noKeys.campaign.spend.inferenceUsd,0);assert.equal(noKeys.campaign.researchCoverage?.length,9);assert.deepEqual(noKeys.campaign.sharedContext.approvedClaims,[]);
+ pass('normal no-credentials path performs no I/O or spending, retains all category gaps and blocks handoff');
  process.env.TA03_RESEARCH_ENABLED='0';assert.equal(researchEnabled(),false);assert.ok(createServerResearchRuntime().research);assert.equal(await createServerResearchRuntime().research!({campaign:c,brand:defaultBrand,settings,at,execute:async()=>{throw Error('disabled');},allowed:async()=>true,onFailedUsage:()=>{}}),null);
  pass('kill switch leaves a partial research path, never silently runs the fixed-source fallback');
  if(process.argv.includes('--record'))writeFileSync('docs/TA-03-MOCK-RESEARCH.json',JSON.stringify({mode:'MOCK ONLY, no provider calls',traces,checks},null,2)+'\n');

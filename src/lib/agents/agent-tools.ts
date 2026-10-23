@@ -68,6 +68,8 @@ export type AgentToolContext = {
   execute: (name: string, args: Record<string, string>) => Promise<ToolOutcome>;
   /** Called for every call the agent makes, for the run trace. */
   names?: readonly string[];
+  /** Bounded model-facing view; the engine retains the complete original outcome. */
+  projectResult?: (outcome: ToolOutcome) => unknown;
   onCall?: (name: string, args: Record<string, string>, outcome: ToolOutcome) => void;
 };
 
@@ -102,7 +104,7 @@ export function agentTools(agent: ToolAgent, context: AgentToolContext): Dynamic
           evidence: outcome.evidence,
           ...(outcome.gap ? { gap: outcome.gap } : {}),
         };
-        return JSON.stringify(payload, (_key, value) => agent === "trend" && typeof value === "string" ? redact(value) : value);
+        return JSON.stringify(context.projectResult ? context.projectResult(outcome) : payload, (_key, value) => agent === "trend" && typeof value === "string" ? redact(value) : value);
       },
     }),
   );

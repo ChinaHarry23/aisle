@@ -94,7 +94,11 @@ export async function runSeatAgent<T>(options: {
   localModel?: string;
   /** The task, written by the caller with its campaign context. */
   task: string;
-  tools: AgentToolContext;
+  tools?: AgentToolContext;
+  /** When false, the seat answers without calling tools. */
+  bindTools?: boolean;
+  /** Overrides the seat's default answer schema. */
+  schema?: z.ZodType<T>;
   /**
    * Replaces the seat's default instructions.
    *
@@ -121,14 +125,16 @@ export async function runSeatAgent<T>(options: {
 }): Promise<AgentAnswer<T> | null> {
   // Each tool call is announced, so the run trace can show what the agent chose.
   const used: string[] = [];
-  const context: AgentToolContext = {
-    ...options.tools,
-    execute: async (name, args) => {
-      used.push(name);
-      return options.tools.execute(name, args);
-    },
-  };
-  const library = agentTools(options.toolAgent, context);
+  const library =
+    options.bindTools === false || !options.tools
+      ? []
+      : agentTools(options.toolAgent, {
+          ...options.tools,
+          execute: async (name, args) => {
+            used.push(name);
+            return options.tools!.execute(name, args);
+          },
+        });
 
   const model = new MeteredChatModel({
     agent: options.seat,
@@ -147,7 +153,7 @@ export async function runSeatAgent<T>(options: {
     ...(options.instructions ? { instructions: options.instructions } : {}),
     // The seat's schema is fixed per seat; the cast keeps the caller's `T` honest
     // without duplicating the schema map as four overloads.
-    schema: SCHEMAS[options.seat] as unknown as z.ZodType<T>,
+    schema: (options.schema ?? SCHEMAS[options.seat]) as unknown as z.ZodType<T>,
   });
 
   let failed = false;

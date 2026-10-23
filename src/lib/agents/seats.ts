@@ -60,6 +60,22 @@ export const trendBriefSchema = z.object({
     .describe("What the available evidence could not establish. Be specific and honest."),
 });
 
+/** The creative seat rewriting one founder's visual correction into image prompts. */
+export const imageRevisionSchema = z.object({
+  prompts: z
+    .array(
+      z.object({
+        id: z.string().describe("The creative id this prompt revises."),
+        prompt: z
+          .string()
+          .describe(
+            "A complete image-edit prompt. Describe the corrected poster. Do not merely repeat the founder's complaint.",
+          ),
+      }),
+    )
+    .describe("One revised image prompt for each poster supplied."),
+});
+
 export const copySchema = z.object({
   variants: z
     .array(
@@ -242,6 +258,10 @@ const INSTRUCTIONS = {
 /* --------------------------------------------------------------- factory --- */
 
 export type AgentSeat = keyof typeof INSTRUCTIONS;
+
+export function instructionsFor(seat: AgentSeat): string {
+  return INSTRUCTIONS[seat];
+}
 
 export type BuiltAgent<T> = {
   seat: AgentSeat;

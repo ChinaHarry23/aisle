@@ -6,6 +6,7 @@ import { Suspense, useMemo, useState, type ReactNode } from "react";
 import { AgentLog } from "@/components/AgentLog";
 import { OperationGraph } from "@/components/OperationGraph";
 import { ChecksPanel } from "@/components/ChecksPanel";
+import { ComplianceCheckerPanel } from "@/components/ComplianceCheckerPanel";
 import { ChannelIcon } from "@/components/ChannelIcon";
 import { InstagramPost } from "@/components/InstagramPost";
 import { CampaignContent } from "@/components/studio/CampaignContent";
@@ -28,6 +29,7 @@ const tabs = [
   "research",
   "studio",
   "compliance",
+  "approvals",
   "channels",
   "feedback",
   "runtime",
@@ -41,7 +43,8 @@ const tabLabels: Record<Tab, string> = {
   brief: "Overview",
   research: "Trends",
   studio: "Content Generation",
-  compliance: "Approvals",
+  compliance: "Compliance Checker",
+  approvals: "Approvals",
   channels: "Schedule",
   feedback: "Performance",
   log: "Activity",
@@ -127,9 +130,9 @@ function CampaignWorkspace() {
     );
   }
 
-  // When the campaign is waiting on the founder, open straight on the Checks tab.
+  // When the campaign is waiting on the founder, open straight on the approval gate.
   const requestedTab = searchParams.get('tab');
-  const tab: Tab = tabs.includes(requestedTab as Tab) ? requestedTab as Tab : (campaign.status === "awaiting_approval" ? "compliance" : "brief");
+  const tab: Tab = tabs.includes(requestedTab as Tab) ? requestedTab as Tab : (campaign.status === "awaiting_approval" ? "approvals" : "brief");
   const canLaunch = ["draft", "paused", "rejected"].includes(campaign.status);
   const needsYou = campaign.status === "awaiting_approval";
   const canPublish = campaign.status === "scheduled";
@@ -150,6 +153,11 @@ function CampaignWorkspace() {
               {campaign.product} · {campaign.targetAudience} ·{" "}
               {campaign.country}
             </p>
+            {campaign.imageRevisionNote && campaign.complianceReports.length > 0 ? (
+              <p className="mt-2 max-w-xl text-sm text-ink-soft">
+                The pictures were revised after the compliance report. Check the new images before approving.
+              </p>
+            ) : null}
           </div>
           <div className="flex flex-wrap items-center gap-2 md:pt-1">
             {canLaunch ? (
@@ -243,12 +251,12 @@ function CampaignWorkspace() {
             className={cn(
               "shrink-0 px-3 py-2 text-sm",
               t === "runtime" && "ml-auto text-xs",
-              t === "compliance" && needsYou && "font-semibold text-signal",
+              t === "approvals" && needsYou && "font-semibold text-signal",
               tab === t ? "border-b-2 border-signal text-ink" : "text-mute hover:text-ink",
             )}
           >
             {tabLabels[t]}
-            {t === "compliance" && needsYou ? (
+            {t === "approvals" && needsYou ? (
               <span className="status-chip status-wait ml-2">Needs your approval</span>
             ) : null}
           </button>
@@ -349,6 +357,11 @@ function CampaignWorkspace() {
       {tab === "research" ? (
         <section className="flex flex-col gap-8">
           <TrendReport campaign={campaign} />
+          {campaign.status === 'paused' && campaign.run?.step === 'trend.receive' && <div className="hairline p-5">
+            <h3 className="font-medium">Continue the research</h3>
+            <p className="mt-2 text-sm text-mute">After resolving source access or attaching an authorised export, run research again for the same campaign scope. Existing evidence remains in the audit history. Another run may use model and research credits; it cannot approve unsupported findings.</p>
+            <button disabled={busy} className="mt-4 rounded-full bg-signal px-5 py-2 text-sm text-white disabled:opacity-50" onClick={()=>void launch(campaign.id)}>Run research again</button>
+          </div>}
           <div id="retail-data">
           <Details title="Optional authorised retail data">
             <p className="text-sm">Upload aggregate sales only, using CSV columns sku,category,week,units. Week dates must use YYYY-MM-DD. No customer-level data or extra columns. The analysis receives category totals by week; raw SKU rows are excluded from model and search requests.</p>
@@ -370,14 +383,18 @@ function CampaignWorkspace() {
 
       {tab === "studio" ? <CampaignContent campaign={campaign} /> : null}
 
-      {tab === "compliance" ? <ChecksPanel
+      {tab === "compliance" ? <ComplianceCheckerPanel campaign={campaign} /> : null}
+
+      {tab === "approvals" ? (
+        <ChecksPanel
           campaign={campaign}
           note={note}
           onNote={setNote}
           onApprove={() => void approve(campaign.id, note)}
           onRequestChanges={() => void requestChanges(campaign.id, note || "Please revise to founder notes.")}
           onReject={() => void reject(campaign.id, note || "Killed by founder.")}
-        /> : null}
+        />
+      ) : null}
 
       {tab === "channels" ? (
         <section className="flex flex-col gap-4">

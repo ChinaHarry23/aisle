@@ -52,3 +52,6 @@ next-env.d.ts
 
 # Local browser audit captures can contain account or Jira information.
 /docs/TA-03-*.png
+
+# Local acceptance transcripts contain third-party excerpts; publish summaries only.
+/docs/TA-03-LIVE-ACCEPTANCE*.json

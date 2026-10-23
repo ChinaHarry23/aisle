@@ -1,5 +1,6 @@
 import { redact } from "@/lib/trend/source-tools";
 import { attachResearchAnalysis, coverageFor, unavailable } from "@/lib/trend/contracts";
+import { buildReport } from "../compliance/report";
 import { loadRules } from "../compliance/rules";
 import { checkSubmission } from "../compliance/checks";
 import { beginReview, submissionFor, assertReviewPermission, ComplianceSubmissionError } from "../compliance/service";
@@ -12,6 +13,7 @@ import { beginReview, submissionFor, assertReviewPermission, ComplianceSubmissio
  */
 
 import { uid } from "@/lib/ids";
+import { copyFromBrief } from "@/lib/media/brief-copy";
 import { getModelOrDefault } from "@/lib/media/catalog";
 import type { MediaGeneration } from "@/lib/media/types";
 import { makeLog } from "@/lib/seed";
@@ -55,7 +57,6 @@ import {
   type ChannelVersion,
   type ComplianceAttempt,
   type ComplianceIssue,
-  type ComplianceOutcome,
   type DeliveryAttempt,
   type Evidence,
   type PerformanceReport,
@@ -277,173 +278,17 @@ export function palettesFor(motif: Motif): Record<"A" | "B", Palette> {
   };
 }
 
-/** Version 1 deliberately carries the claims the banned list forbids. */
-export function v1Copy(campaign: Campaign, motif: Motif): Record<"A" | "B", CopyVariant> {
-  if (motif === "campus") {
-    return {
-      A: {
-        variant: "A",
-        kicker: "Northline · Winter 26",
-        headline: "The warmest jacket in Australia",
-        subhead: `Guaranteed dry through ${campaign.targetAudience.split(",")[0].toLowerCase()} weather.`,
-        cta: "Shop the parka",
-        caption: `New ${campaign.product}. The warmest jacket in Australia — guaranteed.`,
-        prompt: "",
-      },
-      B: {
-        variant: "B",
-        kicker: "Drop",
-        headline: "Winter, but make it campus.",
-        subhead: "Australia's number one uni jacket. Risk-free warmth.",
-        cta: "See the drop",
-        caption: `${campaign.product} — number one on campus.`,
-        prompt: "",
-      },
-    };
-  }
-  if (motif === "produce") {
-    return {
-      A: {
-        variant: "A",
-        kicker: "Week 34 · Catalogue",
-        headline: "Australia's healthiest breakfast",
-        subhead: "Clinically proven goodness. Stone fruit + yoghurt, guaranteed ripe.",
-        cta: "Open the catalogue",
-        caption: "Australia's healthiest breakfast, only at Lane & Co.",
-        prompt: "",
-      },
-      B: {
-        variant: "B",
-        kicker: "Catalogue",
-        headline: "Miracle mornings",
-        subhead: "The healthiest shop in the neighbourhood.",
-        cta: "See specials",
-        caption: "Miracle produce, week 34.",
-        prompt: "",
-      },
-    };
-  }
-  return {
-    A: {
-      variant: "A",
-      kicker: campaign.category,
-      headline: `Australia's best ${campaign.product}`,
-      subhead: "Guaranteed results. Number one in its class.",
-      cta: "Shop now",
-      caption: `${campaign.product} — Australia's best. Guaranteed.`,
-      prompt: "",
-    },
-    B: {
-      variant: "B",
-      kicker: campaign.category,
-      headline: `${campaign.product}, miracle edition`,
-      subhead: "Risk-free. Clinically proven. The healthiest choice.",
-      cta: "Get it",
-      caption: `Don't miss ${campaign.product}.`,
-      prompt: "",
-    },
-  };
-}
-
-export function v2Copy(
-  campaign: Campaign,
-  motif: Motif,
-  brief: CampaignBrief,
-): Record<"A" | "B", CopyVariant> {
-  if (motif === "campus") {
-    return {
-      A: {
-        variant: "A",
-        kicker: "Northline · Winter 26",
-        headline: "Weatherproof. Not wilderness.",
-        subhead: `The ${campaign.product}. Cut for 8am lectures and 6pm southerlies.`,
-        cta: "Shop the parka",
-        caption: `${campaign.product}. Water-resistant shell, packs into its pocket. Made for campus weather — Lane & Co.`,
-        prompt: "",
-      },
-      B: {
-        variant: "B",
-        kicker: "Campus drop",
-        headline: "Winter, but make it campus.",
-        subhead: "Warmth that fits in a bag. No summit required.",
-        cta: "See the drop",
-        caption: `${campaign.product} — packable, water-resistant, priced like a neighbourhood shop.`,
-        prompt: "",
-      },
-    };
-  }
-  if (motif === "produce") {
-    const hero = campaign.product.split(/[+—]/)[0].trim();
-    return {
-      A: {
-        variant: "A",
-        kicker: "This week's catalogue",
-        headline: `${hero} is in.`,
-        subhead: `In season this week. ${campaign.product}.`,
-        cta: "Open this week's catalogue",
-        caption: `${campaign.product}. In season this week at Lane & Co.`,
-        prompt: "",
-      },
-      B: {
-        variant: "B",
-        kicker: "Weekly",
-        headline: `Make a week of ${hero.toLowerCase()}.`,
-        subhead: "In season this week — trays at the front.",
-        cta: "See specials",
-        caption: `${campaign.product}. Catalogue this week.`,
-        prompt: "",
-      },
-    };
-  }
-  return {
-    A: {
-      variant: "A",
-      kicker: campaign.category,
-      headline: brief.keyMessage,
-      subhead: `${campaign.product} for ${campaign.targetAudience}. ${brief.angle}`,
-      cta: "See the offer",
-      caption: `${campaign.product} — ${brief.angle} Lane & Co.`,
-      prompt: "",
-    },
-    B: {
-      variant: "B",
-      kicker: campaign.category,
-      headline: campaign.product,
-      subhead: brief.angle,
-      cta: "Shop",
-      caption: `${campaign.product}. ${brief.claimsAllowed[0] ?? ""}`.trim(),
-      prompt: "",
-    },
-  };
-}
-
 /**
- * Deterministic fallback copy.
- *
- * Version 1 carries the claims the brand list forbids, which is what makes the
- * AHR-04 revision loop visible in a demo. From version 2 the copy is clean for
- * the motifs where a fix is obvious; the generic editorial motif keeps one
- * unsupported superlative, which is how the *ineffective* revision — the case
- * that spends all three attempts and escalates — stays reachable without a live
- * model. Both paths are exercised by `scripts/bench-suite.ts`.
+ * Copy used when the creative model is unavailable, and the floor under a live answer.
+ * Both variants are written from this campaign's trend brief. Nothing here is a
+ * shared breakfast, campus, or category slogan.
  */
-export function deterministicCopy(campaign: Campaign, version: number): Record<"A" | "B", CopyVariant> {
-  const motif = motifPack(campaign);
-  const brief = campaign.brief;
-  if (version === 1 || !brief) return v1Copy(campaign, motif);
-  const fixed = v2Copy(campaign, motif, brief);
-  const shoe = /shoe|sneaker|trainer|footwear|\brunning\b/.test(
-    `${campaign.product} ${campaign.notes ?? ""}`.toLowerCase(),
-  );
-  if (motif === "campus" || motif === "produce" || shoe) return fixed;
-  return {
-    A: {
-      ...fixed.A,
-      subhead: `${fixed.A.subhead} Guaranteed to lift basket size.`,
-      caption: `${fixed.A.caption} Guaranteed results.`,
-    },
-    B: fixed.B,
-  };
+export function deterministicCopy(
+  campaign: Campaign,
+  notes: string[] = [],
+  banned: string[] = [],
+): Record<"A" | "B", CopyVariant> {
+  return copyFromBrief(campaign, banned, notes);
 }
 
 export function buildCreatives(
@@ -535,7 +380,7 @@ function trendFallbackDecision(
     : motif === "campus"
       ? "Campus weather, not wilderness."
       : motif === "produce"
-        ? `This week's fruit, this week's breakfast.`
+        ? `${campaign.product}, for ${campaign.targetAudience}.`
         : `One honest job ${campaign.product} does for ${campaign.targetAudience}.`;
   return {
     priorities: [
@@ -554,7 +399,7 @@ function trendFallbackDecision(
       },
     ],
     angle,
-    keyMessage: clearance ?? (motif === "campus" ? "Weatherproof. Not wilderness." : `${campaign.product}, without the theatre.`),
+    keyMessage: clearance ?? campaign.product.slice(0, 160),
     claimsAllowed:
       motif === "campus"
         ? ["Water-resistant shell", "Packs into its own pocket", "Cut for commuting"]
@@ -779,7 +624,7 @@ export async function runTrendResearch(
   c.researchCoverage = coverageFor(c, currentEvidence);
   if (env.llm.research) {
     for (const area of c.researchCoverage) gaps.push({id:uid('gap'),kind:area.status === 'missing' ? 'missing_source' : 'low_confidence',
-      detail:`${area.category}${area.channel ? ' / '+area.channel : ''}: ${area.limitation}`,effect:'TA-04 must assess relevance, currency and claim-level support before COMPLETE.',needsFounder:true});
+      detail:`${area.category}${area.channel ? ' / '+area.channel : ''}: ${area.limitation}`,effect:'Check relevance, recency and support for each finding before the brief can be handed on.',needsFounder:true});
     // Retrieval does not certify all Stage 1 research conclusions. TA-04 owns that assessment.
   }
   const evidenceLines = currentEvidence.map(evidenceLine);
@@ -830,7 +675,7 @@ export async function runTrendResearch(
       finding,
       basis: ids.length > 0 ? "supported" : "assumption",
       relevance,
-      confidence,
+      confidence: env.llm.research ? 0 : confidence,
       country: c.country,
       channelRelevance: c.channels,
       evidenceIds: ids,
@@ -850,8 +695,16 @@ export async function runTrendResearch(
     );
   }
   const publicEvidence = byKind("external_public").filter((e) => e.status === "verified");
+  if (env.llm.research) {
+    for (const area of c.researchCoverage ?? []) {
+      if (!area.analysis) continue;
+      pushFinding(`${area.category.replaceAll('_',' ')}${area.channel ? ' · '+area.channel : ''}`,
+        area.analysis.summary,area.analysis.evidenceIds,0,0,
+        {risk:area.analysis.limitation || undefined,themeSuggestion:decision.angle,visualDirection:decision.visualDirection});
+    }
+  }
   const contextEvidence = publicEvidence.filter((e) => e.sourceName !== "WhichGrocer");
-  if (contextEvidence.length > 0) {
+  if (contextEvidence.length > 0 && !env.llm.research) {
     pushFinding(
       "Public market context",
       contextEvidence[0].claim,
@@ -898,12 +751,12 @@ export async function runTrendResearch(
   const banned = env.brand.bannedTerms.slice(0, 3);
   pushFinding(
     "Claim risk",
-    `Category advertising still leans on absolute claims (${banned.join(", ")}). Brand rules forbid following them, so the copy must lead with verifiable product facts.`,
+    env.llm.research ? `Brand rules prohibit these terms: ${banned.join(', ')}. This is a brand constraint, not an observation about competitors.` : `Category advertising still leans on absolute claims (${banned.join(", ")}). Brand rules forbid following them, so the copy must lead with verifiable product facts.`,
     [],
     82,
     85,
     {
-      risk: `Unsubstantiated superlatives would fail ${c.country} advertising standards.`,
+      risk: env.llm.research ? 'Proposed claims need evidence and compliance review before use.' : `Unsubstantiated superlatives would fail ${c.country} advertising standards.`,
       themeSuggestion: "Quiet proof over swagger.",
     },
   );
@@ -1034,7 +887,7 @@ export async function runCreativeGeneration(
         : "Removing unsupported claims, keeping the angle.",
   );
 
-  const fallbackMap = deterministicCopy(c, version);
+  const fallbackMap = deterministicCopy(c, notes, env.brand.bannedTerms);
   const { variants, trace } = await decideCopy({
     campaign: c,
     brand: env.brand,
@@ -1130,26 +983,6 @@ export async function runCreativeGeneration(
 }
 
 /* -------------------------------------------------------------- compliance -- */
-
-function complianceFor(
-  c: Campaign,
-  issues: ComplianceIssue[],
-): { outcome: ComplianceOutcome; risk: "low" | "medium" | "high"; score: number } {
-  const high = issues.some((i) => i.severity === "high" && i.basis === "confirmed_breach");
-  const judgement = issues.some((i) => i.basis === "human_judgement");
-  const medium = issues.some((i) => i.severity === "medium");
-  const attempt = c.complianceAttempts.length + 1;
-
-  if (high) {
-    return {
-      outcome: attempt >= MAX_REVISION_ATTEMPTS ? "manual_review" : "changes_required",
-      risk: "high",
-      score: Math.min(48, 20 + attempt * 6),
-    };
-  }
-  if (medium || judgement) return { outcome: "pass", risk: "medium", score: 68 };
-  return { outcome: "pass", risk: "low", score: 92 };
-}
 
 /** Deterministic review — the floor the model's review is merged onto. */
 export function deterministicReview(
@@ -1293,16 +1126,28 @@ export async function runComplianceReview(
     brand: env.brand,
     settings: env.settings,
     llm: env.llm,
+    ownerId: env.ownerUserId,
     copy: copyBlob,
     attempt: attemptNo,
     fallback,
     rules: selection.rules,
+    referenceRules: selection.referenceRules,
   });
   addTrace(w, trace, "compliance", "Policy review");
 
-  const verdict = selection.problems.length || decision.issues.some(i => i.basis === "human_judgement")
-    ? { outcome: "manual_review" as const, risk: "high" as const, score: 0 }
-    : complianceFor(c, decision.issues);
+  const structuredReport = buildReport(reviewRun, decision.issues, checked.limitations, uid("cp"), w.now);
+  // CC-07 still owns the legacy revision cap; escalation never turns a finding into a pass.
+  if (structuredReport.status === "CHANGES_REQUIRED" && attemptNo >= MAX_REVISION_ATTEMPTS)
+    structuredReport.status = "MANUAL_REVIEW_REQUIRED";
+  reviewRun.report = structuredReport;
+  const verdict = {
+    outcome: structuredReport.status === "PASSED" ? "pass" as const : structuredReport.status === "CHANGES_REQUIRED" ? "changes_required" as const : "manual_review" as const,
+    risk: decision.issues.some(i => i.severity === "high") || selection.problems.length ? "high" as const : decision.issues.length ? "medium" as const : "low" as const,
+    score: structuredReport.status === "PASSED" ? 100 : 0,
+  };
+  decision.summary = structuredReport.status === "PASSED"
+    ? "No unresolved findings in the configured automated checks; final human approval remains required."
+    : `${structuredReport.unresolvedCount} unresolved finding(s), ${selection.problems.length} policy problem(s). ${structuredReport.status.replace(/_/g, " ")}.`;
   const digest = inputDigest(c);
   const attempt: ComplianceAttempt = {
     id: uid("ca"),
@@ -1331,7 +1176,7 @@ export async function runComplianceReview(
     rule: i.rule,
   }));
   const report: ComplianceReport = {
-    id: uid("cp"),
+    id: structuredReport.id,
     creativeId: c.creatives[0]?.id ?? "unknown",
     version: attempt.creativeVersion,
     risk: verdict.risk,
@@ -1339,7 +1184,7 @@ export async function runComplianceReview(
     verdict:
       verdict.outcome === "changes_required"
         ? "revise"
-        : verdict.risk === "medium"
+        : verdict.outcome === "manual_review"
           ? "escalate"
           : "pass",
     summary: decision.summary,

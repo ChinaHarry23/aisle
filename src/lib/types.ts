@@ -236,6 +236,8 @@ export type SharedContext = {
   /** Campaign the attached note came from, for traceability (UC-06 step 12). */
   previousPerformanceFrom: string | null;
   founderNotes: string[];
+  /** Intake agent turned the founder's words into the context trend researches. */
+  intakeSummary?: string | null;
 };
 
 export type Campaign = CampaignInput & {
@@ -251,6 +253,8 @@ export type Campaign = CampaignInput & {
   videos: AdVideo[];
   studioHistory: StudioRun[];
   studioBusy: null | "posters" | "video";
+  /** Last founder note used to correct a generated poster. */
+  imageRevisionNote?: string | null;
   sharedContext: SharedContext;
   trends: Trend[];
   opportunities: Opportunity[];
@@ -287,6 +291,7 @@ export type Campaign = CampaignInput & {
   /** What the analysis could not establish, and whether a human is needed. */
   trendGaps: TrendBriefGap[];
   researchAttempts?: import('@/lib/trend/contracts').ResearchAttempt[];
+  researchModelTurns?: import('@/lib/trend/contracts').ResearchModelTurn[];
   researchCoverage?: import('@/lib/trend/contracts').ResearchCoverage[];
   researchMode?: 'agent' | 'legacy';
   /** Every version submitted to AHR-04, kept for audit. */
