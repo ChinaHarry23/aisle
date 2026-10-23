@@ -1,5 +1,6 @@
 "use client";
 
+import { ComplianceReviewHistory } from "./ComplianceReviewHistory";
 import { useMemo, useState } from "react";
 import { cn } from "@/lib/cn";
 import { channelLabel } from "@/lib/status";
@@ -175,12 +176,20 @@ export function ChecksPanel({
   // copy, which has the recommended fix, so the list does not render it twice.
   const flags: Flag[] = useMemo(() => {
     const byId = new Map<string, Flag>();
+    const advertisements = campaign.complianceReviewRuns?.at(-1)?.submission.content ?? [];
+    const advertisementLabels = new Map(
+      advertisements.map((advertisement, index) => [
+        advertisement.creativeId,
+        `Advertisement ${String.fromCharCode(65 + index)} — ${advertisement.headline}`,
+      ]),
+    );
+    const explainExcerpt = (excerpt: string) => advertisementLabels.get(excerpt) ?? excerpt;
     for (const i of attempt?.issues ?? []) {
       byId.set(i.id, {
         id: i.id,
         tone: i.basis === "confirmed_breach" ? "breach" : "judge",
         title: i.category.replace(/_/g, " "),
-        excerpt: i.excerpt !== "—" ? i.excerpt : undefined,
+        excerpt: i.excerpt !== "—" ? explainExcerpt(i.excerpt) : undefined,
         explanation: i.explanation,
         source: `${i.rule} · ${i.policySource}`,
         fix: i.recommendedCorrection,
@@ -193,14 +202,14 @@ export function ChecksPanel({
           id: f.id,
           tone: "breach",
           title: f.type,
-          excerpt: f.excerpt,
+          excerpt: explainExcerpt(f.excerpt),
           explanation: f.explanation,
           source: f.rule,
         });
       }
     }
     return [...byId.values()];
-  }, [latest, attempt]);
+  }, [latest, attempt, campaign.complianceReviewRuns]);
 
   const problems = flags.filter((f) => f.tone === "breach").length;
   const unsure = flags.length - problems;
@@ -217,12 +226,13 @@ export function ChecksPanel({
 
   if (!latest && !decision) {
     return (
-      <p className="text-sm text-mute">Checks appear here once the creative is ready for review.</p>
+      <ComplianceReviewHistory campaign={campaign} />
     );
   }
 
   return (
     <section className="flex flex-col gap-6">
+      <ComplianceReviewHistory campaign={campaign} />
       {/* 1. Triage */}
       <div
         className={cn(

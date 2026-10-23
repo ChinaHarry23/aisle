@@ -1,3 +1,4 @@
+import type { StructuredComplianceReport } from "./report";
 /** CC-01/02: server-side submission boundary. No approval or delivery capability. */
 import type { RuleSelection } from "./rules";
 import { createHash, randomUUID } from "node:crypto";
@@ -37,6 +38,7 @@ export type ComplianceReviewRun = {
   attemptNumber: number;
   submission: ComplianceSubmission;
   ruleSelection?: RuleSelection;
+  report?: StructuredComplianceReport;
   result?: {
     status: ComplianceOutcome;
     findings: ComplianceIssue[];

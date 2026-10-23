@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "test:document-review": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/document-review-suite.ts",
     "test:trend-connection": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/trend-connection-suite.ts",
     "demo:trend": "node --env-file-if-exists=.env.local --import ./scripts/service-loader.mjs --experimental-strip-types scripts/trend-example.ts",
     "dev": "next dev",
@@ -35,7 +36,10 @@
     "test:graph": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/operation-graph-suite.ts",
     "test:intake": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/intake-suite.ts",
     "test:compliance": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/compliance-suite.ts",
-    "test:compliance-rules": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/compliance-rules-suite.ts"
+    "test:compliance-rules": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/compliance-rules-suite.ts",
+    "test:compliance-report": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/compliance-report-suite.ts",
+    "compliance:kb": "node --env-file-if-exists=.env.local --import ./scripts/service-loader.mjs --experimental-strip-types scripts/compliance-knowledge.ts",
+    "test:compliance-knowledge": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/compliance-knowledge-suite.ts"
   },
   "dependencies": {
     "@langchain/core": "1.2.17",
