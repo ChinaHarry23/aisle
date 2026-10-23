@@ -253,6 +253,8 @@ export type Campaign = CampaignInput & {
   videos: AdVideo[];
   studioHistory: StudioRun[];
   studioBusy: null | "posters" | "video";
+  /** Last founder note used to correct a generated poster. */
+  imageRevisionNote?: string | null;
   sharedContext: SharedContext;
   trends: Trend[];
   opportunities: Opportunity[];

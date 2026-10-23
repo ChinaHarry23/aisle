@@ -11,7 +11,7 @@ import { createHash } from "node:crypto";
 import type { Campaign, Creative } from "@/lib/types";
 import { getModel } from "./catalog";
 import { runGeneration } from "./generate";
-import { posterRequest } from "./prompts";
+import { posterPrompt, posterRequest } from "./prompts";
 import { MEDIA_ADAPTERS, providerKeysSet } from "./providers";
 import type { GenerateRequest, MediaModel as ProviderModel, ProviderId } from "./pr2-types";
 import { rememberAsset } from "./library";
@@ -41,8 +41,24 @@ export async function renderCampaignPoster(input: {
   ownerId: string;
   /** Key typed in the browser. Never written onto the campaign. */
   userKey?: string;
+  /** Founder description of what the current poster got wrong. Used only when the creative agent did not supply a prompt. */
+  correction?: string;
+  /** Image prompt written by the Image Generation agent for this edit. */
+  promptOverride?: string;
+  /** The poster already on screen. When set, the provider edits this image instead of the product photo. */
+  editFrom?: { bytes: Buffer; mime: string; sha256: string };
 }): Promise<MediaGeneration> {
-  const req = posterRequest(input.campaign, input.creative, input.modelId);
+  const req = posterRequest(input.campaign, input.creative, input.modelId, {
+    correction: input.correction,
+  });
+  if (input.promptOverride?.trim()) {
+    req.prompt = input.promptOverride.trim();
+  } else if (input.correction?.trim() && input.editFrom) {
+    req.prompt = posterPrompt(input.campaign, input.creative, {
+      correction: input.correction,
+      editing: true,
+    });
+  }
   let model;
   try {
     model = getModel(req.modelId);
@@ -57,7 +73,7 @@ export async function renderCampaignPoster(input: {
   try {
     const rendered = await adapter.generate(req as GenerateRequest, {
       model: model as ProviderModel,
-      startImage: referenceImage(req.contextImages),
+      startImage: input.editFrom ?? referenceImage(req.contextImages),
       apiKey: key,
     });
     const stored = await putMedia({
@@ -91,9 +107,11 @@ export async function renderCampaignPoster(input: {
       ...quoted,
       status: "ok",
       url: stored.url,
-      note: input.campaign.productImageUrl
-        ? `Live ${model.name}. Built around the uploaded product photo.`
-        : `Live ${model.name}.`,
+      note: input.editFrom
+        ? `Revised on ${model.name}.`
+        : input.campaign.productImageUrl
+          ? `Live ${model.name}. Built around the uploaded product photo.`
+          : `Live ${model.name}.`,
       usage: {
         ...quoted.usage,
         costUsd: rendered.costUsd,
