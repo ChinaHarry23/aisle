@@ -1,0 +1,760 @@
+{
+  "schemaVersion": "1.0",
+  "retailer": {
+    "id": "coles",
+    "name": "Coles",
+    "country": "AU"
+  },
+  "currency": "AUD",
+  "extractedAt": "2026-09-28",
+  "note": "Synthetic demo extract for Coles. POS, catalogue and competitor rows are fabricated for the classroom demo and are not a live Coles feed.",
+  "products": [
+    {
+      "sku": "2718493",
+      "name": "Vegemite 220g",
+      "brandName": "Vegemite",
+      "category": "Grocery",
+      "subcategory": "Spreads",
+      "aliases": [
+        "vegemite"
+      ],
+      "pos": {
+        "periodFrom": "2025-09-29",
+        "periodTo": "2026-09-28",
+        "weeks": 52,
+        "units": 1689293,
+        "unitsYearAgo": 1592171,
+        "velocityVsLastYearPct": 6.1,
+        "storesRanged": 846,
+        "avgUnitsPerStoreWeek": 38.4,
+        "avgPriceAud": 4.5,
+        "basketAttachLiftPct": 6.2
+      },
+      "catalogue": {
+        "asOf": "2026-09-28",
+        "ranged": true,
+        "aisle": "Spreads",
+        "shelfPriceAud": 4.5,
+        "promoPriceAud": 3.5,
+        "promoMechanic": "Save $1",
+        "promoEnds": "2026-11-03",
+        "pairedWith": [
+          "Wonder White Sandwich 700g"
+        ],
+        "attachRatePct": 22.4,
+        "heroOnlyAttachRatePct": 14.8,
+        "note": "Save $1 in the current catalogue. Still the default spread."
+      },
+      "competitors": [
+        {
+          "retailer": "Woolworths",
+          "observedAt": "2026-09-22",
+          "channel": "Online catalogue",
+          "shelfPriceAud": 4.4,
+          "onPromotion": false,
+          "promoMechanic": null,
+          "observation": "Same 220g jar at $4.40. No price callout on the pantry page."
+        },
+        {
+          "retailer": "Aldi",
+          "observedAt": "2026-09-24",
+          "channel": "Store check, 12 stores",
+          "shelfPriceAud": 3.99,
+          "onPromotion": false,
+          "promoMechanic": null,
+          "observation": "Vegemite 220g at $3.99. No house-brand equivalent on the shelf checked."
+        }
+      ]
+    },
+    {
+      "sku": "3841206",
+      "name": "Orchy Apple Juice 2L",
+      "brandName": "Orchy",
+      "category": "Beverages",
+      "subcategory": "Juice",
+      "aliases": [
+        "apple juice",
+        "orchy"
+      ],
+      "pos": {
+        "periodFrom": "2025-09-29",
+        "periodTo": "2026-09-28",
+        "weeks": 52,
+        "units": 624686,
+        "unitsYearAgo": 527606,
+        "velocityVsLastYearPct": 18.4,
+        "storesRanged": 846,
+        "avgUnitsPerStoreWeek": 14.2,
+        "avgPriceAud": 3.2,
+        "basketAttachLiftPct": 11
+      },
+      "catalogue": {
+        "asOf": "2026-09-28",
+        "ranged": true,
+        "aisle": "Soft drinks",
+        "shelfPriceAud": 3.3,
+        "promoPriceAud": 2.5,
+        "promoMechanic": "Save $0.80",
+        "promoEnds": "2026-11-03",
+        "pairedWith": [
+          "Weet-Bix"
+        ],
+        "attachRatePct": 19.1,
+        "heroOnlyAttachRatePct": 9.4,
+        "note": "2L juice is on the drinks gondola end for the spring catalogue."
+      },
+      "competitors": [
+        {
+          "retailer": "Woolworths",
+          "observedAt": "2026-09-22",
+          "channel": "Online catalogue",
+          "shelfPriceAud": 3.5,
+          "onPromotion": true,
+          "promoMechanic": "Save 50c",
+          "observation": "2L Orchy is ranged. A small save, not a front page."
+        },
+        {
+          "retailer": "Aldi",
+          "observedAt": "2026-09-24",
+          "channel": "Store check, 12 stores",
+          "shelfPriceAud": 2.49,
+          "onPromotion": false,
+          "promoMechanic": null,
+          "observation": "No Orchy. Aldi apple juice 2L at $2.49 everyday."
+        }
+      ]
+    },
+    {
+      "sku": "1055821",
+      "name": "Imperial Mandarins 1kg",
+      "brandName": "Imperial",
+      "category": "Fresh produce",
+      "subcategory": "Citrus",
+      "aliases": [
+        "mandarin",
+        "mandarins"
+      ],
+      "pos": {
+        "periodFrom": "2025-09-29",
+        "periodTo": "2026-09-28",
+        "weeks": 52,
+        "units": 1003018,
+        "unitsYearAgo": 764495,
+        "velocityVsLastYearPct": 31.2,
+        "storesRanged": 846,
+        "avgUnitsPerStoreWeek": 22.8,
+        "avgPriceAud": 4.9,
+        "basketAttachLiftPct": 14.4
+      },
+      "catalogue": {
+        "asOf": "2026-09-28",
+        "ranged": true,
+        "aisle": "Fresh fruit",
+        "shelfPriceAud": 4.9,
+        "promoPriceAud": 3.5,
+        "promoMechanic": "Seasonal special",
+        "promoEnds": "2026-11-10",
+        "pairedWith": [
+          "Coles Full Cream Milk 2L"
+        ],
+        "attachRatePct": 27.6,
+        "heroOnlyAttachRatePct": 11.2,
+        "note": "Tray fruit is the lead fresh line in the 28 Sep catalogue."
+      },
+      "competitors": [
+        {
+          "retailer": "Woolworths",
+          "observedAt": "2026-09-22",
+          "channel": "Online catalogue",
+          "shelfPriceAud": 5.5,
+          "onPromotion": true,
+          "promoMechanic": "Seasonal",
+          "observation": "Mandarin trays at $5.50, behind berries on the fresh front."
+        },
+        {
+          "retailer": "Aldi",
+          "observedAt": "2026-09-24",
+          "channel": "Store check, 12 stores",
+          "shelfPriceAud": 3.99,
+          "onPromotion": false,
+          "promoMechanic": null,
+          "observation": "Loose mandarins around $3.99 a kilo. No Imperial brand."
+        }
+      ]
+    },
+    {
+      "sku": "6922044",
+      "name": "Beef Brisket 1.5kg",
+      "brandName": "Generic",
+      "category": "Meat",
+      "subcategory": "Beef",
+      "aliases": [
+        "brisket"
+      ],
+      "pos": {
+        "periodFrom": "2025-09-29",
+        "periodTo": "2026-09-28",
+        "weeks": 52,
+        "units": 202363,
+        "unitsYearAgo": 188420,
+        "velocityVsLastYearPct": 7.4,
+        "storesRanged": 846,
+        "avgUnitsPerStoreWeek": 4.6,
+        "avgPriceAud": 16,
+        "basketAttachLiftPct": 5.1
+      },
+      "catalogue": {
+        "asOf": "2026-09-28",
+        "ranged": true,
+        "aisle": "Butcher",
+        "shelfPriceAud": 18,
+        "promoPriceAud": 14,
+        "promoMechanic": "Save $4",
+        "promoEnds": "2026-11-03",
+        "pairedWith": [
+          "Coles Full Cream Milk 2L"
+        ],
+        "attachRatePct": 8.4,
+        "heroOnlyAttachRatePct": 3.2,
+        "note": "Slow-cook beef is a weekend cover line, not a weekday volume line."
+      },
+      "competitors": [
+        {
+          "retailer": "Woolworths",
+          "observedAt": "2026-09-22",
+          "channel": "Online catalogue",
+          "shelfPriceAud": 17,
+          "onPromotion": true,
+          "promoMechanic": "Save $4",
+          "observation": "1.5kg brisket is a weekend cover at $13 off a $17 shelf."
+        },
+        {
+          "retailer": "Aldi",
+          "observedAt": "2026-09-24",
+          "channel": "Store check, 12 stores",
+          "shelfPriceAud": 12.99,
+          "onPromotion": false,
+          "promoMechanic": null,
+          "observation": "Beef roast, not labelled brisket, at $12.99 a kilo equivalent."
+        }
+      ]
+    },
+    {
+      "sku": "4481902",
+      "name": "Cobram Estate Olive Oil 750ml",
+      "brandName": "Cobram Estate",
+      "category": "Pantry",
+      "subcategory": "Oils",
+      "aliases": [
+        "olive oil"
+      ],
+      "pos": {
+        "periodFrom": "2025-09-29",
+        "periodTo": "2026-09-28",
+        "weeks": 52,
+        "units": 136375,
+        "unitsYearAgo": 129634,
+        "velocityVsLastYearPct": 5.2,
+        "storesRanged": 846,
+        "avgUnitsPerStoreWeek": 3.1,
+        "avgPriceAud": 12,
+        "basketAttachLiftPct": 4
+      },
+      "catalogue": {
+        "asOf": "2026-09-28",
+        "ranged": true,
+        "aisle": "Oils and vinegars",
+        "shelfPriceAud": 12.5,
+        "promoPriceAud": null,
+        "promoMechanic": null,
+        "promoEnds": null,
+        "pairedWith": [
+          "Wonder White Sandwich 700g"
+        ],
+        "attachRatePct": 6.8,
+        "heroOnlyAttachRatePct": 4.1,
+        "note": "Everyday oil. Not on promotion in this catalogue."
+      },
+      "competitors": [
+        {
+          "retailer": "Woolworths",
+          "observedAt": "2026-09-22",
+          "channel": "Online catalogue",
+          "shelfPriceAud": 12,
+          "onPromotion": true,
+          "promoMechanic": "Prices dropped",
+          "observation": "750ml Cobram dropped to $9 for the month."
+        },
+        {
+          "retailer": "Aldi",
+          "observedAt": "2026-09-24",
+          "channel": "Store check, 12 stores",
+          "shelfPriceAud": 7.99,
+          "onPromotion": false,
+          "promoMechanic": null,
+          "observation": "House-brand light olive oil 750ml at $7.99. Cobram not ranged."
+        }
+      ]
+    },
+    {
+      "sku": "2201847",
+      "name": "Coles Full Cream Milk 2L",
+      "brandName": "House brand",
+      "category": "Dairy",
+      "subcategory": "Milk",
+      "aliases": [
+        "milk",
+        "full cream"
+      ],
+      "pos": {
+        "periodFrom": "2025-09-29",
+        "periodTo": "2026-09-28",
+        "weeks": 52,
+        "units": 2705508,
+        "unitsYearAgo": 2428643,
+        "velocityVsLastYearPct": 11.4,
+        "storesRanged": 846,
+        "avgUnitsPerStoreWeek": 61.5,
+        "avgPriceAud": 3.1,
+        "basketAttachLiftPct": 8.2
+      },
+      "catalogue": {
+        "asOf": "2026-09-28",
+        "ranged": true,
+        "aisle": "Dairy",
+        "shelfPriceAud": 3.1,
+        "promoPriceAud": 2.6,
+        "promoMechanic": "Down Down",
+        "promoEnds": "2026-11-17",
+        "pairedWith": [
+          "Weet-Bix"
+        ],
+        "attachRatePct": 41.2,
+        "heroOnlyAttachRatePct": 28.4,
+        "note": "House-brand 2L milk. Locked price through mid November."
+      },
+      "competitors": [
+        {
+          "retailer": "Woolworths",
+          "observedAt": "2026-09-22",
+          "channel": "Online catalogue",
+          "shelfPriceAud": 3,
+          "onPromotion": false,
+          "promoMechanic": null,
+          "observation": "Woolworths 2L full cream is $3.00 everyday. Not ticketed as a special."
+        },
+        {
+          "retailer": "Aldi",
+          "observedAt": "2026-09-24",
+          "channel": "Store check, 12 stores",
+          "shelfPriceAud": 2.49,
+          "onPromotion": false,
+          "promoMechanic": null,
+          "observation": "Farmdale full cream 2L at $2.49."
+        }
+      ]
+    },
+    {
+      "sku": "5560193",
+      "name": "Wonder White Sandwich 700g",
+      "brandName": "Wonder",
+      "category": "Bakery",
+      "subcategory": "Bread",
+      "aliases": [
+        "wonder white",
+        "bread"
+      ],
+      "pos": {
+        "periodFrom": "2025-09-29",
+        "periodTo": "2026-09-28",
+        "weeks": 52,
+        "units": 822650,
+        "unitsYearAgo": 790250,
+        "velocityVsLastYearPct": 4.1,
+        "storesRanged": 846,
+        "avgUnitsPerStoreWeek": 18.7,
+        "avgPriceAud": 3.8,
+        "basketAttachLiftPct": 3.4
+      },
+      "catalogue": {
+        "asOf": "2026-09-28",
+        "ranged": true,
+        "aisle": "Bakery",
+        "shelfPriceAud": 4,
+        "promoPriceAud": 3,
+        "promoMechanic": "Low price",
+        "promoEnds": "2026-11-03",
+        "pairedWith": [
+          "Vegemite 220g"
+        ],
+        "attachRatePct": 24.8,
+        "heroOnlyAttachRatePct": 16.2,
+        "note": "Sandwich loaf sits beside spreads. Promo is the low-price ticket."
+      },
+      "competitors": [
+        {
+          "retailer": "Woolworths",
+          "observedAt": "2026-09-22",
+          "channel": "Online catalogue",
+          "shelfPriceAud": 3.9,
+          "onPromotion": true,
+          "promoMechanic": "Low price",
+          "observation": "Wonder White 700g at $2.80 on the bakery rail."
+        },
+        {
+          "retailer": "Aldi",
+          "observedAt": "2026-09-24",
+          "channel": "Store check, 12 stores",
+          "shelfPriceAud": 1.89,
+          "onPromotion": false,
+          "promoMechanic": null,
+          "observation": "Baker's Life white sandwich at $1.89. Wonder White not ranged."
+        }
+      ]
+    },
+    {
+      "sku": "7733201",
+      "name": "Cadbury Dairy Milk 180g",
+      "brandName": "Cadbury",
+      "category": "Grocery",
+      "subcategory": "Confectionery",
+      "aliases": [
+        "cadbury",
+        "dairy milk"
+      ],
+      "pos": {
+        "periodFrom": "2025-09-29",
+        "periodTo": "2026-09-28",
+        "weeks": 52,
+        "units": 413525,
+        "unitsYearAgo": 404623,
+        "velocityVsLastYearPct": 2.2,
+        "storesRanged": 846,
+        "avgUnitsPerStoreWeek": 9.4,
+        "avgPriceAud": 5.5,
+        "basketAttachLiftPct": 1.4
+      },
+      "catalogue": {
+        "asOf": "2026-09-28",
+        "ranged": true,
+        "aisle": "Confectionery",
+        "shelfPriceAud": 6,
+        "promoPriceAud": 3,
+        "promoMechanic": "Half price",
+        "promoEnds": "2026-11-03",
+        "pairedWith": [
+          "Tim Tam"
+        ],
+        "attachRatePct": 12.6,
+        "heroOnlyAttachRatePct": 7.1,
+        "note": "Block chocolate on the confectionery end. Half price this week."
+      },
+      "competitors": [
+        {
+          "retailer": "Woolworths",
+          "observedAt": "2026-09-22",
+          "channel": "Online catalogue",
+          "shelfPriceAud": 6,
+          "onPromotion": true,
+          "promoMechanic": "Special",
+          "observation": "Dairy Milk 180g special at $4.00. Short mechanic."
+        },
+        {
+          "retailer": "Aldi",
+          "observedAt": "2026-09-24",
+          "channel": "Store check, 12 stores",
+          "shelfPriceAud": 2.29,
+          "onPromotion": false,
+          "promoMechanic": null,
+          "observation": "Choceur milk chocolate 200g at $2.29. Cadbury block not the lead."
+        }
+      ]
+    },
+    {
+      "sku": "1904428",
+      "name": "Sanitarium Weet-Bix 1.2kg",
+      "brandName": "Sanitarium",
+      "category": "Grocery",
+      "subcategory": "Cereal",
+      "aliases": [
+        "weet-bix",
+        "weetbix"
+      ],
+      "pos": {
+        "periodFrom": "2025-09-29",
+        "periodTo": "2026-09-28",
+        "weeks": 52,
+        "units": 554299,
+        "unitsYearAgo": 504826,
+        "velocityVsLastYearPct": 9.8,
+        "storesRanged": 846,
+        "avgUnitsPerStoreWeek": 12.6,
+        "avgPriceAud": 6.2,
+        "basketAttachLiftPct": 7.6
+      },
+      "catalogue": {
+        "asOf": "2026-09-28",
+        "ranged": true,
+        "aisle": "Cereal",
+        "shelfPriceAud": 6.5,
+        "promoPriceAud": 5,
+        "promoMechanic": "Special",
+        "promoEnds": "2026-11-10",
+        "pairedWith": [
+          "Full Cream Milk 2L"
+        ],
+        "attachRatePct": 18.9,
+        "heroOnlyAttachRatePct": 11,
+        "note": "Breakfast cereal bay. Special when the milk is also on ticket."
+      },
+      "competitors": [
+        {
+          "retailer": "Woolworths",
+          "observedAt": "2026-09-22",
+          "channel": "Online catalogue",
+          "shelfPriceAud": 6.4,
+          "onPromotion": true,
+          "promoMechanic": "Special",
+          "observation": "Weet-Bix 1.2kg at $4.50 when milk is also dropped."
+        },
+        {
+          "retailer": "Aldi",
+          "observedAt": "2026-09-24",
+          "channel": "Store check, 12 stores",
+          "shelfPriceAud": 4.49,
+          "onPromotion": false,
+          "promoMechanic": null,
+          "observation": "No Weet-Bix. Wheat biscuit 1.12kg at $4.49."
+        }
+      ]
+    },
+    {
+      "sku": "8126630",
+      "name": "Coles RSPCA Chicken Breast 1kg",
+      "brandName": "House brand",
+      "category": "Meat",
+      "subcategory": "Poultry",
+      "aliases": [
+        "chicken breast"
+      ],
+      "pos": {
+        "periodFrom": "2025-09-29",
+        "periodTo": "2026-09-28",
+        "weeks": 52,
+        "units": 387130,
+        "unitsYearAgo": 364186,
+        "velocityVsLastYearPct": 6.3,
+        "storesRanged": 846,
+        "avgUnitsPerStoreWeek": 8.8,
+        "avgPriceAud": 11,
+        "basketAttachLiftPct": 4.4
+      },
+      "catalogue": {
+        "asOf": "2026-09-28",
+        "ranged": true,
+        "aisle": "Poultry",
+        "shelfPriceAud": 12,
+        "promoPriceAud": 10,
+        "promoMechanic": "Save $2",
+        "promoEnds": "2026-11-03",
+        "pairedWith": [
+          "Bananas"
+        ],
+        "attachRatePct": 9.2,
+        "heroOnlyAttachRatePct": 5.4,
+        "note": "RSPCA chicken breast. Save $2 on the poultry shelf."
+      },
+      "competitors": [
+        {
+          "retailer": "Woolworths",
+          "observedAt": "2026-09-22",
+          "channel": "Online catalogue",
+          "shelfPriceAud": 11.5,
+          "onPromotion": true,
+          "promoMechanic": "Save $2.50",
+          "observation": "Chicken breast 1kg at $9.00. A weekend protein ticket."
+        },
+        {
+          "retailer": "Aldi",
+          "observedAt": "2026-09-24",
+          "channel": "Store check, 12 stores",
+          "shelfPriceAud": 8.99,
+          "onPromotion": false,
+          "promoMechanic": null,
+          "observation": "Chicken breast 1kg at $8.99. No RSPCA callout."
+        }
+      ]
+    },
+    {
+      "sku": "6401185",
+      "name": "Cavendish Bananas 1kg",
+      "brandName": "Cavendish",
+      "category": "Fresh produce",
+      "subcategory": "Fruit",
+      "aliases": [
+        "banana",
+        "bananas"
+      ],
+      "pos": {
+        "periodFrom": "2025-09-29",
+        "periodTo": "2026-09-28",
+        "weeks": 52,
+        "units": 2428358,
+        "unitsYearAgo": 2118986,
+        "velocityVsLastYearPct": 14.6,
+        "storesRanged": 846,
+        "avgUnitsPerStoreWeek": 55.2,
+        "avgPriceAud": 3.9,
+        "basketAttachLiftPct": 9.1
+      },
+      "catalogue": {
+        "asOf": "2026-09-28",
+        "ranged": true,
+        "aisle": "Fresh fruit",
+        "shelfPriceAud": 3.9,
+        "promoPriceAud": 2.9,
+        "promoMechanic": "Loose special",
+        "promoEnds": "2026-11-03",
+        "pairedWith": [
+          "Weet-Bix"
+        ],
+        "attachRatePct": 33.4,
+        "heroOnlyAttachRatePct": 20.1,
+        "note": "Loose bananas. The kilo price is the fresh-front ticket."
+      },
+      "competitors": [
+        {
+          "retailer": "Woolworths",
+          "observedAt": "2026-09-22",
+          "channel": "Online catalogue",
+          "shelfPriceAud": 4.2,
+          "onPromotion": true,
+          "promoMechanic": "Loose special",
+          "observation": "Bananas at $3.20 a kilo on the fresh front."
+        },
+        {
+          "retailer": "Aldi",
+          "observedAt": "2026-09-24",
+          "channel": "Store check, 12 stores",
+          "shelfPriceAud": 2.49,
+          "onPromotion": false,
+          "promoMechanic": null,
+          "observation": "Bananas at $2.49 a kilo."
+        }
+      ]
+    },
+    {
+      "sku": "3377509",
+      "name": "Arnott's Tim Tam Original 200g",
+      "brandName": "Arnott's",
+      "category": "Grocery",
+      "subcategory": "Biscuits",
+      "aliases": [
+        "tim tam"
+      ],
+      "pos": {
+        "periodFrom": "2025-09-29",
+        "periodTo": "2026-09-28",
+        "weeks": 52,
+        "units": 497110,
+        "unitsYearAgo": 457323,
+        "velocityVsLastYearPct": 8.7,
+        "storesRanged": 846,
+        "avgUnitsPerStoreWeek": 11.3,
+        "avgPriceAud": 4.2,
+        "basketAttachLiftPct": 6.8
+      },
+      "catalogue": {
+        "asOf": "2026-09-28",
+        "ranged": true,
+        "aisle": "Biscuits",
+        "shelfPriceAud": 4.5,
+        "promoPriceAud": 2.25,
+        "promoMechanic": "Half price",
+        "promoEnds": "2026-11-03",
+        "pairedWith": [
+          "Cadbury Dairy Milk 180g"
+        ],
+        "attachRatePct": 15.7,
+        "heroOnlyAttachRatePct": 8.2,
+        "note": "Biscuit aisle. Half price beside the chocolate block."
+      },
+      "competitors": [
+        {
+          "retailer": "Woolworths",
+          "observedAt": "2026-09-22",
+          "channel": "Online catalogue",
+          "shelfPriceAud": 4.4,
+          "onPromotion": true,
+          "promoMechanic": "Half price",
+          "observation": "Tim Tam 200g half price at $2.20. Traffic biscuit."
+        },
+        {
+          "retailer": "Aldi",
+          "observedAt": "2026-09-24",
+          "channel": "Store check, 12 stores",
+          "shelfPriceAud": 1.79,
+          "onPromotion": false,
+          "promoMechanic": null,
+          "observation": "House-brand chocolate biscuit 200g at $1.79. Tim Tam not ranged in the stores checked."
+        }
+      ]
+    },
+    {
+      "sku": "9182204",
+      "name": "Bonds Men's Crew Sock 5 Pack",
+      "brandName": "Bonds",
+      "category": "Apparel",
+      "subcategory": "Hosiery",
+      "aliases": [
+        "socks",
+        "crew sock"
+      ],
+      "pos": {
+        "periodFrom": "2025-09-29",
+        "periodTo": "2026-09-28",
+        "weeks": 26,
+        "units": 84240,
+        "unitsYearAgo": 82600,
+        "velocityVsLastYearPct": 2,
+        "storesRanged": 540,
+        "avgUnitsPerStoreWeek": 6,
+        "avgPriceAud": 12,
+        "basketAttachLiftPct": 1.2
+      },
+      "catalogue": {
+        "asOf": "2026-09-28",
+        "ranged": true,
+        "aisle": "General merchandise",
+        "shelfPriceAud": 14,
+        "promoPriceAud": 10,
+        "promoMechanic": "Save $4",
+        "promoEnds": "2026-11-03",
+        "pairedWith": [],
+        "attachRatePct": 3.4,
+        "heroOnlyAttachRatePct": 2.2,
+        "note": "A small general-merchandise line. Not a grocery traffic driver."
+      },
+      "competitors": [
+        {
+          "retailer": "Woolworths",
+          "observedAt": "2026-09-22",
+          "channel": "Online catalogue",
+          "shelfPriceAud": 15,
+          "onPromotion": false,
+          "promoMechanic": null,
+          "observation": "Bonds 5 pack at $15. Not on promotion."
+        },
+        {
+          "retailer": "Aldi",
+          "observedAt": "2026-09-24",
+          "channel": "Store check, 12 stores",
+          "shelfPriceAud": 6.99,
+          "onPromotion": false,
+          "promoMechanic": null,
+          "observation": "House-brand sports socks, not Bonds, at $6.99 for a 5 pack."
+        }
+      ]
+    }
+  ]
+}

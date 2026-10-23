@@ -1,15 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { GuidelinesPanel } from "@/components/GuidelinesPanel";
+import { RetailDataPanel } from "@/components/RetailDataPanel";
 import { PageHeader } from "@/components/ui";
 import { useAisle } from "@/lib/store";
 import type { BrandProfile } from "@/lib/types";
 
-const inputCls = "mt-1 w-full border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-signal";
+const inputCls = "mt-1 w-full border border-line bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-signal";
 const labelCls = "text-[11px] uppercase tracking-wider text-mute";
-
-const splitTerms = (v: string) => v.split(",").map((s) => s.trim()).filter(Boolean);
 
 function parseHex(hex: string): [number, number, number] {
   const h = hex.replace("#", "");
@@ -41,11 +39,11 @@ function toCmyk([r, g, b]: [number, number, number]) {
 }
 
 const SCHEME = [
-  { key: "signal", name: "Apple" },
-  { key: "accent", name: "Sulu" },
-  { key: "ink", name: "Charcoal" },
-  { key: "deep", name: "Rocket" },
-  { key: "paper", name: "White" },
+  { key: "signal", name: "Primary" },
+  { key: "accent", name: "Accent" },
+  { key: "ink", name: "Text" },
+  { key: "deep", name: "Dark" },
+  { key: "paper", name: "Background" },
 ] as const;
 
 function ColourScheme({ colors }: { colors: BrandProfile["colors"] }) {
@@ -71,17 +69,15 @@ function ColourScheme({ colors }: { colors: BrandProfile["colors"] }) {
             {rows.map((r) => (
               <tr key={r.key} className="border-b border-line last:border-0">
                 <td className="px-4 py-3">
-                  <span
-                    className="flex h-10 w-24 items-center justify-center rounded-[10px] border border-line text-xs font-semibold uppercase"
-                    style={{ background: r.hex, color: r.name === "Sulu" || r.name === "White" ? "#25251f" : "#fff" }}
-                  >
-                    {r.hex}
+                  <span className="flex items-center gap-3 text-ink">
+                    <span className="h-10 w-10 shrink-0 rounded-[10px] border border-line" style={{ background: r.hex }} />
+                    <span className="text-xs font-semibold uppercase text-ink">{r.hex}</span>
                   </span>
                 </td>
-                <td className="px-4 py-3 font-medium">{r.name}</td>
-                <td className="px-4 py-3 text-ink-soft">{r.rgb.join(", ")}</td>
-                <td className="px-4 py-3 text-ink-soft">{toHsl(r.rgb).join(", ")}</td>
-                <td className="px-4 py-3 text-ink-soft">{toCmyk(r.rgb).join(", ")}</td>
+                <td className="px-4 py-3 font-medium text-ink">{r.name}</td>
+                <td className="px-4 py-3 text-ink">{r.rgb.join(", ")}</td>
+                <td className="px-4 py-3 text-ink">{toHsl(r.rgb).join(", ")}</td>
+                <td className="px-4 py-3 text-ink">{toCmyk(r.rgb).join(", ")}</td>
               </tr>
             ))}
           </tbody>
@@ -101,21 +97,14 @@ function BrandForm({
   const colorFields = [
     { key: "signal", label: "Primary" },
     { key: "accent", label: "Accent" },
-    { key: "deep", label: "Dark green" },
+    { key: "deep", label: "Dark" },
     { key: "ink", label: "Text" },
     { key: "paper", label: "Background" },
   ] as const;
 
   return (
-    <div className="hairline flex flex-col gap-4 p-4">
-      <label className="block">
-        <span className={labelCls}>Brand name</span>
-        <input
-          value={brand.retailerName}
-          onChange={(e) => onChange({ retailerName: e.target.value })}
-          className={inputCls}
-        />
-      </label>
+    <div className="hairline flex flex-col gap-4 p-4 text-ink">
+      <p className="text-sm text-ink">These are suggestions from the website. Change any of them.</p>
       <label className="block">
         <span className={labelCls}>About the brand</span>
         <textarea
@@ -160,6 +149,7 @@ function BrandForm({
       </div>
       <label className="block">
         <span className={labelCls}>Tone of voice</span>
+        <p className="mt-1 text-sm text-ink">Suggested from the website and a web search. Edit it if it does not sound like the brand.</p>
         <textarea
           rows={3}
           value={brand.tone}
@@ -169,26 +159,11 @@ function BrandForm({
       </label>
       <label className="block">
         <span className={labelCls}>Visual style</span>
+        <p className="mt-1 text-sm text-ink">Suggested from the website. Edit it if the pictures should look different.</p>
         <textarea
           rows={3}
           value={brand.visualStyle}
           onChange={(e) => onChange({ visualStyle: e.target.value })}
-          className={inputCls}
-        />
-      </label>
-      <label className="block">
-        <span className={labelCls}>Approved terms (comma-separated)</span>
-        <input
-          defaultValue={brand.approvedTerms.join(", ")}
-          onChange={(e) => onChange({ approvedTerms: splitTerms(e.target.value) })}
-          className={inputCls}
-        />
-      </label>
-      <label className="block">
-        <span className={labelCls}>Banned terms (comma-separated)</span>
-        <input
-          defaultValue={brand.bannedTerms.join(", ")}
-          onChange={(e) => onChange({ bannedTerms: splitTerms(e.target.value) })}
           className={inputCls}
         />
       </label>
@@ -235,7 +210,47 @@ function EditableBrandName({ value, onChange }: { value: string; onChange: (v: s
 export default function BrandPage() {
   const brand = useAisle((s) => s.brand);
   const updateBrand = useAisle((s) => s.updateBrand);
-  const { ink, paper, signal } = brand.colors;
+  const modelId = useAisle((s) => s.settings.agents.trend.modelId);
+  const [researching, setResearching] = useState(false);
+  const [researchNote, setResearchNote] = useState<string | null>(null);
+  const [researchError, setResearchError] = useState<string | null>(null);
+  const { paper, signal } = brand.colors;
+
+  async function research() {
+    setResearching(true);
+    setResearchError(null);
+    try {
+      const response = await fetch("/api/brand/research", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: brand.retailerName, website: brand.website, modelId }),
+      });
+      const json = (await response.json()) as {
+        error?: string;
+        about?: string;
+        tagline?: string;
+        logoUrl?: string;
+        tone?: string;
+        visualStyle?: string;
+        colors?: BrandProfile["colors"];
+        sourceNote?: string;
+      };
+      if (!response.ok) throw new Error(json.error || "The site could not be read.");
+      updateBrand({
+        about: json.about || brand.about,
+        tagline: json.tagline || brand.tagline,
+        logoUrl: json.logoUrl || brand.logoUrl,
+        ...(json.tone?.trim() ? { tone: json.tone } : {}),
+        ...(json.visualStyle?.trim() ? { visualStyle: json.visualStyle } : {}),
+        colors: { ...brand.colors, ...json.colors },
+      });
+      setResearchNote(json.sourceNote ?? "Suggestion ready. Edit anything that does not fit.");
+    } catch (error) {
+      setResearchError(error instanceof Error ? error.message : "The site could not be read.");
+    } finally {
+      setResearching(false);
+    }
+  }
 
   return (
     <div className="flex flex-col gap-8">
@@ -249,16 +264,31 @@ export default function BrandPage() {
         )}
         <div className="mt-3 max-w-4xl">
           <p className={labelCls}>Website</p>
-          <input
-            type="url"
-            aria-label="Website"
-            placeholder="https://www.example.com/"
-            value={brand.website ?? ""}
-            onChange={(e) => updateBrand({ website: e.target.value })}
-            className={inputCls}
-          />
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <input
+              type="url"
+              aria-label="Website"
+              placeholder="https://www.example.com/"
+              value={brand.website ?? ""}
+              onChange={(e) => updateBrand({ website: e.target.value })}
+              className={`${inputCls} mt-0 min-w-[16rem] flex-1`}
+            />
+            <button
+              type="button"
+              disabled={researching || !brand.retailerName.trim() || !brand.website?.trim()}
+              onClick={() => void research()}
+              className="rounded-full border border-line px-4 py-2 text-sm font-medium text-ink hover:bg-paper-2 disabled:opacity-50"
+            >
+              {researching ? "Reading the site…" : "Research brand"}
+            </button>
+          </div>
+          <p className="mt-2 text-sm text-ink">
+            Name and website are all you enter. Research reads the site for the logo, colours and about text, then suggests a tone and a visual style you can edit.
+          </p>
+          {researchNote ? <p className="mt-2 text-sm text-ink">{researchNote}</p> : null}
+          {researchError ? <p className="mt-2 text-sm text-ink">{researchError}</p> : null}
           {brand.website && /^https?:\/\//.test(brand.website) && (
-            <a href={brand.website} target="_blank" rel="noreferrer" className="mt-1 inline-block text-xs text-mute underline hover:text-ink">
+            <a href={brand.website} target="_blank" rel="noreferrer" className="mt-1 inline-block text-xs text-ink underline">
               Visit website
             </a>
           )}
@@ -266,8 +296,8 @@ export default function BrandPage() {
       </div>
 
       <section
-        className="flex items-center gap-5 rounded-[16px] p-8"
-        style={{ background: paper, color: ink, boxShadow: "inset 0 0 0 1px var(--line)" }}
+        className="flex items-center gap-5 rounded-[16px] p-8 text-ink"
+        style={{ background: paper, boxShadow: "inset 0 0 0 1px var(--line)" }}
       >
         {brand.logoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -275,7 +305,7 @@ export default function BrandPage() {
         ) : (
           <span
             className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[14px] text-3xl font-semibold"
-            style={{ background: signal, color: paper }}
+            style={{ background: signal, color: "#ffffff" }}
           >
             {brand.retailerName.trim().charAt(0).toUpperCase() || "?"}
           </span>
@@ -287,7 +317,7 @@ export default function BrandPage() {
 
       <BrandForm brand={brand} onChange={updateBrand} />
 
-      <GuidelinesPanel />
+      <RetailDataPanel />
     </div>
   );
 }

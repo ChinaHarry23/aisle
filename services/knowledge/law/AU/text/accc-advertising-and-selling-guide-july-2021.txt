@@ -1,0 +1,2605 @@
+Advertising and selling
+guide
+A guide for business
+
+July 2021
+
+accc.gov.au
+
+Australian Competition and Consumer Commission
+23 Marcus Clarke Street, Canberra, Australian Capital Territory, 2601
+© Commonwealth of Australia 2021
+This work is copyright. In addition to any use permitted under the Copyright Act 1968, all material contained within this work is provided
+under a Creative Commons Attribution 3.0 Australia licence, with the exception of:
+
+
+the Commonwealth Coat of Arms
+
+
+
+the ACCC and AER logos
+
+
+
+any illustration, diagram, photograph or graphic over which the Australian Competition and Consumer Commission does not hold
+copyright, but which may be part of or contained within this publication.
+
+The details of the relevant licence conditions are available on the Creative Commons website, as is the full legal code for the CC BY 3.0 AU
+licence.
+Requests and inquiries concerning reproduction and rights should be addressed to the Director, Content and Digital Services, ACCC,
+GPO Box 3131, Canberra ACT 2601.
+Important notice
+The information in this publication is for general guidance only. It does not constitute legal or other professional advice, and should not be
+relied on as a statement of the law in any jurisdiction. Because it is intended only as a general guide, it may contain generalisations. You
+should obtain professional advice if you have any specific concern.
+The ACCC has made every reasonable effort to provide current and accurate information, but it does not make any guarantees regarding
+the accuracy, currency or completeness of that information.
+Parties who wish to re-publish or otherwise use the information in this publication must check this information for currency and accuracy
+prior to publication. This should be done prior to each publication edition, as ACCC guidance and relevant transitional legislation
+frequently change. Any queries parties have should be addressed to the Director, Content and Digital Services, ACCC, GPO Box 3131,
+Canberra ACT 2601.
+ACCC 03/21_21-25
+www.accc.gov.au
+
+Contents
+Introduction
+Using and navigating the guide
+
+1
+
+Who is this guide for?
+
+2
+
+Your rights as a business
+
+3
+
+Avoid misleading or deceptive claims or conduct
+
+4
+
+Misleading or deceptive conduct
+
+4
+
+False or misleading claims
+
+6
+
+Advertising, selling and promotional techniques
+
+7
+
+Advertising techniques
+
+7
+
+Other promotional techniques
+
+9
+
+Selling techniques
+
+14
+
+Marketing claims that require extra care – premium and credence claims
+
+16
+
+Health claims and other benefits
+
+16
+
+Premium claims
+
+17
+
+Animal welfare claims
+
+17
+
+Environmental and organic claims
+
+19
+
+Country and place of origin claims
+
+20
+
+Pricing
+
+iii
+
+1
+
+23
+
+Component pricing
+
+23
+
+Multiple pricing – price displays
+
+24
+
+What is a displayed price?
+
+25
+
+Two-price comparison advertising
+
+25
+
+Unit pricing – a mandatory code of conduct
+
+27
+
+Receipts and itemised bills
+
+28
+
+Unsolicited consumer agreements – door to door sales and telemarketing
+
+29
+
+Rules for gift cards
+
+31
+
+Three year expiry period
+
+31
+
+Disclosure of expiry information
+
+31
+
+Post-supply fees
+
+31
+
+Consumer guarantees
+
+33
+
+What are the guarantees?
+
+33
+
+What happens if the guarantees aren’t complied with?
+
+34
+
+Who is liable for what?
+
+35
+
+Misleading consumers about their rights
+
+36
+
+Warranties against defects
+
+37
+
+Other prohibited sales practices
+
+39
+
+Unfair contract terms
+
+39
+
+Unconscionable conduct
+
+40
+
+Harassment and coercion
+
+41
+
+Pyramid schemes
+
+42
+
+Advertising and selling guide
+
+iv
+
+What happens if I don’t comply with the Australian Consumer Law?
+
+43
+
+Competition and anti-competitive behaviour
+
+44
+
+Resale price maintenance
+
+44
+
+Cartels
+
+44
+
+Product safety
+
+46
+
+Contact details for the Australian Consumer Law Regulators
+
+47
+
+Contact details for the Small Business Commissioners
+
+47
+
+Advertising and selling guide
+
+Introduction
+
+Most Australian businesses use advertising to promote their goods and services. Whether they
+advertise through television, radio, the internet or print media, they must ensure that their advertising
+complies with the law.
+The Australian Consumer Law (ACL) is a national law that aims to protect consumers and ensure fair
+trading in Australia. The ACL is part of the Competition and Consumer Act 2010 (the Act).
+Advertising and selling practices have evolved rapidly. These practices no longer occur solely through
+traditional print media, television or a shop front. Advertising and selling occurs widely in the online
+environment, such as through email, social media, apps, online shopping sites, price comparison sites,
+review platforms and search engines.
+Businesses that operate online have the same rights and obligations as those that operate traditional
+bricks and mortar stores. Businesses need to ensure that their online sales practices comply with
+the Act.
+Good sales practices lead to consumer satisfaction and a more successful business. The rights and
+obligations set out in the ACL are aimed at ensuring businesses operate on a level playing field when
+selling goods and services to consumers.
+
+Using and navigating the guide
+This guide provides an overview of the key parts of the ACL, including:
+
+
+
+
+
+
+
+1
+
+misleading or deceptive conduct
+false or misleading claims
+consumer guarantees
+unfair contract terms
+unsolicited consumer agreements.
+
+Advertising and selling guide
+
+This guide also provides examples of conduct that is likely to breach the ACL and practical tips for
+advertising and selling. It addresses marketing techniques and channels including:
+
+
+
+
+
+‘was/now’ or ‘strike through’ pricing
+reviews and testimonials
+online group buying.
+
+It also provides guidance for businesses seeking to make claims on issues such as:
+
+
+
+
+environmental and organic merits
+country and place of origin.
+
+Lastly, the guide features some information on competition law and product-safety requirements, with
+links to further information.
+The ACCC will update this guide when required. You should check this website periodically for the latest
+version of this guide.
+
+Who is this guide for?
+The ACCC has produced this guide to help businesses of all sizes understand their rights and obligations
+under the ACL. This guide is for businesses that supply products or services – including suppliers,
+manufacturers, importers and service providers. This guide is also designed to help people who advise
+businesses, including accountants, lawyers and marketing professionals.
+Related information: Consumers’ rights & obligations
+Related information: Anti-competitive behaviour
+
+Agents
+Businesses often engage advertising agencies, call centres or sales representatives to assist them in
+selling their goods or services. When a business uses an agent, it will generally be responsible for the
+agent’s conduct. To avoid inadvertently breaching the ACL, a business should take care to supervise the
+activities of its agents.
+
+Advertisers and the media
+Advertising and media operators – newspapers, television, radio and online – must take particular care
+in relation to the products and services they advertise for their clients. They should know their clients’
+business and be aware of the requirements under the ACL to minimise the risk of breaching the law.
+If media operators are only the vehicle for someone else’s misleading message, they may not be liable
+for breaches of the ACL. But if a media outlet actually adopts or endorses the misleading message, it
+may also be held responsible.
+u Real case study: A media firm was approached by an investment company that claimed to have
+a successful investment model to share with the public. The media firm decided to air the story
+to promote the investment model and to encourage viewers to invest. The media company
+made a number of claims on its program about the investment model and its founders which
+turned out to be false.
+Both the marketing company and the investment company were found to have breached
+the Trade Practices Act 1974 (now provisions of the ACL).
+Case law: High Court of Australia – [2009] HCA 19
+Media release: High Court explains limit of the ‘Publisher’s Defence’
+
+2
+
+Advertising and selling guide
+
+Are there any exclusions?
+The ACL does not apply to financial products and services. However, aspects of the ACL are reflected
+in the Australian Securities and Investments Commission Act 2001, to protect consumers of financial
+goods and services. You should direct complaints and enquiries about financial products or services to
+the Australian Securities and Investments Commission.
+
+Your rights as a business
+Businesses also have certain rights and protections under the ACL. It is important you are aware
+of these and we want to hear from you if you are aware that your competitors, suppliers or other
+businesses are breaking the law. For example:
+1.
+
+another business cannot wrongly compare their products to your products in a way that misleads
+consumers, see Two-price comparison advertising
+
+2.
+
+if you are a small business, you are protected from unfair terms in standard form contracts, see
+Unfair contract terms
+
+3.
+
+you are entitled to set and raise your prices independently as you see fit, see Setting prices
+
+4.
+
+generally speaking, where your competitors display a price, it should be a total price of the goods
+or services, see Pricing
+
+5.
+
+your competitors cannot post negative reviews which are not based on a genuine opinion about
+you on online product review sites, see Other promotional techniques
+
+6.
+
+you have spent money to ensure that your labeling complies with the ‘warranty against defects’
+requirements under the ACL but you notice your competitor has not done so, see Warranties
+against defects
+
+7.
+
+your competitors cannot make inaccurate premium or credence claims to your disadvantage, see
+Marketing claims that require extra care - premium and credence claims
+
+8.
+
+you are not obliged to give a customer a refund if they simply change their mind, or find out they
+can buy the product cheaper elsewhere, see Consumer guarantees
+
+You can lodge a complaint with the ACCC about these or any other breaches that come to your
+attention. For more information about your rights and protections under the ACL, visit the ACCC
+website (www.accc.gov.au) or call the ACCC small business helpline on 1300 302 021.
+
+3
+
+Advertising and selling guide
+
+Avoid misleading or deceptive claims or
+conduct
+
+Two fundamental rules of advertising and selling are that:
+i.
+
+you must not engage in conduct that is likely to mislead or deceive
+
+ii.
+
+you must not make false or misleading claims or statements.
+
+In practice there is overlap between the 2 rules. A particular statement could breach both.
+The application of these 2 rules is explored in this section.
+It should be noted that this law applies equally to any statements or claims made about products or
+services in the online environment. Businesses that sell or promote online should ensure that their use of
+online vehicles does not create any misleading impressions or include false claims.
+The information in this guide covers online-specific issues including the use of social media, product
+reviews and online group buying.
+
+Misleading or deceptive conduct
+It is illegal for a business to engage in conduct that misleads or deceives or is likely to mislead or deceive
+consumers or other businesses. This law applies even if you did not intend to mislead or deceive anyone
+or no one has suffered any loss or damage as a result of your conduct.
+Related information: False or misleading claims
+Legislation: Australian Consumer Law section 18
+
+Impressions
+It is important to look at how the behaviour of the business affects the audience’s impression of a
+good or service. When deciding if conduct is misleading or deceptive, or likely to mislead or deceive,
+the most important question to ask is whether the overall impression created by your conduct is false
+or inaccurate.
+
+4
+
+Advertising and selling guide
+
+While a business is not required to disclose information in all circumstances, there will be situations
+where a business must provide information to avoid engaging in misleading or deceptive conduct.
+You should disclose additional information to your customer or another business where it is likely that
+your other conduct has created a misleading impression, or where it is reasonable to expect that this
+information will be disclosed.
+u Example: A customer is deciding whether to buy a new photo printing device and seeks
+advice from the electronic section of a department store. The customer mentions the brand of
+computer they have and buys the photo printing device on the advice of the retailer. However,
+the device is not compatible with the customer’s computer.
+The retail assistant knew it was not compatible yet did not advise the customer about this.
+Their conduct might be considered misleading by silence or omission as they did not disclose
+information that would have significantly changed the customer’s mind about buying the
+product.
+
+u Real case study: An internet company offered ‘unlimited’ download plans for users who signed
+up to their services. However, the plans were subject to major limitations including speed
+reductions when a certain amount of data was downloaded. The court found that the use of the
+term ‘unlimited’ in relation to plans that were subject to major limitations that were not disclosed
+was misleading and deceptive.
+Case law: Full Federal Court – [2012] FCAFC 20
+Media release: Full Federal Court orders internet company to pay $3.6 million penalty
+
+‘Free’
+Businesses should be particularly careful of the use of the word ‘free’. The idea of getting goods or
+services without charge can create keen interest in consumers. Consumers will usually think of ‘free’ as
+absolutely free – a justifiable expectation.
+Simply put, businesses may get into trouble with free offers if they do not reveal the complete truth,
+including any conditions that the consumer must comply with.
+u Example: A business uses the phrase ’10% free’ – meaning the price to the consumer is the same
+but they receive an additional ‘free’ volume of the product. If the price of the product has been
+increased this could be misleading, because the additional volume is not actually free.
+
+u Example: A business makes a ‘buy one, get one free’ offer, but raises the price of the first item to
+largely cover the cost of the second (free) item. This is likely to be misleading or deceptive.
+
+The circumstances
+Whether conduct is misleading or deceptive will depend on the factors surrounding the conduct. This
+means that all relevant circumstances will be taken into consideration, such as the entire advertisement,
+product label or statements made by a sales representative. Fine print, contradictory statements and
+images that obscure or alter written statements are all taken into account.
+
+Know your audience
+Whether any marketing and promotional activities are misleading or deceptive may depend on the
+audience that receives the message. Businesses must remember that the consumers an advertising
+campaign targets may be very different to the audience that actually receives the message. You
+should identify your potential audience as this will help you determine the impact of your message. For
+example, television or radio advertisements are likely to have a wider reach than claims made by your
+sales staff.
+5
+
+Advertising and selling guide
+
+Puffery
+Puffery is a term used to describe wildly exaggerated, fanciful or vague claims about a good or service
+that no one could possibly treat seriously or find misleading. These statements are not considered
+misleading or deceptive under the ACL.
+u Example: A restaurant claims it has the ‘best steaks on earth’ and the ‘tastiest food in town’. The
+restaurant’s claims can be considered puffery as they are unlikely to mislead customers.
+
+False or misleading claims
+In addition to the prohibition against misleading or deceptive conduct, it is unlawful for a business to
+make false or misleading claims about goods or services.
+A misrepresentation is a claim or statement that is false or misleading made by one party to another.
+This includes claims or statements that you make in television or radio advertisements, in catalogues,
+on labels, on websites, in contracts (or during contract negotiations), over the telephone, in
+correspondence (such as letters or emails) or in person.
+Whether a claim or statement is false or misleading will depend on the circumstances.
+You must not make false or misleading claims or statements, for example, that goods are of a particular
+standard, quality, value, grade, composition, style or model or have had a particular history or particular
+previous use.
+There are also specific rules against making false or misleading claims or statements about services and
+about the sale of land or employment. Section 29 of the Act sets out the types of claims or statements
+that may be false or misleading.
+Related information: False or misleading claims
+Legislation: Australian Consumer Law section 29
+u Real case study: The Federal Court found that a car manufacturer made false or misleading
+claims in advertisements for one of its vehicles.
+The manufacturer represented that the vehicle had 7 seats as a standard feature when in fact
+5 seats was the standard configuration.
+The manufacturer also represented that the ‘drive away’ price for the vehicle was $79,990 when
+in fact a purchaser would have to pay additional fees or charges for dealer delivery, statutory
+charges and 2 additional seats.
+Case law: Federal Court of Australia – [2007] FCA 1990
+Media release: Court declares motor vehicle advertising misleading
+
+6
+
+Advertising and selling guide
+
+Advertising, selling and promotional
+techniques
+
+There are some particular obligations that apply when businesses use a number of different advertising
+or promotional ‘techniques’ to promote their products or services.
+
+Advertising techniques
+Bait advertising and special offers
+Bait advertising is the practice of offering items for sale at low prices to attract consumers to a business.
+Bait advertising can be a legitimate form of advertising. However, it is illegal to engage in this conduct
+where goods or services are advertised for sale at a discounted price, and they are not available in
+reasonable quantities and for a reasonable period at that price.
+Legislation: Australian Consumer Law section 35
+You must state clearly if the good is in short supply or on sale for a limited time. For example, if your
+advertisement makes it very clear that goods are available at the discount price for ‘today only’, this will
+limit your obligations to that day.
+If there is not a reasonable chance the offer will be available at the advertised price, you may be in
+breach of the ACL unless you promptly offer a ‘rain check’, an acceptable substitute product or take
+other corrective action.
+u Example: An electronics retailer runs a campaign advertising 50-inch televisions at a price of
+$799 for a week-long sale. The retailer usually sells about 30 televisions of this type every week.
+The retailer only stocks 2 televisions at the advertised price and refuses to take customer orders.
+When customers attempt to buy the television at the advertised price, they are told it is out
+of stock and offered a more expensive unit for $999. This is likely to be bait advertising as the
+retailer does not have a reasonable supply of the advertised television.
+
+7
+
+Advertising and selling guide
+
+Offering rebates, gifts or redemptions
+When supplying or promoting goods or services, it is unlawful to offer rebates, gifts, prizes or other free
+items without intending to provide them. It is also unlawful to fail to provide them as promised. A rebate
+or gift must be provided within the specified time or, if no time was specified, within a reasonable time.
+Legislation: Australian Consumer Law section 32
+If you use this promotional method, you should pay special attention to the detail of the offer to ensure
+your consumers are not misled.
+u Example: A retailer offers customers the chance to enter into a draw to win a prize when they
+spend over $50 in one transaction. However, the business adds a fictitious name to the draw. The
+retailer publicises that the fictitious person won the draw. The result is that the prize offered is
+not actually given to any of its customers. This practice is prohibited by law.
+
+Cash back offers
+Cash back offers are a form of discounting. Instead of marking down product prices, manufacturers
+and retailers maintain the price but offer to return some of the consumer’s money after purchase. There
+are no problems with this marketing approach, but care should be taken in using it. Any conditions,
+limitations or restrictions should be made clear to the consumer before the purchase.
+u Example: Certain cans of deodorant have a shrink-wrap packaging carrying the words ‘$3
+Cash Back’. After returning home and opening the packaging, a consumer finds that the offer
+is limited to one can per customer, and that in any event the offer expired a week earlier. The
+consumer has been misled and may not otherwise have made the purchase.
+In this situation the packaging is misleading because the bold representation of the cash back
+offer was made without equally prominent mention of the limitations. As a result the consumer
+believed the offer applied to each product purchased. This kind of packaging prevents
+consumers from seeing the limitations on the offer.
+
+u Example: An electrical retailer is selling a television with a cash back offer. The price of the
+television is $3,000 and consumers that purchase it can claim $500 cash back after the sale.
+When advertising the television, the retailer should advertise the price of the television as $3,000
+(not $2,500), as this is the price a consumer must pay to acquire the television.
+
+Comparative advertising
+Businesses may use comparative advertising to directly promote the superiority of their products over
+another. The comparison may relate to factors such as price, quality, range or volume.
+Comparative advertising is a direct challenge to competitors and before using comparative advertising,
+you should consider:
+
+
+
+
+
+8
+
+Is the comparison accurate?
+Are the products or services being compared reasonably similar?
+Will the comparison be valid for the life of the promotion?
+
+Advertising and selling guide
+
+u Example: A battery manufacturer packages its batteries in a pack with a red sticker that claims
+the batteries will last longer than 2 other high-profile brands of batteries. The claim is supported
+by independent tests but only against some of the other brands’ batteries. The sticker does not
+identify that the claim does not apply to all of the other brands’ batteries. While there is a more
+precise reference to the comparison on the back of the pack, the sticker on the front still makes
+the packaging misleading.
+You should consider the duration of advertisements planned and the likely reaction of competitors. If
+a competitor is aware of a comparative campaign they may move quickly to change their product or
+service, and this could render your campaign misleading.
+
+Advertising through search engines and other online ads
+There are a range of online advertising channels that businesses can use through mechanisms such as
+‘AdSense’, ‘AdWords’ banner ads, pop-up ads and other types of advertisements. Technology may be
+changing but the requirements of the ACL remain applicable. For example, all businesses involved in
+placing advertisements on search engines must take care not to mislead or deceive consumers.
+u Real case study: In the late 2000s, the Google search engine displayed 2 types of search results:
+‘organic search results’ and ‘sponsored links’. Organic search results were ranked in order of
+relevance to the search terms entered by the user. A sponsored link was a form of advertisement,
+created by or at the direction of an advertiser, who typically paid Google each time a user clicked
+on the sponsored link.
+An advertising agency operated an advertising account with Google on behalf of a classified
+advertising business and for that account the agency’s staff member included a ‘keyword’ of
+a magazine that was a competitor to its client. A Google search for the competitor magazine
+generated a sponsored link that listed the name of the competitor magazine with the website
+address of the classified ads business below it.
+The Federal Court found that the classified ads business made false or misleading claims and
+engaged in misleading or deceptive conduct.
+Media release: Court decision on Google clarifies misleading advertisements
+After appeals on the question of Google’s involvement, the High Court held that Google did not
+contravene the prohibition on misleading and deceptive conduct (now section 18 of the ACL).
+It held that Google did not author the sponsored links; it merely published or displayed, without
+adoption or endorsement, misleading claims made by advertisers.
+Case law: High Court of Australia – [2013] HCA 1
+Media release: Google appeal upheld
+
+Other promotional techniques
+Social media and moderation
+Social media refers to any internet based application that facilitates the exchange of user-generated
+content. Social media gives both consumers and businesses a direct way to interact with each other.
+A person can provide feedback, respond to articles, post images and generate other forms of content
+on websites.
+There are no specific or different consumer laws in place for social media. The laws which prohibit
+businesses from making false, misleading or deceptive claims about their products or services apply
+to social media in the same way they apply to any other marketing channel. Don’t make statements on
+your Facebook page or on other social media that you wouldn’t make in any other type of advertising.
+Related information: Social media
+
+9
+
+Advertising and selling guide
+
+u Example: XYZ Pty Ltd tweets that they are the first Australian company to offer a 100%
+environmentally friendly car wash service when they have not done any research to support this.
+It turns out that GHI Pty Ltd has offered the same service for many years. This tweet is likely to
+be false, misleading or deceptive.
+Businesses using social media channels like Facebook, Twitter and YouTube have a responsibility to
+ensure content on their page is accurate, irrespective of who put it there. You can be held responsible
+for posts or public comments made by others on your social media pages which are false or likely to
+mislead or deceive consumers.
+The risks posed by social media are best dealt with through a clear and prominent moderation policy
+on your business’ homepage. A policy provides contributors with expectations around when their posts
+may be moderated.
+In relation to Facebook for example, businesses and ‘community managers’ should refrain from
+removing all critical comments about the business posted on their Facebook page. As an open, 2-way
+forum, there is an expectation that page moderators will only remove comments where necessary; for
+example offensive, unlawful or clearly untrue material.
+To protect themselves, businesses that use social media should display their moderation policy
+prominently so that consumers have a clear understanding of when and why content will be moderated,
+whether that be through editing or by removing them.
+u Real case study: In 2011, a court found that a company accepted responsibility for fan posts
+and testimonials on its social media pages when it knew about them and decided not to
+remove them.
+Case law: Federal Court of Australia – [2011] FCA 74
+Media release: Firm fined for testimonials by Facebook ‘fans’ and tweeters
+
+u Example: LMN Pty Ltd and DEF Pty Ltd are market leaders in the paint industry. A customer
+posts on LMN’s Facebook page that their paint always lasts much longer than DEF’s paint. LMN
+is unsure if this is true, but decides not to remove the post. It turns out that LMN’s paint does not
+last longer. LMN may be held responsible for this misleading claim.
+Monitor your social media pages and remove any posts that are false, misleading or deceptive as soon
+as you become aware of them. The amount of time you need to spend monitoring your social media
+pages depends on 2 key factors: the size of your company and the number of fans or followers you
+have. Keep in mind that social media operates 24 hours a day, 7 days a week, and many consumers use
+social media outside normal business hours and on weekends.
+u Example: OPQ Pty Ltd has 300 staff. As larger companies usually have sufficient resources and
+sophisticated systems, the ACCC would expect OPQ to become aware of false, misleading or
+deceptive posts on its Facebook page soon after they are posted and to act promptly to remove
+them.
+
+u Example: XYZ Pty Ltd has only 10 staff but more than 50,000 Facebook fans. Given the number
+of people who could be misled by an incorrect post on XYZ’s Facebook page, the ACCC would
+expect XYZ to devote adequate resources to monitoring its Facebook page and to remove false,
+misleading or deceptive posts soon after they are posted.
+You can respond to comments instead of removing them, but where the comment is false, it is
+possible that your response may not be sufficient to override the false impression made by the original
+comment. It may be safer to simply remove it.
+
+10
+
+Advertising and selling guide
+
+You should offer a refund to any customer who made the decision to purchase your product or service
+based on a false, misleading or deceptive claim they saw on your social media page.
+
+Reviews and testimonials
+Reviews and testimonials are popular tools used by businesses to promote their goods and services,
+particularly online, and can be a useful way for consumers to decide if a good or service is right
+for them.
+Reviews and testimonials are often used in several ways:
+
+
+
+businesses use reviews and testimonials on their own websites or through other promotional material
+(for example, in a brochure or television advertisement)
+
+
+
+review websites (also known as review ‘platforms’) allow consumers to leave reviews and ratings
+about businesses to help other consumers differentiate between a range of similar goods or services
+
+
+
+reviews or opinions can be posted using social media, blogs, comment threads, and other channels
+of communication.
+
+Regardless of the advertising medium, any review or testimonial should reflect the genuine views and
+opinions of the person that is represented to have made it. Businesses must not misrepresent consumer
+opinions to dishonestly promote themselves. A fake review or testimonial is one which does not reflect
+the genuinely held opinion of the author. Using false or misleading reviews or testimonials in any
+advertising medium will risk contravening the ACL.
+u Example: XYZ.com.au sells vacuum cleaners online. It wants to display testimonials on its
+website attesting to the quality of the product, but it doesn’t have many existing customer
+reviews to use. XYZ.com.au decides to create a few positive testimonials to post on its website
+and pretends they have been written by customers.
+This is misleading or deceptive conduct because the reviews are not genuine customer reviews.
+
+u Real case study: One solar panel company published written testimonials on its website and
+another published video testimonials on YouTube that were not made by genuine customers of
+the companies. The Federal Court ordered payment of penalties of $125,000 for publishing fake
+testimonials and also for making false or misleading representations about the country of origin
+of the solar panels they supplied.
+Case law: Federal Court of Australia – [2014] FCA 6
+Media release: $145,000 penalty for fake testimonials and false solar energy country of origin
+representations
+Businesses may be engaging in misleading or deceptive conduct if they:
+
+
+
+
+
+use fake reviews, including as a form of false advertising or to damage the reputation of a competitor
+use tactics to influence a consumer to provide a positive review or refrain from a negative review
+selectively remove or edit reviews, particularly negative reviews, for commercial or
+promotional reasons.
+
+Businesses should check reviews and testimonials carefully and implement good record keeping
+practices to ensure they are able to show that reviews and testimonials are honest and accurate.
+
+Online review platforms
+Online reviews are increasingly being relied upon by consumers as a low cost means of making more
+informed purchasing decisions. Online reviews can cover both online businesses and traditional bricks
+and mortar businesses.
+
+11
+
+Advertising and selling guide
+
+As noted above, review websites which allow consumers to leave reviews and ratings about businesses
+are also known as review ‘platforms’. Review platforms generally publish reviews on their own site.
+Sometimes review platforms are engaged to collect and publish reviews on another’s site.
+Just as for other advertising mediums, fake online reviews are in breach of the ACL. Businesses or
+review platforms must not post or publish misleading reviews. Businesses must not write or commission
+reviews about their own business or a competitor’s business which are misleading.
+It should also be remembered that omitting negative reviews can be just as misleading as posting fake
+reviews. Businesses seeking to avoid the risk of misleading consumers should also not engage a review
+platform to selectively remove or edit negative reviews.
+u Example: WXY.com.au is a marketing firm that, for a fee, offers to improve the ranking of
+businesses on review websites. WXY.com.au creates some fake positive reviews and posts them
+on review websites, securing a more favourable rating for the paying business.
+The marketing firm’s conduct would breach the ACL because it has misrepresented the reviews
+to be genuine consumer feedback. The paying business may also have breached the ACL by
+being involved in the marketing firm’s conduct.
+
+u Real case study: A removalist created a review website, www.movingreview.com.au, and used
+fake testimonials posed as genuine consumer testimonials – fake positive testimonials about
+its own services and fake negative testimonials about the services of its competitors. The
+removalist also wrote fake testimonials posed as genuine consumer testimonials on third party
+review websites.
+The removalist paid a $6600 infringement notice and provided a court enforceable undertaking.
+Related s. 87B undertaking: 2011 ss. 18, 29(1)(f) & 29(1)(e) undertaking
+Media release: ACCC: Removalist admits publishing false testimonials
+Related information: Managing online reviews
+Related publication: Online reviews – a guide for business and review platforms
+
+Qualifications and exclusionary clauses
+Businesses sometimes qualify claims or include exclusionary clauses in their advertisements. When
+using these clauses, businesses should ensure that the limitations they place are legal.
+Whether or not something misleads an audience depends on the overall impression created. The
+exclusions should be considered together with the main offer and what is contained in the headline. The
+customer is not required to exhaustively search for qualifications and exclusions. The advertiser must
+clearly direct the consumer’s attention to the most significant terms and conditions so that they can
+make an informed judgment about whether to make a purchase.
+u Example: A national department store runs a series of advertisements in newspapers and on
+television about a sale. The television advertisements prominently state that discounts will apply
+to all clothing. Another series of television advertisements states that discounts will apply to all
+homewares. In fine print both ads exclude certain brands of clothing and homewares. Related
+newspaper advertisements do not make any reference to the exclusion of certain brands. A
+failure to clearly specify the exclusions is likely to mislead customers and therefore breach
+the ACL.
+
+Offers with disclaimers and fine print
+It is common to see advertisements with limitations or disclaimers using an asterisk (*), ‘conditions
+apply’ or other requirements to limit the audience’s expectations. Fine print is often used in
+advertisements, contracts, labelling and signs.
+
+12
+
+Advertising and selling guide
+
+These qualifications usually appear close to the lead selling point. If an asterisk appears near the word
+‘free’, for example, a business may be trying to trade on positive reactions to the selling point, while
+trying to keep within the law by putting the conditions in the fine print. This may not protect that
+business from breaching the ACL.
+The main selling point used for a product or service may make such a strong impression that no
+disclaimer can dispel it. An advertiser must not make the real terms and conditions of the offer unclear
+or unreadable by:
+
+
+
+
+
+
+placing text in obscure locations
+using text that is too small
+flashing disclaimers on screen for only a moment
+using voice overs that are too quick or too quiet.
+
+The type and context of the advertisement is relevant as well. For example, it will be harder to ensure
+that small print conveys the real terms of the offer on a billboard on a highway that cars pass at 100
+kilometres per hour, as compared to small print in a newspaper advertisement.
+u Example: A gardening service offers a special lawn-mowing deal – after 4 paid services, the
+fifth lawn mowing is half-price. The offer is made through a series of radio advertising segments.
+At the end of the ad, there is a quick mention that ‘terms and conditions apply’ without going
+into further detail. The terms and conditions are in fact quite onerous, requiring the customer
+to live in a 2 kilometre radius of the business, be a pensioner and applies to lawn mowing on
+Monday mornings only. The failure to clarify or explain important elements of the offer is likely to
+mislead customers and therefore breach the ACL.
+
+Claims about the future
+A business that makes a claim about future matters (including predictions or projections) must have
+reasonable grounds for doing so at the time of making the claims. If it does not then the business can
+be guilty of misleading or deceptive conduct.
+It is the responsibility of the business that made the claim to show that it had reasonable grounds to
+make the statement. It is important that you consider, or adequately address, the range of uncertainties
+and variables involved when making claims about the future.
+u Example: A real estate agent claims that a golf course will be developed in the area within the
+next year as a major selling point to the properties sold. The agent continues to make these
+claims despite knowing there are no plans to develop a golf course. The agent is misleading
+potential purchasers by suggesting there are such plans when the agent has no reasonable
+grounds to do so.
+
+Asserting right to payment and unsolicited supplies
+‘Unsolicited supplies’ are goods or services supplied to someone who has not requested them. Under
+the ACL it is illegal to request payment for goods or services that the consumer has not agreed to buy.
+You must not issue an invoice that states an amount to be paid for unsolicited goods or services
+unless you reasonably believe you have a right to be paid or the invoice contains a prominent warning
+including the text ‘This is not a bill. You are not required to pay money’. In a dispute, if you are
+demanding payment, you must prove your legitimate right.
+Some businesses may try to place consumers (or other businesses) in a position where they will either:
+
+
+
+
+inadvertently pay for unsolicited goods or services
+pay for them as a way out of an unpleasant situation.
+
+Such conduct may constitute a contravention of the ACL.
+13
+
+Advertising and selling guide
+
+u Example: A customer goes to a hairdresser for a haircut and blow dry and is quoted $70. While
+washing her hair the hairdresser gives her a conditioning treatment that she did not ask for. She
+is later charged $100 for the haircut – $70 for the cut and blow dry, plus an extra $30 for the
+conditioning treatment. This is a contravention by the hairdresser to which a pecuniary penalty
+applies and the customer is not legally required to pay the additional $30.
+Related information: Receiving things you didn’t ask for
+Legislation: Australian Consumer Law Part 3-1 Division 2
+
+Selling techniques
+Referral selling
+It is common for a business to seek to persuade a consumer to buy goods or services by promising
+benefits if they help the business supply goods or services to other consumers. The ACL makes such
+a practice illegal if receipt of the benefit (for example, a rebate or commission) is dependent on the
+other consumers also acquiring goods or services. The consumer may never receive the benefit in these
+circumstances, which is why the practice is illegal.
+u Example: A sales assistant offers a customer 10 free DVDs to go with their new plasma TV on
+the condition that they give the business the names of 5 of their friends and that these friends all
+buy plasma TVs from the business. This type of offer is illegal.
+It is not referral selling for a supplier to promise a benefit for simply providing the names of consumers.
+Legislation: Australian Consumer Law section 49
+
+Wrongly accepting payment
+A business should not accept payment for goods or services if:
+
+
+
+
+
+it does not intend to supply the goods or services at all
+it intends to supply materially different goods or services
+it should have known that it could not provide the goods or services within the specified time or a
+reasonable time.
+u Example: A company sells mobile phone plans and accepts payment for mobile telephone
+services despite knowing it is not able to supply the services as the telecommunications carrier
+has little or no mobile coverage in the customer’s area. This is likely to be a breach of the ACL.
+
+If you do accept payment in advance, you must supply the goods or services within the time you have
+specified, or within a reasonable time, if no time is specified.
+Related information: Unfair business practices
+Legislation: Australian Consumer Law section 36
+
+Lay-by sales
+An agreement is considered to be a lay-by agreement if it is between a supplier and a consumer, where:
+
+
+
+
+the consumer does not receive the goods until the total price has been paid
+the price is paid in at least 3 instalments or in 2 instalments if the agreement specifies that it is a
+lay‑by.
+
+Lay-by agreements must be in writing and a copy given to the consumer.
+
+14
+
+Advertising and selling guide
+
+Agreements must also be expressed in plain language, be legible and presented clearly. A consumer
+can cancel a lay-by agreement but may have to pay a reasonable termination charge. This termination
+charge must be specified in the agreement.
+u Example: A customer orders a Christmas hamper in advance and agrees to make regular
+monthly instalments. This is a lay-by agreement and the supplier must ensure they have met all
+the lay-by requirements, including providing an agreement in writing to the customer specifying
+all the terms and conditions and any termination charges that may apply.
+Related information: Lay-by agreements
+Legislation: Australian Consumer Law Part 3-2 Division 3
+
+Online group buying
+Online ‘daily deals’ and group buying websites are channels for consumers to buy goods or services at
+discount prices. Common complaints about these channels include non-supply and incomplete supply
+of services, and difficulty in booking services and redeeming vouchers before they expire.
+Whether you are providing the platform or the product, the basic principle is that consumers should
+‘get what they pay for’.
+You should:
+
+
+
+consider the potential demand created by advertising services through group buying websites and
+whether your business can deliver those services on time and in a reasonable manner. For example,
+you may want to limit the deal offered so it doesn’t restrict your ability to serve both your regular
+and new customers
+
+
+
+ensure that you can deliver services as advertised and not make any false or misleading claims about
+the services
+
+
+
+
+ensure that any terms and conditions of sale are fair and clearly expressed
+ensure any price representations are accurate, in particular, any ‘was/now’ 2-price claims used to
+promote the product or service.
+
+Things that must be made clear include:
+
+
+
+
+exactly what goods and/or services are being offered and what is not included
+
+
+
+all the terms and conditions – such as expiry dates on vouchers and any ‘black-out’ periods (times or
+circumstances where the offer is not available – for example, particular days of the week)
+
+
+
+what remedies will be available if there are problems and who will be responsible for providing them.
+
+you must state the total price – including any additional compulsory quantifiable charges – see
+‘Component pricing’
+
+The group buying platforms and the merchants offering the products and services must not ‘oversell’
+vouchers – that is, sell more than the merchant can honour.
+u Example: A group buying platform sells vouchers for customers to get 2 bunches of flowers for
+the price of one at a florist. The site specifies a time limit for redeeming the vouchers but does
+not indicate any limit on how many vouchers the florist will honour. The florist cannot keep up
+with a late rush of demand in the last days of the validity period and refuses to honour a number
+of vouchers. The group buying platform, which has the contract with the consumer, in addition
+to the merchant, is responsible for providing a remedy under the Act which, amongst other
+remedies, may include a refund.
+Related information: Online group buying
+
+15
+
+Advertising and selling guide
+
+Marketing claims that require extra care –
+premium and credence claims
+
+Some marketing claims require extra care and thought, such as ‘premium’ claims and those
+known as ‘credence’ claims – where the consumer cannot independently verify the claims for
+themselves and must trust the seller. An example of a credence claim is a claim that a product is
+‘environmentally friendly’.
+
+Health claims and other benefits
+Advertisements for health and medical services, and the benefits they provide, can have a powerful
+influence on consumers. It is essential that businesses selling health and medical products and services
+provide consumers with accurate and truthful information so they can make informed decisions.
+u Real case study: A business manufactured and sold wristbands that it claimed improved
+balance, strength and flexibility. It also claimed the wristband worked with the body’s
+natural energy field. After the ACCC expressed concern about the claims, the manufacturer
+admitted there was no scientific evidence and therefore no reasonable grounds for making
+the representations.
+The business offered refunds to consumers and provided a court enforceable undertaking to the
+ACCC that it would publish corrective advertising, remove misleading representations from its
+website and not make claims about its products that are not supported by independent testing.
+Related s. 87B undertaking: 2010 s.52 undertaking
+Media release: Power Balance admits no reasonable basis for wristband claims, consumers
+offered refunds
+
+16
+
+Advertising and selling guide
+
+u Real case study: An allergy treatment provider claimed that it could identify and cure or
+eliminate a person’s allergies or allergic reactions. The company could not do this.
+The Federal Court found that the company had engaged in false, misleading or deceptive
+conduct and that its director was knowingly concerned in or a party to the contraventions.
+Case law: Federal Court of Australia – [2009] FCA 960
+Media release: Allergy treatment declared misleading
+
+Premium claims
+Businesses often make claims about their products in an attempt to obtain a selling advantage.
+‘Premium claims’ is a broad term used to describe a claim that gives the impression that a product, or
+one of its attributes, has some kind of added benefit when compared to similar products and services.
+These claims go beyond generic descriptions of products.
+Claims may suggest a product is superior to others in its class (‘extra virgin olive oil’) or offers a
+nutritional benefit (‘no added colours or preservatives’). The premium claim may also promote a
+product as being of a perceived quality based on its country of origin (‘Swiss chocolate’, ‘Belgian beer’
+or ‘German engineered’).
+Businesses commonly use the word ‘free’ in making ‘premium claims’ (e.g. ‘free from additives’). The
+word ‘free’ is powerful and absolute. If the product does in fact contain the thing that it claims to be
+‘free from’, the seller should consider a different claim that accurately describes the product. Food
+labelled as ‘lactose free’ should be 100% free of lactose. For environmental-benefit claims, such as ‘100%
+recyclable’, see Environmental and organic claims.
+The Act is complemented by Standard 1.2.7 of the Australia New Zealand Food Standards Code which
+regulates what nutritional and health claims can be made about certain foods.
+u Real case study: A company paid 2 infringement notices totaling $13,200 for labeling products
+as ‘extra virgin olive oil’ that ACCC testing indicated were not of that kind.
+Media release: Olive oil producer pays infringement notices for extra virgin claims
+Related information: Olive oil
+Premium claims may influence consumers’ purchasing decisions if they give the impression that the
+products are a better choice than those without the claimed added benefit. As consumers are often
+unable to assess the accuracy of premium claims, you must ensure that the claims you make can
+be substantiated.
+
+Animal welfare claims
+Free range
+Free range claims are used to market animal products, such as eggs and meat, that have been farmed
+in an open range outdoor environment. Free range claims appeal to consumers’ personal values and
+can guide purchasing decisions, as well as attract a premium price.
+Businesses must not use free range claims unless those claims are accurate.
+Businesses should be careful about what impression may be conveyed by any pictorial representations
+they use. If a business uses pictorial representations that give the impression that its animals are ‘free to
+roam’ or raised outside, when this is not the case, the pictorial representation may be misleading.
+
+17
+
+Advertising and selling guide
+
+u Real case study: The ACCC took action against a duck meat producer in relation to false and
+misleading statements that its duck meat products were open range when the ducks were raised
+solely in indoor sheds. The producer was found to have made claims on its packaging, website,
+delivery trucks, signage and merchandise through written and pictorial representations. The
+producer was ordered to pay costs and penalties of $375,000.
+Case law: Federal Court of Australia – [2013] FCA 570
+Media release: Duck meat producer to pay $400,000 arising from false, misleading and deceptive
+conduct
+
+u Real case study: Two businesses in the chicken meat processing and supplying industry made
+false or misleading claims in breach of the ACL by describing on product packaging and in
+advertising that its meat chickens were ‘free to roam in large barns’ when this was not the case.
+The Federal Court ordered the 2 companies to pay a total of $400,000 in civil
+pecuniary penalties.
+Case law: Federal Court of Australia – [2012] FCA 19, [2013] FCA 665 and [2013] FCA 1109.
+Media release: Court orders chicken companies to pay $400,000 for ‘free to roam’ misleading
+claims
+
+u Real case study: The Federal Court found that a duck meat supplier engaged in misleading
+or deceptive conduct and made false claims by using words on its packaging, website and
+brochures that its ducks were ‘grown and grain fed in the spacious Victorian Wimmera
+Wheatlands’ and/or ‘range reared and grain fed’.
+The ACCC argued that these descriptions represented that the ducks, amongst other things,
+spend a substantial amount of time outdoors when this was not the case.
+The company was ordered to pay a penalty of $360,000 and publish corrective advertising.
+Case law: Federal Court of Australia – [2013] FCA 1136
+Media release: Court orders duck meat supplier to pay $360,000 for misleading claims
+
+Not tested on animals
+Some businesses claim their product has not been tested on animals. These claims can be in the form
+of pictorial representations (such as an animal with a prohibited symbol) or various phrases such as ‘not
+tested on animals’ or ‘cruelty free’.
+Whether any specific claim of this nature is misleading or deceptive will always depend on the context
+and how the claim is made.
+Businesses should make sure their claims are clear and accurate so that consumers have the ability to
+make an informed decision about a product.
+Businesses should take care when making general claims about their position on animal testing, as this
+may give consumers an incorrect impression about whether any of the business’ specific products are
+tested on animals.
+For example, claims such as ‘against animal testing’ may be too vague, as it doesn’t clearly
+communicate to the consumer whether the specific product has been tested on animals. Similarly,
+claims such as ‘not tested on animals unless required by law’, when the business also sells its products in
+countries that do require animal testing, may also be unclear or misleading to a consumer.
+Businesses that choose to make claims about animal testing should therefore ensure that the claims are
+as clear and accurate as possible and do not constitute misleading or deceptive conduct or false claims.
+
+18
+
+Advertising and selling guide
+
+Environmental and organic claims
+Environmental claims
+If you wish to make environmental claims about your business or your product, they should be honest,
+accurate and able to be substantiated. You should clearly explain, in simple language, the significance of
+the benefit to the environment.
+u Real case study: A whitegoods manufacturer provided a court-enforceable undertaking
+following concerns that it may have misrepresented the energy savings of certain of its washing
+machines compared with conventional washing machines.
+Related s. 87B undertaking: 2013 s87B undertaking
+Media release: Whitegoods manufacturer provides ACCC with undertaking over energy savings
+claims
+Terms such as ‘green’, ‘environmentally safe’ and ‘fully recycled’ are broad terms that may have more
+than one meaning. For example, the statement ‘safe for the environment’ could have many meanings
+depending on the audience – some may believe this means your product is biodegradable or others
+may infer that it contains non-toxic ingredients. If a consumer’s understanding, inferred from the terms
+used, conflicts with the facts then they may be misled. To avoid misleading consumers, make sure that
+you explicitly identify and accurately convey any ‘green’ attributes.
+Related publication: Green marketing and the Australian Consumer Law
+u Real case study: A manufacturer of plastic bags heavily promoted their bags as biodegradable
+and therefore environmentally friendly. However, the company could not substantiate
+these claims.
+The ACCC took action against the company and the court declared that it had engaged in false
+or misleading conduct, misrepresented the benefits and performance characteristics of the bags
+and misled the public on the nature and characteristics of the bags.
+Case law: Federal Court of Australia, South Australia Registry – SAD92/2010
+Media release: Misleading conduct in relation to plastic bags
+Related publication: News for business – Biodegradable, degradable and recyclable claims on
+plastic bags
+
+Organic claims
+An organic claim is any claim that describes a product, or the ingredients used to make the product,
+as ‘organic’. For example, product labels or marketing materials may claim a product is ‘100% organic’,
+‘made using organic ingredients’ or ‘certified organic’. The word ‘organic’ in the context of food and
+drink refers to agricultural products that have been farmed according to certain practices.
+Consumers cannot easily verify for themselves whether a product is organic and should be able
+to trust that any ‘organic’ claim is accurate. While organic certification is not legally required for a
+product supplied in Australia to be described as organic, businesses must be able to substantiate any
+such claims.
+There are several Australian standards that relate to organic or biodynamic claims. For example the
+Australian Standard (AS) 6000–2015 Organic and biodynamic products is a voluntary standard which
+sets out the requirements to be met by growers and manufacturers wishing to label their products as
+‘organic’ and/or ‘biodynamic’ in accordance with that standard, within Australia. As it is a voluntary
+standard, businesses do not necessarily have to meet the requirements of this standard in order to label
+and sell their products as ‘organic’ within Australia.
+
+19
+
+Advertising and selling guide
+
+Businesses may also choose to become certified by an organic certification body, with certification
+standards based on the National Standard for Organic and Biodynamic Produce. This standard is
+owned by the Department of Agriculture, Water and the Environment and is mandatory for products
+intended for export, where Australian producers wish to label their exported products as organic
+or biodynamic.
+If you claim that your produce is organic in line with any standard, your produce or product must meet
+requirements outlined in that standard or you risk making a misleading claim.
+For further information, visit the Standards Australia website www.standards.org.au or the Department
+of Agriculture website www.agriculture.gov.au.
+All organic claims, whether they reference a standard or not, should be able to be substantiated.
+u Real case study: An egg packer and supplier was found to have substituted and sold nonorganically produced eggs as organic eggs over a 2 year period. This was a breach of the ACL.
+Case law: Federal Court of Australia – [2007] FCA 1246
+Media release: Court finds egg packer substituted organic with conventional eggs
+
+u Real case study: The ACCC negotiated with 7 suppliers of bottled water to remove ‘organic’
+claims from labelling and marketing material.
+Organic standards acknowledge that water cannot be organic so any claim that water is organic
+would therefore be false or misleading.
+Media release: ACCC negotiates removal of misleading ‘organic’ water claims
+Related information: Organic claims
+
+Country and place of origin claims
+Country of origin claims
+Country of origin claims are representations about where a product’s ingredients or components came
+from and/or where it has undergone processing. Country of origin claims can be made using words
+and/or pictures. Common country of origin claims are that a product was ‘made’, ‘produced’ or ‘grown’
+in a certain country.
+If you supply food products in Australia, it is likely that you will be required to comply with the Country
+of Origin Food Labelling Information Standard 2016. The Standard was made under the ACL and
+requires mandatory origin labelling for certain foods.
+If you believe you sell or supply food that may be covered by the Food Labelling Information
+Standard, you should refer to our Country of origin food labelling guide for information on how
+to comply.
+The ACL doesn’t require non-food products to carry country of origin labelling, although other laws
+may do so. Businesses can however, choose to make country of origin claims about these goods.
+All businesses, whether they are legally required or choose to display country of origin labelling, are
+prohibited from making false or misleading representations or engaging in misleading or deceptive
+conduct about the origin of goods (both food and non-food).
+If a reasonable conclusion from the use of particular words or images is that a good was grown, made
+or produced in a particular country when that is in fact not the case, there is a risk of breaching the
+ACL. It’s your responsibility to ensure you have a reasonable basis for any and all claims you make
+about goods. It’s not a defence, or an excuse, to say that you ‘didn’t know’ your country of origin claim
+was misleading.
+
+20
+
+Advertising and selling guide
+
+To help businesses that wish to make country of origin claims regarding their goods, the ACL provides
+defences (‘safe harbours’) for certain claims. The defences relate to claims a product:
+1.
+
+was ‘Made in’ a particular country
+
+2.
+
+is the ‘Product of’ or ‘Produce of’ a particular country
+
+3.
+
+was ‘Grown in’ a particular country
+
+4.
+
+carries a text and graphic country of origin label (referred to as a ‘mark’) under an Information
+Standard relating to country of origin labelling1.
+
+If a business is able to meet one of the ‘safe harbours’, then the relevant claim is automatically deemed
+not to be false, misleading or deceptive.
+Related publications:
+
+
+
+For more information on country of origin food labelling, see our dedicated guide on the Information
+Standard: www.accc.gov.au/publications/country-of-origin-food-labelling
+
+
+
+For more information on the application of the safe harbour defences, see our ‘Country of origin
+claims and the Australian Consumer Law’ guide: www.accc.gov.au/publications/country-of-originclaims-and-the-australian-consumer-law
+
+‘Made in’ claims
+These claims are about production process rather than content. A product with a ‘Made in Australia’
+label will not necessarily contain Australian ingredients or components. To establish the safe harbour
+defence the goods must have been substantially transformed in the country of origin being claimed.
+A product is ‘substantially transformed’ in a country if:
+
+
+
+
+it was ‘grown’ or ‘produced’ in that country or
+as a result of one or more processes in that country, the end product is fundamentally different in
+identity, nature or essential character from all of its imported ingredients or components.
+
+It will not be sufficient for the purposes of the ACL for a product to be somewhat different from its
+imported parts. Mere changes to the form or appearance of imported goods will not satisfy the
+substantial transformation test.
+
+‘Product of’ claims
+Traders who wish to alert consumers that their good is the ‘Product of’ or ‘Produce of’ a country can
+establish a safe harbour defence by demonstrating that each significant component or ingredient of
+the goods originated in the country, and all, or virtually all, of the production processes took place in
+the country.
+When determining whether something is a significant ingredient or component, businesses should
+consider the importance of the ingredient or component to the nature or function of the product. An
+ingredient or component does not have to be a certain percentage to be ‘significant’.
+
+‘Grown in’ claims
+To establish the ‘Grown in’ safe harbour defence, a business would need to demonstrate that each
+significant ingredient or significant component was grown in the country of the claim and all, or virtually
+all, of the production or manufacturing processes happened in that country.
+
+1
+
+21
+
+To date, the Country of Origin Food Labelling Information Standard 2016 is the only relevant Information Standard that has
+been made.
+
+Advertising and selling guide
+
+u Real case study: The Federal Court ordered a Queensland retailer to pay $55,000 in penalties
+after it admitted it made false or misleading claims that sheepskin and wool bedding products:
+•
+
+were made in Australia when they were not made in Australia
+
+•
+
+contained 100% sheep wool when the products were made of a blend of wool and polyester
+
+•
+
+contained 100% alpaca wool when the products only contained up to 20% alpaca wool.
+
+Case law: Federal Court of Australia – [2012] FCA 1123
+Media release: Gold Coast retailer pays penalty for false or misleading Australian made and 100%
+wool claims
+
+Providing additional information
+A business may choose to provide additional information and make other claims about a product on
+its packaging. This could include a breakdown of where individual ingredients or components were
+grown or produced, a non country place of origin claim (e.g. ‘Made in Byron Bay’) or a claim about the
+ownership of the business that made it (e.g. ‘100% Australian owned’).
+Businesses are entitled to make additional representations on their packaging label. However, if
+they do so, they must ensure the representations are accurate, truthful and compliant with the law.
+Furthermore, any additional claims or representations should not negate or contradict the information
+contained in the product’s country of origin label.
+u Tip: It is important to note that the safe harbour defences in the ACL do not apply to noncountry place of origin claims.
+
+Certification schemes
+A number of schemes exist to give customers confidence in claims made about goods. Many products
+carry a logo or other trademark to show they are certified by a particular scheme or have a recognised
+standard of quality or performance. Credible schemes will provide detailed information about the basis
+on which they make claims, such as recognised standards.
+Related information: Certification trademarks: the role of the ACCC
+
+22
+
+Advertising and selling guide
+
+Pricing
+
+Setting prices is a key element of selling goods or services. Complaints and disputes often arise when
+consumers agree to the cost of a product or service before it is provided but the price they eventually
+pay is more than they expected. You can help avoid this type of dispute by clearly explaining your terms
+and conditions, including pricing, to the consumer before they agree to purchase a product.
+
+Component pricing
+When you present prices to your consumers, you should state the total price. This applies to advertising
+across all mediums. If you promote a price that is only part of the total price of goods or services, you
+must also include the total price (as a single figure) at least as prominently as the part price. It is also
+illegal to represent to consumers that the price of a component or components is the total price.
+The single price must include any tax, duty, fee, levy or other additional charges (e.g. GST or airport
+tax). It should also include any optional fees or charges pre-selected for the consumer during the
+purchasing process unless and until they are de-selected by the consumer.
+Legislation: Australian Consumer Law section 48
+u Example: A ticket seller prices its tickets at $40. The seller also pre-selects $5 ticket insurance,
+and imposes a mandatory booking fee of $3 per ticket on all customers whether they purchase
+over the phone, internet or in person. A purchase also attracts 10% GST.
+This could be advertised as:
+•
+
+$52.80 (including $5 ticket insurance, $3 booking fee and 10% GST)
+
+•
+
+$48 + $4.80 GST = $52.80
+
+•
+
+$40 + $5 ticket insurance + $3 booking fee + $4.80 GST = $52.80.
+
+A prominent single price is one that is clear and stands out so that it is easily noticed by a consumer.
+What is ‘prominent’ may vary on a case-by-case basis and you should consider factors such as the
+advertising medium, size, placement, colour and font of the price, as well as the background of the
+advertisement. For example, in print advertising, if a single price is smaller or in a colour that is harder to
+read than any component price, then this is likely to mean that it is not as prominent.
+23
+
+Advertising and selling guide
+
+The single price requirement has some exceptions, including:
+
+
+
+optional charges or extras that cannot be quantified (converted into a dollar amount) at the time of
+making the representation
+
+
+
+price representations made exclusively by your business to another business (being a body
+corporate) as they do not involve advertising to consumers.
+
+An optional charge or extra is something a consumer must elect to include as part of a product or
+service (i.e. it is not part of the standard product).
+u Real case study: The Federal Court imposed a penalty of $200,000 against an airline for
+contravening the single pricing provisions. The airline, for 10 months, did not display on its
+website some airfare prices inclusive of all taxes, duties, fees and other mandatory charges in a
+prominent way and as a single figure.
+Case law: Federal Court of Australia – [2012] FCA 1413
+Media release: Airline pays $200,000 penalty for breaching the Australian Consumer Law
+
+Exemption for restaurants and cafés
+The ACL provides a conditional exemption from the component pricing requirements to cafés and
+restaurants. Café and restaurant menu surcharges are not required to adhere to the component pricing
+requirements so long as certain conditions are met:
+
+
+
+the menu displays a surcharge for the supply of food or beverage on specified days by the
+restaurant or café
+
+
+
+the menu displays the following words ‘a surcharge of [percentage] applies on [the specified day
+or days]’
+
+
+
+the prescribed words are displayed in a transparent and prominent manner on the menu.
+
+The term ‘transparent’ is defined under the ACL and requires information about pricing to be expressed
+in reasonably plain language, legible, presented clearly and readily available to the target audience. The
+term ‘prominent’ is not defined but has been interpreted as requiring information to be conspicuously or
+noticeably displayed.
+Restaurants and cafés that rely on the exemption must ensure that a consumer who looks at a price on
+a menu can immediately determine that the price displayed is not actually the final price that they will
+be charged.
+Restaurants and cafés should note that the exemption does not apply to any other form of advertising,
+which must continue to display the single price of the goods and services including any surcharge or
+other compulsory fee. The exemption also does not cover goods other than food or beverages, services
+such as corkage or cover charges that are included on a menu. A single price for these services must be
+displayed at all times.
+The exemption also applies to room service menus and menus for banquets and other events if the
+food and/or beverages delivered or provided are not expected to be consumed at a later time.
+Legislation: Competition and Consumer Regulations regulation 80A
+
+Multiple pricing – price displays
+Sometimes a business may have 2 different prices on display for the one item. A business that displays
+more than one price for the same good must either:
+
+
+
+
+sell the goods for the lowest displayed price, or
+withdraw the goods from sale until the price is corrected.
+
+Related information: Displaying prices
+Legislation: Australian Consumer Law section 47
+24
+
+Advertising and selling guide
+
+What is a displayed price?
+A displayed price is a price, or any price representation, that:
+
+
+
+is attached to or on the goods, anything connected or used with the goods, or anything used to
+display the goods
+
+
+
+is published online, in a catalogue, brochure, poster or flyer available to the public – when the
+deadline to buy at that price has not passed, the catalogue is not out of date, or the price applies
+only to the goods at a specific location or region, or
+
+
+
+appears to apply to the goods, including a partly obscured price.
+
+What is not a displayed price?
+A price will not be a displayed price when it is:
+
+
+
+
+
+
+entirely covered by another price
+a unit of measurement shown as another way of expressing the price
+not in Australian currency
+in a catalogue that is out of date, the deadline to buy at that price has passed, or a retraction
+has since been published (a retraction must be to a similar circulation or audience as the
+original advertisement).
+u Example: A business operates 3 different stores in Brisbane. One of the stores publishes
+an advertisement in their local newspaper listing a number of specials. The specials are
+only applicable to that store. The advertisement does not say that the specials are limited.
+Consequently some customers shopping at the other 2 stores purchase the products expecting
+to pay the special price.
+The business must publish a retraction advertisement in the local newspaper, withdraw the items
+from sale or sell them at all stores at the lower price.
+
+Two-price comparison advertising
+Businesses often make comparisons between the prices they are currently charging for a product and:
+
+
+
+the business’ own previous pricing (including ‘was/now’ or ‘strike through’ pricing or by specifying a
+particular dollar amount or percentage saving)
+
+
+
+
+
+the ‘cost’ or ‘wholesale’ price
+a competitor’s price
+the recommended retail price (RRP).
+
+Businesses that use such statements must ensure that consumers are not misled about the savings that
+may be achieved.
+
+Comparisons with own previous pricing (‘was/now’ or ‘strike through’
+pricing)
+The use of ‘was/now’ or ‘strike through’ price statements (such as ‘was $150/now $100’ or ‘$150 now
+$100’) is likely to represent that consumers will save an amount (being the difference between the
+higher and lower price advertised) by purchasing the product during the sale period.
+In determining whether the represented saving will be achieved, a critical issue is whether relevant
+consumers would have paid the ‘was’ or ‘strike through’ price to purchase that item for a reasonable
+period before the sale commenced.
+
+25
+
+Advertising and selling guide
+
+What’s considered to be a reasonable period in the circumstances will vary from case to case and
+will depend of the type of product or market involved and usual frequency of price changes for that
+product or in that market2.
+Statements such as ‘was $150/now $100’ or ‘$150 now $100’ are likely to be misleading if the product
+had not been offered for sale at the specified ‘was’ or ‘strike through’ price of $150 before the sale
+commenced, but had instead been offered for sale at a lower price. In such circumstances, a consumer
+would not make the represented saving of $50 by purchasing the product for $100 during the sale.
+Offer prices are not, however, the end of the enquiry. If a business offered a product for sale at a certain
+price before the sale, but rarely or never sold the product at that price, it should still exercise caution
+when deciding whether to use ‘was/now’ or ‘strike through’ pricing for this product. Using the ‘was’ or
+‘strike through’ price could be misleading, unless the business is able to show in some other way that
+the relevant consumers would have bought the product at the ‘was’ or ‘strike through’ price.
+This could be very difficult to do, particularly if the business has an established practice of discounting
+its products because, intuitively, this would suggest that no or very little of its products are ever sold at
+the ‘was’ or ‘strike through’ price.
+The business would need to point to other indicators that suggest that the relevant consumers would
+have bought products at the ‘was’ or ‘strike through’ price.
+Every case will turn on its facts and it’s important to bear in mind that using ‘was/now’ or ‘strike
+through’ pricing, where there were very little or no sales at the ‘was’ price, is likely to be a risky choice
+of advertising for businesses. It is recommended that businesses seek legal advice before doing so or
+alternatively, to consider some other way of promoting and selling their products.
+The guidance above applies equally when a business uses a dollar or percentage amount (such as ‘60%
+off’) that a consumer will save if they purchase the product at the time the representation is made.
+
+Other price comparisons
+Comparisons between the sale or retail price and the ‘cost’ or ‘wholesale’ price can be misleading if the
+specified ‘cost’ or ‘wholesale’ price is greater than what the business paid for the products. Consumers
+may be enticed to buy products if the gap between the ‘cost’ or ‘wholesale’ price and sale or retail price
+is perceived to be small. If this is not actually the case, consumers are likely to be misled.
+Price comparisons can also be misleading where, for example, a business uses a competitor’s price for
+identical goods, but the competitor’s price is taken from a different market or geographical location.
+Businesses using statements such as ‘savings’ or ‘discounts’ when comparing a sale price to the RRP
+of goods and services may convey to potential customers that they are getting a good deal because
+the sale price is less than the RRP. If the product has never been previously sold at the RRP, or the
+RRP does not reflect a current market price, then this type of comparison may, depending on the
+circumstances, misrepresent the savings that may be achieved.
+It is good business practice and fair trading risk management to keep records substantiating any 2-price
+comparison claim, as you may be required at some later point to substantiate such a claim to an ACL
+regulator, including the ACCC. The ACL regulators have the power to compel you to substantiate
+such claims.
+It is also important to remember that a ‘sale’ or ‘discounted’ price should only be available for a limited
+period. This is because if a reasonable amount of time has elapsed and an item is still ‘on sale’, the
+discounted price effectively becomes the new selling price, so it may be misleading or deceptive to
+continue to call it a ‘discount’ or ‘sale’ price.3
+
+26
+
+2
+
+If the goods were offered for sale at the ‘was’ price but there were no actual sales of the goods at all, then using a ‘was’
+price may not necessarily be considered misleading. The issue is whether the goods would have been purchased at the
+‘was’ price before the sale period and consumers would actually achieve a saving.
+
+3
+
+Note in ACCC v Jewellery Group Pty Ltd the Federal court considered that it was appropriate to have regard to a period of
+4 months before a sale. Notwithstanding this decision, every case will be different and it would be open to the Court to find
+in another case, depending on the particular factors, a different period.
+
+Advertising and selling guide
+
+u Real case study: The Federal Court and Full Federal Court on appeal found that the Jewellery
+Group Pty Ltd (Zamel’s) made false or misleading representations by use of its 2-price
+advertising such as ‘Was $275 Now $149’ or ‘$99 $49.50’ in catalogues and a flyer. The court
+relevantly found that:
+•
+
+the catalogues were directed to consumers who were unaware of their ability to obtain
+discounts outside Zamel’s sales periods
+
+•
+
+the 2-price statements conveyed to those consumers that they would save the difference
+between the 2 prices if the jewellery item was purchased during the sale period when that
+was not the case because:
+– Zamel’s had not sold the item at or near the ‘was’ or ‘strike through’ price, or had sold
+it in limited numbers at or near that price, in the 4 months prior to the sale period2 (or
+a shorter period in circumstances where an item appeared in a previous sale and the
+period between the ending of a previous sale and the beginning of the next was less than
+4 months)
+– Zamel’s had a vigorous discounting policy outside sale periods which meant the ‘was’ or
+‘strike through’ price was rarely paid by a Zamel’s customer.
+
+Zamel’s was penalised $250,000 and the court also ordered that Zamel’s publish corrective
+notices in newspapers and on its website, implement a trade practices compliance program and
+pay the ACCC’s costs.
+Case law: Federal Court of Australia – [2012] FCA 848
+Media release: Court finds Zamel’s misled consumers
+Case law: Full Federal Court of Australia – [2013] FCAFC 144
+Media release: Full Federal Court confirms false or misleading representations by Zamel’s
+Case law: Federal Court of Australia – [2013] FCA 14
+Media release: Zamel’s ordered to pay $250,000 for misleading consumers
+
+Unit pricing – a mandatory code of conduct
+Unit pricing means displaying the price of a grocery item as a standard unit of measurement alongside
+its selling price. It allows your consumers to quickly compare the value of products of varying size
+and brands.
+The Unit Pricing Code is mandatory for:
+
+
+
+retailers – who sell a minimum range of food-based groceries in premises that are used primarily for
+the sale of those items and has more than 1000 square metres of floor space
+
+
+
+online retailers – who sell the minimum range of food-based grocery items.
+
+Unit pricing information must be:
+
+
+
+
+
+
+prominent – it must stand out so that it is easily seen
+proximate – it must be positioned close to the selling price for the grocery item
+legible – it must not be difficult to read
+unambiguous – the information must be accurate and its meaning clear.
+
+Some items are exempt from the Unit Pricing Code, including books, flowers, manchester, toys and
+some marked-down products.
+
+27
+
+Advertising and selling guide
+
+The unit pricing requirements apply to advertisements in the print media but do not apply to
+advertisements on television, radio or other electronic media (other than a website).
+Example:
+
+Related information: Unit pricing code
+Related publication: Unit pricing – a quick guide
+Related publication: Unit pricing – a guide for grocery retailers
+Legislation: Trade Practices (Industry Codes – Unit Pricing) Regulations 2009
+
+Receipts and itemised bills
+Receipts
+Businesses must always provide a receipt or proof of purchase for anything over $75. If you don’t
+provide one, a consumer has the right to ask for one. Consumers also have the right to request a receipt
+for anything under $75 and you must provide the receipt within 7 days of being asked.
+A receipt or proof of purchase must include the:
+
+
+
+
+
+
+supplier’s name and ABN or ACN
+date of supply
+product or service
+price.
+
+Itemised bills for services
+Consumers have the right to ask a service provider for an itemised bill or account up to 30 days after
+receiving the bill. You must provide this free of charge and within 7 days of the request.
+An itemised account must show:
+
+
+
+
+
+how the price was worked out
+if relevant, the number of labour hours and hourly rate
+if relevant, a list of materials used and the amount charged for them.
+
+Legislation: Australian Consumer Law section 100 and 101
+
+28
+
+Advertising and selling guide
+
+Unsolicited consumer agreements – door to
+door sales and telemarketing
+
+The ACL includes rules on unsolicited sales practices, including door to door selling, telemarketing and
+other forms of direct selling.
+With unsolicited door to door or telemarketing, the ACL allows a 10-day cooling off period for
+consumers to change their mind and cancel the contract. They can also cancel the contract within 3 or
+6 months if the supplier has not met certain obligations.
+The ACL also sets out the disclosure obligations when making an unsolicited agreement. The
+business must:
+
+
+
+provide a copy of the agreement to the consumer after it is signed, if the agreement is made in
+person
+
+
+
+provide a document evidencing the agreement to the consumer within 5 business days after
+the agreement is made (or a longer period agreed by the parties), if the agreement is made by
+telephone. This document can be delivered personally, by post or, with the consumer’s consent,
+by email.
+
+Permitted hours for telephone sales are regulated under the Do Not Call Register Act 2006 and
+associated telemarketing standards. To find out more about the Australian Do Not Call Register visit
+www.donotcall.gov.au
+The ACL provides that when door knocking, sales agents cannot visit consumers:
+
+
+
+
+
+on Sundays or public holidays
+before 9 am or after 6 pm on weekdays
+before 9 am or after 5 pm on Saturdays.
+
+A salesperson can visit at any time if an appointment has been made. The appointment must be
+arranged by telephone or in writing, not in person.
+
+29
+
+Advertising and selling guide
+
+Door to door salespeople are also required to:
+
+
+
+
+
+clearly explain the purpose of the visit and produce identification
+explain to consumers their cooling off rights
+leave the premises upon request.
+
+A request to leave the premises can be either verbal or written. A ‘Do Not Knock’ sign is a
+request to leave the premises. If a salesperson sees a ‘Do Not Knock’ sign, they should leave the
+premises immediately.
+u Example: A door to door salesperson travels between suburbs selling alarm systems. The
+salesperson sells several alarm systems but does not provide customers with a copy of the
+agreement. Three days after entering into an agreement a customer wishes to cancel the
+agreement and is told this is not possible.
+This would be a breach of the ACL as customers must receive a copy of the agreement and
+are entitled to a 10-day cooling off period during which they can cancel the agreement for any
+reason whatsoever, including that they have changed their mind.
+
+u Real case study: The Federal Court ordered 2 companies, by consent, to pay a total of
+$1.55 million for illegal door to door selling practices. The breaches included a failure to leave the
+homes of consumers when requested.
+The Court’s decision confirms that consumers can use a sign, such as a ‘Do Not Knock’ sign, to
+request uninvited salespeople to leave their premises and do not need to meet the salesperson
+face to face to ask them to leave.
+Case law: Federal Court of Australia – [2012] FCA 1357
+Media release: Energy retailer ordered to pay $1.5 million for illegal door to door sales practices
+Case law: Federal Court of Australia – [2013] FCA 1030
+Media release: Court confirms salespeople must not ignore ‘do not knock’ signs
+The provisions of the ACL relating to misleading and deceptive conduct also apply to all forms of direct
+selling. In the case of door to door selling, success usually depends on signing up consumers on the
+spot. In this situation businesses must ensure their sales staff or contracted sellers do not stray from
+truthful claims to make a sale.
+Related information: Door to door & telemarketing sales
+Related publication: Sales practices – a guide for businesses and legal practitioners
+Legislation: Australian Consumer Law Part 3-1 Division 2
+Legislation: Australian Consumer Law Part 3-2 Division 2
+
+30
+
+Advertising and selling guide
+
+Rules for gift cards
+To ensure that gift card consumers are able to use their gift card and are not charged fees to access the
+funds on their gift card, the ACL requires that most gift cards must:
+
+
+
+
+
+have a minimum 3 year expiry period
+clearly show the expiry date
+not contain post-supply fees.
+
+Three year expiry period
+Most gift cards sold on or after 1 November 2019 must be redeemable for at least 3 years after the date
+they were supplied or purchased.
+However this requirement does not apply to gift cards that are:
+
+
+
+
+able to be reloaded or topped up
+
+
+
+
+
+
+
+
+available only for a specified period (e.g. performance of a visiting ballet company)
+
+
+
+supplied to certain charities or government agencies.
+
+donated for promotional purposes (e.g. a business handing out $15 vouchers to passers-by for its
+grand opening)
+
+supplied at a genuine discount (e.g. $60 card for a massage valued at $100)
+part of an employee reward scheme
+part of a customer loyalty program
+second-hand gift cards
+part of a temporary marketing promotion (e.g. customers buy a certain product from Business A,
+which provides a $50 voucher to use at Business B)
+
+Disclosure of expiry information
+Gift cards supplied from 1 November 2019 must also prominently display the expiry date as either the
+full date, or as a period of time.
+If the expiry date is shown as a period of time it must also include the date it was supplied to the
+customer, so the expiration date can be determined. For example: ‘Gift cards expire 4 years from the
+issue date. Date of issue: March 2020’.
+If there is no expiry date, this must be stated on the gift card.
+This display requirement does not apply to gift cards that are:
+
+
+
+
+
+able to be reloaded or topped up
+supplied as a second-hand good
+supplied to certain charities and government agencies.
+
+Post-supply fees
+Businesses cannot charge post-supply fees for the use of gift cards supplied from 1 November 2019. A
+post-supply fee is a fee or charge that the gift card recipient has to pay in relation to a gift card after it
+has been supplied.
+
+31
+
+Advertising and selling guide
+
+Businesses also cannot have terms and conditions on the use of the gift cards that allow them to charge
+post-supply fees.
+Post-supply fees do not include fees and charges that:
+
+
+
+are booking fees, where those booking fees are the same, or substantially the same, as fees or
+charges for making a booking using a payment method other than a gift card
+
+
+
+
+
+are for exchanging currencies
+relate to the reissue of a gift card that has been lost, stolen or damaged
+are payment surcharges.
+
+The post-supply fees requirements do not apply to gift cards that are:
+
+
+
+
+
+able to be reloaded or topped up
+supplied as a second-hand good
+supplied to certain charities and government agencies.
+
+Related information: Rules for gift cards
+Legislation: Australian Consumer Law Part 3-1 Division 3A, Competition and Consumer Regulations
+2010 regulations 89A – 89C
+
+32
+
+Advertising and selling guide
+
+Consumer guarantees
+
+Businesses should be aware that all goods and services purchased automatically have consumer
+guarantees attached to them under the ACL. Consumer guarantees replace the implied conditions and
+warranties which previously existed in national, state and territory laws.
+Consumer guarantees give consumers a basic, guaranteed level of protection for the goods and
+services they buy that is standard across Australia. While many businesses may offer extra warranties
+or promises – often called voluntary or extended warranties – in relation to their goods or services, the
+consumer guarantees apply regardless of any other warranty offered by a seller or manufacturer of
+goods or services.
+
+What are the guarantees?
+Consumers have the following guarantees in respect of goods:
+
+
+
+goods are of acceptable quality – that is, they are safe, durable and free from defects, are acceptable
+in appearance and finish and do what they are ordinarily expected to do (ACL section 54)
+
+
+
+
+goods are fit for any purpose specified by the consumer or supplier (ACL section 55)
+
+
+
+
+
+
+
+
+goods match any sample or demonstration model (ACL section 57)
+
+goods match any description given to them, either verbally or on packaging or labelling (ACL
+section 56)
+
+repair facilities and spare parts will be reasonably available for a reasonable time (ACL section 58)
+any express warranty given will be complied with (ACL section 59)
+they will have clear title to the goods (ACL section 51)
+they will have undisturbed possession of the goods (ACL section 52)
+there will be no undisclosed securities or charges attached to the goods (ACL section 53).
+
+Consumer guarantees apply whether the goods are new, ‘seconds’ or second-hand. The consumer
+guarantees will also generally apply to goods purchased online.
+
+33
+
+Advertising and selling guide
+
+Generally, the consumer guarantees do not apply to goods sold by auction. The only consumer
+guarantees that do apply to goods sold by auction (including online auctions) are that the consumer
+will have clear title to the goods, undisturbed possession of the goods and there will be no undisclosed
+securities or charges attached to the goods. The other consumer guarantees listed above do not apply.
+Consumers have guarantees that services provided to them will be:
+
+
+
+
+
+provided with due care and skill
+fit for any purpose specified by the consumer
+provided within a reasonable time, where no time has been agreed.
+
+A consumer is a person who buys any of the following:
+
+
+
+any type of products or services costing up to $100,000, for example, a haircut or wedding
+photography
+
+
+
+a vehicle or trailer used mainly to transport goods on public roads. The cost of the vehicle or trailer is
+irrelevant
+
+
+
+products or services costing more than $100,000 that are normally used for personal, domestic or
+household purposes.
+
+Consumer guarantees cannot be excluded by contract.
+Where goods are not normally acquired for personal, domestic or household purposes, liability for
+failure to comply with a consumer guarantee can be limited by contract to any of:
+
+
+
+
+
+
+the replacement of the products or the supply of equivalent products
+the repair of the products
+the payment of the cost of replacing the products or acquiring equivalent products
+the payment of the cost of having the products repaired.
+
+Where services are not normally acquired for personal, domestic or household purposes, liability for
+failure to comply with a consumer guarantee can be limited by contract to supplying the services again
+or paying the costs of having the services supplied again.
+
+What happens if the guarantees aren’t complied with?
+If any of these guarantees are not complied with, the consumer may take action to obtain a remedy
+from the supplier or, in some cases, the manufacturer or importer. The remedies are generally a repair,
+replacement, refund or having an unsatisfactory service performed again.
+Generally, if a failure to comply with a guarantee is minor and can be remedied, the supplier can choose
+whether they wish to repair or replace goods or fix problems with services. However, when a failure to
+comply with a guarantee is major, the consumer can choose their preferred remedy.
+A consumer may get compensation from the supplier if he or she suffered any loss or damage because
+of the failure and it was reasonably foreseeable that they would suffer loss or damage because of
+the failure.
+
+34
+
+Advertising and selling guide
+
+u Example: A customer purchases a desk for $800 from a furniture store and specifies that they
+need it to hold a computer and other electronics equipment. When the customer puts their
+computer on the desk the legs snap and the computer is damaged.
+In this case, the consumer guarantees regarding acceptable quality and fitness for purpose have
+not been met, as a reasonable customer would expect an expensive desk to hold a computer
+without breaking. This is likely to be a major failure where the consumer would be entitled to a
+refund or replacement and compensation for the damage to the computer.
+Legislation: Australian Consumer Law Part 5-4
+Related information: Consumers’ rights & obligations
+Related publication: Consumer guarantees – a guide for businesses and legal practitioners
+
+Who is liable for what?
+The consumer guarantees must be honoured by ‘suppliers’ and ‘manufacturers’.
+A supplier is anyone – including a trader, a retailer or a service provider – who, in trade or commerce,
+sells, exchanges, leases, hires or provides products or services.
+A manufacturer is a person or business that makes or puts products together or has their name on the
+products. It includes the importer, if the maker does not have an office in Australia.
+To use the example of motor vehicles:
+5.
+
+Suppliers and manufacturers guarantee that motor vehicles are of acceptable quality (ACL
+section 54).
+
+6.
+
+A supplier guarantees that motor vehicles will be reasonably fit for any purpose the consumer or
+supplier has specified (ACL section 55).
+
+7.
+
+Suppliers and manufacturers guarantee that their description of motor vehicles (for example, in a
+catalogue or television commercial) is accurate (ACL section 56).
+
+8.
+
+A supplier guarantees that motor vehicles will match any sample or demonstration model (ACL
+section 57).
+
+9.
+
+Suppliers and manufacturers guarantee that motor vehicles will satisfy any extra promises – or
+‘express warranties’ – made about them (ACL section 59).
+
+10. A supplier guarantees they have the right to sell the motor vehicle (clear title), unless they alerted
+the consumer before the sale that they had ‘limited title’. Note that licensing laws in some states or
+territories may require motor car traders to guarantee clear title (ACL section 51).
+11. A supplier guarantees ‘undisturbed possession’ or that no one will try to repossess or take back
+motor vehicles, or prevent the consumer using them, except in certain circumstances (ACL
+section 52).
+12. A supplier guarantees that motor vehicles are free of any hidden securities or charges and will
+remain so, except in certain circumstances (ACL section 53).
+13. Manufacturers or importers guarantee they will take reasonable steps to make spare parts and
+repair facilities available for a reasonable time after purchase (ACL section 58).
+When there is a major failure, the consumer can either:
+
+
+
+
+reject the goods and choose a refund or replacement
+ask for compensation for any drop in value of the goods.
+
+Where a consumer rejects the goods, he or she must return the rejected goods to the supplier but can
+ask the supplier to collect the rejected goods if the goods cannot be returned without significant cost to
+the consumer.
+
+35
+
+Advertising and selling guide
+
+u Example: A customer buys a heavy steel bicycle pack-rack online from interstate, gets it in the
+mail and finds that one key part is missing and another broken. The supplier agrees to provide a
+replacement but wishes the customer to post the original item back. The postage will be about
+half the cost of the rack. The customer posts back the rack and the supplier sends out a new
+rack for free, while also refunding the customer the amount she paid to return the defective rack.
+The supplier has complied with their obligations under the consumer guarantees.
+Sometimes motor vehicle suppliers have ‘linked credit providers’ – for example, a finance company to
+which they regularly refer people, under an agreement with that company. These credit providers can
+be jointly liable with the suppliers under the ACL for the loss or damage someone suffers when that
+supplier fails to comply with certain consumer guarantees.
+
+Misleading consumers about their rights
+Consumer guarantees for goods or services cannot be altered or waived by sellers or consumers. Any
+term in a contract which tries to limit or exclude consumers’ rights under the consumer guarantees
+will be void. This means that the business cannot rely on it to avoid providing consumers with a
+remedy. That is, contracting out of the guarantees is not permitted.
+Further, if a business attempts to restrict or limit consumers’ rights under the guarantees, it is likely to
+also breach the provisions on misleading or deceptive conduct and false or misleading claims.
+u Example: A computer repairer offers a computer repair service. When customers engage with
+the repairer, they are required to sign a form which contains the terms and conditions that
+stipulate that any damage caused by the repair would not be the responsibility of the repairer.
+This is not allowed under the ACL.
+Be very careful about what you say to consumers about their refund rights. This includes the wording of
+any signs, advertisements or any other documents. Signs that state ‘no refunds’ are unlawful, because
+they imply it is not possible for consumers to get a refund under any circumstance – even when there is
+a major problem with a product. For the same reason, the following signs are also unlawful:
+
+
+
+
+‘No refund on sale items’
+‘Exchange or credit note only for return of sale items’.
+
+However, signs that state ‘no refunds will be given if you have simply changed your mind’
+are acceptable.
+u Real case study: The Federal Court ordered that a manufacturer and retailer of computer
+hardware pay a $3 million civil pecuniary penalty for making false or misleading representations
+to consumers and retailers regarding consumer guarantee rights, including that:
+•
+
+the remedies available to consumers were limited to the remedies available at the business’
+discretion
+
+•
+
+consumers were required to have their product repaired multiple times before they were
+entitled to a replacement
+
+•
+
+the warranty period for products was limited to a specified express warranty period
+
+•
+
+consumers were required to pay for remedies outside the express warranty period
+
+•
+
+products purchased online could only be returned at the business’ discretion.
+
+Case law: Federal Court of Australia – [2013] FCA 653
+Media release: IT company to pay $3 million for misleading consumers and retailers
+Compliant refund-policy signs are available free to download from the ACCC website.
+
+36
+
+Advertising and selling guide
+
+Warranties against defects
+As a supplier or manufacturer, you may provide promises to consumers about what you will do if
+something goes wrong with a product or service. These promises are often referred to as voluntary
+warranties or manufacturers’ warranties. Under the ACL, these are called ‘warranties against defects’.
+A warranty against defects is a representation communicated to a consumer that as a business if the
+goods or services (or part of them) are defective you will:
+
+
+
+
+
+repair or replace goods (or part of them)
+resupply or fix a problem with services (or part of them)
+provide compensation to the consumer.
+u Example: A consumer buys a car that comes with a ‘manufacturer’s warranty’. The warranty says
+the manufacturer will repair the vehicle if it has a serious mechanical failure within 3 years of the
+purchase date. This is a ‘warranty against defects’ under the ACL.
+
+A representation will only be a warranty against defects if it is made at or around the time that products
+or services are supplied.
+To ensure consumers understand the warranty and know how to make a claim the ACL requires that all
+documents ‘evidencing’ a warranty against defects for goods or services provided to consumers must:
+
+
+
+
+
+be presented in a certain way
+include specific information
+include mandatory text.
+
+A key point to remember is that a warranty against defects is provided in addition to consumer
+guarantees and does not limit or replace them.
+The mandatory text for the supply of goods is:
+Our goods come with guarantees that cannot be excluded under the ACL. You are entitled
+to a replacement or refund for a major failure and for compensation for any other reasonably
+foreseeable loss or damage. You are also entitled to have the goods repaired or replaced if goods
+fail to be of acceptable quality and the failure does not amount to a major failure.
+The mandatory text for the supply of services is:
+Our services come with guarantees that cannot be excluded under the Australian Consumer Law.
+For major failures with the service, you are entitled:
+
+
+
+
+to cancel your service contract with us
+to a refund for the unused portion, or to compensation for its reduced value.
+
+You are also entitled to be compensated for any other reasonably foreseeable loss or damage.
+If the failure does not amount to a major failure, you are entitled to have problems with the service
+rectified in a reasonable time and, if this is not done, to cancel your contract and obtain a refund for
+the unused portion of the contract.
+
+37
+
+Advertising and selling guide
+
+The mandatory text for the combined supply of goods and services is:
+Our goods and services come with guarantees that cannot be excluded under the Australian
+Consumer Law. For major failures with the service, you are entitled:
+
+
+
+
+to cancel your service contract with us
+to a refund for the unused portion, or to compensation for its reduced value.
+
+You are also entitled to choose a refund or replacement for major failures with goods. If a failure
+with the goods or a service does not amount to a major failure, you are entitled to have the failure
+rectified in a reasonable time. If this is not done you are entitled to a refund for the goods and to
+cancel the contract for the service and obtain a refund of any unused portion. You are also entitled
+to be compensated for any other reasonably foreseeable loss or damage from a failure in the goods
+or service.
+A consumer may be entitled to a remedy under the consumer guarantees after a warranty against
+defects period has expired. No set timeframes apply to the consumer guarantees – how long they apply
+depends on the nature of the good or service in question.
+You must note the difference between promises made to consumers via voluntary warranties and your
+responsibilities under the consumer guarantees.
+u Example: A consumer purchases a laptop computer with a written warranty against defects that
+states the manufacturer will replace or repair the computer if any fault arises within 12 months
+of purchase. If the laptop breaks down after 18 months, the manufacturer cannot automatically
+advise the consumer that he or she has no entitlement to a remedy as the warranty has expired.
+Depending on the circumstances, the consumer may still be entitled to a remedy under the
+consumer guarantees imposed under the ACL.
+Warranties against defects may set out requirements that consumers must comply with. For example,
+a warranty against defects on a motor vehicle may require the consumer to ensure any servicing is
+carried out:
+
+
+
+
+
+by qualified staff
+according to the manufacturer’s specification
+using appropriate quality parts where required.
+
+If you wish to seek to restrict a customer’s freedom to choose, for example, who they use as a repairer,
+you should get advice on the prohibitions on ‘exclusive dealing’ found in the Competition and Consumer
+Act 2010. Exclusive dealing broadly involves a trader imposing restrictions on a person’s freedom to
+choose with whom or in what or where they deal.
+Related information: Exclusive dealing
+Related information: Warranties against defects
+
+38
+
+Advertising and selling guide
+
+Other prohibited sales practices
+
+Your business must not include unfair terms in its ‘standard form’ consumer contracts and it must not
+act ‘unconscionably’. Harassment or coercion and pyramid selling are also illegal.
+
+Unfair contract terms
+Under the ACL, a term of a ‘standard form consumer contract’ has no effect at law if the term is unfair.
+Standard form consumer contracts are used widely by businesses as a cost effective way to set out
+the key terms and conditions for providing a product or service. However, businesses need to bear
+in mind some key obligations when preparing standard form consumer contracts, to avoid unfair
+contract terms.
+A court may determine that a term of a standard form consumer contract is unfair and therefore void.
+Importantly, the contract itself remains binding on the parties to the extent it can operate without the
+unfair term.
+There is a 3-step test to determine whether a term is unfair. This includes an assessment of whether
+the term:
+
+
+
+
+
+would cause a significant imbalance in the parties’ rights and obligations
+is reasonably necessary to protect legitimate interests of one of the parties
+would cause detriment if applied or relied on.
+
+Examples of terms that may be unfair include those allowing the business to:
+
+39
+
+
+
+cancel, avoid, renew or limit performance of the contract, vary the terms of the contract, or renew
+the contract, but not allowing the consumer to do the same
+
+
+
+
+
+make the consumer liable for things that would normally be outside the consumer’s control
+prevent the consumer from relying on representations made by the business or its agents
+charge the consumer’s credit card without giving the consumer notice or an opportunity to dispute
+the charges
+
+Advertising and selling guide
+
+
+
+forfeit a security bond for any breach of the contract, that is, even if there is no causal link between
+the breach and the forfeiture
+
+
+
+
+avoid liability for negligence
+increase the fees and charges payable without the right for the consumer to terminate (free of
+any penalty).
+
+When deciding whether a term is unfair, the court must also consider the transparency of the term
+within the contract, and the contract as a whole.
+u Example: A fitness company offers 12-month gym memberships to customers who wish to
+join their gym. These contracts are non-negotiable and offered to every customer who wants
+to join. The contract stipulates that the company is able to change the weekly rates charged
+to members at their discretion without justifying or notifying the customers, and without an
+accompanying right for the customer to end the contract. Such a term is likely to be considered
+to be unfair and risks being declared void.
+Related information: Unfair business practices
+Related publication: A guide to the unfair contract terms law
+Legislation: Australian Consumer Law Part 2-3
+
+Unconscionable conduct
+Conduct may be unconscionable if it is particularly harsh or oppressive. To be considered
+unconscionable, conduct must be more than simply unfair – it must be against conscience as judged
+against the norms of society. It can occur between businesses and consumers or business to business.
+There are a number of factors a court will consider when assessing whether certain conduct
+is unconscionable:
+
+40
+
+
+
+
+the relative bargaining strengths of the parties
+
+
+
+
+
+whether the weaker party could understand the documentation used
+
+
+
+
+
+
+
+the requirements of applicable industry codes
+
+whether any conditions were imposed on the weaker party that were not reasonably necessary to
+protect the legitimate interests of the stronger party
+
+the use of undue influence, pressure or unfair tactics by the stronger party
+the price, or other circumstances, under which the weaker party would be able to buy or sell
+equivalent goods or services
+
+the willingness of the stronger party to negotiate
+whether the stronger party has the right to unilaterally change contract terms
+the extent to which the parties acted in good faith toward each other
+any other factor indicating that the stronger party acted with little or no regard to conscience.
+
+Advertising and selling guide
+
+u Real case study: A mobile phone company was found to have engaged in unconscionable
+conduct in relation to its sales methods used to induce customers to enter into contacts, the
+terms of the contracts and the company’s enforcement of the contractual terms.
+The company relied upon and enforced a ‘day cap’ clause in its mobile contact, which in some
+cases only allowed a customer to make an approximately 2 minute call per day before being
+charged fees in excess of the monthly contract charge. The structure of the contracts meant that
+customers were very likely to incur high excess usage charges as the operation of this term was
+not adequately disclosed.
+The Federal Court also found that a $75 cooling off fee that customers were required to pay,
+as well as a $195 charge imposed for returning a damaged phone, even if only the box was
+damaged were also unconscionable.
+The company was ordered to pay penalties totalling $455,000, and its 2 directors were ordered
+to pay penalties and were disqualified from managing a corporation for periods of 3 and 2 and a
+half years respectively.
+Case law: Federal Court of Australia – [2013] FCA 350
+Media release: Court finds mobile phone company acted unconscionably
+Case law: Federal Court of Australia – [2013] FCA 1267
+Media release: Court orders mobile phone company to pay $455,000 for engaging in false,
+misleading and unconscionable conduct
+Related information: Unconscionable conduct
+Related publication: Business snapshot: unconscionable conduct
+Legislation: Australian Consumer Law Part 2-2
+
+Harassment and coercion
+Businesses may sometimes push consumers to agree to a purchase or encounter consumers from
+whom it is difficult to obtain payment. The ACL prohibits coercion, undue harassment or physical force
+in connection with the supply or possible supply of goods or services, or the payment for them.
+Harassment means persistent disturbance or torment. Undue harassment is where the frequency,
+nature or content of unwelcome approaches is such that they are calculated to intimidate or demoralise,
+tire out or exhaust a person.
+The provision is quite broad and may apply to:
+
+
+
+
+
+
+a prolonged visit by a sales representative who ignores requests to leave
+unwanted persistent telephone calls
+debt collectors who make repeated and relentless calls to a debtor about a debt
+use of particularly over-the-top methods of hard selling.
+
+Coercion can occur in the course of aggressive selling. A seller may try to exploit known facts about,
+circumstances of, or statements made by a consumer, to force them to agree to a purchase.
+u Example: A debt collector makes an excessive number of telephone calls to debtors over the
+course of 2 days. The tone of the calls is threatening, abusive and aggressive. The collector gives
+false information to debtors and others about debt recovery procedures and the consequences
+of non-payment. This conduct is likely to contravene the harassment provisions of the ACL.
+A business is entitled to take reasonable steps to pursue a debt. In such circumstances a debtor is
+entitled to be treated fairly, with respect and courtesy, and not be unduly harassed or coerced.
+Related publication: Debt collection guideline for collectors and creditors – ACCC/ASIC joint guide
+Legislation: Australian Consumer Law section 50
+
+41
+
+Advertising and selling guide
+
+Pyramid schemes
+Pyramid schemes make money by recruiting people rather than by selling actual products or services,
+even if the scheme includes the selling of a product. These schemes work by asking new participants
+to make a payment, known as a ‘participant payment’, in order to join. New members are promised
+payments for recruiting other investors or new participants.
+Pyramid schemes are closely related to referral selling schemes. The main difference between the 2
+is that the revenue from pyramid selling schemes is based on recovering a portion of the participant
+payment, while referral selling usually involves the sale or resale of products or services with the promise
+of a commission for subsequent sales to other parties.
+u Example: A scheme or game based on an imaginary airliner has 4 levels of players comprising
+the pilot, 2 co-pilots, 4 crew and 8 passengers. New players enter as passengers and pay a fee
+directly into a trust account. When all seats are filled the plane ‘takes off’, the pilot leaves with the
+winnings, the flight splits into 2 games, and everyone left is ‘promoted’.
+The reality of pyramid selling is that it tends to heavily reward the very top of the pyramid at the
+expense of everyone below. The vast majority who join the scheme later are led to believe that they will
+also benefit financially, when this is often not the case.
+Legislation: Australian Consumer Law Part 3-1 Division 3
+
+42
+
+Advertising and selling guide
+
+What happens if I don’t comply with the
+Australian Consumer Law?
+Consumers – or other businesses – that believe they have been misled by a business and suffered
+damages as a result can pursue the party who has breached the law for damages.
+Just as you must adhere to the ACL, so must your competitors. As a business, you also have a right
+to take action against a competitor if you feel you have suffered loss or damage as a result of them
+breaching the ACL.
+The ACCC, the state and territory consumer protection agencies and any other individual or group can
+take legal action against businesses for contraventions of the ACL. The ACCC’s enforcement powers are
+extensive – for some contraventions it can seek remedies such as:
+
+
+
+criminal or civil pecuniary penalties to the greater of $10 million, 3 times the value of the benefit
+received, or where the benefit cannot be calculated, 10% of annual turnover in the preceding
+12 months for corporations
+
+
+
+
+criminal or civil pecuniary penalties of up to $500,000 for individuals
+
+
+
+
+
+disqualification orders
+
+infringement notice penalties of up to $133,200 for publicly listed companies, $13,320 for
+corporations and up to $2,664 for individuals
+
+injunctions to prevent ongoing conduct
+corrective advertising orders.
+
+In determining whether to take action, the ACCC gives enforcement priority to matters that
+demonstrate one or more of a range of factors such as whether the conduct is of significant public
+interest or concern, is conduct resulting in a substantial consumer (including small business) detriment,
+is unconscionable conduct, particularly involving large national companies or traders, or is conduct
+demonstrating a blatant disregard for the law.
+While the ACCC may not take action on all matters, many state or territory agencies are well placed to
+address issues relating to local advertising and selling practices. For small businesses, the Australian
+Small Business Commissioner or the state-based Small Business Commissioners (in some states) may
+be able to assist with a dispute or problem.
+Related information: ACCC Compliance and Enforcement policy
+Legislation: Australian Consumer Law Chapter 5
+
+43
+
+Advertising and selling guide
+
+Competition and anti-competitive
+behaviour
+Certain business practices that limit or prevent competition are against the law. If you are concerned
+about conduct you are considering or about the conduct of others in the marketplace, you can get
+information from the ACCC and advice from your professional advisors. This guide is not intended to
+offer comprehensive advice on competition law. However, 2 issues to note are resale price maintenance
+and cartels.
+
+Resale price maintenance
+Resale price maintenance (RPM) occurs if a supplier pressures a business not to sell products below a
+certain price.
+RPM can manifest in several ways, including if the supplier makes it a condition of supply that the
+business must (or threatens to withdraw supply if the business does not):
+
+
+
+
+
+
+sell at a certain price
+not sell below a certain price
+only discount to an extent that is ‘agreed’ or not discount at all
+comply with a recommended retail price (RRP) or not price a certain percentage below it.
+
+Ultimately, RPM can lead to higher prices paid by consumers.
+Businesses must not engage in RPM and it is prohibited outright by law. RPM may be authorised in
+some circumstances.
+It is important that suppliers do not attempt to use RPM to constrain businesses, particularly with the
+growth of online retailing.
+u Example: An online retailer enters the bicycle market and prices its bicycles cheaper than its
+bricks and mortar competitors. The online retailer and the bricks and mortar retailers have
+the same supplier. Several bricks and mortar retailers complain to the supplier that the online
+retailer’s bicycles are too cheap and threaten to stop placing orders for those products. The
+supplier asks the online retailer not to price below the RRP and threatens to cut supply unless the
+online retailer agrees. This is RPM and is prohibited under the Act.
+Businesses should know their rights and be assertive if they feel a supplier is attempting to maintain
+certain prices for goods or services. If businesses feel they have been subjected to RPM they should
+contact the ACCC.
+Related information: Imposing minimum resale prices
+Legislation: Competition and Consumer Act 2010 Part VIII
+
+Cartels
+Businesses that make agreements with their competitors to fix prices, rig bids, share markets, restrict
+outputs (all ‘cartel conduct’) or otherwise agree to act together instead of competing with each other,
+are breaking the law.
+Individuals found guilty of cartel conduct could face criminal or civil penalties, including up to 10 years
+in jails and/or fines or civil pecuniary penalties, and be disqualified from managing a corporation.
+Maximum penalties for companies, per offence, are $10 million, 3 times the value of the benefit
+obtained from the cartel or 10% of the previous year’s turnover, whichever is greater.
+
+44
+
+Advertising and selling guide
+
+Parties involved in a cartel can apply for immunity from prosecution in exchange for helping with the
+ACCC’s investigations.
+Related information: Cartels
+Legislation: Competition and Consumer Act 2010 Part IV
+
+Product safety
+Under the ACL, Commonwealth, state and territory ministers can regulate consumer goods and
+product-related services by implementing mandatory safety standards, banning products temporarily
+or permanently, issuing safety warning notices or issuing a compulsory recall notice to suppliers.
+As a business:
+
+
+
+
+You cannot sell banned products.
+
+
+
+If you are aware of a death, serious injury or illness associated with a product you supply, you must
+report it to the ACCC within 2 days, which is known as mandatory reporting.
+
+You must ensure that your products or product-related services comply with relevant ‘mandatory
+safety and information standards’ before they are offered for sale.
+
+Businesses should also consider whether there is a need to conduct a ‘voluntary’ product recall if a
+product or service presents a safety risk or is non-compliant with a mandatory standard or ban. A
+voluntary recall occurs when the supplier for a consumer product initiates the recall and voluntarily
+takes action to remove it from distribution, sale and/or consumption.
+Related information: Product safety
+Product Safety Australia website
+Product Safety Recalls Australia
+Related publication: Consumer Product Safety Recall Guidelines
+Related publication: How to conduct a successful recall
+
+45
+
+Advertising and selling guide
+
+Contact details for the Australian
+Consumer Law Regulators
+Contact: State & territory consumer protection agencies
+Contact: Industry ombudsmen & dispute resolution
+Related information: Information for small business
+
+Contact details for the Small
+Business Commissioners
+Australian Small Business and Family Enterprise Ombudsman
+1300 650 460 www.asbfeo.gov.au
+Victorian Small Business Commission
+13 8722 www.vsbc.vic.gov.au
+NSW Small Business Commissioner
+1300 795 534 www.smallbusiness.nsw.gov.au
+Western Australian Small Business Commissioner
+Small Business Development Corporation Western Australia
+13 1249 www.smallbusiness.wa.gov.au
+South Australian Small Business Commissioner
+1800 072 722 www.sasbc.sa.gov.au
+
+46
+
+Advertising and selling guide
+
+

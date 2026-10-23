@@ -30,7 +30,7 @@ const steps: { icon: LucideIcon; name: string; does: string; human?: boolean }[]
   {
     icon: ShieldCheck,
     name: "Compliance",
-    does: "Checks every claim against brand guidelines and country law, and sends fixes back.",
+    does: "Checks the poster against that market's law index, and sends fixes back.",
   },
   {
     icon: ShieldAlert,

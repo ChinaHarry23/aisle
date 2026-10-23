@@ -4,6 +4,7 @@ import { loadWorkspace } from "@/lib/auth/workspace";
 import { mediaResponse } from "@/lib/media/assets";
 import { readAsset, removeAsset } from "@/lib/media/library";
 import { MediaNotFoundError, readMedia } from "@/lib/media/store";
+import { retainCampaignLifecycle } from "@/lib/campaign-lifecycle";
 import { mergeWorkflowCampaigns, workflowEnabled } from "@/lib/workflow/gateway";
 
 export const runtime = "nodejs";
@@ -12,7 +13,8 @@ export const dynamic = "force-dynamic";
 async function campaignsFor(userId: string, role: Parameters<typeof loadWorkspace>[1]) {
   const workspace = await loadWorkspace(userId, role);
   if (!workflowEnabled()) return workspace.campaigns;
-  return (await mergeWorkflowCampaigns(userId, workspace.campaigns)).campaigns;
+  const merged = await mergeWorkflowCampaigns(userId, workspace.campaigns);
+  return retainCampaignLifecycle(workspace.campaigns, workspace.retiredCampaignIds ?? [], merged.campaigns);
 }
 
 /** The file itself. The id is this account's catalogue row, not a campaign creative. */

@@ -17,7 +17,7 @@ export function guidelinesPrompt(brand: BrandProfile): string {
   const body = docs
     .map((d) => `--- ${d.name} ---\n${d.text.slice(0, each)}${d.text.length > each ? "\n[…cut]" : ""}`)
     .join("\n\n");
-  return `Brand guidelines supplied by the retailer. Follow them; flag anything that breaks them as a brand_guideline issue:\n${body}`;
+  return `Advertising-law and regulation documents uploaded on Brand. Flag poster words only when a passage here gives a reason:\n${body}`;
 }
 
 export function toGuidelineDoc(name: string, size: number, rawText: string): GuidelineDoc {

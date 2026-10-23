@@ -26,11 +26,11 @@ scenarios that only fire on failure.
 | Stage 1 item | Implementation | Proof |
 |---|---|---|
 | AHR-01 Context Entry | `src/lib/runtime/intake.ts` (validation), `engine.ts` `START` / `PAUSE` | suite: *invalid brief refused*, *missing brand settings block launch* |
-| AHR-02 Trend Analysis | `src/lib/runtime/tools.ts`, `steps.ts` `runTrendResearch`, `decide.ts` `decideTrendBrief` | suite: *sourced brief with labelled assumptions*, *unauthorised internal data excluded* |
-| AHR-03 Content Generation | `steps.ts` `runCreativeGeneration`, `buildCreatives`, `decide.ts` `decideCopy` | suite: *revise then pass, versions and digests retained* |
-| AHR-04 Compliance | `steps.ts` `runComplianceReview`, `deterministicReview`, `decide.ts` `decideCompliance` | suite: *revise then pass* and *three attempts then Manual Review Required* |
+| AHR-02 Trend Analysis | `src/lib/runtime/tools.ts`, `steps.ts` `runTrendResearch`, LangGraph trend seat in `decide.ts` `decideTrendBrief` | suite: *sourced brief with labelled assumptions*, *unauthorised internal data excluded* |
+| AHR-03 Content Generation | `steps.ts` `runCreativeGeneration`, `buildCreatives`, LangGraph creative seat in `decide.ts` `decideCopy` | suite: *revise then pass, versions and digests retained* |
+| AHR-04 Compliance | `steps.ts` `runComplianceReview`, LangGraph compliance seat in `decide.ts` `decideCompliance` | suite: missing policy or a missing agent review becomes Manual Review, and does not invent findings |
 | AHR-05 Distribution | `steps.ts` `runMediaAdaptation`, `detectScheduleConflicts`, `runSchedule` | suite: *per-channel versions with frozen claims* |
-| AHR-06 Feedback | `steps.ts` `collectChannelResults`, `buildPerformanceReport`, `deterministicRecommendation`, `runFeedbackCollection` | suite: *published, collected, gaps marked, decision stored*, *silent channels marked*, *only accepted notes travel forward* |
+| AHR-06 Feedback | `steps.ts` `collectChannelResults`, `buildPerformanceReport`, LangGraph media seat in `decide.ts` `decideRecommendation`, `runFeedbackCollection` | suite: *published, collected, gaps marked, decision stored*, *silent channels marked*, *only accepted notes travel forward* |
 | UC-01 step 13 / ext 13.a (agent limits) | `src/lib/runtime/guard.ts` | suite: *five agent attempts refused and logged* |
 | Runtime persistence and audit | `src/app/api/engine/route.ts`, `src/lib/runtime/client.ts`, `src/lib/store.ts` | HTTP smoke test; `campaign.log`, `policyDecisions`, `runSteps`, `toolCalls` |
 | Accounts, sessions, workspace documents | `src/lib/db/*`, `src/lib/auth/users.ts`, `src/lib/auth/kv.ts` | `npm run auth` |
@@ -126,17 +126,14 @@ content and the rule; separate confirmed violations from items needing human
 judgement; allow up to three review/revision cycles; then either *Awaiting Human
 Approval* or *Manual Review Required*; never approve its own work.
 
-`runComplianceReview()` merges two reviews:
+`runComplianceReview()` asks the compliance agent for the review. The agent's
+structured issues and outcome are the decision. Code does not scan the
+advertisement for prices, phrases, images, banned terms or caption length, and it
+does not merge a second finding list over the agent. A missing or inconsistent
+answer, a missing authorised policy, or the third revision becomes manual review
+instead of a pass. A pass still waits for the founder.
 
-1. **Deterministic** (`deterministicReview`) — brand banned terms are always
-   confirmed breaches; print condition lines, high-spend reach and Instagram
-   caption truncation are raised as `human_judgement` items with the policy source
-   and date.
-2. **Model** (`decideCompliance`) — when a backend is configured, the model reviews
-   the same copy and its issues are merged in. The deterministic issues always
-   survive, so a model cannot clear a banned term.
-
-The merged outcome drives the state machine:
+The agent's outcome drives the state machine:
 
 | Outcome | Next state |
 |---|---|

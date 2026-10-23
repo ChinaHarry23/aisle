@@ -11,6 +11,7 @@
  */
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { register } from "node:module";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -42,10 +43,12 @@ register(`data:text/javascript,${encodeURIComponent(loader)}`, pathToFileURL("./
 const engineUrl = pathToFileURL(path.join(root, "src/lib/runtime/engine.ts")).href;
 const seedUrl = pathToFileURL(path.join(root, "src/lib/seed.ts")).href;
 const settingsUrl = pathToFileURL(path.join(root, "src/lib/settings.ts")).href;
+const retailUrl = pathToFileURL(path.join(root, "src/lib/retail-data.ts")).href;
 
 const { runEngine } = (await import(engineUrl)) as typeof import("../src/lib/runtime/engine");
 const { blankCampaign, defaultBrand } = (await import(seedUrl)) as typeof import("../src/lib/seed");
 const { defaultSettings } = (await import(settingsUrl)) as typeof import("../src/lib/settings");
+const { parseRetailUpload } = (await import(retailUrl)) as typeof import("../src/lib/retail-data");
 
 import type { Campaign, CampaignInput } from "../src/lib/types";
 import type { Command } from "../src/lib/runtime/types";
@@ -161,6 +164,12 @@ const stubPoster = async ({ modelId }: { modelId: string }) => ({
 });
 
 const options = { llm: offlineLlm, renderPoster: stubPoster, maxSteps: 20 };
+const woolworthsUpload = parseRetailUpload(
+  JSON.parse(readFileSync(new URL("../src/data/retail/woolworths.json", import.meta.url), "utf8")),
+  "woolworths.json",
+);
+if (!woolworthsUpload.ok) throw new Error(woolworthsUpload.error);
+const benchBrand = { ...defaultBrand, retailData: woolworthsUpload.dataset };
 
 const baseInput: CampaignInput = {
   name: "Bench suite campaign",
@@ -183,13 +192,13 @@ function session(
   engineOptions: Partial<typeof options> = {},
 ) {
   let campaign: Campaign = {
-    ...blankCampaign({ ...baseInput, ...input }, defaultBrand, null, settings),
+    ...blankCampaign({ ...baseInput, ...input }, benchBrand, null, settings),
     ...campaignPatch,
   };
   const ctx = { campaigns: [campaign], now: new Date().toISOString() };
 
   async function run(command: Command) {
-    const result = await runEngine(ctx, campaign, command, settings, defaultBrand, {
+    const result = await runEngine(ctx, campaign, command, settings, benchBrand, {
       ...options,
       ...engineOptions,
     });
@@ -225,9 +234,9 @@ async function startAndAdvance(
 /**
  * Drive the bench to a founder-approvable draft that the Media Manager can adapt.
  *
- * Since CC-03 (PR #7) a review run without an authorised policy registry escalates
- * straight to Manual Review instead of auto-revising. The founder resolves that
- * the way the desk does: request changes once, then approve the brief-written draft.
+ * A review run without an authorised policy registry escalates straight to
+ * manual review. The founder resolves that the way the desk does: request
+ * changes once, then approve the brief-written draft.
  */
 async function startAndClear(...args: Parameters<typeof startAndAdvance>) {
   const s = await startAndAdvance(...args);
@@ -284,6 +293,8 @@ async function startAndClear(...args: Parameters<typeof startAndAdvance>) {
     "every evidence row needs a source and a date",
   );
   assert.ok(c.toolCalls.length > 0, "tool calls must be recorded");
+  assert.ok(c.evidence.some((e) => e.sourceName === "Woolworths POS"), "authorised POS must cite the uploaded Woolworths file");
+  assert.ok(!c.evidence.some((e) => /Lane & Co/i.test(e.sourceName)), "another retailer's warehouse must not be cited");
   pass(
     "AHR-02 — sourced brief with labelled assumptions",
     `${c.evidence.length} evidence rows, ${c.trendFindings.filter((f) => f.basis === "supported").length} supported, ${c.trendGaps.length} limitations`,
@@ -318,7 +329,9 @@ async function startAndClear(...args: Parameters<typeof startAndAdvance>) {
   assert.doesNotMatch(painted, /healthiest breakfast|miracle mornings|warmest jacket/i);
   assert.match(c.creatives[0].prompt, /Northline Trail Parka/i);
   assert.match(c.creatives[0].headline, /Weatherproof|Northline Trail Parka/i);
-  pass("CC-03/04 — unavailable policy stops automatic work", "Exact submitted version retained; manual review required.");
+  assert.equal(c.complianceAttempts[0].issues.length, 0, "a missing agent review must not invent findings");
+  assert.ok(!c.complianceAttempts[0].issues.some(i => i.rule === "review.price"));
+  pass("CC-03/04 — unavailable policy stops automatic work", "Exact submitted version retained; manual review required; no content scan.");
 }
 {
   const s = await startAndAdvance({ channels: ["web"] }, {}, { llm: scriptedLlm() });

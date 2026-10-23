@@ -16,11 +16,13 @@ import {
   SlidersHorizontal,
   TrendingUp,
 } from "lucide-react";
+import { CreditsBadge } from "@/components/billing/CreditsBadge";
 import { UserMenu } from "@/components/UserMenu";
 import { BrandLogo } from "@/components/BrandLogo";
 import { WorkspaceSync } from "@/components/WorkspaceSync";
 import { cn } from "@/lib/cn";
 import type { PublicUser } from "@/lib/auth/types";
+import { isArchived } from "@/lib/campaign-lifecycle";
 import { useAisle } from "@/lib/store";
 
 type NavItem = { href: string; label: string; icon: typeof LayoutDashboard };
@@ -123,7 +125,7 @@ export function AppShell({ children, signedIn }: { children: ReactNode; signedIn
     );
   }
 
-  const awaiting = campaigns.filter((c) => c.status === "awaiting_approval").length;
+  const awaiting = campaigns.filter((c) => !isArchived(c) && c.status === "awaiting_approval").length;
 
   return (
     <WorkspaceSync user={user}>
@@ -184,7 +186,8 @@ export function AppShell({ children, signedIn }: { children: ReactNode; signedIn
               </div>
             </aside>
             <div className="min-w-0">
-              <div className="flex justify-end px-[var(--page-pad)] pt-4">
+              <div className="flex items-center justify-end gap-4 px-[var(--page-pad)] pt-4">
+                <CreditsBadge pathname={pathname} />
                 <UserMenu user={user} onSignOut={signOut} />
               </div>
               <div className="shell-page !pt-4">{children}</div>

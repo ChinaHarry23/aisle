@@ -10,11 +10,13 @@ import { defaultSpendCap } from "./budget";
  * makes the whole bench testable without a browser.
  */
 
+import { isArchived } from "@/lib/campaign-lifecycle";
 import { uid } from "@/lib/ids";
 import { requestGenerate } from "@/lib/media/client";
 import { posterRequest } from "@/lib/media/prompts";
 import type { MediaGeneration } from "@/lib/media/types";
 import type { Campaign, Creative } from "@/lib/types";
+import type { BillingContext } from "@/lib/billing/meter";
 import { makeLlmRuntime, type LlmRuntime } from "./decide";
 import { runOperation } from "./operation-graph";
 import { type StepEnv, type Work } from "./steps";
@@ -26,6 +28,8 @@ export type EngineOptions = {
   maxSteps?: number;
   /** Signed-in founder for this run. */
   ownerUserId?: string;
+  /** Who pays for a live LangGraph seat. Tests omit it, so they stay on the rule path. */
+  billing?: BillingContext;
   /** Ad renderer. Defaults to the studio route; tests pass a stub. */
   renderPoster?: (input: {
     campaign: Campaign;
@@ -107,12 +111,15 @@ function envFor(
   llm: LlmRuntime,
   renderPoster: NonNullable<EngineOptions["renderPoster"]>,
   ownerUserId?: string,
+  billing?: BillingContext,
 ): StepEnv {
   return {
     now: ctx.now,
     settings,
     brand,
-    llm,
+    llm: billing
+      ? { ...llm, meta: { label: llm.meta?.label ?? "server", live: llm.meta?.live ?? true, billing } }
+      : llm,
     ownerUserId,
     allCampaigns: ctx.campaigns.map((c) => (c.id === campaign.id ? campaign : c)),
     renderPoster,
@@ -125,6 +132,47 @@ function activeRun(run: AgentRun | null): boolean {
 
 /* ------------------------------------------------------------------ engine -- */
 
+/**
+ * The work and env `runEngine` passes into the graph.
+ *
+ * Studio uses the same pair, so a command started from LangSmith is the same
+ * transition the desk runs. An inactive run is replaced here, once, before any
+ * node sees it.
+ */
+export function prepareEngineInvocation(
+  ctx: EngineContext,
+  campaign: Campaign,
+  settings: StepEnv["settings"],
+  brand: StepEnv["brand"],
+  options: EngineOptions = {},
+): { work: Work; env: StepEnv } {
+  const llm = options.llm ?? makeLlmRuntime(options.billing);
+  const w = blankWork(campaign, ctx.now);
+  const env = envFor(ctx, w.campaign, settings, brand, llm, options.renderPoster ?? defaultRenderPoster, options.ownerUserId, options.billing);
+  if (!w.run || !activeRun(w.run)) {
+    w.run = newRun(campaign.id, ctx.now);
+    w.campaign.run = w.run;
+  }
+  return { work: w, env };
+}
+
+/** A campaign copied into graph state without replacing a run that is already active. */
+export function openEngineWork(campaign: Campaign, now: string): Work {
+  return blankWork(campaign, now);
+}
+
+/** The env the desk builds for one command, without touching the run pointer. */
+export function openStepEnv(
+  ctx: EngineContext,
+  campaign: Campaign,
+  settings: StepEnv["settings"],
+  brand: StepEnv["brand"],
+  options: EngineOptions = {},
+): StepEnv {
+  const llm = options.llm ?? makeLlmRuntime(options.billing);
+  return envFor(ctx, campaign, settings, brand, llm, options.renderPoster ?? defaultRenderPoster, options.ownerUserId, options.billing);
+}
+
 export async function runEngine(
   ctx: EngineContext,
   campaign: Campaign,
@@ -133,23 +181,26 @@ export async function runEngine(
   brand: StepEnv["brand"],
   options: EngineOptions = {},
 ): Promise<EngineResult> {
-  const llm = options.llm ?? makeLlmRuntime();
-  const maxSteps = options.maxSteps ?? DEFAULT_MAX_STEPS;
-  const w = blankWork(campaign, ctx.now);
-  const env = envFor(ctx, w.campaign, settings, brand, llm, options.renderPoster ?? defaultRenderPoster, options.ownerUserId);
-  let canAdvance = false;
-
-  if (!w.run || !activeRun(w.run)) {
-    w.run = newRun(campaign.id, ctx.now);
-    w.campaign.run = w.run;
+  if (isArchived(campaign)) {
+    const halted = campaign.run ?? newRun(campaign.id, ctx.now);
+    return {
+      campaign: { ...campaign, running: false },
+      run: { ...halted, status: "paused", updatedAt: ctx.now, awaiting: null, awaitingDetail: null },
+      events: [],
+      runSteps: [],
+      policyDecisions: [],
+      canAdvance: false,
+      message: "This campaign is in the trash. Restore it before the agents can continue.",
+    };
   }
-
+  const maxSteps = options.maxSteps ?? DEFAULT_MAX_STEPS;
+  const { work: w, env } = prepareEngineInvocation(ctx, campaign, settings, brand, options);
   const operation = await runOperation({ work: w, env, command, maxSteps });
-  canAdvance = operation.canAdvance;
-  return finish(w, canAdvance, operation.message);
+  return finish(w, operation.canAdvance, operation.message);
 }
 
-function finish(w: Work, canAdvance: boolean, message: string): EngineResult {
+/** Stamp the run the way `runEngine` returns it, including every tool the command used. */
+export function sealEngineWork(w: Work): Campaign {
   const campaign = w.campaign;
   if (w.run) {
     campaign.run = {
@@ -159,6 +210,11 @@ function finish(w: Work, canAdvance: boolean, message: string): EngineResult {
     };
   }
   campaign.updatedAt = new Date().toISOString();
+  return campaign;
+}
+
+function finish(w: Work, canAdvance: boolean, message: string): EngineResult {
+  const campaign = sealEngineWork(w);
   return {
     campaign,
     run: campaign.run!,

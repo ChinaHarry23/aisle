@@ -87,6 +87,9 @@ export class WorkflowRepository {
         throw new WorkflowError("This campaign already has an active job. Open Workflow operations to see its progress.", 409);
       }
       let current = this.campaign(user, input.campaign.id);
+      if (typeof current?.archivedAt === "string" && current.archivedAt && command.type !== "PAUSE") {
+        throw new WorkflowError("This campaign is in the trash. Restore it before the agents can continue.", 409);
+      }
       if (!current || (current.status === "draft" && command.type === "START")) {
         if (command.type !== "START" || input.campaign.status !== "draft") throw new WorkflowError("Start a new draft to enter the durable workflow. Existing legacy results are not silently imported.", 409);
         // Only founder inputs cross the trust boundary. Never accept browser approvals, logs or results.

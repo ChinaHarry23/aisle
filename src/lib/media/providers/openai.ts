@@ -4,10 +4,39 @@
  * (the Videos API shut down on 24 Sep 2026).
  */
 import { randomUUID } from "node:crypto";
+import { traceable } from "langsmith/traceable";
 import type { AspectRatio } from "../pr2-types";
 import { assertMediaBytes } from "../store";
 import { afterSubmit, apiBase, envValue, providerJson, ProviderError, roundUsd } from "./http";
-import type { MediaProviderAdapter } from "./types";
+import type { MediaProviderAdapter, ProviderOutput } from "./types";
+
+/** LangSmith totals an image the same way as a chat call: an llm run with usage_metadata. The bytes stay out of the trace. */
+async function traceImage(apiModel: string, produce: () => Promise<ProviderOutput>): Promise<ProviderOutput> {
+  let produced!: ProviderOutput;
+  await traceable(async () => {
+    produced = await produce();
+    const input = produced.inputTokens ?? 0;
+    const output = produced.outputTokens ?? 0;
+    return {
+      model: apiModel,
+      inputTokens: input,
+      outputTokens: output,
+      costUsd: produced.costUsd,
+      usage_metadata: {
+        input_tokens: input,
+        output_tokens: output,
+        total_tokens: input + output,
+        total_cost: produced.costUsd,
+        output_cost: produced.costUsd,
+      },
+    };
+  }, {
+    name: `image.${apiModel}`,
+    run_type: "llm",
+    metadata: { ls_provider: "openai", ls_model_name: apiModel, ls_model_type: "llm" },
+  })();
+  return produced;
+}
 
 /** Image-input tokens (edits) are billed at $8 per 1M; posters send none today. */
 const IMAGE_INPUT_PER_M = 8;
@@ -34,7 +63,12 @@ type ImagesResponse = {
 export const openaiAdapter: MediaProviderAdapter = {
   id: "openai",
   keyEnv: ["OPENAI_API_KEY"],
-  async generate(req, { model, startImage, apiKey, onQueued, signal }) {
+  async generate(req, ctx) {
+    return traceImage(ctx.model.apiModel, () => generateOpenAIImage(req, ctx));
+  },
+};
+
+async function generateOpenAIImage(req: Parameters<MediaProviderAdapter["generate"]>[0], { model, startImage, apiKey, onQueued, signal }: Parameters<MediaProviderAdapter["generate"]>[1]): Promise<ProviderOutput> {
     if (model.kind !== "image") throw new ProviderError("OpenAI has no video model available.", { retryable: false });
     const key = apiKey?.trim() || envValue("OPENAI_API_KEY");
     if (!key) throw new ProviderError("OPENAI_API_KEY is not set.", { retryable: false });
@@ -92,5 +126,4 @@ export const openaiAdapter: MediaProviderAdapter = {
     const imageIn = usage.input_tokens_details?.image_tokens ?? 0;
     const costUsd = (textIn * billing.textInPerM + imageIn * IMAGE_INPUT_PER_M + usage.output_tokens * billing.imageOutPerM) / 1e6;
     return { bytes, mime, costUsd: roundUsd(costUsd), jobId, aspect, inputTokens: usage.input_tokens ?? textIn + imageIn, outputTokens: usage.output_tokens };
-  },
-};
+}

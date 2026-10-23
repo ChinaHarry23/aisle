@@ -1,0 +1,12 @@
+{
+  "node_version": "24",
+  "graphs": {
+    "operation": "./src/lib/studio/operation.ts:graph",
+    "trend": "./src/lib/studio/seats.ts:trend",
+    "creative": "./src/lib/studio/seats.ts:creative",
+    "compliance": "./src/lib/studio/seats.ts:compliance",
+    "media": "./src/lib/studio/seats.ts:media",
+    "intake": "./src/lib/studio/seats.ts:intake"
+  },
+  "env": ".env.local"
+}

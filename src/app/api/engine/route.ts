@@ -5,8 +5,10 @@ import { renderCampaignPoster } from "@/lib/media/campaign-poster";
 import { lookupShelfPrices } from "@/lib/retail/whichgrocer/connection";
 import { runEngine } from "@/lib/runtime/engine";
 import { setShelfPriceLookup } from "@/lib/runtime/tools";
+import { GraphRequestError, invokeOperationGraph, reachableOperationGraph } from "@/lib/studio/remote";
 
 setShelfPriceLookup(lookupShelfPrices);
+import { isArchived } from "@/lib/campaign-lifecycle";
 import { withRuntimeDefaults } from "@/lib/runtime/defaults";
 import type { Command } from "@/lib/runtime/types";
 import type { Campaign } from "@/lib/types";
@@ -37,14 +39,14 @@ const MAX_STEPS_PER_REQUEST = 12;
  * workspace (all local) stands in, because the alternative is a campaign that
  * cannot advance at all.
  */
-async function loadWorkspaceSafely(
+async function loadWorkspaceStrict(
   userId: string,
   role: Parameters<typeof loadWorkspace>[1],
-): Promise<WorkspaceSnapshot> {
+): Promise<{ snapshot: WorkspaceSnapshot; readable: boolean }> {
   try {
-    return await loadWorkspace(userId, role);
+    return { snapshot: await loadWorkspace(userId, role), readable: true };
   } catch {
-    return demoWorkspace();
+    return { snapshot: demoWorkspace(), readable: false };
   }
 }
 
@@ -83,6 +85,10 @@ export async function POST(request: Request) {
       // Authentication owns the tenant; browser approvals and runtime output are not trusted.
       const command = parseCommand(body.command);
       const stored = await loadWorkspace(user.id, user.role);
+      const kept = stored.campaigns.find((item) => item.id === body.campaign!.id);
+      if (isArchived(kept ?? {}) || isArchived(body.campaign)) {
+        return NextResponse.json({ error: "This campaign is in the trash. Restore it before the agents can continue." }, { status: 409 });
+      }
       const job = await submitWorkflow(user.id, {
         campaign: body.campaign, command, campaigns: stored.campaigns,
         brand: stored.brand, settings: stored.settings,
@@ -93,11 +99,25 @@ export async function POST(request: Request) {
     }
   }
 
-  const stored = await loadWorkspaceSafely(user.id, user.role);
+  const loaded = await loadWorkspaceStrict(user.id, user.role);
+  const stored = loaded.snapshot;
   const brand = (body.brand as typeof stored.brand) ?? stored.brand;
   const settings = stored.settings;
   const campaigns = (body.campaigns ?? []).map(withRuntimeDefaults);
   const target = withRuntimeDefaults(body.campaign);
+  const storedCampaign = stored.campaigns.find((item) => item.id === target.id);
+  if (isArchived(storedCampaign ?? {}) || isArchived(target)) {
+    const campaign = { ...(storedCampaign ?? target), archivedAt: storedCampaign?.archivedAt ?? target.archivedAt, running: false };
+    return NextResponse.json({
+      campaign,
+      run: campaign.run,
+      events: [],
+      runSteps: [],
+      policyDecisions: campaign.policyDecisions ?? [],
+      canAdvance: false,
+      message: "This campaign is in the trash. Restore it before the agents can continue.",
+    });
+  }
 
   const maxSteps =
     typeof body.maxSteps === "number" && Number.isFinite(body.maxSteps)
@@ -106,7 +126,47 @@ export async function POST(request: Request) {
   const userKey = request.headers.get("x-provider-key")?.trim() || undefined;
 
   try {
-    const llm = createServerTrendRuntime(await billingForSession(user));
+    const billing = await billingForSession(user);
+    const graphUrl = loaded.readable ? await reachableOperationGraph() : null;
+    if (graphUrl) {
+      let savedInput = false;
+      try {
+        await saveWorkspace(user.id, {
+          ...stored,
+          brand,
+          campaigns: [target, ...campaigns.filter((item) => item.id !== target.id)],
+        });
+        savedInput = true;
+      } catch {
+        // The graph hydrates from the workspace. If that write fails, run here instead.
+      }
+      if (savedInput) {
+        const outcome = await invokeOperationGraph({
+          url: graphUrl,
+          campaignId: target.id,
+          userId: user.id,
+          maxSteps,
+          command: body.command,
+        });
+        const latest = await loadWorkspace(user.id, user.role);
+        const saved = latest.campaigns.find((item) => item.id === target.id);
+        const run = saved?.run;
+        if (!saved || !run) {
+          throw new GraphRequestError("The operation graph did not return a run.", false);
+        }
+        const campaign = withRuntimeDefaults(saved);
+        return NextResponse.json({
+          campaign,
+          run,
+          events: [],
+          runSteps: [],
+          policyDecisions: campaign.policyDecisions,
+          canAdvance: outcome.canAdvance,
+          message: outcome.message,
+        });
+      }
+    }
+    const llm = createServerTrendRuntime(billing);
     const result = await runEngine(
       { campaigns, now: new Date().toISOString() },
       target,
@@ -116,6 +176,7 @@ export async function POST(request: Request) {
       {
         maxSteps,
         ownerUserId: user.id,
+        billing,
         llm,
         renderPoster: (input) =>
           renderCampaignPoster({

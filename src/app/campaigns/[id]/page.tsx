@@ -21,6 +21,7 @@ import {
 import { cn } from "@/lib/cn";
 import { formatDate, formatNumber } from "@/lib/ids";
 import { channelLabel } from "@/lib/status";
+import { isArchived } from "@/lib/campaign-lifecycle";
 import { campaignCanAdvance } from "@/lib/runtime/resume";
 import { useAisle } from "@/lib/store";
 
@@ -90,8 +91,12 @@ export default function CampaignWorkspace() {
   const decideRecommendation = useAisle((s) => s.decideRecommendation);
   const resolveConflict = useAisle((s) => s.resolveConflict);
   const attemptBlocked = useAisle((s) => s.attemptBlocked);
+  const archiveCampaign = useAisle((s) => s.archiveCampaign);
+  const restoreCampaign = useAisle((s) => s.restoreCampaign);
+  const deleteCampaign = useAisle((s) => s.deleteCampaign);
   const busy = useAisle((s) => s.busy[id] ?? false);
   const [pickedTab, setTab] = useState<Tab | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [note, setNote] = useState("");
   const [recommendationDraft, setRecommendationDraft] = useState<string | null>(null);
   const [boundaryResult, setBoundaryResult] = useState<string | null>(null);
@@ -125,17 +130,18 @@ export default function CampaignWorkspace() {
     );
   }
 
-  // When the campaign is waiting on the founder, open straight on the approval gate.
-  const tab: Tab = pickedTab ?? (campaign.status === "awaiting_approval" ? "approvals" : "brief");
-  const canLaunch = ["draft", "paused", "rejected"].includes(campaign.status);
+  // When the campaign is waiting on the founder, open on the legal check.
+  const tab: Tab = pickedTab ?? (campaign.status === "awaiting_approval" ? "compliance" : "brief");
+  const archived = isArchived(campaign);
+  const canLaunch = !archived && ["draft", "paused", "rejected"].includes(campaign.status);
   const needsYou = campaign.status === "awaiting_approval";
   const canPublish = campaign.status === "scheduled";
 
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <Link href="/campaigns" className="text-sm text-mute hover:text-signal">
-          ← Board
+        <Link href={archived ? "/campaigns/trash" : "/campaigns"} className="text-sm text-mute hover:text-signal">
+          {archived ? "← Trash" : "← Board"}
         </Link>
         <div className="mt-1 flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-[18rem] flex-1">
@@ -163,7 +169,7 @@ export default function CampaignWorkspace() {
                 Launch agents
               </button>
             ) : null}
-            {campaign.running ? (
+            {!archived && campaign.running ? (
               <button
                 type="button"
                 onClick={() => void pause(campaign.id)}
@@ -182,7 +188,7 @@ export default function CampaignWorkspace() {
                 {busy ? "Working…" : "Continue agents"}
               </button>
             ) : null}
-            {canPublish ? (
+            {!archived && canPublish ? (
               <button
                 type="button"
                 disabled={busy}
@@ -192,7 +198,7 @@ export default function CampaignWorkspace() {
                 {busy ? "Working…" : "Publish now"}
               </button>
             ) : null}
-            {campaign.status === "published" && !campaign.performanceReport ? (
+            {!archived && campaign.status === "published" && !campaign.performanceReport ? (
               <button
                 type="button"
                 disabled={busy}
@@ -202,8 +208,45 @@ export default function CampaignWorkspace() {
                 {busy ? "Collecting…" : "Collect results"}
               </button>
             ) : null}
+            {archived ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => restoreCampaign(campaign.id)}
+                  className="rounded-full btn-primary px-4 py-2 text-sm font-medium"
+                >
+                  Restore
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!confirmDelete) {
+                      setConfirmDelete(true);
+                      return;
+                    }
+                    deleteCampaign(campaign.id);
+                  }}
+                  className="rounded-full border border-signal px-4 py-2 text-sm font-medium text-signal hover:bg-paper-2"
+                >
+                  {confirmDelete ? "Delete forever" : "Delete"}
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void archiveCampaign(campaign.id)}
+                className="rounded-full border border-line px-4 py-2 text-sm font-medium hover:bg-paper-2"
+              >
+                Move to trash
+              </button>
+            )}
           </div>
         </div>
+        {archived ? (
+          <p className="mt-3 max-w-xl text-sm text-ink-soft">
+            This campaign is in the trash. The agents will not keep working on it.
+          </p>
+        ) : null}
         <div className="mt-5">
           <AgentPipeline status={campaign.status} />
         </div>
@@ -1026,7 +1069,7 @@ export default function CampaignWorkspace() {
             />
           </div>
 
-          <OperationGraph step={run?.step} />
+          <OperationGraph step={run?.step} campaignId={campaign.id} />
 
           {run?.awaiting ? (
             <div className="hairline border-l-4 border-signal p-4 text-sm">

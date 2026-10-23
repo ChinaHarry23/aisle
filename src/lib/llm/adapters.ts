@@ -21,7 +21,7 @@ export function systemFor(agent: CompleteRequest["agent"]) {
     creative:
       "You are the Image Generation agent. Return JSON for two ad variants (A/B): headline, subhead, cta, caption, prompt.",
     compliance:
-      "You are the Compliance Checker. Score copy against country advertising law and a banned-terms list. Return JSON findings.",
+      "You are the Compliance Checker. Read the poster and the uploaded advertising-law documents. Flag words that may raise a legal issue. Return JSON findings.",
     media:
       "You are the Media Manager. Adapt one approved master into channel-specific copy and posting times. Return JSON.",
   };
@@ -30,9 +30,12 @@ export function systemFor(agent: CompleteRequest["agent"]) {
 
 export function buildLlmBody(model: LlmModel, req: CompleteRequest): Record<string, unknown> {
   const apiModel = model.id === "local:custom" ? req.localModel || "llama3.1" : model.apiModel;
+  const userContent = req.images?.length
+    ? [{ type: "text", text: req.prompt }, ...req.images.map((url) => ({ type: "image_url", image_url: { url } }))]
+    : req.prompt;
   const messages = [
-    { role: "system", content: systemFor(req.agent) },
-    { role: "user", content: req.prompt },
+    { role: "system", content: req.system || systemFor(req.agent) },
+    { role: "user", content: userContent },
   ];
   if (model.providerId === "anthropic") {
     return {

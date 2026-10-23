@@ -8,12 +8,14 @@
  * up again without mistaking a founder gate for a stall.
  */
 
+import { isArchived } from "@/lib/campaign-lifecycle";
 import type { Campaign } from "@/lib/types";
 
 /** Steps where the bench is waiting on the founder, not on another command. */
 const WAITING_ON_FOUNDER = new Set(["founder.gate", "media.schedule"]);
 
 export function campaignCanAdvance(campaign: Campaign): boolean {
+  if (isArchived(campaign)) return false;
   const run = campaign.run;
   if (!run || run.status !== "running") return false;
   return !WAITING_ON_FOUNDER.has(run.step);

@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { CreativeStudio } from "@/components/studio/CreativeStudio";
 import { PageHeader } from "@/components/ui";
+import { isArchived } from "@/lib/campaign-lifecycle";
 import { useAisle } from "@/lib/store";
 import { useMemo, useState } from "react";
 
 export default function StudioPage() {
-  const campaigns = useAisle((s) => s.campaigns);
+  const campaigns = useAisle((s) => s.campaigns).filter((campaign) => !isArchived(campaign));
   const initial = campaigns[0]?.id ?? "";
   const [id, setId] = useState(initial);
   const selected = useMemo(

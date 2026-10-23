@@ -32,6 +32,8 @@
     "user": "node --experimental-strip-types scripts/user.ts",
     "auth": "node --experimental-strip-types scripts/auth-suite.ts",
     "test:agents": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/agents-suite.ts",
+    "test:studio": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/studio-graph-suite.ts",
+    "studio": "langgraphjs dev --host 127.0.0.1",
     "test:whichgrocer": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/whichgrocer-suite.ts",
     "test:graph": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/operation-graph-suite.ts",
     "test:intake": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/intake-suite.ts",
@@ -62,6 +64,7 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@langchain/langgraph-cli": "^1.5.4",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^24.19.0",
     "@types/pg": "^8.23.1",

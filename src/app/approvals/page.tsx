@@ -3,14 +3,14 @@
 import Link from "next/link";
 import { useState } from "react";
 import { ChecksPanel } from "@/components/ChecksPanel";
-import { GUIDELINES_INTRO, GuidelinesPanel } from "@/components/GuidelinesPanel";
 import { Empty, PageHeader, RiskBadge, SectionTitle } from "@/components/ui";
+import { isArchived } from "@/lib/campaign-lifecycle";
 import { useAisle } from "@/lib/store";
 
 const RISK_ORDER = { high: 0, medium: 1, low: 2 } as const;
 
 export default function ApprovalsPage() {
-  const campaigns = useAisle((s) => s.campaigns);
+  const campaigns = useAisle((s) => s.campaigns).filter((campaign) => !isArchived(campaign));
   const approve = useAisle((s) => s.approve);
   const reject = useAisle((s) => s.reject);
   const requestChanges = useAisle((s) => s.requestChanges);
@@ -45,14 +45,8 @@ export default function ApprovalsPage() {
       <PageHeader
         eyebrow="Guidelines & reviews"
         title="Guidelines and reviews"
-        description="Add the brand and legal documents your agents should follow. If they find something they can't settle themselves, it's escalated to you below for manual review."
+        description="A check uses the law index for the campaign's market. Australia is built. If the agents cannot settle something, it is escalated to you below."
       />
-
-      <section className="flex flex-col gap-3">
-        <SectionTitle title="Brand guidelines & legal" />
-        <p className="text-base text-ink-soft">{GUIDELINES_INTRO}</p>
-        <GuidelinesPanel hideHeader />
-      </section>
 
       <section className="flex flex-col gap-3">
         <SectionTitle title="Brand profile" />

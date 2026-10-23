@@ -11,11 +11,12 @@
  *  - `external_public` tools make a real HTTP request, with a timeout, and report
  *    honestly when the network is unavailable (status `empty` + an `unavailable`
  *    evidence row) instead of inventing a result.
- *  - `internal_retail` tools read the retailer's own authorised data, which for
- *    this prototype is a deterministic model of POS and catalogue history.
+ *  - `internal_retail` tools read the POS file uploaded on Brand for this
+ *    retailer. A file for another banner is not used.
  */
 
 import { uid } from "@/lib/ids";
+import { aud, matchRetailData } from "@/lib/retail-data";
 import type { BrandProfile, Campaign, Channel, Country } from "@/lib/types";
 import type { Evidence, SourceKind, ToolCall } from "./types";
 
@@ -127,19 +128,8 @@ export function toToolCall(input: {
 
 /* --------------------------------------------------------- internal retail -- */
 
-/**
- * Deterministic stand-in for the retailer's POS / catalogue warehouse. It is
- * clearly labelled `internal_retail`, and the guard refuses it when the retailer
- * has not authorised internal data for the campaign.
- */
-function retailSignal(campaign: Campaign) {
-  const seedText = `${campaign.product}${campaign.category}${campaign.country}`;
-  let h = 0;
-  for (let i = 0; i < seedText.length; i += 1) h = (h * 31 + seedText.charCodeAt(i)) % 100_000;
-  const lift = 12 + (h % 29); // 12–40 %
-  const attach = 6 + (h % 17); // 6–22 %
-  const weeksTracked = 26 + (h % 60);
-  return { lift, attach, weeksTracked, index: 40 + (h % 45) };
+function signedPct(value: number) {
+  return `${value > 0 ? "+" : ""}${value}%`;
 }
 
 export const internalRetailTool: ToolDefinition = {
@@ -147,9 +137,9 @@ export const internalRetailTool: ToolDefinition = {
   label: "Internal retail signals",
   agent: "trend",
   description:
-    "Reads the retailer's POS velocity, catalogue history and basket attach rate for the product's category.",
+    "Reads the POS file uploaded on Brand for this retailer. It does not use another retailer's file.",
   args: ["category", "country"],
-  async run({ campaign, at }) {
+  async run({ campaign, brand, at }) {
     const authorised = campaign.internalDataAuthorised !== false;
     if (!authorised) {
       return {
@@ -179,36 +169,95 @@ export const internalRetailTool: ToolDefinition = {
         },
       };
     }
-    const s = retailSignal(campaign);
-    const observedAt = at.slice(0, 10);
+    const matched = matchRetailData(brand, campaign);
+    const observedAt = brand.retailData?.extractedAt || at.slice(0, 10);
+    if (matched.kind !== "product" && matched.kind !== "category") {
+      const detail =
+        matched.kind === "missing"
+          ? `No retail data file is loaded for ${brand.retailerName || "this brand"}. Upload the Coles or Woolworths file on Brand. Another retailer's file is not used.`
+          : matched.kind === "mismatch"
+            ? `The file on Brand is ${matched.fileRetailer}. This brand is ${matched.brandRetailer || "unnamed"}, so those figures were not used.`
+            : matched.kind === "wrong_country"
+              ? `The uploaded file is ${matched.fileCountry} data. This campaign is ${matched.campaignCountry}.`
+              : `${brand.retailData?.retailer.name ?? "The uploaded file"} has no row for ${campaign.product} or ${campaign.category}.`;
+      return {
+        summary: "POS file did not supply a figure for this campaign.",
+        status: "empty",
+        data: null,
+        evidence: [
+          evidence({
+            claim: "No matching POS row",
+            detail,
+            sourceName: brand.retailData?.retailer.name ?? "Brand retail data",
+            sourceRef: "brand://retail-data",
+            sourceKind: "internal_retail",
+            observedAt,
+            at,
+            status: "unavailable",
+            confidence: 100,
+            raisedBy: "trend",
+            usedFor: "Demand signal",
+          }),
+        ],
+        gap: {
+          kind: "missing_source",
+          detail,
+          effect: "Internal demand is not asserted for this campaign.",
+        },
+      };
+    }
+    const rows = matched.kind === "product" ? [matched.product] : matched.products;
+    const subject = matched.kind === "product" ? matched.product.name : matched.category;
+    const retailer = brand.retailData!.retailer.name;
+    const lead = rows[0];
+    const units = rows.reduce((sum, row) => sum + row.pos.units, 0);
+    const yearAgo = rows.reduce((sum, row) => sum + row.pos.unitsYearAgo, 0);
+    const velocity = yearAgo > 0 ? Math.round(((units - yearAgo) / yearAgo) * 1000) / 10 : lead.pos.velocityVsLastYearPct;
+    const shown = matched.kind === "product" ? lead.pos.velocityVsLastYearPct : velocity;
+    const confidence = Math.max(60, Math.min(95, Math.round(55 + Math.min(lead.pos.weeks, 52) / 2 + Math.min(lead.pos.storesRanged, 1000) / 80)));
+    const shelf = lead.catalogue;
+    const rival = lead.competitors[0];
+    const sku = matched.kind === "product" ? `article ${lead.sku}, ` : "";
     return {
-      summary: `Category velocity +${s.lift}% for ${campaign.category}; basket attach +${s.attach}% over ${s.weeksTracked} weeks.`,
+      summary: `${retailer} ${subject}: ${signedPct(shown)} versus last year. Catalogue ${aud(shelf.shelfPriceAud)}. ${rival.retailer} observed at ${aud(rival.shelfPriceAud)}.`,
       status: "ok",
-      data: s,
+      data: { relevance: matched.kind === "product" ? 92 : 78, confidence, matched: matched.kind },
       evidence: [
         evidence({
-          claim: `${campaign.category} demand is running above last cycle`,
-          detail: `Weekly POS velocity for ${campaign.category} is +${s.lift}% against the same weeks last year, measured across ${s.weeksTracked} weeks of store data for ${campaign.country}.`,
-          sourceName: "Lane & Co. POS warehouse",
-          sourceRef: `internal://pos/${campaign.category.toLowerCase().replace(/\s+/g, "-")}/${observedAt}`,
+          claim: `${retailer} POS: ${subject} is ${signedPct(shown)} on last year`,
+          detail: `${retailer} ${sku}${subject}: ${units.toLocaleString("en-AU")} units in ${lead.pos.weeks} weeks to ${lead.pos.periodTo}, ${matched.kind === "product" ? `across ${lead.pos.storesRanged.toLocaleString("en-AU")} stores (${lead.pos.avgUnitsPerStoreWeek} units per store per week)` : `summed across ${rows.length} ranged articles`}. ${signedPct(shown)} on the prior year. Average selling price ${aud(lead.pos.avgPriceAud)}.`,
+          sourceName: `${retailer} POS`,
+          sourceRef: `brand://retail-data/pos/${encodeURIComponent(lead.sku)}`,
           sourceKind: "internal_retail",
-          observedAt,
+          observedAt: lead.pos.periodTo,
           at,
-          confidence: 88,
+          confidence,
           raisedBy: "trend",
           usedFor: "Demand signal",
         }),
         evidence({
-          claim: "Pairing lifts basket attach",
-          detail: `Catalogue history shows paired lines lifting attach rate by ${s.attach}% against hero-only covers.`,
-          sourceName: "Catalogue history",
-          sourceRef: `internal://catalogue/history/${observedAt}`,
+          claim: `${retailer} catalogue: ${subject} is ${shelf.ranged ? "ranged" : "not ranged"} in ${shelf.aisle}`,
+          detail: `${shelf.note} Shelf ${aud(shelf.shelfPriceAud)}${shelf.promoPriceAud != null ? `, ${shelf.promoMechanic ?? "promotion"} ${aud(shelf.promoPriceAud)}${shelf.promoEnds ? ` until ${shelf.promoEnds}` : ""}` : ", not on promotion"}. Attach ${shelf.attachRatePct}% with ${shelf.pairedWith.join(", ") || "no recorded pair"}, ${shelf.heroOnlyAttachRatePct}% when sold alone.`,
+          sourceName: `${retailer} catalogue`,
+          sourceRef: `brand://retail-data/catalogue/${encodeURIComponent(lead.sku)}`,
           sourceKind: "internal_retail",
-          observedAt,
+          observedAt: shelf.asOf,
           at,
-          confidence: 81,
+          confidence,
           raisedBy: "trend",
-          usedFor: "Basket build",
+          usedFor: "Catalogue history",
+        }),
+        evidence({
+          claim: `${rival.retailer} observed ${subject} at ${aud(rival.shelfPriceAud)}`,
+          detail: lead.competitors.map((row) => `${row.retailer} ${row.channel}, ${row.observedAt}: ${aud(row.shelfPriceAud)}${row.onPromotion ? `, ${row.promoMechanic ?? "on promotion"}` : ", not on promotion"}. ${row.observation}`).join(" "),
+          sourceName: `${rival.retailer} competitor check`,
+          sourceRef: `brand://retail-data/competitors/${encodeURIComponent(lead.sku)}`,
+          sourceKind: "internal_retail",
+          observedAt: rival.observedAt,
+          at,
+          confidence: Math.max(60, confidence - 6),
+          raisedBy: "trend",
+          usedFor: "Competitor",
         }),
       ],
     };

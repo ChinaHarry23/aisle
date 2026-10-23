@@ -1,6 +1,7 @@
 import { callLlm, isLlmConfigured, LlmAdapterNotWiredError } from "./adapters";
 import { getLlmOrDefault } from "./catalog";
 import { estimateLlmUsage, usageFromProvider } from "./estimate";
+import { traceModelCall } from "./langsmith";
 import { stubComplete } from "./stub";
 import type { CompleteRequest, CompleteResult } from "./types";
 
@@ -20,7 +21,7 @@ export async function runComplete(req: CompleteRequest): Promise<CompleteResult>
   }
 
   try {
-    const live = await callLlm(model, req);
+    const live = await traceModelCall(model, req, () => callLlm(model, req));
     const latencyMs = Date.now() - started;
     const usage =
       live.inputTokens != null && live.outputTokens != null

@@ -1,0 +1,2151 @@
+Making
+environmental
+claims
+A guide for business
+
+December 2023
+
+Acknowledgment of country
+The ACCC acknowledges the traditional owners and custodians of Country throughout
+Australia and recognises their continuing connection to the land, sea and community. We pay
+our respects to them and their cultures; and to their Elders past, present and future.
+
+Australian Competition and Consumer Commission
+Land of the Ngunnawal people
+23 Marcus Clarke Street, Canberra, Australian Capital Territory, 2601
+© Commonwealth of Australia 2023
+This work is copyright. In addition to any use permitted under the Copyright Act 1968, all material contained within this work is provided under a
+Creative Commons Attribution 4.0 Australia licence, with the exception of:
+
+
+the Commonwealth Coat of Arms
+
+
+
+the ACCC and AER logos
+
+
+
+any illustration, diagram, photograph or graphic over which the Australian Competition and Consumer Commission does not hold copyright, but
+which may be part of or contained within this publication.
+
+The details of the relevant licence conditions are available on the Creative Commons website, as is the full legal code for the CC BY 4.0 AU licence.
+Requests and inquiries concerning reproduction and rights should be addressed to the Director, Corporate Communications, ACCC, GPO Box 3131,
+Canberra ACT 2601.
+Important notice
+The information in this publication is for general guidance only. It does not constitute legal or other professional advice, and should not be relied
+on as a statement of the law in any jurisdiction. Because it is intended only as a general guide, it may contain generalisations. You should obtain
+professional advice if you have any specific concern.
+The ACCC has made every reasonable effort to provide current and accurate information, but it does not make any guarantees regarding the
+accuracy, currency or completeness of that information.
+Parties who wish to re-publish or otherwise use the information in this publication must check this information for currency and accuracy prior to
+publication. This should be done prior to each publication edition, as ACCC guidance and relevant transitional legislation frequently change. Any
+queries parties have should be addressed to the Director, Corporate Communications, ACCC, GPO Box 3131, Canberra ACT 2601.
+ACCC 12/23_23-86
+www.accc.gov.au
+
+ii
+
+ACCC
+
+|
+
+Making environmental claims
+
+|
+
+A guide for business
+
+Contents
+Eight principles for trustworthy environmental claims
+
+1
+
+Introduction
+
+3
+
+Using this guidance
+
+3
+
+Environmental claims are representations about a business’ environmental impact
+
+4
+
+False or misleading environmental claims will contravene the
+Australian Consumer Law
+
+5
+
+Principles for trustworthy environmental claims
+
+6
+
+Principle 1: Make accurate and truthful claims
+
+6
+
+Principle 2: Have evidence to back up your claims
+
+13
+
+Principle 3: Do not hide or omit important information
+
+16
+
+Principle 4: Explain any conditions or qualifications on your claims
+
+19
+
+Principle 5: Avoid broad and unqualified claims
+
+21
+
+Principle 6: Use clear and easy to understand language
+
+26
+
+Principle 7: Visual elements should not give the wrong impression
+
+28
+
+Principle 8: Be direct and open about your environmental sustainability transition
+
+30
+
+The ACCC’s Compliance and Enforcement Approach
+
+34
+
+Section 155 notices
+
+35
+
+Substantiation notices
+
+35
+
+Infringement notices
+
+35
+
+Penalties
+
+36
+
+Report greenwashing to the ACCC
+
+36
+
+Appendix – Legal Framework
+
+iii
+
+37
+
+Misleading or deceptive conduct (Section 18)
+
+37
+
+False or misleading representations about goods or services (Section 29)
+
+37
+
+Misleading conduct as to the nature etc. of goods (Section 33)
+
+38
+
+Misleading conduct as to the nature etc. of services (Section 34)
+
+38
+
+ACCC
+
+|
+
+Making environmental claims
+
+|
+
+A guide for business
+
+Eight principles for trustworthy
+environmental claims
+Many consumers care about their environmental impact. They use environmental claims as a key
+factor to decide where they want to spend their money. Environmental claims are only useful for
+consumers when they are true, accurate, in easy-to-understand language and appropriately qualified.
+False or misleading claims also unfairly disadvantage businesses who are making genuine claims.
+Businesses have obligations under the Australian Consumer Law (ACL) (being Schedule 2 of the
+Competition and Consumer Act 2010 (Cth)) not to make false or misleading representations or engage
+in misleading or deceptive conduct. These obligations should be considered whenever you are
+making environmental claims.
+If you choose to make environmental claims, you can use these eight principles to help you comply
+with your obligations under the ACL, and to ensure that any claims you make create trust in your
+business and allow consumers to make informed decisions.
+Principle 1: Make accurate and truthful claims
+All your claims should be true and accurate.
+Even claims that are factually correct can sometimes still mislead consumers. You should consider
+the overall impression created, including through use of visual elements.
+Only make claims that represent a genuine environmental impact and do not exaggerate the benefits
+or level of scientific acceptance of a claim.
+Principle 2: Have evidence to back up your claims
+It is good practice to ensure you have clear evidence to back up all your claims.
+Evidence that is independent and scientific is the most credible.
+Making the research, evidence, or data that you are relying on easily accessible to consumers helps
+consumers to understand and trust your claims.
+If you are making a representation about a future matter (e.g. something that you promise, forecast
+or predict will happen in the future), you must have, and be able to show that you have, reasonable
+grounds for making that representation. Otherwise the representation will be taken to be misleading
+under the ACL.
+Principle 3: Do not hide or omit important information
+Consumers cannot make informed decisions if they are not provided with relevant information that
+gives the full picture, or if important information is placed where they are unlikely to notice or find it.
+Consider all the relevant information about your environmental impact and be transparent about it.
+Principle 4: Explain any conditions or qualifications on your claims
+Theoretical environmental benefits, which are not clearly explained, are likely to mislead consumers.
+Ask yourself if there are any conditions that need to be met or steps that need to be taken for
+your claim to be true. If claims are only true in certain circumstances, you should explain this to
+consumers clearly and prominently.
+
+1
+
+ACCC
+
+|
+
+Making environmental claims
+
+|
+
+A guide for business
+
+Principle 5: Avoid broad and unqualified claims
+Broad claims can be interpreted widely and more easily mislead consumers than clear, specific
+claims that are substantiated.
+Ensure that you clearly qualify your claims, with prominent disclaimers, if there are any limitations
+to them.
+Principle 6: Use clear and easy-to-understand language
+Most consumers do not have specialist scientific or industry knowledge. It is good practice to use
+clear and easy-to-understand language and to avoid technical terms.
+Principle 7: Visual elements should not give the wrong impression
+Visual elements (for example green-coloured packaging, or logos representing a recycling process)
+on packaging and/or in advertising material can significantly influence a consumer’s impression of
+the environmental impact of a product or service. Avoid visual elements that would give the wrong
+impression about the environmental benefits of your product or service. You need to consider the
+overall impression that is created, taking into account not just the words used (or information that is
+left out), but also visual elements, colours and logos.
+Principle 8: Be direct and open about your sustainability transition
+You should be cautious about making aspirational claims about your future environmental objectives
+unless you have developed clear and actionable plans detailing how you will achieve those objectives.
+If you can transition to more sustainable business operations and want to tell consumers about it,
+be direct and open. Transitioning to a more sustainable business model takes time and is often not
+linear. For example, if you can’t reduce your greenhouse gas emissions in the short term, but are
+instead offsetting your impact on the environment, make this clear to consumers.
+
+2
+
+ACCC
+
+|
+
+Making environmental claims
+
+|
+
+A guide for business
+
+Introduction
+Using this guidance
+Today’s consumers are concerned about the environment and these concerns are reflected in the
+products or services consumers choose to purchase. Businesses are responding to consumer
+demand for environmentally sustainable products and services, leading to a significant shift in how
+products and services are produced, marketed, and delivered to consumers.
+Increased consumer demand for environmentally sustainable goods and services leads to increased
+competition and innovation from businesses. However, consumers can find it difficult to verify
+whether environmental claims are true, and there are concerns that many of these claims do not
+accurately reflect the true environmental impact associated with a business, or the products or
+services it supplies. Where claims misrepresent the environmental impact associated with a business
+or the goods and services it supplies, this is referred to as ‘greenwashing’.
+Businesses that are taking genuine steps to adopt environmentally sustainable practices are also put
+at a competitive disadvantage by businesses that engage in ‘greenwashing’. Greenwashing describes
+environmental claims that are false or misleading. The ACCC considers a business will be engaging
+in greenwashing where it makes a claim that represents a product, service or the business itself as
+better for or less harmful to the environment than it really is.
+Some businesses intentionally make claims that create misleading impressions to capitalise on
+consumer preferences for environmentally sustainable products and services without making
+genuine investments in sustainable practices. However, sometimes businesses mislead consumers
+inadvertently. This happens for a variety of reasons including poor understanding of supply chains, a
+lack of due diligence before making claims or poor reporting practices.
+Greenwashing can disincentivise competing businesses to continue investing in more
+environmentally sustainable products and services and undermine consumer confidence in
+environmental claims.
+Environmental claims that are false or misleading:
+
+ limit a consumer’s ability to make informed choices
+ lead consumers to pay more for the value of an environmental benefit that doesn’t exist
+ unfairly disadvantage businesses which do make significant investments in genuinely pursuing
+more sustainable products or services
+
+ undermine consumer trust in environmental claims in general and can create a disincentive for
+businesses to invest in more sustainable practices.
+
+This guidance aims to help your business comply with its obligations under the ACL and make
+trustworthy environmental claims. While this guidance focuses specifically on environmental claims,
+the principles outlined could also apply to other types of ethical, social and governance claims.
+The goals of this guidance are to:
+
+ encourage truth and accuracy by businesses who choose to make environmental claims about
+their product or services
+
+ demonstrate how businesses can make true, clear, evidence-based claims that consumers can
+understand and trust
+
+3
+
+ACCC
+
+|
+
+Making environmental claims
+
+|
+
+A guide for business
+
+ decrease instances of greenwashing
+ assist consumers make more informed choices if they want to make purchasing decisions based
+on environmental claims
+
+ help businesses understand and comply with their obligations under the ACL when making
+environmental claims
+
+ explain the general approach the ACCC will take in investigating whether environmental claims are
+likely to contravene the ACL and potential enforcement outcomes.
+
+This guidance outlines the ACCC’s view of what businesses need to do when making environmental
+claims to comply with the ACL and the ACCC’s expectations for good practice when making these
+claims. The ACCC has identified a series of practical principles which we encourage businesses to
+apply when making environmental claims. If businesses follow these principles, they are less likely to
+mislead consumers and contravene the law.
+While this guidance has been designed to assist businesses comply with the law, it is not legal
+advice. The ACCC cannot provide a definitive interpretation of the law because that is the role of the
+courts, having regard to the facts of each particular case.
+Industry or technical standards can be useful resources for businesses to understand what
+information and systems are necessary to support environmental claims. However, compliance
+with a standard does not necessarily equate to complying with the ACL. To comply with the ACL,
+businesses need to ensure they do not create a false or misleading impression in the mind of the
+ordinary and reasonable consumer.
+Environmental claims will continue to evolve as markets, available technologies, and our
+understanding of environmental impacts develop. The ACCC will review and update this guidance as
+new information becomes available.
+
+Environmental claims are representations about a
+business’ environmental impact
+An environmental claim is any representation made by a business in relation to its environmental
+impact, including claims that give the impression that your business, products or services:
+a. have a neutral or positive impact on the environment
+b. are less harmful for the environment than alternatives
+c. have specific environmental benefits.
+Environmental claims can appear on product packaging or labelling, point-of-sale materials, and in
+a variety of marketing or advertising materials. This includes advertising online and through social
+media. They may also appear in corporate reporting materials.
+Products and services often have a range of environmental impacts at different stages of their
+lifecycle. For example:
+
+ Sourcing of raw materials, manufacturing and transport and logistics can cause environmental
+
+harm before a consumer has bought a good or service. This includes environmental harm
+associated with resource use (e.g., biodiversity loss), production of waste/ability for recycling and
+generating emissions.
+
+ Consumption or use of a product or service may release harmful chemicals, greenhouse gas
+emissions, or microplastics into the environment or consume significant energy.
+
+4
+
+ACCC
+
+|
+
+Making environmental claims
+
+|
+
+A guide for business
+
+ When a consumer has finished using a product and discards it, it may be difficult to reuse or
+
+recycle it so it will contribute to landfill waste and greenhouse gas emissions when it breaks down
+or is incinerated.
+
+Environmental claims are made about environmental attributes. The claims can relate to the impact
+of a business, product or service on the environment in general, or specific environmental benefits.
+For example, claims about specific environmental benefits can include claims about:
+
+ resource use and waste management
+ the types of materials used and how they are sourced
+ product durability and repairability
+ end-of-life and disposal options
+ energy use and emissions
+ water usage
+ pollution and use of harmful substances
+ deforestation, land or aquatic degradation and associated biodiversity impacts.
+Some environmental claims are aspirational, for example, where a business sets future goals for
+improving their environmental performance or reducing their greenhouse gas emissions.
+For all of these claims, businesses should consider their obligations under the ACL.
+
+False or misleading environmental claims will
+contravene the Australian Consumer Law
+The ACCC is an independent Commonwealth statutory authority that promotes competition, fair
+trading and product safety for the benefit of consumers, businesses and the Australian community.
+The primary responsibilities of the ACCC include enforcing compliance with the Competition and
+Consumer Act 2010, which includes the ACL.
+The ACL makes it unlawful for businesses to engage in conduct that is misleading or deceptive or
+is likely to mislead or deceive. It is also unlawful for a business to make false or misleading claims
+about specific aspects of goods or services. The law applies even if you did not intend to mislead
+anyone, or no one has suffered any loss or damage.
+Omitting information can amount to a false or misleading representation or misleading or deceptive
+conduct, depending upon the circumstances and the overall impression created.
+Representations about future matters e.g. something that you promise, forecast or predict will
+happen in the future, should also be carefully considered, as they will be taken to be misleading under
+the ACL if you don’t have reasonable grounds for making the representation.
+The ACL applies to all forms of marketing, such as information on packaging, in advertisements, on
+store signs, social media, websites or told to consumers in writing or verbally, and more generally to
+representations in connection with the supply or possible supply of goods or services, or to conduct,
+in trade or commerce.
+When deciding if conduct is misleading or deceptive, or if a representation is false or misleading, the
+most important question to ask is whether the overall impression created would be misleading to
+the ordinary and reasonable consumer. In simple terms, this means that any business that makes
+claims in relation to their business activity, goods or services must ensure that the claim is true and
+accurate, and that it is not likely to give consumers the wrong impression.
+
+5
+
+ACCC
+
+|
+
+Making environmental claims
+
+|
+
+A guide for business
+
+Principles for trustworthy
+environmental claims
+Principle 1: Make accurate and truthful claims
+Any environmental claims you make should be accurate, true and factually correct. If your claim is not
+true or is only partially true, you should either change the claim or not make the claim at all.
+
+Example – claims that are likely to be false or misleading
+A printing service claims that the paper they use is “made from recycled materials”. In fact, the
+paper only contains 20% recycled material.
+This claim is likely to be misleading and contravene the ACL.
+The business could instead make the claim that the paper is “made from 20% recycled
+material”.
+If supplying products provided to you by a third party, you should still ensure any environmental
+claims you make are accurate and truthful. This may include undertaking reasonable steps to verify
+supporting information provided to you by your suppliers. What is a “reasonable step” will depend on
+the circumstances. For example, the ACCC recognises that some small businesses may not have
+access to the same resources as larger businesses which can impact the scope and extent of due
+diligence which is appropriate to be undertaken, and this will be taken into account when assessing
+the steps taken to verify environmental claims.
+It is also good practice to regularly review any claims you make to ensure that they are correct
+and up to date. This includes where something changes about your product or service, such as a
+new supplier.
+
+Do not overstate the level of scientific acceptance
+Environmental claims will often be based on scientific evidence or research. Where the scientific
+basis for your claim is under dispute or not conclusive, you should not present your claim as being
+universally accepted. This may mislead consumers into believing that you have a stronger basis for
+your claim than is really the case.
+If you are relying on third-party studies or research to make a claim, it is good practice to consider the
+strength of the evidence. For example, you might consider:
+
+ the number and quality of studies involved
+ the age of the studies
+ whether the findings have been replicated, or if they are in dispute
+ whether the studies may have been influenced by any biases.
+
+6
+
+ACCC
+
+|
+
+Making environmental claims
+
+|
+
+A guide for business
+
+Example – claims that are likely to be false or misleading
+A business selling kitchen goods advertises that their bioplastic boxes “biodegrade faster than
+the leaves in your backyard”. This statement is made based on a study conducted 30 years
+earlier and under laboratory conditions. Since the study was conducted, no other studies have
+replicated the findings. There is also debate in the scientific community and literature about
+the biodegradability of bioplastic in a real-world setting. No additional information qualifying or
+explaining the claim is provided.
+The claim is likely to be misleading and contravene the ACL. It gives consumers the impression
+that it is well established that the bioplastic will biodegrade in a person’s home composting
+system when this is not the case. If the business has tested that the boxes will biodegrade
+under certain conditions (e.g., at a certain temperature, and/or after a specified period of time),
+they could instead advertise that the boxes biodegrade and specify the circumstances where
+this will happen.
+
+Do not exaggerate environmental benefit
+You should not make claims that exaggerate an environmental benefit or understate an
+environmental harm.
+
+Example - claims that are likely to be false or misleading
+A dry cleaner advertises that it is “an environmentally responsible dry cleaning service” with
+these words displayed next to an image of a circle with a cross through it over the word
+“perchloroethylene”.
+Perchloroethylene is a type of solvent which is known to be damaging to the environment.
+However, other cleaning agents the business uses, whilst potentially not as harmful as
+perchloroethylene, are still known to have significant detrimental impacts on the environment.
+Due to the broad claim made by the business and the lack of information about which cleaning
+agents the business does in fact use and their environmental impacts, consumers are likely to
+be misled into thinking the business has adopted practices which are more beneficial to the
+environment than is the case, contrary to the ACL.
+To reduce the risk of making exaggerated claims which mislead consumers, you should:
+
+ Clearly explain the specific environmental benefit of your product or service. For example,
+
+explaining upfront whether the benefit applies to your whole product or service, or whether it only
+applies to part of it.
+
+ Where applicable, quantify the precise environmental benefit being achieved. A claim that your
+
+packaging uses “5% recycled plastic” is much less likely to be misleading than a sweeping claim
+that your packaging is “made using recycled plastic” when recycled material only forms a part of
+the packaging.
+
+ Avoid statements that your product, service or business has an overall “positive” effect
+on the environment, as most products, service or businesses will have some negative
+environmental impact.
+
+ Avoid making claims about your product or service that are based on broad scientific opinion if
+you are unsure whether there is evidence that this applies to your situation.
+
+7
+
+ACCC
+
+|
+
+Making environmental claims
+
+|
+
+A guide for business
+
+Case study – good practice in providing environmental
+sustainability information
+A company selling dry foodstuffs has changed its packaging to address concerns with the
+environmental impact of single use plastic. The new packaging is designed to be recycled in
+facilities in a range of locations throughout Australia. On the packaging, the business states
+“made to be recycled… check what can be recycled near you.”
+The packaging provides a QR code that links to a website which explains where the packaging
+can be recycled and provides information on collection services.
+
+Only make meaningful claims
+You should only make environmental claims when there is a genuine environmental benefit
+associated with your product, service, or business. You risk misleading consumers if you advertise
+environmental benefits which are irrelevant, insignificant, or simply advertise the observance of
+existing law (unless this is made clear).
+For example, you should not make claims that your product, service, or business has a specific
+environmental benefit if:
+
+ all similar products or businesses have the same feature
+ that feature is a legal requirement (and you don’t make this clear but instead represent that your
+business is doing something special to achieve an environmental benefit).
+
+While these claims may be literally true, they are likely to mislead consumers into believing that what
+is being advertised is special, when it is a necessary or ordinary feature.
+You can of course make claims where you have gone above and beyond the legal requirement, or
+where legal requirements have resulted in unique innovations. In these cases, it is good practice to be
+explicit about what additional benefits your business has achieved.
+
+8
+
+ACCC
+
+|
+
+Making environmental claims
+
+|
+
+A guide for business
+
+Example – claims that are likely to be false or misleading
+A cement manufacturer creates significant greenhouse gas emissions in the production of its
+products. The cement manufacturer advertises “Choose us – we are Australia’s only cement
+manufacturer taking steps to protect the environment by reducing our emissions”.
+The company is legally required to reduce its greenhouse gas emissions by a certain amount
+each year, as are many others in the industry. The company is not reducing its emissions by
+any more than it is legally required to. The company has no credible basis to believe that other
+manufacturers are not also taking steps to meet their legal obligations.
+The claim is likely to give the misleading impression that the company is doing more than
+meeting its minimum legal obligations and that it is offering greater environmental benefits
+than others in the industry. It is likely to mislead consumers in contravention of the ACL.
+
+Example – claims that are likely to be false or misleading
+An energy retailer sells a new product, which it markets as “clean, renewable gas”. In reality, the
+product is a blend of 5% renewable biomethane and 95% natural gas, which is a fossil fuel that
+releases significant greenhouse gas emissions when combusted.
+This claim is likely to mislead consumers in contravention of the ACL. Consumers are likely to
+assume that the entire product is renewable energy. The energy retailer could instead qualify
+the claim, and clearly explain that only a small percentage of the blended gas product is
+renewable biomethane.
+
+Make sure comparisons are transparent and fair
+You should ensure that any comparisons you make are transparent and fair, and are a true reflection
+of the impact of the products, services, or businesses being compared. This includes when you are
+making comparisons between the environmental impact of your own products or services, and those
+provided by competitors.
+Unfair comparisons, or comparisons that aren’t transparent about precisely what is being compared,
+can mislead consumers into thinking they are making a better choice for the environment than is
+actually the case.
+You should make it clear to consumers what is being compared. Consider whether an ordinary
+and reasonable consumer may be misled by the comparison if further information isn’t included.
+You should explain how the comparison has been made and ensure the comparisons are easy for
+consumers to understand.
+Comparisons should also:
+
+ compare products or services which can be substituted for each other. In other words, compare
+‘like-for-like’
+
+ use up-to-date information
+ compare features that are verifiable and significant
+ measure compared features against the same method or standard
+ not withhold relevant information.
+9
+
+ACCC
+
+|
+
+Making environmental claims
+
+|
+
+A guide for business
+
+Example – claims that are likely to be false or misleading
+A beverage manufacturer makes a claim that its drink bottles are “made with less plastic”
+in an advertisement which features a picture of a bottle affixed with its label sitting next to
+unbranded bottles, without providing any further information. It is not clear what this is being
+compared to, and how much less plastic is used. In fact, the business is comparing its drink
+bottles with a previous version of its bottles, as it now uses 20% less plastic.
+This claim is likely to be misleading and contravene the ACL.
+The business could instead claim, for example, that its “new bottles are made using 20% less
+plastic than our previous bottles”. If the business chooses to make a claim on the bottle itself,
+this could state “now made with 20% less plastic”.
+In some cases, it may not be possible to calculate a comparison with absolute precision. Provided
+the comparison provides an accurate impression to consumers, measurements based on averages
+may be appropriate. For example, where a product is made from a blend of recycled and non-recycled
+materials, a business may calculate the proportion of recycled content based on mass balance.
+Presenting information to consumers in a way that enables them to make like-for-like comparisons is
+central to ensuring that consumers are not misled.
+While there is no one correct way to present comparisons to consumers, it is good practice to provide
+enough information to allow consumers to draw their own conclusions about the comparisons being
+made. For example, by:
+
+ making it clear to consumers what is being compared
+ explaining how the comparison has been made
+ ensuring that comparisons are easy for consumers to understand.
+Where it’s not possible to provide a clear comparison, claims by businesses should focus solely on
+the merits of their own product or service.
+
+Representations about the future
+Environmental claims often relate to events that will (or will not) happen in the future. For example,
+businesses often make claims about the future when they publicly set goals to:
+
+ reduce their greenhouse gas emissions
+ achieve ‘net-zero’ targets or transition to renewable energy
+ reduce their water consumption
+ incorporate recycled materials into their products and packaging
+ transition to zero or low waste operations.
+If you make a claim about something that will happen in the future (for example, a promise, forecast
+or prediction), you should have reasonable grounds for making the claim. Otherwise the claim will be
+taken to be misleading under the ACL.
+You should also consider the overall impression being created by the claim to ensure what is being
+conveyed is not misleading.
+The ACCC is more likely to take enforcement action in respect of representations about future
+matters where a business did not have reasonable grounds for making the representation, does not
+
+10
+
+ACCC
+
+|
+
+Making environmental claims
+
+|
+
+A guide for business
+
+have an intention or plan to implement initiatives, or knew or was reckless about whether the claim
+was misleading.
+
+Example – claims that are likely to be false or misleading
+A courier business states on its website that it will reduce its emissions by 80% within five
+years’ time.
+If the business switches its fleet to electric vehicles it might reduce its emissions. However, the
+business has undertaken no planning, budgeting or research to determine whether or not its
+claim is feasible.
+In addition:
+
+ the business took some steps to quantify its carbon emissions but has not quantified its
+
+baseline emissions for all greenhouse gases in a formal or reliable way (and has not made
+clear to consumers what emissions are included in its calculations)
+
+ its Board has not considered or approved any decision to switch its fleet to electric vehicles
+ there is no plan to build the necessary infrastructure, including charging stations, to
+facilitate this switch
+
+ it does not have a plan in place for how it will monitor its progress against its target.
+The claim is a representation with respect to something that may happen in the future, and
+the business did not have reasonable grounds for making it, and is not making any progress
+towards achieving reductions. The claim is likely to be misleading in contravention of the ACL.
+Before you set and publicly announce any environmental goals, it is good practice to:
+
+ Carefully consider any claims about efforts to reduce your business’ environmental impact, how
+you will measure your progress, and what this will be measured against.
+
+ Make sure your goals are clear and achievable, that you genuinely intend to meet them, and you
+have put realistic and verifiable steps in place to make them happen.
+
+ Base your goals on accepted methodologies, and resources and technologies that are effective
+and are available to you now (or there is a reasonable basis to consider they will be available to
+you in the near future).
+
+ Provide consumers with regular updates about how you are performing against your goals,
+
+including disclosing if you are not on track to achieve them and what steps you are taking to
+address any setbacks so as to meet your goals. How regular these updates should be will depend
+on factors such as the time horizon for your goal and any public reporting requirements.
+
+ Regularly revise your goals if you realise that you will not be able to meet them.
+
+11
+
+ACCC
+
+|
+
+Making environmental claims
+
+|
+
+A guide for business
+
+Case study – good practice when setting environmental sustainability
+goals
+A personal care manufacturer includes a page on its website about its environmental
+sustainability goals. The manufacturer has five key goals, and each goal has a list of key
+performance indicators (KPI) that it plans to achieve to meet it. For each goal and KPI, it
+is clear:
+1. How the KPI will be achieved – for example, removing all plastic from packaging.
+2. What performance against the KPI is being compared against – for example, using FY19 as
+a baseline year for measuring the % of plastic in its packaging.
+3. When the KPI will be achieved – for example, by the year 2028.
+4. How performance against the KPI will be measured – for example, through a
+third-party audit.
+The manufacturer also clearly outlines its progress against each of its goals and KPIs on an
+annual basis and is transparent about where it is not on track to meet its goals. It explains what
+it is doing to get these goals back on track.
+
+12
+
+ACCC
+
+|
+
+Making environmental claims
+
+|
+
+A guide for business
+
+Principle 2: Have evidence to back up your claims
+It is good practice to be able to substantiate any environmental claim you make – whether the claim
+is made on your packaging, in your advertising, through your employees, or in other ways – with clear
+evidence. Where relevant, evidence that is scientific and independent is most credible.
+
+Example – claims that are likely to be false or misleading
+A business sells a range of chocolate products and claims that its “cocoa doesn’t contribute to
+deforestation”. However, the business does not know where its wholesale supplier sources its
+cocoa from.
+The business therefore risks that the claim is not true. The business should ensure that it has
+evidence and a reasonable basis to assess that none of its cocoa contributes to deforestation
+before making this claim or otherwise it risks making a claim that is misleading and
+contravenes the ACL.
+Businesses should have a reasonable evidentiary basis for making an environmental claim. This
+evidence may come from internal data and records, or it may come from a third-party.
+When choosing evidence to support your claims, keep the following tips in mind:
+
+ If you are relying on your own internal data, it is good practice to retain all relevant records for
+your claim. This could include purchase records, internal audits, or testing results.
+
+ Your evidence may come from third parties (such as suppliers). When making environmental
+
+claims, it is good practice to not rely solely on claims made by your suppliers or other third parties
+but to instead take reasonable steps to verify any information you want to rely on. What is a
+reasonable step will depend on the circumstances.
+
+ If you are relying on scientific studies or similar evidence, it is good practice to use widely
+accepted scientific studies, or those that have been peer-reviewed and/or subject to
+independent scrutiny.
+
+ If you have conducted laboratory testing to support your claim, it is good practice to check
+
+whether the laboratory results also reflect the conditions that will normally be experienced by
+consumers using your product.
+
+ If your claims relate to reducing your environmental impact, for example by reducing emissions,
+or water or materials use, it is good practice to calculate these reductions using accepted
+methodologies and keep robust records to verify such claims.
+
+ There may be industry schemes or standards which relate to your products or claims. These can
+
+assist in ensuring that you have a reasonable basis for your claims or can help guide industry
+best practice, but compliance with an industry scheme or standard does not automatically mean
+compliance with your ACL obligations and it’s the overall impression in the mind of the ordinary
+and reasonable consumer that is key. For example, a claim may create a false or misleading
+impression in contravention of the ACL if it is based on an industry standard that adopts a
+technical definition of a term which is different to the meaning an ordinary and reasonable
+consumer would give to the term, or if it is based on a scheme which is conditional and limited
+but the claim is likely to be interpreted more broadly. You should always consider the overall
+impression your claim is likely to create from an ACL perspective.
+
+In determining whether to take enforcement action in respect of environmental claims, the ACCC
+will consider whether genuine efforts and appropriate steps were taken by the business to verify the
+accuracy of any information that they relied on. The scope and extent of due diligence undertaken will
+vary depending on the size of the business. The ACCC recognises that some small businesses may
+13
+
+ACCC
+
+|
+
+Making environmental claims
+
+|
+
+A guide for business
+
+not have access to the same resources as larger businesses which can impact the scope and extent
+of due diligence which is appropriate to be undertaken, and this will be taken into account when
+assessing the steps taken to verify environmental claims. Many environmental claims are difficult for
+consumers to verify. By making any supporting evidence publicly available, you will help consumers
+to easily verify and trust your claims. It is good practice to make this information as easy to find and
+understand as possible. For example:
+
+ Providing any evidence directly where the claim is made, or through accessible click- through links
+if you are selling online.
+
+ Where there is a lot of information that cannot be included directly on a product, packaging
+or in an advertisement, using brochures, dedicated websites, or QR codes with more
+detailed information.
+
+ If information is complex, providing summaries of key information, or presenting this using charts
+and graphs.
+
+ The amount and type of information provided to support a claim should be proportionate
+
+and relevant to the claim made. You are also not required to disclose any information that is
+commercially sensitive.
+
+Case study – good practice in providing evidence to support your claim
+Some businesses are now choosing to provide detailed information about their supply
+chains. While sharing this information may not be possible for all businesses, this can allow
+consumers to make more informed decisions about the types of business they want to
+purchase products and services from.
+A shoe manufacturer has chosen to ensure that its factory has robust practices in place in
+relation to environmental and social sustainability. It sets rigorous standards to be complied
+with by suppliers and manufacturers of raw materials that are used in the factory. The
+manufacturer provides information about the steps it has taken to reduce environmental and
+social impacts throughout its supply chain on its website. It has set out a range of information,
+including:
+
+ Details of the environmental standards it requires its commercial partners to meet, which
+include requirements about energy consumption, biodiversity impact and water use.
+
+ Where its suppliers and producers are located at each step of the production process.
+ How it procures its raw materials and any audits or reports prepared by suppliers.
+ An indication of the likely difference in cost to produce in a factory in a location with less
+environmentally and socially responsible practices.
+
+Some of this information is presented in easy-to-understand graphs, and maps of where
+producers are located. The language is clear and easy to understand.
+
+Using third-party certifications as evidence
+Businesses do not need to hold a third-party certification in order to make an environmental claim,
+however businesses may choose to use third-party certifications to provide credibility to their
+claims. There are many different types of certifications available to businesses. These can include
+certifications for a specific product or service, for an input to the business, for your entire business, or
+for a specific claim.
+
+14
+
+ACCC
+
+|
+
+Making environmental claims
+
+|
+
+A guide for business
+
+Importantly, if you rely on a third-party certification to make a claim, you should ensure that you are
+not creating a false or misleading impression about what the certification means or does. Particular
+care should be taken when relying on a certification scheme for offsets and emissions, remember it
+is the overall impression on the ordinary and reasonable consumer that is key.
+When selecting a third-party certification scheme, it is good practice to take the following steps:
+
+ choose a certification scheme that is independent, transparent, reputable, and robust
+ check that the certification is suitable for your needs, and that it adequately reflects the
+characteristics of your product, service, inputs or business
+
+ offer consumers details of further information on the scheme or direct them to where they can
+access this information.
+
+If your claims go beyond what you have been certified for, or you use the certification to imply a
+greater benefit than there really is, you risk misleading consumers.
+When using a third-party certification to back up your claims, you should ensure that:
+
+ your product or service does what you claim it does, even where you have complied with the
+third-party certification
+
+ your claims clearly and accurately reflect what you have been certified for, and the scope of
+certification (this can be particularly important for certification schemes relating to inputs)
+
+ you have not mischaracterised the nature of the certification scheme
+ you ensure continuous and ongoing compliance with the rules of the certification scheme, it’s not
+simply a one-off achievement
+
+ the certification scheme is independent and there is no conflict of interest between your business
+and the scheme
+
+ any promotion of the fact that a particular product or service you provide meets the requirements
+of a certification scheme is not disproportionately emphasised in the context of your product or
+service offering as a whole.
+
+Example – claims that are likely to be false or misleading
+A business produces plastic kitchen items that have been certified by a third party as being
+industrially compostable. Special facilities are required for the products to break down, and
+they will not break down in home composting conditions.
+Despite this, the business advertises its products as being “certified compostable” without any
+explanation or qualification.
+This claim is likely to mislead consumers and contravene the ACL. It goes beyond what the
+business has been certified for – which is that the product can be composted in certain
+conditions only.
+The business could instead claim that its products are “certified industrially compostable”
+and ensure that the overall impression created in its advertising does not otherwise mislead
+consumers that the product can be composted at home.
+Good practice would be to provide further information on the scheme and outline any steps the
+consumer needs to take for the items to be composted.
+
+15
+
+ACCC
+
+|
+
+Making environmental claims
+
+|
+
+A guide for business
+
+Principle 3: Do not hide or omit important
+information
+In many cases, giving consumers incomplete information or hiding important information is also
+misleading. If you provide some information, but leave out important details which might contradict
+or qualify the environmental claim, you might create an incorrect impression. This may also happen
+when information is buried in fine print, away from the headline claim.
+For example, highlighting the positive aspects of your product, service, or business while omitting
+information about the negative aspects can give consumers the impression that your business,
+product, or service has a lower environmental impact overall than it really does.
+
+Example - claims that are likely to be false or misleading
+An airline advertises that it is “reducing emissions”.
+The airline is operating flights on some of its routes using bio-based sustainable aviation fuel.
+However, these flights make up less than 1% of the airline’s overall schedule, and the airline is
+continuing to operate the majority of its flights using jet fuel produced from fossil fuels. The
+airline is also forecasting growth and expects to increase its capacity. On aggregate, the airline
+is expecting to increase its total emissions over the next 5 years.
+The claim is likely to mislead consumers in contravention of the ACL. The omission of relevant
+facts is likely to leave consumers with the impression that the airline is reducing its overall
+emissions, when this is not the case. Consumers are likely to be misled that the airline has a
+lower environmental impact than it really does.
+It is good practice to be transparent about your environmental claims and policies, and the
+information you are relying on to support them. In doing so, it can be helpful to consider the
+information that consumers need to form their own conclusions about the environmental impact of
+your product, service, or business.
+For example, any information that is directly relevant to understanding your claim should be available
+directly on the product or at the point of sale. It may be appropriate to also provide additional
+supporting information through a website or QR Code, but this should not contradict or qualify the
+impression created by the claim.
+
+Small print shouldn’t hide the truth
+You cannot rely on disclaimers, disclosures or clarifications buried in small print, or otherwise not
+displayed prominently enough compared to your headline claim, as an excuse for making misleading
+environmental claims.
+Any information that you provide in small print or qualifications should not conflict with the overall
+message of your claims. You should avoid:
+
+ placing text in obscure locations
+ using text that is too small
+ flashing disclaimers on screen for only a moment
+ using voice overs that are too quick or too quiet.
+
+16
+
+ACCC
+
+|
+
+Making environmental claims
+
+|
+
+A guide for business
+
+Example – claims that are likely to be false or misleading
+A cosmetics company displays text that says “plastic free” on their pump bottles. On the back
+of the bottle, small text states that this claim only applies to the external bottle, and does not
+apply to the cap, pump or internal tube that sits inside the bottle.
+The claim is likely to mislead consumers in contravention of the ACL. Consumers are likely to
+assume the “plastic free” claim applies to the entire bottle and the small print on the back of the
+bottle does not assist as it directly contradicts the headline claim “plastic free” on the front of
+the bottle and is not sufficiently prominent or proximate to the headline claim.
+The cosmetics company could instead qualify this claim more prominently and clearly by
+stating that it applies only to the bottle.
+When making environmental claims, it is good practice to only use small print to provide supporting
+information. If you do need to make a disclaimer or qualification, you can reduce the risk of giving an
+overall impression that is misleading by displaying the qualification in a way that ensures consumers
+are likely to read it. For example, by clearly displaying it near the headline statement.
+
+Consider the full lifecycle of your product or service
+Products and services have different environmental impacts across different stages of their life cycle.
+For example, there may be different environmental impacts associated with the manufacture of a
+product, compared with its use or disposal.
+It is important to consider the effect of the total life cycle of your product, or overall activities, before
+making any environmental claims. There are a range of aspects that may be important for you to
+consider, including:
+
+ the raw materials used (including how they are sourced)
+ the component parts
+ the manufacturing processes and location
+ any waste or by-products
+ the packaging
+ how the product is used
+ the end-of-life options and disposal
+ whether the product has an overall negative impact on the environment.
+You do not necessarily need to conduct a life cycle assessment or provide information about the
+full product life cycle in every claim. However, you should consider which impacts are relevant to the
+claims you want to make and ensure that the overall impression conveyed is not misleading.
+For example, a claim about a particular characteristic of your product or service can be true, but still
+mislead consumers if it suggests that the product is more beneficial to the environment than it is by
+ignoring negative aspects of its lifecycle. The broader the claim the more likely the need to consider
+life cycle implications. Further information is set out in Principle 5.
+Similarly, if your claim only relates to part of the life cycle, it should be made clear which part. For
+example, if your claim relates only to the transport of the product, it should not also suggest that it
+applies to the manufacture of the product.
+
+17
+
+ACCC
+
+|
+
+Making environmental claims
+
+|
+
+A guide for business
+
+Example – claims that are likely to be false or misleading
+A brewery runs an advertising campaign with the slogan “The best beer yet, and the
+environment agrees: We’ve offset our emissions.”
+In reality, the brewery is only purchasing credits to offset greenhouse gas emissions generated
+as a result of operations at its head office, which represent a very small proportion of the
+business’ total emissions. For example, it has not purchased credits to offset emissions
+generated as a result of the actual brewing process, the delivery of its product or the
+production of its ingredients. This claim risks creating the false impression that the brewery
+has offset emissions associated with the entire beer production lifecycle and misleading
+consumers in contravention of the ACL.
+In order to avoid overrepresenting the quantity of emissions it has offset, the business could
+amend the claim to say they have offset the emissions generated by operations at their
+head office.
+Good practice would be to also direct consumers to information on their website that
+quantifies the emissions they are offsetting and puts this in context of the total emissions
+associated with its operations.
+Some consumers are increasingly interested in the full life cycle of the products and services they
+buy, and the overall impact of the businesses they buy from.
+For example, these consumers may look for energy efficient products, but they may also be
+concerned about whether a product can be disposed of in an environmentally responsible way.
+Alternatively, consumers may want to buy products made from sustainably sourced materials, but
+they may also want to know about the emissions footprint of a product.
+You may decide to provide additional information about other life cycle aspects of your product,
+service or business to assist consumers in making an informed decision. Some additional
+information you may wish to provide includes how you manage resources, how and where you source
+your materials, and product durability.
+
+Good practice – providing relevant information
+A clothing company uses the logo “Be conscious: not just about fashion” with the image of a
+green leaf. It provides a QR code on clothing tags linking to its website for more information. A
+number of social media influencers also promote the business due to its environmental ethos.
+On its website, the company is upfront about both its environmental impact and the
+environmental detriment of the clothing industry, including in relation to emissions, resource
+use and waste the industry creates. The company quantifies these impacts, clearly indicating
+the source of the information on the same pages.
+The company operates a trade in system where people can trade in old items from the
+company that are in good condition to be resold for credits towards other items. The company
+also offers free repairs on any of their items to extend their usable life. Where items can no
+longer be repaired or resold, the company collects them for recycling.
+Customers of the company understand the environmental impacts associated with their
+purchasing decisions and are offered solutions to substantially reduce that impact.
+
+18
+
+ACCC
+
+|
+
+Making environmental claims
+
+|
+
+A guide for business
+
+Principle 4: Explain any conditions or qualifications
+on your claims
+Some environmental claims may only be true under certain conditions. For example, a biodegradable
+product may only break down at a certain temperature or after a very long period of time. Other
+claims may only be realised if certain steps are carried out.
+These types of claims can be misleading if the conditions or required steps are not clearly stated or
+are unlikely to be realised during ordinary consumer use. Some examples of where this may occur
+include where:
+
+ A claim is true when the product is tested in laboratory conditions, but these conditions are
+unlikely to occur in normal day-to-day use.
+
+ A claim is accurate in some locations where the product is sold, but not in others.
+ The technology or infrastructure needed for the claim to be fulfilled is not readily available.
+For example, in some circumstances businesses make claims that products are “recyclable”.
+Where these claims are based on consumers abiding by strict requirements which do not reflect
+normal consumer use, for example, by having to take the products to an industrial recycling
+facility, these claims risk misleading consumers if they do not make the requirements for recycling
+sufficiently clear.
+To reduce the risk of misleading consumers, you should ensure that you provide enough information
+about what is required for your claims to be true.
+
+Example – claims that are likely to be false or misleading
+Waste and recycling infrastructure varies significantly between different geographical regions.
+For example, some products that are fully recyclable in Sweden have no appropriate recycling
+streams in Australia and will be sent to landfill when sold here. A product manufactured in
+Sweden has the claim “100% recyclable packaging”. The product is also sold in Australia, where
+recycling facilities for this type of plastic do not exist. The claim is likely to mislead consumers
+in Australia and contravene the ACL.
+In Australia, waste and recycling infrastructure are regulated by local government and councils
+and are operating in conjunction with the Australian Recycling Label (ARL).
+However, there are still differences across Australia on the scope of recycling operations
+and there can be significant differences between local council areas. What is compostable
+in Food Organics and Green Organics (FOGO) in one state or council may not be accepted in
+another. Some compostable claims on products may therefore be true in one location, but not
+in another. Businesses should therefore be careful if they choose to make any compostable
+claims that they are accurate for all locations in which the products are sold.
+Before making an environmental claim, you should ask yourself if there are any conditions that need
+to be met or steps that need to be taken for the claim to be true. You should consider:
+
+ how consumers normally use the product or service
+ the normal conditions where the product or service is usually sold
+ any access to infrastructure, technology and resources that are required for the environmental
+benefits to be realised.
+
+19
+
+ACCC
+
+|
+
+Making environmental claims
+
+|
+
+A guide for business
+
+If certain actions, facilities, or resources are required for the environmental benefit to be realised,
+you should clearly and prominently explain to consumers what needs to happen to achieve this.
+If possible, you could consider incorporating this as part of the claim. If this is not possible, you
+should make it clear in the claim that conditions apply and consider using digital means for providing
+additional and up-to-date information, such as QR Codes and smart labels.
+
+Example – claims that are likely to be false or misleading
+A business produces and sells single-use coffee pods. The business makes a claim that
+the coffee pods are “recyclable” accompanied by recycling symbols on its packaging
+and advertising.
+However, the coffee pods are not widely accepted for recycling and can only be recycled in a
+small number of local recycling programs. Where the coffee pods are accepted, further special
+steps are also required for them to be recycled. These steps were not disclosed to consumers.
+This claim is likely to mislead consumers and contravene the ACL. Consumers are likely to
+understand the term ‘recyclable’ and recycling symbols on products to mean that the product
+can be recycled in ordinary household recycling collections. Consumers would not expect
+that any additional special steps are required unless the claim is qualified. There are very
+few facilities that enable the coffee pods to be recycled, and such facilities do not exist at all
+outside the business’ local area.
+Before making the claim, the business should check whether the coffee pods can be recycled
+in the areas they will be sold, and any special steps required for them to be recycled, and
+qualify its claim to reflect these conditions.
+It is good practice to clearly explain any limitations on the product’s ability to be recycled and
+any additional or unusual steps that need to be taken. If it is not practicable for the majority of
+consumers to recycle the product, the claim should not be made.
+
+Example – claims that are likely to be false or misleading
+A service station and coffee retailer advertises that they are “helping the planet” by using
+“recyclable take-away coffee cups”. This claim is displayed instore and in television and social
+media advertisements, with a picture of a customer leaving the station with a coffee cup in
+hand with a green halo around it.
+The business provides collection bins for the coffee cups in their stores. The cups must be
+collected through these special bins to be recycled. They cannot be recycled through publicly
+available or home recycling collection systems. They will contaminate other recyclable
+materials if disposed of through these channels. The business does not mention this in store
+or in their advertising materials.
+This claim is likely to mislead consumers and contravene the ACL. The business has not
+informed consumers that the cups can only be recycled through the in-store collection bins,
+risking a misleading impression that the cups can be recycled in other ways given how the
+claim is presented.
+
+20
+
+ACCC
+
+|
+
+Making environmental claims
+
+|
+
+A guide for business
+
+Principle 5: Avoid broad and unqualified claims
+Broad or unqualified claims risk misleading consumers because they may not clearly explain the
+environmental impacts of your product, service, or business.
+The risk of misleading consumers is reduced when you qualify your claims with specific
+environmental impacts and have a reasonable basis for making the claim.
+Common broad or unqualified claims used by businesses include:
+
+ green, go green or choose green
+ environmentally friendly
+ eco-friendly
+ sustainable.
+These terms convey sweeping benefits that can mean different things to different consumers.
+Without further qualification or clarification, consumers can easily be misled that the product, service
+or business is better for the environment than is actually the case.
+For example, when used to advertise a product, the phrase “environmentally-friendly” could be
+interpreted to mean that the product is biodegradable, or it might be interpreted to mean that
+the production process for the product produces zero greenhouse gas emissions and does not
+contribute to climate change.
+
+Good practice – avoid using overly broad, vague terms
+Below are some commonly used broad terms which do not help inform consumers of the
+environmental benefits of a product, service or business. It is also difficult for a business to
+substantiate these claims. The ACCC recommends businesses avoid using these terms.
+‘Green’ or ‘clean’
+These statements are vague and convey little information to the consumer other than the
+message that your product, service or business is in some way claiming to be less damaging to
+the environment than others.
+‘Environmentally friendly’ or ‘eco friendly’
+These claims are also vague and risk misleading consumers into thinking that your product,
+service or business causes no harm to the environment in its production, usage, delivery and
+disposal. Few, if any, products could truthfully make this claim. Almost all products, services
+or businesses have some adverse impact on the environment in their manufacture, packaging,
+delivery use or disposal.
+‘Sustainable’
+This claim is overly general and risks misleading consumers into thinking that a product,
+service, or business only uses resources at a rate that will not contribute to environmental
+harm. Almost all products have an adverse impact on the environment in some way through
+their use of resources.
+
+21
+
+ACCC
+
+|
+
+Making environmental claims
+
+|
+
+A guide for business
+
+Providing only partial information to consumers also risks misleading them. For example, some
+claims qualify the impact of the product, service or business but are inappropriately absolute, or
+vague, about what the claim applies to. This includes claims like:
+
+ made from recycled materials
+ renewable
+ produced with renewable energy
+ plastic free
+ uses less water.
+Without additional explanation of the specific aspect of the product, service, or business that the
+claim applies to, consumers are likely to assume that these claims apply to the entire product,
+service, or business, when this may not be the case.
+
+Good practice – terms that should be qualified and explained
+Below are some commonly used terms which are unlikely to be meaningful to consumers
+without more information. The ACCC recommends businesses only use them when they also
+provide sufficient qualifications and the basis for the claim is reasonable and transparent.
+Recyclable
+Consumers are likely to understand the term ‘recyclable’ to mean that the product can be
+recycled using ordinary local collection or drop off points. Consumers are also likely to assume
+that appropriate facilities exist for the product to be recycled. If there are very few facilities or
+collection points, or these do not exist at all, then the use of the term may be misleading.
+Ensure that your product can be recycled through a household/local council waste collection
+or container deposit program before using such claims. Alternatively, if your product is recycled
+through an alternative recycling or product stewardship scheme, add appropriate qualifications
+and/or explanations of how the product can be recycled.
+Where special instructions are required to recycle a product, if may be appropriate to provide
+this information to consumers through digital means and to qualify your claim. If further
+recycling information is provided indirectly (for example, by consumers having to click on a link
+to access the information), the fact conditions apply should be made clear to consumers in the
+claim itself.
+Recycled content
+When making a claim that your product contains recycled material, consumers may take this to
+mean that the product has been through a previous life cycle or that it has been recycled by a
+third party.
+Some definitions of recycled content also include pre-consumer material diverted from the
+waste stream during manufacture. As consumers may not be familiar with these definitions, if
+the material has been recovered from the waste stream during manufacture and reused, this
+should be made clear.
+
+22
+
+ACCC
+
+|
+
+Making environmental claims
+
+|
+
+A guide for business
+
+Renewable energy
+Claims that a business uses renewable energy should clearly explain how any renewable
+energy use (and any associated emissions reduction) has been calculated, in a way that
+consumers can readily understand.
+If you are generating and using renewable energy and plan to use this to make claims relating
+to emissions, it is good practice to only make claims about the emissions reduction achieved if
+any tradeable certificates associated with the electricity generation are retired rather than sold.
+This is because sale of certificates enables another business to claim the benefit of the same
+renewable energy when calculating its own emissions. This risks the overall environmental
+benefit of renewable energy use (i.e., reduced emissions) being overstated through
+“double counting”.
+‘Free’
+The use of the word ‘free’ is powerful and absolute. Consumers are likely to assume that
+this means 100% free. If your product does in fact contain a proportion of the ingredient,
+component or characteristic that it claims to be ‘free from’, you should use a different claim
+that accurately describes the product.
+Claims that a product is ‘free from’ a particular ingredient can also give consumers the
+impression that the ingredient not included in the product is harmful. If this is not the case, the
+use of these claims may be misleading depending on the circumstances.
+It is good practice to qualify these types of claims by:
+
+ expressly referring to a specific part or attribute of a product, service or business
+ clearly outlining the specific environmental benefit being achieved
+ where applicable, quantifying the extent to which that benefit has been achieved.
+
+23
+
+ACCC
+
+|
+
+Making environmental claims
+
+|
+
+A guide for business
+
+Example – claims that are likely to be false or misleading
+A manufacturer has started using 25% recycled plastic in the bottles and caps used to package
+its shampoo. The label on the bottle displays the following claim: “Our new sustainable range of
+products uses recycled plastic.” This claim is not explained or qualified.
+The term “sustainable” appears to refer to the whole product, and may convey to consumers
+that the product will not contribute to environmental harm, when this is not the case. In
+addition, the business does not specify how much of the plastic in the product and packaging
+is recycled, which may lead consumers to believe all the plastic in the product and packaging
+is recycled.
+The claim is likely to mislead consumers in contravention of the ACL.
+Instead of the above broad claim, the following label could be used “25% of the plastic in this
+product’s bottle and cap is made from recycled plastic.”
+In the qualified claim, the business has clearly represented:
+
+ the relevant environmental benefit – use of recycled plastic
+ what part of the product or packaging the claim refers to – the bottle and cap
+ the degree to which the characteristic of “recycled” is true – 25% of the plastic in the bottle
+and cap is recycled.
+
+Emissions related claims
+Businesses should exercise particular caution when making representations to consumers about the
+greenhouse emissions associated with their products, services or business and their overall impact
+on climate change, given the complexities involved in quantifying these impacts.
+Consumers are unlikely to readily understand what is meant by broad headline claims like “Carbon
+Neutral”, “Climate Neutral” or “Net-zero”. If you choose to make emissions related claims, it is good
+practice to ensure that any claims are understood by the ordinary and reasonable consumer and
+that you:
+
+ undertake a thorough emissions baseline assessment, using established Australian or
+internationally recognised methodologies
+
+ provide clear information to consumers about what emissions are included and excluded from
+any assessment
+
+ clearly and transparently communicate the actions you have taken which underpin the claim. For
+example, being transparent about:
+–
+
+emissions reductions activities versus reliance on purchased offsets
+
+–
+
+explain how you have accounted for your emissions, including emissions associated with
+electricity use
+
+–
+
+provide information about the types of projects that offsets have been generated from, and
+ensure you:
+•
+
+24
+
+have verified them (including verifying that the emissions abatement attributable to
+the offset project has not already been claimed by the project owner) and that offsets
+representing the same emissions benefit have not been issued under multiple different
+registries
+
+ACCC
+
+|
+
+Making environmental claims
+
+|
+
+A guide for business
+
+•
+
+provide up-to-date information about the registry on which they are listed with details of
+the offsets relinquished or cancelled each year
+
+•
+
+where practicable, make this information readily accessible to consumers.
+
+ account for all types of greenhouse gas emissions. Singling out particular types of emissions
+(e.g. carbon dioxide) and excluding others risks creating a misleading overall impression
+
+ ensure that consumers can understand from the information provided what emissions have
+
+been accounted for and avoid using headline claims which create a misleading impression, for
+example by:
+–
+
+disproportionately emphasising a claim in relation to a product, service or segment of your
+operations if this only represents a small proportion of your overall emissions profile
+
+–
+
+prominently advertising the offering of a “carbon neutral product” but not making clear this
+is not a default option and instead is dependent upon individual consumers opting in (and
+potentially paying a premium to do so).
+
+In terms of claims about future goals and ambitions, you should have reasonable grounds to make
+the claims, for example by having appropriate business plans and investment approvals in place to
+make the changes necessary to meet the goals.
+
+Environmental claims in highly polluting industries
+Emissions intensive businesses, such as those that rely on or sell fossil fuels should be particularly
+careful not to understate the overall environmental impact of their business when making
+environmental claims.
+Some industries are highly polluting by nature. Businesses in these industries should be extra
+cautious when making environmental claims. If a business in a highly polluting industry does
+choose to make an environmental claim, they should take extra care to ensure that their
+claims are truthful and accurate. This is because the overall environmental detriment of these
+industries is likely to overshadow any environmental improvements made by a business. Broad or
+unqualified environmental claims made by businesses in these industries have a higher chance of
+misleading consumers.
+However, businesses in highly polluting industries also have the potential to make changes that
+result in significant reductions in environmental harm. Businesses in these industries should not
+feel discouraged from making any environmental claims if they have put genuine and meaningful
+measures in place to reduce their environmental impact. If you are a business in a highly-polluting
+industry and you wish to make claims about your environmental progress, be realistic and
+transparent about the environmental impact.
+
+25
+
+ACCC
+
+|
+
+Making environmental claims
+
+|
+
+A guide for business
+
+Principle 6: Use clear and easy to understand
+language
+Claims can be misleading if they are worded in a way that is difficult for ordinary and reasonable
+consumers to understand. It is good practice to use clear and easy-to-understand language when
+making environmental claims.
+This does not mean that you should oversimplify or use vague or ambiguous terms. You should
+consider whether the language you use allows consumers to clearly understand the specific benefit
+that you are trying to convey.
+
+Avoid technical or scientific language
+When you make environmental claims, it is good practice to avoid using scientific or technical
+language – unless it is easily understood by ordinary and reasonable consumers.
+It is important to remember that consumers generally do not have specialist knowledge. They will
+understand words to have their ordinary meaning, not the meaning that they carry when used in a
+technical or specially defined way. Consumers may be misled if there is a difference between the
+ordinary meaning and a technical/specially defined meaning.
+
+Example – claims that are likely to be false or misleading
+A manufacturer advertises on their packs of washing machine detergent that consumers can
+“save water and help the planet by reusing greywater in your garden”.
+“Greywater” is water that has been used by a household’s laundry and bathroom. Reusing
+greywater to irrigate gardens is a common way to preserve water resources. However, not all
+greywater is suitable to be reused to irrigate gardens.
+The packaging has a prominent disclaimer “See ingredients list for whether our greywater can
+help your garden grow.” All the ingredients are clearly listed, including a certain bleaching agent
+which is suitable for soil and grass, but not for plants.
+Consumers are likely to believe from the business’ advertising that they can use greywater
+containing the detergent in their gardens for both the lawn area and plants. They are unlikely to
+understand from the contents listing that it is not suitable for use on plants. The claim is likely
+to be misleading and contravene the ACL.
+Sometimes using scientific language will be the clearest way of presenting a claim. It may be
+appropriate to use scientific language in some situations. Where scientific or technical terms are
+needed, it is good practice to clearly define the words and provide explanatory material if there is the
+potential for confusion. Where the scientific term also has a non-technical meaning, it is unlikely that
+using scientific language will be the clearest way of presenting a claim to consumers.
+
+26
+
+ACCC
+
+|
+
+Making environmental claims
+
+|
+
+A guide for business
+
+Use words to convey their common meaning
+You should also only use words according to their ordinary, common meaning. If the words
+used in your claim don’t match the way consumers are likely to interpret them, you risk
+misleading consumers.
+If your claim relies on a specific interpretation of common words or phrases, it is good practice to
+clearly define and explain this to avoid any misunderstanding.
+It is also good practice to explain terms with multiple potential meanings.
+
+Example – claims that are likely to be false or misleading
+A business labels its picnic cutlery as “reusable”. The business previously sold these same
+products as single use. They are made from conventional plastic and the plastic begins to
+degrade once it is washed. Repeated cleaning also causes the products to become unsafe for
+continued use with food. Accordingly, they can only be reused a small number of times.
+While the products may technically be able to be used more than once, consumers are most
+likely to interpret the word “reusable” to mean that the products can be reused multiple times,
+for an extended period. This claim is likely to mislead consumers and contravene the ACL.
+The business could instead state the number of times the products can safely be reused.
+
+27
+
+ACCC
+
+|
+
+Making environmental claims
+
+|
+
+A guide for business
+
+Principle 7: Visual elements should not give the
+wrong impression
+The visual elements of your marketing, products and packaging also convey certain things to
+consumers. This includes the use of certain colours (e.g., green), images (e.g., of dolphins and trees)
+and symbols (e.g., the mobius loop for recycling).
+Images and visual elements should be used with care. The use of environmental images may
+be interpreted by consumers to be making a broad claim of an environmental benefit. This risks
+misleading consumers if it is not true.
+Other visual elements can also contribute to an overall misleading impression. For example:
+
+ Images of plants, animals, the earth, or certain endangered animals may suggest
+environmental benefits.
+
+ Using a symbol that is widely accepted as having a particular meaning, when the product does
+not meet that meaning.
+
+ Colours such as green and blue can carry environmental connotations. When used together with
+
+other environmental imagery, they can contribute to an overall impression that a product, service,
+or business has an environmental benefit.
+
+ Overall branding and logos can also contribute to an impression about the environmental benefits
+of a product, service or business, particularly if they incorporate the elements above.
+
+When determining if visual elements suggest an environmental benefit, what is important is the
+overall impression given to an ordinary and reasonable consumer. Images of plants and certain
+colours can also be used to denote product composition or flavours, rather that environmental
+representations. For example, a business selling fruit juice may use the colour green or use images of
+fruit trees on its products in a way which does not convey an environmental claim.
+
+Symbols
+Symbols can come in various forms, from globally recognised symbols to custom designed
+icons that visually represent the environmental characteristics of your specific product, service,
+or business.
+The use of widely recognised symbols can be misleading if your product, service or business does
+not meet the criteria for using the symbol, or if they are not properly qualified. When you use widely
+recognised symbols, it is good practice to explain clearly and prominently next to the symbol exactly
+what you are using it to mean or represent.
+
+Example
+The mobius loop is a globally recognised symbol for recycling. The use
+of this symbol can represent to consumers that a product is made of
+recycled materials or that the materials are recyclable, or both. Without
+further explanation its use may represent to consumers that all of
+these characteristics apply and that they apply to the whole product or
+packaging, where this may not be the case.
+
+28
+
+ACCC
+
+|
+
+Making environmental claims
+
+|
+
+A guide for business
+
+Trust Marks
+It is also common for businesses to design their own symbols to visually represent their product,
+service, or business’ environmental characteristics. These symbols can sometimes look like trust
+marks. Trust marks are a visual indication that a product, service or business has been certified by a
+third-party as meeting an environmental standard or scheme.
+If the environmental benefit that you are representing through a third party’s symbol has not been
+certified or verified by that third-party, you should not use the symbol, otherwise, you are likely to
+mislead consumers.
+You should also carefully consider the use of any images that may convey the impression they are a
+symbol of independent certification or verification for that characteristic, when this is not the case.
+
+Example – claims that are likely to be false or misleading
+A manufacturer produces toothbrushes made from biobased PE plastic. On its packaging,
+it uses a green tick enclosed in a circle alongside the words “biodegradable approved”. The
+business has not had its products tested for biodegradability and, in fact, the type of biobased
+plastic used by the business is not biodegradable.
+Consumers are likely to see the use of the customised symbol (being the visual imagery
+plus the express words) as a representation that the business’ product has been certified as
+biodegradable by a third-party when this is not the case.
+The use of the customised symbol is likely to mislead consumers in contravention of the ACL.
+
+Third-party labels and certifications
+Having your environmental benefits verified or certified by an independent, robust third-party scheme
+can build consumer trust in your brand. However, consumers may also be unfamiliar with local or
+international environmental certification schemes. When using a logo from such a scheme, consider
+the overall impression created and whether any further information or explanation is required to
+ensure consumers are not misled.
+For example, you should not use a certification logo in a way that implies:
+
+ that you have been certified for an aspect of your product, service, or business which you have
+
+not. For example, if only your products have been certified, you should not imply that your entire
+business has been certified
+
+ that your product has been independently certified if this is not the case. For example, if your
+certification is self-assessed, or you have a material connection to the certifying body
+
+ that the certification scheme means certain environmental benefits have been certified as having
+been achieved when it does not.
+
+Businesses that are no longer certified, or fail to meet the criteria for certification, and represent that
+they are certified risk misleading consumers.
+You should be mindful of how you describe certification schemes, and where you place certification
+logos in your advertising materials, to ensure the overall impression created is not misleading. It is
+also good practice to offer consumers details of further information on the scheme.
+Some certification logos may also convey a misleading impression in themselves. For example,
+where the logo does not accurately represent what the scheme is designed to certify. Use of these
+types of certification schemes risk misleading consumers.
+29
+
+ACCC
+
+|
+
+Making environmental claims
+
+|
+
+A guide for business
+
+Principle 8: Be direct and open about your
+environmental sustainability transition
+The ACCC encourages businesses to take genuine steps to improve their environmental performance
+and share their progress with consumers. Businesses should also feel confident to advertise the
+environmental benefits of their products and services, and the steps they are taking to reduce their
+environmental impact.
+Transitioning to a more environmentally sustainable business model can involve a variety of different
+steps. This includes switching to more environmentally sustainable production methods or suppliers,
+reducing waste or increasing recycling, and procuring renewable energy. It can also involve setting
+emissions reduction or mitigation targets.
+However, transitioning to a more environmentally sustainable business model takes time and is
+often not linear. During this transition, your products and operations will inevitably continue to have
+detrimental environmental impacts.
+You can mislead consumers if claims about your business’ environmental improvements give the
+impression that you are further along in your environmental sustainability transition than you actually
+are. For example, you should not make claims that you have:
+
+ plans to implement certain environmental initiatives if this is not the case
+ intentions to implement certain environmental initiatives if these have not been formally and
+genuinely committed to
+
+ undertaken certain activities or improved your environmental performance if you have not yet
+done so
+
+ achieved steps in your environmental sustainability transition if these are still in progress.
+It is good practice to avoid promoting goals or making claims about your environmental sustainability
+transition which are vague or unclear. Otherwise, consumers risk being misled about the steps you
+are taking to improve your environmental performance.
+
+Good practice – making claims about your environmental sustainability
+transition
+A freight company with rail, road and shipping operations generates significant amounts of
+greenhouse gas emissions. There is no technology that is currently available that would allow
+the company to reduce its total greenhouse gas emissions to zero. However, the company
+chooses to start by electrifying its vehicle fleet, which will lead to significant reductions in
+its emissions.
+In its public statements the company explains that it has chosen to electrify its vehicles, and
+explains that this well help reduce its impact on climate change over time.
+In order to avoid creating a misleading impression about the overall environmental impact of
+the company, it also explains the proportion of its emissions that will be reduced as a result
+of its investment in electric vehicles, and that there are parts of its business that still have a
+significant impact on climate change and are very difficult to abate at the present time due to a
+lack of available technology. Further information about the environmental impact of each area
+of the company’s operations are provided on its website, which is continuously updated with
+new information.
+
+30
+
+ACCC
+
+|
+
+Making environmental claims
+
+|
+
+A guide for business
+
+You can make claims about your environmental sustainability transition if they are a genuine
+reflection of your environmental goals and performance. When making these types of claims, it is
+good practice to:
+
+ Understand your motivations for making environmental claims. Is it because you have made
+genuine progress, or are there other reasons you want to make these claims?
+
+ Be realistic about the changes you can achieve at different stages of your transition. Some
+
+changes may rely on technological advancement, while others will rely on government policy
+changes. It can also take time to research and develop new product offerings.
+
+ Understand what different environmental sustainability terms mean and ensure that you use the
+correct terminology and consider whether consumers will understand the meaning of the terms
+in the way you are using them.
+
+ Be clear on the practical steps you are taking to achieve your environmental sustainability goals.
+For example, if your goal is to reduce your emissions by 50%, you might take steps to increase
+your use of renewable energy.
+
+ Make it clear which steps in your environmental sustainability transition have been completed,
+and which are still in progress.
+
+ Provide regular updates on your progress. Be transparent about where you are up to in your
+environmental sustainability transition and make sure this information is presented clearly
+to consumers.
+
+The need to be competitive can incentivise and drive environmental change. However in relation
+to any harm reduction claims, you should ensure genuine progress has been made before making
+environmental claims. You should also ensure that you have realistically portrayed the environmental
+harm still associated with your business as you transition to more sustainable operating models, to
+reduce the risk of misleading consumers.
+
+31
+
+ACCC
+
+|
+
+Making environmental claims
+
+|
+
+A guide for business
+
+Case study – good practice in communicating about sustainability
+transition efforts
+A business has voluntarily decided to reduce its emissions footprint and announces an
+emissions reduction goal. It has developed a clear transition plan which sets out the steps
+it has already taken to achieve its goal, the steps it is currently taking, and the future steps
+it intends to take. This plan is advertised on television and various marketing materials, and
+consumers are directed to a website for more detailed information.
+First, the business has taken steps to quantify its greenhouse gas emissions so that it is able to
+measure progress against its emissions reduction goal. The business:
+
+ Has calculated its own emissions using reputable accounting methodologies.
+ Accounted for the emissions associated with its direct operations as well as the
+
+emissions produced when consumers purchase and use its products and services. It
+has done this through an independent life cycle analysis and measuring changes off a
+nominated baseline.
+
+ When the business makes claims about its emissions reduction plan, it makes it clear to
+consumers which emissions it has included in its calculations, and clearly identifies any
+emissions sources not included in its calculations.
+
+The business has also committed to clear steps to achieve its goal. It is in the process of
+implementing a number of these. In this case, the business is:
+
+ Making operational changes to reduce its gross emissions. This includes increasing its use
+of renewable energy to 100% of its energy needs.
+
+ Where emissions reductions options are not immediately available, purchasing high
+
+integrity offsets to mitigate the emissions footprint of its products, services, and business
+operations.
+
+32
+
+ACCC
+
+|
+
+Making environmental claims
+
+|
+
+A guide for business
+
+When making representations to consumers about this aspect of its emissions reduction
+plan, the business clearly explains the proportion of its gross emissions it has reduced and
+separately identifies areas of its business where it has not been able to reduce its emissions,
+but is purchasing offsets to mitigate environmental impact. Where offsets are used,
+the business:
+
+ Provides details of the programs it has sourced offsets from.
+ Takes reasonable steps to verify the integrity of the offset projects.
+ Annually cancels or surrenders the volume of offsets that is consistent with achieving its
+goal and ensures that the offset cancellations are recorded in the relevant registry.
+
+ Provides regular updates on its progress, including the number of offsets it has purchased
+and surrendered each year.
+
+The business has investment plans in place for additional steps it will be taking in the future to
+reduce its emissions. It plans to achieve future emissions reductions by:
+
+ Reducing its reliance on air freight and switching its logistics to ocean freight and rail by
+2025 (based on committed supply contracts).
+
+ Trialing options to reduce emissions in its supply chain, including in areas where emissions
+are currently hard to abate, and reporting back on the success of these trials by 2025.
+
+ Reducing its reliance on virgin materials, through upcycling and recycling initiatives, with a
+detailed plan to achieve a 75% reduction in virgin materials by 2025.
+
+When making representations to consumers about its future plans, the business sets out and
+explains the steps it is planning to take, and when it expects them to be achieved and any
+material barriers to their achievement. It also provides regular updates on its actual progress.
+
+33
+
+ACCC
+
+|
+
+Making environmental claims
+
+|
+
+A guide for business
+
+The ACCC’s Compliance and
+Enforcement Approach
+The ACCC enforces the ACL in conjunction with State and Territory consumer and fair
+trading agencies.
+In determining whether to take enforcement action for potential breaches of the ACL, the ACCC’s
+Compliance and Enforcement Policy sets out various factors which are taken into account
+These include:
+
+ conduct that is of significant public interest or concern
+ conduct that results in substantial consumer or small business detriment
+ national conduct by large businesses, recognising the potential for greater consumer detriment
+and the likelihood that conduct of large traders can influence other market participants
+
+ conduct involving a significant new or emerging market issue or where our action is likely to have
+an educative or deterrent effect
+
+ where our action will help clarify aspects of the law, especially newer provisions of the ACL.
+As these factors indicate, the ACCC focuses on investigating conduct with the potential to harm the
+competitive process or result in widespread consumer harm or small business detriment.
+In determining any enforcement action to take the ACCC will consider what is a proportionate
+response to the conduct and the resulting or potential harm.
+The ACCC will consider whether genuine efforts and appropriate steps were taken by the business
+to verify the accuracy of any information that they relied on. The scope and extent of due diligence
+undertaken will vary depending on the size of the business. The ACCC recognises that some small
+businesses may not have access to the same resources as larger businesses which can impact the
+scope and extent of due diligence which is appropriate to be undertaken and this will be taken into
+account when assessing the steps taken to verify environmental claims.
+The ACCC is more likely to take enforcement action in respect of representations about future
+matters regarding environmental claims where a business did not have reasonable grounds for
+making the representation, does not have an intention or plan to implement initiatives, or knew or was
+reckless about whether the claim was untrue or incorrect.
+Greenwashing conduct can also contravene laws administered by other regulators, including
+the Australian Securities and Investment Commission (ASIC). The ACCC and ASIC work closely
+together on the detection and investigation of misleading environment claims, including corporate
+sustainability claims and claims in connection with financial products and services.
+The ACCC will focus on consumer facing products and services, whereas ASIC is primarily
+responsible for financial products and financial services. However, misleading environmental claims
+may sometimes fall within both ASIC’s jurisdiction and the ACCC’s jurisdiction, in which case the
+ACCC and ASIC work closely together to address any misconduct.
+The ACCC has a range of regulatory powers that allow it to investigate and pursue potential
+contraventions of the ACL.
+
+34
+
+ACCC
+
+|
+
+Making environmental claims
+
+|
+
+A guide for business
+
+Section 155 notices
+The ACCC has compulsory information gathering powers under section 155 of the Competition
+and Consumer Act 2010 (Cth). It can use these powers to obtain information and documents and/
+or require a person to attend an examination and give evidence in order to investigate potential
+contraventions of the ACL.
+If you receive a section 155 notice, you are required to comply with it by the due date. Complying with
+a notice may require you to conduct reasonable searches for the required information or documents,
+review and produce materials in your possession, power or control (save for legally privileged
+material), answer all questions fully and honestly, and (if applicable) attend any oral examination and
+give evidence at the place, date, and time specified in the notice.
+There are serious consequences for a refusal or failure to comply with a section 155 notice, including
+fines or imprisonment. In addition, providing false or misleading information or documents to the
+ACCC is an offence which attracts serious consequences, including fines or imprisonment. For
+further information see ACCC guidelines – use of s155 powers.
+
+Substantiation notices
+Substantiation notices are a preliminary investigative tool that helps the ACCC determine whether
+further investigation is warranted. The ACCC may issue a substantiation notice requiring a person to
+give information and/or produce documents that could be capable of substantiating or supporting an
+environmental claim.
+If you receive a substantiation notice, you are required to comply with it within 21 days. If there are
+genuine reasons why you will not be able to respond to the notice by the due date, the ACCC may
+grant an extension.
+Individuals are not required to provide information or documents if the information or documents may
+incriminate them or expose them to a penalty.
+The ACCC may issue an infringement notice or seek an order from the court for payment of a penalty
+if a person does not comply with a substantiation notice or provides false or misleading information
+in response to a substantiation notice.
+
+Infringement notices
+The ACCC may issue an infringement notice where it has reasonable grounds to believe that a person
+has contravened certain consumer protection provisions in the ACL (including false or misleading
+representations, misleading conduct as to the nature and characteristics of goods and services, but
+not for the general prohibition on misleading or deceptive conduct).
+The penalty amount for each infringement notice varies, depending on the alleged contravention.
+Payment of an infringement notice penalty does not amount to an admission or finding of a
+contravention of the ACL.
+Where a person declines to pay an infringement notice, the ACCC is likely to consider other
+enforcement options, including taking court proceedings.
+For further information on infringement notices including the penalties that apply, see the ACCC’s
+guidelines on the use of infringement notices.
+
+35
+
+ACCC
+
+|
+
+Making environmental claims
+
+|
+
+A guide for business
+
+Penalties
+The ACCC can take court action against a person for making false or misleading representations
+and for engaging in misleading or deceptive conduct. It is for the court to determine liability and an
+appropriate penalty, which will depend on the circumstances of each individual case.
+The maximum penalty for each contravention of the relevant penalty provisions of the ACL by a
+corporation is the greater of:
+
+ $50 million
+ if the Court can determine the benefit obtained that is “reasonably attributable” to the
+contravention, 3 times the value of that benefit
+
+ if the Court cannot determine the value of the benefit, 30% of the corporation’s adjusted turnover
+during the relevant period.
+
+Individuals can also be responsible for contravening the ACL. The maximum penalty for each
+contravention by an individual is $2.5 million.
+Criminal liability for corporations and individuals for offences under the ACL may apply in respect of
+some claims.
+
+Report greenwashing to the ACCC
+ACCC website: www.accc.gov.au
+ACCC general enquiry web forms: https://www.accc.gov.au/about-us/contact-us
+ACCC Infocentre: 1300 302 502
+Callers who are deaf or have a hearing or speech impairment: www.relayservice.com.au, 13 3677 for
+TTY users or 1300 555 727 for Voice Relay
+Callers who speak a language other than English, call 131 450 and ask for 1300 302 502
+Indigenous Infoline: 1300 303 143
+
+36
+
+ACCC
+
+|
+
+Making environmental claims
+
+|
+
+A guide for business
+
+Appendix – Legal Framework
+As well as general prohibitions against misleading or deceptive conduct, the ACL includes specific
+prohibitions against making false or misleading representations about goods or services. These
+prohibitions are detailed below. Pecuniary penalties may be imposed for contraventions of these
+sections (namely sections 29, 33 and 34).
+Criminal liability for corporations and individuals for offences under the ACL may apply in respect of
+some claims.
+
+Misleading or deceptive conduct (Section 18)
+Section 18 of the ACL states that a person must not, in trade or commerce, engage in conduct that is
+misleading or deceptive or is likely to mislead or deceive.
+
+False or misleading representations about goods or
+services (Section 29)
+Section 29 of the ACL states that a person must not, in trade or commerce, in connection with the
+supply or possible supply of goods or services or in connection with the promotion by any means of
+the supply or use of goods or services:
+a. make a false or misleading representation that goods are of a particular standard, quality, value,
+grade, composition, style or model or have had a particular history or particular previous use; or
+b. make a false or misleading representation that services are of a particular standard, quality, value
+or grade; or
+c. make a false or misleading representation that goods are new; or
+d. make a false or misleading representation that a particular person has agreed to acquire goods or
+services; or
+e. make a false or misleading representation that purports to be a testimonial by any person relating
+to goods or services; or
+f.
+
+make a false or misleading representation concerning:
+i.
+
+a testimonial by any person; or
+
+ii.
+
+a representation that purports to be such a testimonial;
+
+relating to goods or services; or
+g. make a false or misleading representation that goods or services have sponsorship, approval,
+performance characteristics, accessories, uses or benefits; or
+h. make a false or misleading representation that the person making the representation has a
+sponsorship, approval or affiliation; or
+i.
+
+make a false or misleading representation with respect to the price of goods or services; or
+
+j.
+
+make a false or misleading representation concerning the availability of facilities for the repair of
+goods or of spare parts for goods; or
+
+k. make a false or misleading representation concerning the place of origin of goods; or
+
+37
+
+ACCC
+
+|
+
+Making environmental claims
+
+|
+
+A guide for business
+
+l.
+
+make a false or misleading representation concerning the need for any goods or services; or
+
+m. make a false or misleading representation concerning the existence, exclusion or effect of any
+condition, warranty, guarantee, right or remedy (including a guarantee under Division 1 of Part
+3‑2); or
+n. make a false or misleading representation concerning a requirement to pay for a contractual
+right that:
+i.
+
+is wholly or partly equivalent to any condition, warranty, guarantee, right or remedy
+(including a guarantee under Division 1 of Part 3‑2); and
+
+ii.
+
+a person has under a law of the Commonwealth, a State or a Territory (other than an
+unwritten law).
+
+Misleading conduct as to the nature etc. of goods
+(Section 33)
+Section 33 of the ACL states that a person must not, in trade or commerce, engage in conduct that
+is liable to mislead the public as to the nature, the manufacturing process, the characteristics, the
+suitability for their purpose or the quantity of any goods.
+
+Misleading conduct as to the nature etc. of services
+(Section 34)
+Section 34 of the ACL states that a person must not, in trade or commerce, engage in conduct that is
+liable to mislead the public as to the nature, the characteristics, the suitability for their purpose or the
+quantity of any services.
+
+38
+
+ACCC
+
+|
+
+Making environmental claims
+
+|
+
+A guide for business
+
+

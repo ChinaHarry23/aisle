@@ -5,12 +5,13 @@ import { cn } from "@/lib/cn";
 import { formatNumber } from "@/lib/ids";
 import { channelLabel } from "@/lib/status";
 import type { ChannelResultStatus } from "@/lib/runtime/types";
+import { isArchived } from "@/lib/campaign-lifecycle";
 import { useAisle } from "@/lib/store";
 import { Empty, PageHeader, SectionTitle, Stat } from "@/components/ui";
 import Link from "next/link";
 
 export default function PerformancePage() {
-  const campaigns = useAisle((s) => s.campaigns);
+  const campaigns = useAisle((s) => s.campaigns).filter((campaign) => !isArchived(campaign));
   const collectFeedback = useAisle((s) => s.collectFeedback);
   const setCollectorOverrides = useAisle((s) => s.setCollectorOverrides);
   const decideRecommendation = useAisle((s) => s.decideRecommendation);

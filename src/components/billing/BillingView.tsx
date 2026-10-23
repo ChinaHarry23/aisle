@@ -180,7 +180,7 @@ export function BillingView({ checkout }: { checkout: "success" | "cancel" | nul
           ) : summary.unlimited ? (
             <>
               <p className="mt-1 font-serif text-3xl">Unlimited</p>
-              <p className="text-xs text-mute">Team desk — cloud usage is recorded at zero so the owner can see real costs.</p>
+              <p className="text-xs text-mute">Team desk — nothing is deducted. Each cloud call is still logged in credits.</p>
             </>
           ) : (
             <>

@@ -67,8 +67,17 @@ export function estimateLlmUsage(
  * system prompt, and the full output ceiling. This is what a credit hold
  * reserves before the call goes out.
  */
-export function worstCaseUsd(model: LlmModel, req: Pick<CompleteRequest, "prompt" | "system" | "maxOutputTokens"> & Partial<Pick<CompleteRequest, "agent">>): number {
-  const inputTokens = req.prompt.length + (req.system?.length ?? (req.agent === "creative" ? POSTER_ARTIST_SYSTEM.length : 160));
+/**
+ * One attached poster, reserved before the provider reports the real count.
+ * High-detail tiles land around this; the base64 string is not billed as text.
+ */
+const VISION_TOKENS_PER_IMAGE = 1_600;
+
+export function worstCaseUsd(model: LlmModel, req: Pick<CompleteRequest, "prompt" | "system" | "maxOutputTokens"> & Partial<Pick<CompleteRequest, "agent" | "images">>): number {
+  const inputTokens =
+    req.prompt.length +
+    (req.system?.length ?? (req.agent === "creative" ? POSTER_ARTIST_SYSTEM.length : 160)) +
+    (req.images?.length ?? 0) * VISION_TOKENS_PER_IMAGE;
   return llmCostUsd(model, inputTokens, outputCap(model, req));
 }
 
@@ -86,6 +95,28 @@ export function quoteLlm(modelId: string, agent: CompleteRequest["agent"] = "tre
     estimate: true,
     latencyMs: 0,
   } satisfies LlmUsage;
+}
+
+/**
+ * Token and dollar fields LangSmith adds up.
+ *
+ * A run output named `inputTokens` is stored and shown, and it is not a usage
+ * record. The project totals read `usage_metadata.input_tokens` and `total_cost`.
+ */
+export function langsmithUsage(
+  model: LlmModel,
+  usage: Pick<LlmUsage, "inputTokens" | "outputTokens" | "totalTokens" | "costUsd">,
+) {
+  const inputCost = (usage.inputTokens / 1_000_000) * model.billing.inputPerM;
+  const outputCost = usage.costUsd - inputCost;
+  return {
+    input_tokens: usage.inputTokens,
+    output_tokens: usage.outputTokens,
+    total_tokens: usage.totalTokens,
+    input_cost: inputCost,
+    output_cost: outputCost,
+    total_cost: usage.costUsd,
+  };
 }
 
 export function usageFromProvider(

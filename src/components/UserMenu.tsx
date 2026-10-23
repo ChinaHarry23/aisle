@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, LogOut, SlidersHorizontal } from "lucide-react";
+import { ChevronDown, LogOut, Receipt, SlidersHorizontal } from "lucide-react";
 import type { PublicUser } from "@/lib/auth/types";
 
 export function UserMenu({
@@ -61,10 +61,19 @@ export function UserMenu({
           </div>
           <div className="my-1 h-px bg-line" />
           <Link
+            href="/account/usage"
+            role="menuitem"
+            onClick={() => setOpen(false)}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-ink hover:bg-paper-2"
+          >
+            <Receipt size={14} />
+            Usage
+          </Link>
+          <Link
             href="/settings"
             role="menuitem"
             onClick={() => setOpen(false)}
-            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-paper-2"
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-ink hover:bg-paper-2"
           >
             <SlidersHorizontal size={14} />
             Settings

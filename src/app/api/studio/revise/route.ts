@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/current";
 import { loadWorkspace, saveWorkspace } from "@/lib/auth/workspace";
 import { billingForSession } from "@/lib/billing/meter";
-import { runComplete } from "@/lib/llm/complete";
+import { runComplete } from "@/lib/llm/metered-complete";
 import { renderCampaignPoster } from "@/lib/media/campaign-poster";
 import { MediaNotFoundError, readMedia } from "@/lib/media/store";
 import { rewriteImagePrompts, type LlmRuntime } from "@/lib/runtime/decide";
@@ -44,8 +44,8 @@ export async function POST(request: Request) {
   const userKey = request.headers.get("x-provider-key")?.trim() || undefined;
   const billing = await billingForSession(user);
   const llm: LlmRuntime = {
-    request: (req) => runComplete(req),
-    meta: { label: "server", live: true },
+    request: (req) => runComplete(req, billing),
+    meta: { label: "server", live: true, billing },
   };
   const rewritten = await rewriteImagePrompts({
     campaign,

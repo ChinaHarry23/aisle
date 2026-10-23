@@ -7,15 +7,23 @@ import { OPERATION_NODES, operationNodeForStep, type OperationNodeId } from "@/l
 type GraphPayload = {
   mermaid: string;
   tracing: { enabled: boolean; project: string | null };
+  studio: { href: string } | null;
 };
 
-export function OperationGraph({ step }: { step: string | null | undefined }) {
+export function OperationGraph({
+  step,
+  campaignId,
+}: {
+  step: string | null | undefined;
+  campaignId?: string;
+}) {
   const current = operationNodeForStep(step);
   const [graph, setGraph] = useState<GraphPayload | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/engine/graph")
+    const query = campaignId ? `?campaign=${encodeURIComponent(campaignId)}` : "";
+    fetch(`/api/engine/graph${query}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((json: GraphPayload | null) => {
         if (!cancelled && json?.mermaid) setGraph(json);
@@ -24,16 +32,22 @@ export function OperationGraph({ step }: { step: string | null | undefined }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [campaignId]);
 
   return (
     <div className="hairline p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h3 className="text-[11px] uppercase tracking-wider text-mute">Operation graph</h3>
         <p className="text-xs text-mute">
-          {graph?.tracing.enabled
-            ? `Tracing to LangSmith · ${graph.tracing.project}`
-            : "LangSmith tracing is off"}
+          {graph?.studio ? (
+            <a href={graph.studio.href} target="_blank" rel="noreferrer" className="font-medium text-signal-dark hover:underline">
+              Open graph and trace
+            </a>
+          ) : graph?.tracing.enabled ? (
+            `Tracing to LangSmith · ${graph.tracing.project}`
+          ) : (
+            "LangSmith tracing is off"
+          )}
         </p>
       </div>
       <ol className="mt-3 flex flex-wrap items-center gap-1.5">
@@ -48,6 +62,11 @@ export function OperationGraph({ step }: { step: string | null | undefined }) {
         Compliance can send the draft back through{" "}
         <NodeBox id="revise" label="Revise" current={current} /> up to three times, then it waits
         at Founder. Schedule waits when a channel conflicts.
+        {graph?.studio
+          ? graph.tracing.enabled
+            ? " This campaign runs on that graph, so the thread Studio opens is the same run LangSmith traces."
+            : " This campaign runs on that graph. Turn on LangSmith tracing to record the same thread."
+          : ""}
       </p>
       {graph?.mermaid ? (
         <details className="mt-3">

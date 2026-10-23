@@ -1,6 +1,9 @@
 import { buildReport } from "../compliance/report";
 import { loadRules } from "../compliance/rules";
 import { checkSubmission } from "../compliance/checks";
+import { resolveReviewOutcome } from "../compliance/outcome";
+import { posterImages } from "../compliance/posters";
+import { formatLawPassages, marketLaw, retrieveAdvertisingLaw } from "../advertising-law/index";
 import { beginReview, submissionFor, assertReviewPermission, ComplianceSubmissionError } from "../compliance/service";
 /**
  * Agent step handlers.
@@ -54,7 +57,6 @@ import {
   type ChannelResult,
   type ChannelVersion,
   type ComplianceAttempt,
-  type ComplianceIssue,
   type DeliveryAttempt,
   type Evidence,
   type PerformanceReport,
@@ -395,10 +397,8 @@ function trendFallbackDecision(
     claimsAllowed:
       motif === "campus"
         ? ["Water-resistant shell", "Packs into its own pocket", "Cut for commuting"]
-        : [...(campaign.sharedContext.approvedClaims.length
-            ? campaign.sharedContext.approvedClaims
-            : brand.approvedTerms.slice(0, 3))],
-    claimsAvoid: brand.bannedTerms.slice(0, 4),
+        : [...campaign.sharedContext.approvedClaims],
+    claimsAvoid: [],
     visualDirection: brand.visualStyle,
     limitations: [
       "Channel-level attention windows are modelled assumptions, not measured impressions.",
@@ -634,13 +634,14 @@ export async function runTrendResearch(
   };
 
   const retailEvidence = byKind("internal_retail").filter((e) => e.status === "verified");
+  const retailFit = retail.data && typeof retail.data === "object" ? (retail.data as { relevance?: number }) : null;
   if (retailEvidence.length > 0) {
     pushFinding(
       "Internal demand signal",
       retailEvidence[0].claim,
       [retailEvidence[0].id],
-      94,
-      88,
+      retailFit?.relevance ?? retailEvidence[0].confidence,
+      retailEvidence[0].confidence,
       { themeSuggestion: decision.angle },
     );
   }
@@ -657,7 +658,10 @@ export async function runTrendResearch(
     );
   }
   if (retailEvidence[1]) {
-    pushFinding("Basket behaviour", retailEvidence[1].claim, [retailEvidence[1].id], 86, 81);
+    pushFinding("Catalogue history", retailEvidence[1].claim, [retailEvidence[1].id], retailEvidence[1].confidence, retailEvidence[1].confidence);
+  }
+  if (retailEvidence[2]) {
+    pushFinding("Competitor check", retailEvidence[2].claim, [retailEvidence[2].id], retailEvidence[2].confidence, retailEvidence[2].confidence);
   }
   const shelfEvidence = publicEvidence.filter((e) => e.sourceName === "WhichGrocer");
   if (shelfEvidence[0]) {
@@ -690,16 +694,15 @@ export async function runTrendResearch(
     );
   }
 
-  const banned = env.brand.bannedTerms.slice(0, 3);
   pushFinding(
     "Claim risk",
-    `Category advertising still leans on absolute claims (${banned.join(", ")}). Brand rules forbid following them, so the copy must lead with verifiable product facts.`,
+    "After the poster is generated, a vision model reads the words on the picture and compares them with the advertising-law documents uploaded on Brand.",
     [],
-    82,
-    85,
+    70,
+    60,
     {
-      risk: `Unsubstantiated superlatives would fail ${c.country} advertising standards.`,
-      themeSuggestion: "Quiet proof over swagger.",
+      risk: "Words on the artwork are not cleared by a yes-or-no term list.",
+      themeSuggestion: "Keep claims specific enough to check against the uploaded regulation.",
     },
   );
 
@@ -734,7 +737,7 @@ export async function runTrendResearch(
     channels: c.channels,
     keyMessage: decision.keyMessage,
     claimsAllowed: decision.claimsAllowed,
-    claimsAvoid: decision.claimsAvoid.length ? decision.claimsAvoid : env.brand.bannedTerms,
+    claimsAvoid: decision.claimsAvoid,
     visualDirection: decision.visualDirection,
   };
 
@@ -915,96 +918,6 @@ export async function runCreativeGeneration(
 
 /* -------------------------------------------------------------- compliance -- */
 
-/** Deterministic review — the floor the model's review is merged onto. */
-export function deterministicReview(
-  c: Campaign,
-  brand: BrandProfile,
-): { issues: ComplianceIssue[]; summary: string } {
-  const issues: ComplianceIssue[] = [];
-  const today = new Date().toISOString().slice(0, 10);
-  const countryRules = brand.countryRules[c.country];
-  const policyProfile = `${c.country} advertising and consumer law`;
-
-  for (const cr of c.creatives) {
-    const blob = `${cr.headline} ${cr.subhead} ${cr.caption}`.toLowerCase();
-    for (const term of brand.bannedTerms) {
-      if (!blob.includes(term.toLowerCase())) continue;
-      issues.push({
-        id: uid("ci"),
-        category: /health|proven|miracle/.test(term) ? "unsupported_claim" : "misleading_claim",
-        basis: "confirmed_breach",
-        severity: "high",
-        excerpt: term,
-        explanation: `“${term}” is on the retailer's banned list and cannot be substantiated for this campaign.`,
-        rule: countryRules.slice(0, 90) + "…",
-        policySource: `${policyProfile} + brand banned terms`,
-        policyDate: today,
-        recommendedCorrection: `Replace “${term}” with a verifiable product fact from the approved claims list.`,
-      });
-    }
-  }
-
-  if (c.channels.includes("print") && c.creatives[0]?.version >= 2 && issues.length === 0) {
-    issues.push({
-      id: uid("ci"),
-      category: "missing_condition",
-      basis: "human_judgement",
-      severity: "medium",
-      excerpt: "Catalogue cover without a regional price condition line",
-      explanation:
-        "Week-specific specials can vary by region. The cover should not imply a national price without the condition line.",
-      rule: `${c.country} catalogue policy`,
-      policySource: "Retailer catalogue policy",
-      policyDate: today,
-      recommendedCorrection: "Add “see in-store for regional prices” to the cover, or confirm the condition line.",
-    });
-  }
-
-  if (c.budget >= 10_000 && issues.length === 0 && c.creatives[0]?.version >= 2) {
-    issues.push({
-      id: uid("ci"),
-      category: "audience_targeting",
-      basis: "human_judgement",
-      severity: "medium",
-      excerpt: `Budget ${c.budget.toLocaleString("en-AU")} above the auto-clear threshold`,
-      explanation:
-        "High-spend or youth-reach campaigns remain founder decisions even when the copy is clean.",
-      rule: `${c.country} · founder threshold`,
-      policySource: "Workspace policy",
-      policyDate: today,
-      recommendedCorrection: "Founder confirms reach and spend before distribution.",
-    });
-  }
-
-  if (c.channels.includes("instagram")) {
-    const caption = c.creatives[0]?.caption ?? "";
-    if (caption.length > 125 && c.creatives[0]?.version >= 2) {
-      issues.push({
-        id: uid("ci"),
-        category: "platform_policy",
-        basis: "human_judgement",
-        severity: "low",
-        excerpt: "Instagram caption exceeds the visible hook length",
-        explanation:
-          "Instagram truncates captions around 125 characters; the hook should land above the fold.",
-        rule: "Instagram platform guidance",
-        policySource: "Instagram platform policy",
-        policyDate: today,
-        recommendedCorrection: "Shorten the caption hook, or move detail to the second line.",
-      });
-    }
-  }
-
-  const high = issues.filter((i) => i.severity === "high").length;
-  const summary =
-    high > 0
-      ? `${high} claim(s) cannot be supported. Structured corrections returned to Image Generation.`
-      : issues.length > 0
-        ? `Copy is legally clean. ${issues.length} item(s) need founder judgement before distribution.`
-        : `Version uses allowed product facts only. Brand tone holds. Cleared for the founder's sign-off.`;
-  return { issues, summary };
-}
-
 export function receiveComplianceSubmission(w: Work, env: StepEnv) {
   try {
     const review = beginReview(w.campaign, env.brand, submissionFor(w.campaign, env.brand), w.now);
@@ -1051,7 +964,19 @@ export async function runComplianceReview(
   const selection = reviewRun.ruleSelection ?? loadRules(reviewRun.submission, w.now);
   reviewRun.ruleSelection = selection;
   const checked = checkSubmission(reviewRun.submission, selection);
-  const fallback = { issues: checked.issues, summary: `${checked.issues.length} issue(s) identified against the submitted version.` };
+  const images = await posterImages(c, env.ownerUserId);
+  const law = marketLaw(c.country);
+  const passages = law.ready
+    ? formatLawPassages(c.country, retrieveAdvertisingLaw(c.country, copyBlob))
+    : `No advertising-law index is built for ${law.label} (${c.country}). Do not use another country's law. Do not pass the advertisement.`;
+  const documentProblems = !law.ready
+    ? [`No advertising-law index is built for ${law.label}, so poster words cannot be checked against that market's law.`]
+    : passages
+      ? []
+      : [`The ${law.label} advertising-law index returned no passage for this poster.`];
+  const imageProblems = images.length
+    ? []
+    : ["No poster image could be attached, so the printed words were not read."];
   const { decision, trace } = await decideCompliance({
     campaign: c,
     brand: env.brand,
@@ -1060,25 +985,41 @@ export async function runComplianceReview(
     ownerId: env.ownerUserId,
     copy: copyBlob,
     attempt: attemptNo,
-    fallback,
+    images,
+    passages,
+    fallback: { summary: "The compliance agent did not return a usable review." },
     rules: selection.rules,
     referenceRules: selection.referenceRules,
   });
   addTrace(w, trace, "compliance", "Policy review");
 
+  const outcome = resolveReviewOutcome({
+    agentOutcome: decision.outcome,
+    issueCount: decision.issues.length,
+    policyProblems: [...selection.problems, ...documentProblems, ...imageProblems],
+    attempt: attemptNo,
+    maxAttempts: MAX_REVISION_ATTEMPTS,
+  });
+  const risk =
+    outcome === "pass"
+      ? ("low" as const)
+      : outcome === "manual_review" || decision.issues.some((issue) => issue.severity === "high")
+        ? ("high" as const)
+        : ("medium" as const);
+  const verdict = { outcome, risk, score: decision.issues.length };
+  const summary = [
+    decision.summary,
+    selection.problems.length > 0 ? "No authorised policy registry is configured, so this review was not passed." : "",
+    documentProblems[0] ?? "",
+    imageProblems[0] ?? "",
+  ].filter(Boolean).join(" ");
   const structuredReport = buildReport(reviewRun, decision.issues, checked.limitations, uid("cp"), w.now);
-  // CC-07 still owns the legacy revision cap; escalation never turns a finding into a pass.
-  if (structuredReport.status === "CHANGES_REQUIRED" && attemptNo >= MAX_REVISION_ATTEMPTS)
+  structuredReport.status =
+    verdict.outcome === "pass" ? "PASSED" : verdict.outcome === "changes_required" ? "CHANGES_REQUIRED" : "MANUAL_REVIEW_REQUIRED";
+  if (structuredReport.status === "CHANGES_REQUIRED" && attemptNo >= MAX_REVISION_ATTEMPTS) {
     structuredReport.status = "MANUAL_REVIEW_REQUIRED";
+  }
   reviewRun.report = structuredReport;
-  const verdict = {
-    outcome: structuredReport.status === "PASSED" ? "pass" as const : structuredReport.status === "CHANGES_REQUIRED" ? "changes_required" as const : "manual_review" as const,
-    risk: decision.issues.some(i => i.severity === "high") || selection.problems.length ? "high" as const : decision.issues.length ? "medium" as const : "low" as const,
-    score: structuredReport.status === "PASSED" ? 100 : 0,
-  };
-  decision.summary = structuredReport.status === "PASSED"
-    ? "No unresolved findings in the configured automated checks; final human approval remains required."
-    : `${structuredReport.unresolvedCount} unresolved finding(s), ${selection.problems.length} policy problem(s). ${structuredReport.status.replace(/_/g, " ")}.`;
   const digest = inputDigest(c);
   const attempt: ComplianceAttempt = {
     id: uid("ca"),
@@ -1091,7 +1032,7 @@ export async function runComplianceReview(
     outcome: verdict.outcome,
     risk: verdict.risk,
     score: verdict.score,
-    summary: decision.summary,
+    summary,
     issues: decision.issues,
     policyRefs: selection.rules.map(r => `${r.id}@${r.version}: ${r.source}`),
     policyComplete: selection.problems.length === 0,
@@ -1113,12 +1054,8 @@ export async function runComplianceReview(
     risk: verdict.risk,
     score: verdict.score,
     verdict:
-      verdict.outcome === "changes_required"
-        ? "revise"
-        : verdict.outcome === "manual_review"
-          ? "escalate"
-          : "pass",
-    summary: decision.summary,
+      verdict.outcome === "changes_required" ? "revise" : verdict.outcome === "pass" ? "pass" : "escalate",
+    summary,
     findings,
     countryProfile: `${c.country} · ${(env.brand.countryRules[c.country] ?? "Missing country policy").slice(0, 140)}…`,
     attempt,
@@ -1127,7 +1064,7 @@ export async function runComplianceReview(
   reviewRun.status = "COMPLETED";
   reviewRun.completedAt = w.now;
   reviewRun.result = { status: verdict.outcome, findings: structuredClone(decision.issues),
-    rejectionReason: verdict.outcome === "pass" ? null : decision.summary,
+    rejectionReason: verdict.outcome === "pass" ? null : summary,
     limitations: checked.limitations, reportId: report.id };
   c.complianceAttempts = [...c.complianceAttempts, attempt];
   c.complianceReports = [...c.complianceReports, report];
@@ -1144,7 +1081,7 @@ export async function runComplianceReview(
     "compliance",
     verdict.outcome === "pass" ? "output" : "flag",
     `Attempt ${attemptNo}: ${verdict.outcome.replace(/_/g, " ")}`,
-    `${decision.summary} ${confirmed} confirmed breach(es), ${judgement} needing human judgement. Issues recorded with severity, affected content and rule.`,
+    `${summary} ${confirmed} confirmed breach(es), ${judgement} needing human judgement. Issues recorded with severity, affected content and rule.`,
     { evidenceIds: [] },
   );
   addStep(

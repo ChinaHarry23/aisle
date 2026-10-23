@@ -18,6 +18,7 @@ import { AgentPipeline, StatusBadge } from "@/components/ui";
 import { cn } from "@/lib/cn";
 import { getLlmOrDefault } from "@/lib/llm/catalog";
 import type { AgentSlot } from "@/lib/llm/types";
+import { isArchived } from "@/lib/campaign-lifecycle";
 import { useAisle } from "@/lib/store";
 import type { CampaignStatus } from "@/lib/types";
 
@@ -65,7 +66,7 @@ const stages: Stage[] = [
     id: "compliance",
     step: 4,
     name: "Compliance",
-    does: "Checks guidelines and country rules, and sends fixes back.",
+    does: "Checks the poster against that market's law index, and sends fixes back.",
     icon: ShieldCheck,
     statuses: ["compliance", "revising"],
     href: "/campaigns",
@@ -112,7 +113,7 @@ const greeting = () => {
 };
 
 export function Overview() {
-  const campaigns = useAisle((s) => s.campaigns);
+  const campaigns = useAisle((s) => s.campaigns).filter((campaign) => !isArchived(campaign));
   const brand = useAisle((s) => s.brand);
   const settings = useAisle((s) => s.settings);
   const collectFeedback = useAisle((s) => s.collectFeedback);
