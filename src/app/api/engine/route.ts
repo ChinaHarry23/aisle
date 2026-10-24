@@ -105,13 +105,16 @@ async function handlePost(request: Request) {
   const stored = await loadWorkspaceSafely(user.id, user.role);
   const brand = stored.brand;
   const settings = stored.settings;
-  const campaigns = (body.campaigns ?? []).map(withRuntimeDefaults);
+  // Prior advice and neighbouring campaigns come from platform storage, never
+  // a browser-supplied acceptance/report record.
+  const campaigns = stored.campaigns.map(withRuntimeDefaults);
   const existing=stored.campaigns.find(c=>c.id===body.campaign!.id);
   const protectedResearch=existing?.trendQuality||existing?.researchMode==='agent';
-  const target = withRuntimeDefaults(protectedResearch?structuredClone(existing!):body.campaign);
+  const target = withRuntimeDefaults(existing&&existing.status!=='draft'?structuredClone(existing):body.campaign);
   let command:Command;
   try{
     command=parseCommand(body.command);
+    if(!existing&&command.type!=='START')throw new WorkflowError('Start and store the campaign before submitting workflow or feedback decisions.',409);
     if(protectedResearch&&(command.type==='RESOLVE_TREND'||command.type==='CANCEL_TREND'||command.type==='START')){
       if(command.type==='RESOLVE_TREND'&&command.action==='provide_data'&&body.campaign.internalDataAuthorised&&body.campaign.retailUpload){
         target.retailUpload=retailUploadSchema.parse(body.campaign.retailUpload);target.internalDataAuthorised=true;

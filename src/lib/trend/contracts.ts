@@ -5,7 +5,7 @@ import type { DecisionTrace, TrendDecision } from '@/lib/runtime/decide';
 export const RESEARCH_CATEGORIES = ['current_market', 'historical_market', 'customer_interest', 'purchase_preference', 'seasonal', 'cultural', 'channel', 'competitor'] as const;
 export type ResearchCategory = typeof RESEARCH_CATEGORIES[number];
 export type ResearchAnalysis = {category: ResearchCategory; channel?: string; summary: string; evidenceIds: string[]; limitation: string};
-export type ResearchModelTurn = {turn:number; phase:'collection'|'assessment'|'quality'; offeredTools:string[]; selectedTools:string[]; invalidTools?:string[]; status:string; modelId:string; tokens:number};
+export type ResearchModelTurn = {turn:number; phase:'collection'|'assessment'|'quality'|'brief'; offeredTools:string[]; selectedTools:string[]; invalidTools?:string[]; status:string; modelId:string; tokens:number};
 export type ResearchAttempt = { category: ResearchCategory; channel?: string; tool: string; phase?: 'mandatory' | 'agent' | 'quality'; status: ToolOutcome['status']; summary: string; evidenceIds: string[] };
 export type ResearchCoverage = { category: ResearchCategory; channel?: string; evidenceIds: string[]; status: 'retrieved' | 'missing'; attempts: ResearchAttempt[]; analysis?: ResearchAnalysis; limitation: string };
 export type ResearchInput = {

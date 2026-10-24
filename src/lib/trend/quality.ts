@@ -5,6 +5,7 @@
 import type { Campaign } from '@/lib/types';
 import type { Evidence } from '@/lib/runtime/types';
 import { publicSourceUrl } from './source-tools';
+import { briefMatches } from './brief';
 import { RESEARCH_CATEGORIES } from './contracts';
 import { contextVersion, FINDING_CATEGORIES, findingResearch, QUALITY_RULES, qualityAssessmentSchema,configuredQualityRules,type QualityRules,
   type QualityAssessment,type TrendQuality,type EvidenceReview,type FindingReview,type ReviewRequest } from './quality-contracts';
@@ -107,8 +108,10 @@ export function evaluateQuality(c:Campaign, raw:QualityAssessment|null, at:strin
 export function recordStoredTrend(c:Campaign):void {
  const q=c.trendQuality;if(!q||q.contextVersion!==contextVersion(c))return;
  c.sharedContext={...c.sharedContext,trendBrief:{version:q.version,contextVersion:q.contextVersion,status:q.status,evidenceIds:q.evidence.map(e=>e.id),findings:q.findings,limitations:q.limitations}};
+ if(c.structuredTrendBrief)c.sharedContext.structuredTrendBrief=structuredClone(c.structuredTrendBrief);
  q.storedVersion=q.version;
 }
 export function trendReadyForHandoff(c:Campaign):boolean {
+  if(c.trendBriefRequired&&(!c.structuredTrendBrief||c.structuredTrendBrief.status!=='COMPLETE'||!briefMatches(c,c.structuredTrendBrief)||JSON.stringify(c.sharedContext.structuredTrendBrief)!==JSON.stringify(c.structuredTrendBrief)))return false;
   const q=c.trendQuality;return Boolean(q&&q.status==='COMPLETE'&&q.contextVersion===contextVersion(c)&&q.runId===c.run?.id&&q.storedVersion===q.version&&c.sharedContext.trendBrief?.version===q.version&&c.sharedContext.trendBrief.status==='COMPLETE'&&q.researchAreas.every(a=>a.supported)&&q.requiredCategories.every(a=>a.supported)&&q.findings.filter(f=>f.main).every(f=>f.supported)&&!c.trendRequests?.some(r=>r.contextVersion===q.contextVersion&&r.status==='pending')&&c.run?.status==='running');
 }

@@ -45,7 +45,8 @@
     "test:trend-provider-search": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/trend-provider-search-suite.ts",
     "test:compliance-report": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/compliance-report-suite.ts",
     "compliance:kb": "node --env-file-if-exists=.env.local --import ./scripts/service-loader.mjs --experimental-strip-types scripts/compliance-knowledge.ts",
-    "test:compliance-knowledge": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/compliance-knowledge-suite.ts"
+    "test:compliance-knowledge": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/compliance-knowledge-suite.ts",
+    "test:trend-brief": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/trend-brief-suite.ts"
   },
   "dependencies": {
     "@langchain/core": "1.2.17",

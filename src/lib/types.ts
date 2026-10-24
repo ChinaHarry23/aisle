@@ -225,6 +225,8 @@ export type AgentEvent = {
 };
 
 export type SharedContext = {
+  structuredTrendBrief?: import('@/lib/trend/brief-contracts').StructuredTrendBrief;
+  previousAdvice?:{sourceCampaignId:string;wording:string;action:'accepted'|'edited';decidedAt:string;author:string;reportId:string}|null;
   trendBrief?:{version:number;contextVersion:string;status:'INCOMPLETE'|'COMPLETE';evidenceIds:string[];findings:import('@/lib/trend/quality-contracts').FindingReview[];limitations:string[]};
   retailer: string;
   product: string;
@@ -294,6 +296,11 @@ export type Campaign = CampaignInput & {
   researchAttempts?: import('@/lib/trend/contracts').ResearchAttempt[];
   researchModelTurns?: import('@/lib/trend/contracts').ResearchModelTurn[];
   trendQualityHistory?: import('@/lib/trend/quality-contracts').TrendQuality[];
+  structuredTrendBrief?: import('@/lib/trend/brief-contracts').StructuredTrendBrief;
+  trendBriefHistory?: import('@/lib/trend/brief-contracts').StructuredTrendBrief[];
+  trendBriefBudget?: import('@/lib/trend/brief-contracts').BriefBudget;
+  trendBriefRequired?:boolean;
+  trendRequestBudget?: import('@/lib/trend/brief-contracts').BriefBudget;
   trendQuality?: import('@/lib/trend/quality-contracts').TrendQuality;
   trendRequests?: import('@/lib/trend/quality-contracts').ReviewRequest[];
   trendSupplementarySources?: {url:string;category:import('@/lib/trend/contracts').ResearchCategory;channel?:string}[];

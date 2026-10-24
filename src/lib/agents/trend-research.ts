@@ -3,6 +3,7 @@ import { searchWithModel } from '@/lib/llm/search';
 import { uid } from '@/lib/ids';
 import type { ResearchCategory } from '@/lib/trend/contracts';
 import { runSeatAgent } from './agent-runtime';
+import { reserveTrendRequest } from '@/lib/trend/request-budget';
 import { runComplete } from '@/lib/llm/metered-complete';
 import { holdCredits, settleHold, type BillingContext } from '@/lib/billing/meter';
 import { getLlmModel } from '@/lib/llm/catalog';
@@ -89,7 +90,9 @@ export function createTrendResearch(billing?: BillingContext, test?: { mode:'moc
     const estimate=(bytes*model.billing.inputPerM+MAX_OUTPUT_TOKENS*model.billing.outputPerM)/1e6;
     if(!test&&estimate>remaining())throw Error('Campaign inference budget insufficient.');
     if(bytes>60000 || tokens + bytes + MAX_OUTPUT_TOKENS > MAX_TOTAL_TOKENS)throw Error(`Research token envelope exceeded (${bytes} request bytes; ${tokens} tokens used).`);
+    const sharedBudget=reserveTrendRequest(input.campaign,bytes,MAX_OUTPUT_TOKENS);
     const result=await (test?.complete??runComplete)(request,ctx);tokens+=result.usage.totalTokens;
+    sharedBudget.tokens+=result.usage.totalTokens;sharedBudget.costUsd+=result.usage.costUsd;
     // Book each completion exactly once, including calls preceding a failed run.
     input.onFailedUsage(result.usage.costUsd);
     (input.campaign.researchModelTurns ??= []).push({turn:modelCalls,phase:request.toolChoice==='required'?'collection':'assessment',

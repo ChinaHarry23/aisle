@@ -1,4 +1,5 @@
 import { contextVersion } from '@/lib/trend/quality-contracts';
+import { verifiedPreviousAdvice } from './defaults';
 import { evaluateQuality,trendReadyForHandoff } from '@/lib/trend/quality';
 import { validateIntake } from './intake';
 import { redact } from "@/lib/trend/source-tools";
@@ -425,6 +426,9 @@ export async function runTrendResearch(
 ): Promise<{ message: string; blocked: boolean }> {
   const c = w.campaign;
   const contextProblems=validateIntake(c,env.brand);
+  const previousAdvice=verifiedPreviousAdvice(c,env.allCampaigns);
+  if(c.sharedContext.previousPerformanceNote&&!previousAdvice)addEvent(w,'trend','gap','Previous advice excluded','No matching accepted/edited platform decision and stored report; continuing without prior advice.');
+  c.sharedContext={...c.sharedContext,previousAdvice,previousPerformanceNote:previousAdvice?.wording??null,previousPerformanceFrom:previousAdvice?.sourceCampaignId??null};
   if(env.llm.quality&&contextProblems.length){
     const q=evaluateQuality(c,null,w.now,'context_invalid');
     const reason=contextProblems.map(p=>`${p.field}: ${p.message}`).join(' ');
@@ -883,6 +887,11 @@ export async function runCreativeGeneration(
   version: number,
 ): Promise<{ message: string; blocked: boolean }> {
   const c = w.campaign;
+  if(env.llm.brief&&c.trendQuality&&!c.trendBriefRequired){
+    c.trendBriefRequired=true;c.trendQuality.status='INCOMPLETE';c.trendQuality.storedVersion=null;c.trendQuality.handedOffAt=null;c.trendQuality.resumeStep=8;
+    setRun(w,{status:'running',step:'trend.quality'});
+    return {message:'Prepare the full structured report before generating content.',blocked:false};
+  }
   if(c.trendQuality || c.researchMode==='agent'){
     if(!trendReadyForHandoff(c)||env.researchAllowed&&!await env.researchAllowed()){
       c.status='paused';c.running=false;setRun(w,{status:'paused',step:'trend.handoff',haltedReason:'Current evidence-backed brief is not ready for handoff.'});

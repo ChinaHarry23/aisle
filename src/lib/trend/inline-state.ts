@@ -13,6 +13,6 @@ export async function withWorkspaceLock<T>(owner:string,operation:()=>Promise<T>
  try{return await next;}finally{if(queues.get(owner)===next)queues.delete(owner);}
 }
 export function protectResearchSnapshots(incoming:Campaign[],stored:Campaign[]):Campaign[]{
- const canonical=new Map(stored.filter(c=>c.trendQuality||c.researchMode==='agent').map(c=>[c.id,c]));
- return [...incoming.map(c=>canonical.get(c.id)??{...c,trendQualityHistory:undefined,trendQuality:undefined,trendRequests:undefined,trendSupplementarySources:undefined}),...stored.filter(c=>canonical.has(c.id)&&!incoming.some(i=>i.id===c.id))];
+ const canonical=new Map(stored.filter(c=>c.trendQuality||c.researchMode==='agent'||c.performanceReport||c.recommendationDecision).map(c=>[c.id,c]));
+ return [...incoming.map(c=>canonical.get(c.id)??{...c,performanceReport:null,recommendationDecision:null,structuredTrendBrief:undefined,trendBriefHistory:undefined,trendBriefBudget:undefined,trendRequestBudget:undefined,trendBriefRequired:undefined,sharedContext:{...c.sharedContext,structuredTrendBrief:undefined,previousAdvice:undefined},trendQualityHistory:undefined,trendQuality:undefined,trendRequests:undefined,trendSupplementarySources:undefined}),...stored.filter(c=>canonical.has(c.id)&&!incoming.some(i=>i.id===c.id))];
 }

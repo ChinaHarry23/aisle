@@ -264,18 +264,23 @@ export default function TrendsPage() {
     <div className="flex flex-col gap-8">
       <PageHeader
         eyebrow="Trend Analyser"
-        title="Research reports & decisions"
-        description="Find each campaign’s research report, see what is still missing, and review requests for your input."
+        title="Campaign research"
+        description="Read the evidence behind your next campaign, explore themes and visual directions, and see where your input is needed."
       />
 
+      <dl className="grid grid-cols-3 gap-3" aria-label="Research overview">
+        <div className="hairline p-4"><dt className="text-xs text-mute">Complete reports</dt><dd className="mt-2 text-2xl">{campaigns.filter(c=>c.structuredTrendBrief?.status==='COMPLETE'&&c.structuredTrendBrief.validation==='passed'&&c.trendQuality?.status==='COMPLETE').length}</dd></div>
+        <div className="hairline p-4"><dt className="text-xs text-mute">Research requests</dt><dd className="mt-2 text-2xl">{campaigns.reduce((total,c)=>total+(c.trendRequests?.filter(r=>r.status==='pending').length??0),0)}</dd></div>
+        <div className="hairline p-4"><dt className="text-xs text-mute">Draft / partial</dt><dd className="mt-2 text-2xl">{campaigns.filter(c=>c.researchAttempts?.length&&c.structuredTrendBrief?.status!=='COMPLETE').length}</dd></div>
+      </dl>
       <section aria-label="Campaign research reports">
         <SectionTitle title="Campaign reports" />
         <p className="mt-2 text-sm text-mute">Open a report for all research categories, evidence, conclusions and limitations.</p>
         <div className="mt-4 grid gap-4 lg:grid-cols-2">
-          {campaigns.map(c => { const areas=c.researchCoverage ?? [];const count=areas.filter(a=>a.analysis).length;const requests=c.trendQuality ? c.trendRequests?.filter(r=>r.status==='pending').length??0 : c.trendGaps.filter(g=>g.needsFounder).length;return <article key={c.id} className="hairline p-5">
-            <div className="flex flex-wrap items-center justify-between gap-2"><span className="status-chip status-wait">{c.trendQuality ? c.trendQuality.status==='COMPLETE' ? 'Evidence review passed' : c.status==='rejected'?'Analysis ended · partial report':'Incomplete · needs evidence' : c.researchAttempts?.length ? 'Draft · validation pending' : 'No verified research run'}</span>{requests>0&&<span className="text-xs text-signal">{requests} need your input</span>}</div>
+          {campaigns.map(c => { const areas=c.researchCoverage ?? [];const count=c.trendQuality?.assessment?.areas.length??areas.filter(a=>a.analysis).length;const requests=c.trendQuality ? c.trendRequests?.filter(r=>r.status==='pending').length??0 : c.trendGaps.filter(g=>g.needsFounder).length;return <article key={c.id} className="hairline p-5">
+            <div className="flex flex-wrap items-center justify-between gap-2"><span className="status-chip status-wait">{c.structuredTrendBrief ? c.structuredTrendBrief.validation!=='passed'?'Report needs recovery':c.structuredTrendBrief.status==='COMPLETE'&&c.trendQuality?.status==='COMPLETE'?'Complete report':'Partial report · evidence gaps' : c.trendQuality ? c.trendQuality.status==='COMPLETE' ? 'Evidence review passed' : c.status==='rejected'?'Analysis ended · partial report':'Incomplete · needs evidence' : c.researchAttempts?.length ? 'Draft · validation pending' : 'No verified research run'}</span>{requests>0&&<span className="text-xs text-signal">{requests} need your input</span>}</div>
             <h3 className="mt-3 font-serif text-xl">{c.name}</h3><p className="mt-2 text-sm text-mute">{c.country} · {c.startDate} – {c.endDate}</p>
-            <p className="mt-3 text-sm">{count} / {areas.length || 7+c.channels.length} research areas assessed</p>
+            <p className="mt-3 text-sm">{count} / {areas.length || 7+c.channels.length} research areas assessed</p>{c.structuredTrendBrief&&<p className="mt-2 text-xs text-mute">Version {c.structuredTrendBrief.version} · {c.structuredTrendBrief.sources.length} cited records · Facts, inferences, themes & visual directions</p>}
             <div className="mt-4 flex flex-wrap gap-4 text-sm text-signal"><Link href={`/campaigns/${c.id}?tab=research`}>Open full report →</Link>{requests>0&&<Link href={`/campaigns/${c.id}?tab=research#research-decisions`}>Review requests →</Link>}</div>
           </article>;})}
           {!campaigns.length&&<p className="text-sm text-mute">Create a campaign to start a research report.</p>}
@@ -289,6 +294,7 @@ export default function TrendsPage() {
         </li>))}</ul>
         {!campaigns.some(c=>c.trendGaps.some(g=>g.needsFounder&&(!c.trendQuality||c.trendRequests?.some(r=>r.id===g.id&&r.status==='pending'))))&&<p className="mt-4 rounded-xl border border-line p-4 text-sm text-mute">No research decisions are waiting for you. Reports without a verified run still need research; this is not a completion signal.</p>}
       </section>
+      {campaigns.some(c=>c.structuredTrendBrief?.validation!==undefined&&c.structuredTrendBrief.validation!=='passed')&&<section aria-label="Reports needing recovery" className="hairline p-5"><h2 className="font-serif text-xl">Reports needing recovery</h2><p className="mt-2 text-sm text-mute">Research is saved. Resolve the reported model, format or support-check failure before continuing.</p><ul className="mt-4 space-y-3">{campaigns.filter(c=>c.structuredTrendBrief&&c.structuredTrendBrief.validation!=='passed').map(c=><li key={c.id}><Link className="text-sm text-signal underline" href={`/campaigns/${c.id}?tab=research#structured-brief`}>{c.name} — see report recovery details</Link></li>)}</ul></section>}
       <details className="hairline p-5">
         <summary className="cursor-pointer font-medium">Research source workspace · optional configuration</summary>
         <p className="my-4 text-sm text-mute">Saved sources are candidate inputs, not verified findings. Adding or enabling a source does not prove that a research run used it. Check each report’s execution records. Authorise retail exports within the relevant campaign.</p>

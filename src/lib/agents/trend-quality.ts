@@ -1,6 +1,7 @@
 /** TA-04 semantic review uses the team's shared metered transport and typed
  * tools. Deterministic acceptance remains in trend/quality.ts. */
 import { runSeatAgent } from './agent-runtime';
+import { reserveTrendRequest } from '@/lib/trend/request-budget';
 import { runComplete } from '@/lib/llm/metered-complete';
 import { getLlmModel } from '@/lib/llm/catalog';
 import { searchWithModel } from '@/lib/llm/search';
@@ -25,7 +26,9 @@ export function createTrendQuality(billing?:BillingContext,test?:{mode:'mock';co
     if(bytes>60000)throw Error('Quality input envelope exceeded.');
     const estimate=(bytes*model.billing.inputPerM+8000*model.billing.outputPerM)/1e6;
     if(!test&&(estimate>remaining()||model.providerId!=='local'&&billing?.kind!=='user'))throw Error('Quality review requires available campaign budget and authenticated billing.');
+    const sharedBudget=reserveTrendRequest(c,bytes,8000);
     const result=await(test?.complete??runComplete)(req,ctx);
+    sharedBudget.tokens+=result.usage.totalTokens;sharedBudget.costUsd+=result.usage.costUsd;
     diagnostic=result.status;
     let normalizedCalls=result.toolCalls;
     if(result.status==='ok'&&result.modelId===req.modelId){

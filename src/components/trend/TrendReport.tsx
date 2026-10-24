@@ -1,6 +1,7 @@
 "use client";
 
 import {ResearchDecisions} from './ResearchDecisions';
+import {StructuredBrief} from './StructuredBrief';
 import Link from 'next/link';
 import type { Campaign } from '@/lib/types';
 import { coverageFor, type ResearchCategory } from '@/lib/trend/contracts';
@@ -20,6 +21,7 @@ export function TrendReport({campaign}: {campaign:Campaign}) {
   const recorded=Boolean(campaign.researchAttempts?.length);
   const draft=quality ? quality.status==='COMPLETE' ? quality.storedVersion===quality.version ? quality.handedOffAt ? 'Complete · handed to content generation' : 'Complete · stored' : 'Evidence passed · awaiting storage' : campaign.status==='rejected'?'Analysis ended · partial report':'Incomplete · evidence needs review' : recorded ? 'Draft · evidence review pending' : 'No verified research run';
   return <div className="space-y-8">
+    <StructuredBrief campaign={campaign}/>
     <section className="hairline overflow-hidden" aria-label="Trend report overview">
       <div className="border-b border-line bg-paper-2 p-5 md:p-7">
         <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-xs uppercase tracking-wider text-signal">Campaign research</p><span className="status-chip status-wait">{draft}</span></div>
@@ -32,7 +34,7 @@ export function TrendReport({campaign}: {campaign:Campaign}) {
           <div><dt className="text-xs text-mute">Needs your input</dt><dd className="mt-1 text-xl">{attention.length}</dd></div>
         </dl>
         {quality&&<div className="mt-4 rounded-lg border border-line p-3 text-sm"><p>{quality.requiredCategories.filter(c=>c.supported).length} / 7 report categories supported · Version {quality.version}</p><p className="mt-1 text-xs text-mute">{quality.status==='COMPLETE'?'Main findings have passed evidence validation. Disclosed limitations remain part of the report.':'Valid partial findings are retained. Content generation stays blocked until evidence is sufficient and required decisions are resolved.'}</p></div>}
-        <nav className="mt-5 flex flex-wrap gap-4 text-sm text-signal" aria-label="Report sections"><a href="#research-areas">Research areas</a><a href="#research-conclusions">Conclusions & recommendations</a><a href="#research-decisions">Your decisions</a></nav>
+        <nav className="mt-5 flex flex-wrap gap-4 text-sm text-signal" aria-label="Report sections"><a href="#research-areas">Research areas</a><a href={campaign.structuredTrendBrief?"#structured-brief":"#research-conclusions"}>Conclusions & recommendations</a><a href="#research-decisions">Your decisions</a></nav>
       </div>
       {Boolean(campaign.researchModelTurns?.length) && <details className="border-b border-line p-5 md:px-7">
         <summary className="cursor-pointer text-sm text-signal">Agent execution · {campaign.researchModelTurns!.length} model turns</summary>
@@ -59,7 +61,7 @@ export function TrendReport({campaign}: {campaign:Campaign}) {
       </div>
     </section>
 
-    <section id="research-conclusions" className="hairline p-5 md:p-7" aria-label="Research conclusions">
+    {!campaign.structuredTrendBrief && <section id="research-conclusions" className="hairline p-5 md:p-7" aria-label="Research conclusions">
       <h3 className="font-serif text-xl">Conclusions & recommendations</h3>
       <p className="mt-2 text-sm text-mute">{quality?.status==='COMPLETE' ? 'Evidence-backed recommendations with the limitations disclosed below.' : recorded ? 'Draft recommendations require supporting evidence and sufficiency checks before handoff.' : 'Existing sample or legacy recommendations are shown for reference only.'}</p>
       <div className="mt-5 grid gap-6 md:grid-cols-2">
@@ -71,7 +73,7 @@ export function TrendReport({campaign}: {campaign:Campaign}) {
         </div>
       </div>
       <details className="mt-6 border-t border-line pt-4"><summary className="cursor-pointer text-sm">All limitations · {campaign.trendGaps.length}</summary><ul className="mt-3 space-y-3 text-sm">{campaign.trendGaps.map(g=><li key={g.id}>{g.detail}<p className="text-mute">Impact: {g.effect}</p></li>)}</ul></details>
-    </section>
+    </section>}
 
     <section id="research-decisions" className="hairline border-l-4 border-l-signal p-5 md:p-7" aria-label="Research decisions">
       <div className="flex flex-wrap justify-between gap-2"><h3 className="font-serif text-xl">Needs your attention</h3><span className="status-chip status-wait">{attention.length} research requests</span></div>
