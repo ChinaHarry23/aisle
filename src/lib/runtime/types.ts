@@ -161,6 +161,9 @@ export type ComplianceIssue = {
   policySource: string;
   policyDate: string;
   recommendedCorrection: string;
+  sourceUrl?: string;
+  sourceLocation?: string;
+  citationVerified?: boolean;
 };
 
 export type ComplianceOutcome =

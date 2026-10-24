@@ -1,6 +1,8 @@
 "use client";
 
-import { AlertTriangle, CheckCircle2, FileCheck2, ImageIcon } from "lucide-react";
+import { ComplianceFindingDetails } from "./ComplianceFindingDetails";
+import { excerptFormatter } from "@/lib/compliance/presentation";
+import { CheckCircle2, FileCheck2, ImageIcon } from "lucide-react";
 import { ComplianceReviewHistory } from "@/components/ComplianceReviewHistory";
 import { cn } from "@/lib/cn";
 import { formatDate } from "@/lib/ids";
@@ -9,24 +11,11 @@ import type { Campaign } from "@/lib/types";
 import type { ComplianceIssue } from "@/lib/runtime/types";
 
 const statusCopy = {
-  PASSED: { label: "Automated checks passed", className: "risk-low" },
+  PASSED: { label: "AI review: no issues identified", className: "risk-low" },
   CHANGES_REQUIRED: { label: "Changes required", className: "risk-high" },
-  MANUAL_REVIEW_REQUIRED: { label: "Human judgement required", className: "risk-mid" },
+  MANUAL_REVIEW_REQUIRED: { label: "Review needs your attention", className: "risk-mid" },
 } as const;
 
-function passedChecks(findings: ComplianceIssue[], hasRun: boolean) {
-  if (!hasRun) return [];
-  const categories = new Set(findings.map((finding) => finding.category));
-  const checks = [
-    ["brand_guideline", "No unaddressed banned-term or brand-guideline match was found."],
-    ["unsupported_claim", "No additional unsupported absolute claim was found."],
-    ["missing_condition", "No missing promotional condition was detected."],
-    ["price_accuracy", "No unverified price was detected in the submitted copy."],
-    ["audience_targeting", "No audience-targeting issue was detected."],
-    ["platform_policy", "No configured platform-policy issue was detected."],
-  ] as const;
-  return checks.filter(([category]) => !categories.has(category)).map(([, label]) => label);
-}
 
 export function ComplianceCheckerPanel({ campaign }: { campaign: Campaign }) {
   const runs = campaign.complianceReviewRuns ?? [];
@@ -49,8 +38,7 @@ export function ComplianceCheckerPanel({ campaign }: { campaign: Campaign }) {
   const submission = run?.submission;
   const legacyStatus = legacyReport?.verdict === "pass" ? "PASSED" : legacyReport?.verdict === "revise" ? "CHANGES_REQUIRED" : legacyReport ? "MANUAL_REVIEW_REQUIRED" : null;
   const status = report ? statusCopy[report.status] : legacyStatus ? statusCopy[legacyStatus] : null;
-  const passes = passedChecks(findings, Boolean(report || legacyReport));
-  const policyProblems = run?.ruleSelection?.problems ?? [];
+  const policyProblems = report?.policyProblems ?? run?.evidence?.problems ?? run?.ruleSelection?.problems ?? [];
 
   const ads = submission?.content ?? campaign.creatives.map((creative) => ({
     creativeId: creative.id,
@@ -62,13 +50,7 @@ export function ComplianceCheckerPanel({ campaign }: { campaign: Campaign }) {
     createdAt: creative.createdAt ?? campaign.createdAt,
     generationInputs: { prompt: creative.prompt },
   }));
-  const advertisementLabels = new Map(
-    ads.map((advertisement, index) => [
-      advertisement.creativeId,
-      `Advertisement ${String.fromCharCode(65 + index)} — ${advertisement.headline}`,
-    ]),
-  );
-  const explainExcerpt = (excerpt: string) => advertisementLabels.get(excerpt) ?? excerpt;
+  const explainExcerpt = excerptFormatter(ads);
 
   return (
     <section className="flex flex-col gap-6" aria-label="Compliance Checker">
@@ -77,8 +59,7 @@ export function ComplianceCheckerPanel({ campaign }: { campaign: Campaign }) {
           <p className="text-[11px] uppercase tracking-wider text-mute">Automatic campaign handoff</p>
           <h2 className="mt-1 font-serif text-2xl">Compliance Checker</h2>
           <p className="mt-1 max-w-3xl text-sm text-ink-soft">
-            The exact generated ad version is checked against deterministic controls, uploaded documents,
-            authorised rules, and an AI review of its words and attached poster images.
+            AI compares this advertisement and its images with passages from your local legal library and uploaded guidelines. Each finding explains the concern, the source and the next step.
           </p>
         </div>
         {status ? <span className={cn("status-chip", status.className)}>{status.label}</span> : null}
@@ -139,7 +120,7 @@ export function ComplianceCheckerPanel({ campaign }: { campaign: Campaign }) {
                 </p>
                 {run ? (
                   <p className="mt-2 text-xs text-mute">
-                    Attempt {run.attemptNumber}/3 · {run.ruleSelection?.rules.length ?? 0} binding local/global rule(s) · {run.ruleSelection?.referenceRules?.length ?? 0} non-binding foreign reference(s) · {run.submission.brandAssets.guidelines.length} uploaded document(s) · {run.submission.content.filter((ad) => ad.imageUrl).length} image attachment(s)
+                    Review {run.attemptNumber} · {run.evidence?.sources.length ?? 0} source passages supplied · {run.submission.content.filter((ad) => ad.imageUrl).length} image attachment(s)
                   </p>
                 ) : null}
               </div>
@@ -147,51 +128,45 @@ export function ComplianceCheckerPanel({ campaign }: { campaign: Campaign }) {
           </div>
 
           {findings.length ? (
-            <div className="flex flex-col gap-3">
-              <h3 className="text-sm font-medium">Issues and required improvements</h3>
-              {findings.map((finding, index) => (
-                <article key={`${finding.id}-${index}`} className="border border-[var(--danger)] bg-[color-mix(in_srgb,var(--danger)_6%,var(--surface))] p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--danger)]">
-                      <AlertTriangle size={14} /> {finding.category.replace(/_/g, " ")}
-                    </span>
-                    <span className="text-xs text-mute">{finding.severity} · {finding.basis === "confirmed_breach" ? "confirmed breach" : "human judgement"}</span>
-                  </div>
-                  <blockquote className="my-3 border-l-2 border-[var(--danger)] pl-3 font-serif text-base">“{explainExcerpt(finding.excerpt)}”</blockquote>
-                  <p className="text-sm">{finding.explanation}</p>
-                  <div className="mt-3 border-t border-line pt-3 text-xs text-mute">
-                    <p><strong className="text-ink">Citation:</strong> {finding.rule}</p>
-                    <p className="mt-1"><strong className="text-ink">Source:</strong> {finding.policySource}{finding.policyDate ? ` · ${finding.policyDate}` : " · date not verified"}</p>
-                  </div>
-                  <p className="mt-3 rounded bg-surface p-3 text-sm"><strong>Improvement:</strong> {finding.recommendedCorrection}</p>
-                </article>
-              ))}
+            <div className="flex flex-col gap-6">
+              <section aria-labelledby="compliance-issues-heading">
+                <div className="mb-3 flex items-baseline justify-between gap-3">
+                  <h3 id="compliance-issues-heading" className="font-serif text-xl">Issues</h3>
+                  <span className="text-xs text-mute">{findings.length} found</span>
+                </div>
+                <div className="flex flex-col gap-3">
+                  {findings.map((finding, index) => (
+                    <ComplianceFindingDetails key={`${finding.id}-issue-${index}`} finding={finding} excerpt={explainExcerpt(finding.excerpt)} number={index + 1} mode="issue" />
+                  ))}
+                </div>
+              </section>
+
+              <section aria-labelledby="compliance-improvements-heading">
+                <h3 id="compliance-improvements-heading" className="mb-3 font-serif text-xl">Improvements</h3>
+                <div className="flex flex-col gap-3">
+                  {findings.map((finding, index) => (
+                    <ComplianceFindingDetails key={`${finding.id}-improvement-${index}`} finding={finding} excerpt={explainExcerpt(finding.excerpt)} number={index + 1} mode="improvement" />
+                  ))}
+                </div>
+              </section>
             </div>
           ) : report || legacyReport ? (
             <div className="border border-[color-mix(in_srgb,#15803d_45%,var(--line))] bg-[color-mix(in_srgb,#15803d_6%,var(--surface))] p-4 text-sm">
-              <p className="inline-flex items-center gap-2 font-medium text-green-800"><CheckCircle2 size={17} /> No unresolved issue was returned</p>
-            </div>
-          ) : null}
-
-          {passes.length ? (
-            <div className="hairline p-4">
-              <h3 className="text-sm font-medium">Checks with no issue found</h3>
-              <ul className="mt-3 space-y-2 text-sm text-ink-soft">
-                {passes.map((pass) => <li key={pass} className="flex gap-2"><CheckCircle2 size={16} className="mt-0.5 shrink-0 text-green-700" />{pass}</li>)}
-              </ul>
+              <p className="inline-flex items-center gap-2 font-medium text-green-800"><CheckCircle2 size={17} /> No content issue was identified. Check review limitations below before publishing.</p>
             </div>
           ) : null}
 
           {policyProblems.length ? (
             <div className="border border-amber-500 bg-amber-50 p-4">
-              <h3 className="text-sm font-medium">Policy coverage needs attention</h3>
+              <h3 className="text-sm font-medium">Review could not cover everything</h3>
               <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">{policyProblems.map((problem) => <li key={problem}>{problem}</li>)}</ul>
             </div>
           ) : null}
 
+        {!!report?.scopeNotes?.length && <details className="hairline p-4 text-sm"><summary className="cursor-pointer font-medium">Review scope</summary><ul className="mt-2 list-disc pl-5 text-mute">{report.scopeNotes.map(note => <li key={note}>{note}</li>)}</ul></details>}
           {(report?.limitations ?? run?.result?.limitations ?? []).length ? (
             <details className="hairline p-4 text-sm">
-              <summary className="cursor-pointer font-medium">Review limitations</summary>
+              <summary className="cursor-pointer font-medium">What still needs checking</summary>
               <ul className="mt-2 list-disc space-y-1 pl-5 text-mute">{(report?.limitations ?? run?.result?.limitations ?? []).map((item) => <li key={item}>{item}</li>)}</ul>
             </details>
           ) : null}
