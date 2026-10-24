@@ -29,3 +29,8 @@ finding.excerpt = "mutated after review";
 assert.equal(captured.findings[0].excerpt, "claim");
 assert.deepEqual(JSON.parse(JSON.stringify(captured)), captured);
 console.log("PASS CC-05: all severity levels block pass, judgement escalates, clean report passes, missing policy blocks, exact version/time retained, findings copied and serialisable.");
+
+assert.equal(buildReport(run, [], ["AI comparison unavailable"], "r", now).status, "MANUAL_REVIEW_REQUIRED");
+assert.equal(buildReport({ ...run, evidence: { sources: [], problems: ["No local law"], retrievedAt: now } }, [], [], "r", now).status, "MANUAL_REVIEW_REQUIRED");
+
+assert.equal(buildReport(run, [], [], "r", now, ["Text-only review scope"]).status, "PASSED");

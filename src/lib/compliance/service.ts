@@ -38,6 +38,7 @@ export type ComplianceReviewRun = {
   attemptNumber: number;
   submission: ComplianceSubmission;
   ruleSelection?: RuleSelection;
+  evidence?: import("./knowledge/review").ReviewEvidence;
   report?: StructuredComplianceReport;
   result?: {
     status: ComplianceOutcome;

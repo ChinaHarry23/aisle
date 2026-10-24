@@ -28,18 +28,16 @@ assert.ok(foreignSelection.problems.some(p => p.includes("non-binding context"))
 const original = JSON.stringify(s);
 const checked = checkSubmission(s, selection);
 assert.equal(JSON.stringify(s), original);
-assert.ok(checked.issues.some(i => i.category === "unsupported_claim"));
+assert.deepEqual(checked.issues, [], "input checks must not judge advertising claims");
 const risky = structuredClone(s);
 risky.targetAudience = "children";
 risky.content[0] = { ...risky.content[0], headline: "test-prohibited guaranteed", body: "Free offer $30", imageUrl: "https://example.invalid/asset.png" };
 const result = checkSubmission(risky, selection);
-for (const category of ["unsupported_claim", "missing_condition", "price_accuracy", "copyright", "audience_targeting", "inappropriate_content"])
-  assert.ok(result.issues.some(i => i.category === category), category);
-assert.ok(result.issues.filter(i => i.basis === "confirmed_breach").every(i => i.policySource === "test-only" || i.rule === "retailer.banned-terms"));
+assert.deepEqual(result.issues, [], "keywords, prices, images and audience do not create verdicts");
 const clean = structuredClone(s);
 clean.brandAssets.bannedTerms = [];
 clean.content = clean.content.map(c => ({ ...c, headline: "Cotton shirt", body: "Available in store", caption: "Everyday wear", callToAction: "Browse" }));
 assert.equal(checkSubmission(clean, selection).issues.length, 0);
 const required = { ...rules[0], mode: "required_phrase" as const, terms: ["conditions apply"] };
-assert.ok(checkSubmission(clean, { ...selection, rules: [required] }).issues.some(i => i.basis === "confirmed_breach"));
+assert.deepEqual(checkSubmission(clean, { ...selection, rules: [required] }).issues, [], "phrase rules are not legal decisions");
 console.log("PASS CC-03/04: source authorisation, coverage, dates, conflicts, jurisdiction/platform/audience selection, content categories, immutable inputs and clean/violating cases.");

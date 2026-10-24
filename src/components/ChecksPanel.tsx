@@ -1,5 +1,6 @@
 "use client";
 
+import { excerptFormatter, reviewedAdvertisements } from "@/lib/compliance/presentation";
 import { ComplianceReviewHistory } from "./ComplianceReviewHistory";
 import { useMemo, useState } from "react";
 import { cn } from "@/lib/cn";
@@ -113,7 +114,7 @@ function FindingCard({ f }: { f: Flag }) {
           red ? "text-[var(--danger)]" : "text-amber-800",
         )}
       >
-        {red ? "Problem" : "Agent unsure · your call"} · {f.title}
+        {red ? "AI identified a conflict" : "Needs confirmation"} · {f.title}
       </p>
       {f.excerpt ? (
         <p className="mt-2 font-serif text-base">
@@ -127,14 +128,14 @@ function FindingCard({ f }: { f: Flag }) {
           </mark>
         </p>
       ) : null}
-      <p className="mt-2 text-sm">{f.explanation}</p>
+      <p className="mt-2 text-sm"><strong>Why it matters: </strong>{f.explanation}</p>
       {f.fix ? (
         <p className="mt-2 text-sm">
-          <span className="font-semibold">Fix: </span>
+          <span className="font-semibold">What to do: </span>
           {f.fix}
         </p>
       ) : null}
-      <p className="mt-2 text-xs text-mute">{f.source}</p>
+      <details className="mt-3 text-sm"><summary className="cursor-pointer font-medium">Read the supporting source</summary><p className="mt-2 text-ink-soft">{f.source}</p></details>
     </li>
   );
 }
@@ -176,20 +177,14 @@ export function ChecksPanel({
   // copy, which has the recommended fix, so the list does not render it twice.
   const flags: Flag[] = useMemo(() => {
     const byId = new Map<string, Flag>();
-    const advertisements = campaign.complianceReviewRuns?.at(-1)?.submission.content ?? [];
-    const advertisementLabels = new Map(
-      advertisements.map((advertisement, index) => [
-        advertisement.creativeId,
-        `Advertisement ${String.fromCharCode(65 + index)} — ${advertisement.headline}`,
-      ]),
-    );
-    const explainExcerpt = (excerpt: string) => advertisementLabels.get(excerpt) ?? excerpt;
+    const explainExcerpt = excerptFormatter(reviewedAdvertisements(campaign, latest?.[0] ?? attempt?.creativeVersion ?? campaign.creatives[0]?.version ?? 0));
+    const explainAttemptExcerpt = excerptFormatter(reviewedAdvertisements(campaign, attempt?.creativeVersion ?? latest?.[0] ?? 0));
     for (const i of attempt?.issues ?? []) {
       byId.set(i.id, {
         id: i.id,
         tone: i.basis === "confirmed_breach" ? "breach" : "judge",
         title: i.category.replace(/_/g, " "),
-        excerpt: i.excerpt !== "—" ? explainExcerpt(i.excerpt) : undefined,
+        excerpt: i.excerpt !== "—" ? explainAttemptExcerpt(i.excerpt) : undefined,
         explanation: i.explanation,
         source: `${i.rule} · ${i.policySource}`,
         fix: i.recommendedCorrection,
@@ -209,10 +204,11 @@ export function ChecksPanel({
       }
     }
     return [...byId.values()];
-  }, [latest, attempt, campaign.complianceReviewRuns]);
+  }, [latest, attempt, campaign]);
 
   const problems = flags.filter((f) => f.tone === "breach").length;
   const unsure = flags.length - problems;
+  const reviewLimitations = campaign.complianceReviewRuns?.at(-1)?.report?.limitations ?? [];
   const cleared = !!latest && flags.length === 0 && latest[1].every((r) => r.verdict === "pass");
   // One ad for now: the first creative.
   const ad = campaign.creatives[0];
@@ -250,7 +246,7 @@ export function ChecksPanel({
                   ? `${unsure} thing${unsure === 1 ? "" : "s"} the agent is unsure about`
                   : cleared
                     ? "Nothing flagged"
-                    : "Review in progress"}
+                    : attempt?.outcome === "manual_review" ? "Review incomplete" : "Review in progress"}
           </h2>
           <p className="mt-1 text-sm text-ink-soft">
             {decision
@@ -290,13 +286,14 @@ export function ChecksPanel({
         ) : null}
         {flags.length === 0 ? (
           <p className="mt-3 text-sm text-ink-soft">
-            <span className="status-chip risk-low mr-2">Cleared</span>
+            <span className={cn("status-chip mr-2", cleared ? "risk-low" : "risk-mid")}>{cleared ? "No issue identified" : "Review incomplete"}</span>
             {summary ?? "No issues found."}
           </p>
         ) : null}
+        {reviewLimitations.length > 0 && <div className="mt-3 rounded border border-amber-500 p-3 text-sm"><h3 className="font-medium">What still needs checking</h3><ul className="mt-2 list-disc pl-5">{reviewLimitations.map(item => <li key={item}>{item}</li>)}</ul></div>}
         {attempt?.outcome === "manual_review" ? (
           <p className="mt-3 text-sm font-medium text-[var(--danger)]">
-            The agent could not clear this on its own. The decision is yours.
+            Resolve the missing evidence or incomplete review before deciding whether to publish.
           </p>
         ) : null}
       </div>
@@ -325,7 +322,7 @@ export function ChecksPanel({
                   <p className="mt-1 text-ink-soft">{reports[0].summary}</p>
                   {reports.flatMap((r) => r.findings).map((f, i) => (
                     <p key={`${v}-${f.id}-${i}`} className="mt-1 text-xs text-mute">
-                      Flagged “{f.excerpt}” · {f.rule}
+                      Flagged “{excerptFormatter(reviewedAdvertisements(campaign, v))(f.excerpt)}” · {f.rule}
                     </p>
                   ))}
                 </li>

@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { loadReviewEvidence } from "../src/lib/compliance/knowledge/review";
+import { parseSubmission } from "../src/lib/compliance/service";
+import { readFileSync } from "node:fs";
 import { KnowledgeStore, extractPassages } from "../src/lib/compliance/knowledge/store";
 const dir = mkdtempSync(join(tmpdir(), "aisle-kb-"));
 const file = join(dir, "policy.md");
@@ -43,5 +46,28 @@ try {
   const long = await extractPassages(new TextEncoder().encode("x".repeat(3200)), ".txt");
   assert.equal(long.length, 3);
   assert.ok(long.every(p => p.text.length <= 1600));
+  // Exercise the same retrieval adapter used by campaign registration.
+  await store.ingest(file, { ...metadata, documentId: "local-law", kind: "legislation", version: "1" }, [sourceUrl]);
+  const allowList = join(dir, "sources.json");
+  writeFileSync(allowList, JSON.stringify({ authorisedSources: [sourceUrl] }));
+  const previousDb = process.env.AISLE_COMPLIANCE_KB_DB;
+  const previousSources = process.env.AISLE_COMPLIANCE_KB_SOURCES_FILE;
+  try {
+    process.env.AISLE_COMPLIANCE_KB_DB = db;
+    process.env.AISLE_COMPLIANCE_KB_SOURCES_FILE = allowList;
+    const submission = parseSubmission(JSON.parse(readFileSync("docs/contracts/examples/compliance-valid.json", "utf8")));
+    submission.content[0].headline = "Refunds available";
+    submission.targetPlatforms = ["web"];
+    const evidence = loadReviewEvidence(submission, [], options.now);
+    assert.ok(evidence.sources.some(source => source.kind === "legislation" && source.text.includes("refunds")));
+    assert.ok(evidence.sources.some(source => source.sourceUrl === sourceUrl && source.location));
+    assert.ok(!evidence.problems.some(problem => problem.includes("No applicable local legislation")));
+    const foreign = loadReviewEvidence({ ...submission, country: "NZ" }, [], options.now);
+    assert.ok(foreign.problems.some(problem => problem.includes("No applicable local legislation")));
+    assert.ok(!foreign.sources.some(source => source.kind === "legislation"));
+  } finally {
+    if (previousDb === undefined) delete process.env.AISLE_COMPLIANCE_KB_DB; else process.env.AISLE_COMPLIANCE_KB_DB = previousDb;
+    if (previousSources === undefined) delete process.env.AISLE_COMPLIANCE_KB_SOURCES_FILE; else process.env.AISLE_COMPLIANCE_KB_SOURCES_FILE = previousSources;
+  }
   console.log("PASS: authorisation, immutable versions, citations, active revisions, persistence, scoped retrieval, freshness, unknown dates, safe queries and extraction limits.");
 } finally { store.close(); rmSync(dir, { recursive: true, force: true }); }

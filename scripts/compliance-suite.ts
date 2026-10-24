@@ -67,3 +67,17 @@ if (process.argv.includes("--examples")) {
   writeFileSync("docs/contracts/examples/compliance-invalid.json", JSON.stringify({ ...submission, content: [], targetPlatforms: [] }, null, 2) + "\n");
 }
 console.log("PASS CC-01/02: contract validation, immutable snapshot, exact version/context, duplicate registration, permission checks, graph checkpoint, provider failure, invalid submission, no approval/distribution.");
+
+// The persisted evidence checkpoint, including original text, reaches the model.
+const checkpoint = structuredClone(accepted.campaign);
+const legalSource = { id: "synthetic-law", name: "Synthetic local law", version: "1", text: "Synthetic advertising provisions for testing only.", uploadedAt: now, truncated: false, kind: "legislation", jurisdiction: "AU" };
+checkpoint.complianceReviewRuns![0].evidence = { sources: [legalSource], problems: [], retrievedAt: now };
+const reviewed = await runEngine({ campaigns: [checkpoint], now }, checkpoint, { type: "ADVANCE", actor: "founder" }, defaultSettings(), defaultBrand, { maxSteps: 1, llm: { request: async req => {
+  assert.ok(req.prompt.includes(legalSource.text));
+  assert.ok(req.prompt.includes(checkpoint.creatives[0].cta));
+  return { status: "ok", text: JSON.stringify({ summary: "No conflict found in supplied evidence.", findings: [], applicabilityConfirmed: true, limitations: [] }), modelId: req.modelId, modelName: "Test", provider: "Test", providerId: "local", note: "Mock comparison", at: now, usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0, costUsd: 0, billedAs: "test", estimate: true, latencyMs: 0 } };
+} } });
+assert.equal(reviewed.campaign.complianceReviewRuns?.[0].report?.status, "PASSED");
+assert.equal(reviewed.campaign.complianceReviewRuns?.[0].evidence?.sources[0].text, legalSource.text);
+assert.equal(reviewed.campaign.status, "awaiting_approval");
+assert.equal(reviewed.campaign.channelVersions.length, 0);

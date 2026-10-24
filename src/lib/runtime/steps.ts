@@ -1,6 +1,6 @@
+import { loadReviewEvidence } from "../compliance/knowledge/review";
 import { buildReport } from "../compliance/report";
 import { loadRules } from "../compliance/rules";
-import { checkSubmission } from "../compliance/checks";
 import { beginReview, submissionFor, assertReviewPermission, ComplianceSubmissionError } from "../compliance/service";
 /**
  * Agent step handlers.
@@ -1009,6 +1009,7 @@ export function receiveComplianceSubmission(w: Work, env: StepEnv) {
   try {
     const review = beginReview(w.campaign, env.brand, submissionFor(w.campaign, env.brand), w.now);
     review.ruleSelection ??= loadRules(review.submission, w.now);
+    review.evidence ??= loadReviewEvidence(review.submission, review.ruleSelection.rules, w.now);
     w.campaign.status = "compliance";
     w.campaign.running = true;
     setRun(w, { step: "compliance.review", status: "running" });
@@ -1036,7 +1037,7 @@ export async function runComplianceReview(
   c.running = true;
   const attemptNo = reviewRun.attemptNumber;
   const copyBlob = c.creatives
-    .map((cr) => `[${cr.variant}] ${cr.headline} — ${cr.subhead} — ${cr.caption}`)
+    .map((cr) => `[${cr.variant}] ${cr.headline}\n${cr.subhead}\n${cr.caption}\n${cr.cta}`)
     .join("\n");
 
   addEvent(
@@ -1050,8 +1051,7 @@ export async function runComplianceReview(
 
   const selection = reviewRun.ruleSelection ?? loadRules(reviewRun.submission, w.now);
   reviewRun.ruleSelection = selection;
-  const checked = checkSubmission(reviewRun.submission, selection);
-  const fallback = { issues: checked.issues, summary: `${checked.issues.length} issue(s) identified against the submitted version.` };
+  reviewRun.evidence ??= loadReviewEvidence(reviewRun.submission, selection.rules, w.now);
   const { decision, trace } = await decideCompliance({
     campaign: c,
     brand: env.brand,
@@ -1060,25 +1060,22 @@ export async function runComplianceReview(
     ownerId: env.ownerUserId,
     copy: copyBlob,
     attempt: attemptNo,
-    fallback,
+    evidence: reviewRun.evidence,
     rules: selection.rules,
     referenceRules: selection.referenceRules,
   });
   addTrace(w, trace, "compliance", "Policy review");
 
-  const structuredReport = buildReport(reviewRun, decision.issues, checked.limitations, uid("cp"), w.now);
+  const structuredReport = buildReport(reviewRun, decision.issues, [...reviewRun.submission.limitations, ...(decision.limitations ?? [])], uid("cp"), w.now, decision.scopeNotes);
   // CC-07 still owns the legacy revision cap; escalation never turns a finding into a pass.
   if (structuredReport.status === "CHANGES_REQUIRED" && attemptNo >= MAX_REVISION_ATTEMPTS)
     structuredReport.status = "MANUAL_REVIEW_REQUIRED";
   reviewRun.report = structuredReport;
   const verdict = {
     outcome: structuredReport.status === "PASSED" ? "pass" as const : structuredReport.status === "CHANGES_REQUIRED" ? "changes_required" as const : "manual_review" as const,
-    risk: decision.issues.some(i => i.severity === "high") || selection.problems.length ? "high" as const : decision.issues.length ? "medium" as const : "low" as const,
+    risk: decision.issues.some(i => i.severity === "high") || structuredReport.policyProblems.length ? "high" as const : decision.issues.length ? "medium" as const : "low" as const,
     score: structuredReport.status === "PASSED" ? 100 : 0,
   };
-  decision.summary = structuredReport.status === "PASSED"
-    ? "No unresolved findings in the configured automated checks; final human approval remains required."
-    : `${structuredReport.unresolvedCount} unresolved finding(s), ${selection.problems.length} policy problem(s). ${structuredReport.status.replace(/_/g, " ")}.`;
   const digest = inputDigest(c);
   const attempt: ComplianceAttempt = {
     id: uid("ca"),
@@ -1094,7 +1091,7 @@ export async function runComplianceReview(
     summary: decision.summary,
     issues: decision.issues,
     policyRefs: selection.rules.map(r => `${r.id}@${r.version}: ${r.source}`),
-    policyComplete: selection.problems.length === 0,
+    policyComplete: structuredReport.policyProblems.length === 0,
   };
 
   // Legacy-shaped report so existing views keep working.
@@ -1128,7 +1125,7 @@ export async function runComplianceReview(
   reviewRun.completedAt = w.now;
   reviewRun.result = { status: verdict.outcome, findings: structuredClone(decision.issues),
     rejectionReason: verdict.outcome === "pass" ? null : decision.summary,
-    limitations: checked.limitations, reportId: report.id };
+    limitations: structuredReport.limitations, reportId: report.id };
   c.complianceAttempts = [...c.complianceAttempts, attempt];
   c.complianceReports = [...c.complianceReports, report];
   c.creatives = c.creatives.map((cr) => ({
