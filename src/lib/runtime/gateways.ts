@@ -52,6 +52,9 @@ function simulate(
   const ref = `${item.channel}-${hash(item.id).toString(36)}`;
   const base = { itemId: item.id, channel: item.channel, at: now };
   const cappedAttempts = 1 + MAX_PUBLISH_RETRIES;
+  // DI-11 — simulated publish-and-confirm latency, deterministic per item: each
+  // send attempt costs ~90–209ms, and a late result adds the time it spent waiting.
+  const sendMs = 90 + (hash(item.id) % 120);
   switch (outcome) {
     case "retry_then_ok":
       return {
@@ -61,6 +64,7 @@ function simulate(
         status: "published",
         confirmationRef: ref,
         reconciled: false,
+        latencyMs: sendMs * 2,
         note: `Initial send timed out; confirmed on retry 1 of ${MAX_PUBLISH_RETRIES} via the ${via} gateway (ref ${ref}).`,
       };
     case "fail":
@@ -71,6 +75,7 @@ function simulate(
         status: "failed",
         confirmationRef: null,
         reconciled: false,
+        latencyMs: sendMs * cappedAttempts,
         note: `No confirmation from the ${via} gateway after the initial send and ${MAX_PUBLISH_RETRIES} retries. Not retried further and not skipped silently — raised for the founder.`,
       };
     case "late":
@@ -81,6 +86,7 @@ function simulate(
         status: "published",
         confirmationRef: ref,
         reconciled: true,
+        latencyMs: sendMs * cappedAttempts + 1500,
         note: `Initial send and ${MAX_PUBLISH_RETRIES} retries timed out; a late confirmation (ref ${ref}) from the ${via} gateway was matched to this item id and reconciled, not resubmitted.`,
       };
     case "ok":
@@ -92,6 +98,7 @@ function simulate(
         status: "published",
         confirmationRef: ref,
         reconciled: false,
+        latencyMs: sendMs,
         note: `Confirmed on the first submission via the ${via} gateway (ref ${ref}).`,
       };
   }

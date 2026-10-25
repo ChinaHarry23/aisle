@@ -7,6 +7,7 @@ import type {
   ComplianceAttempt,
   DeliveryOutcome,
   DeliveryReport,
+  DistributionContext,
   Evidence,
   PerformanceReport,
   PolicyDecision,
@@ -312,6 +313,8 @@ export type Campaign = CampaignInput & {
   publishOverrides?: Partial<Record<Channel, DeliveryOutcome>>;
   /** AHR-05 record of the simulated publish: attempts, confirmations, reconciliations. */
   deliveryReport?: DeliveryReport | null;
+  /** DI-03 — distribution context verified before adaptation (approval id, channel auth). */
+  distributionContext?: DistributionContext | null;
   /** Every guard evaluation, allowed or blocked. */
   policyDecisions: PolicyDecision[];
   /** Step-by-step trace of the current/last bench run. */
