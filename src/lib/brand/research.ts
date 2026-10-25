@@ -1,5 +1,6 @@
 import type { BrandProfile } from "@/lib/types";
 import type { CompleteRequest, CompleteResult } from "@/lib/llm/types";
+import { fetchPublicText } from "@/lib/net/public-fetch";
 
 type BrandResearch = {
   about: string;
@@ -33,11 +34,10 @@ function assertPublicSite(raw: string): URL {
   }
   if (url.protocol !== "https:" && url.protocol !== "http:") throw new Error("The website must start with http:// or https://.");
   const host = url.hostname.toLowerCase();
-  if (host === "localhost" || host.endsWith(".local") || host === "0.0.0.0" || host === "::1") {
+  // A quick, friendly refusal for the obvious cases. fetchPublicText checks
+  // every resolved address and redirect when it connects.
+  if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") || host.endsWith(".internal")) {
     throw new Error("Use the public website, not a local address.");
-  }
-  if (/^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(host)) {
-    throw new Error("Use the public website, not a private address.");
   }
   return url;
 }
@@ -86,14 +86,13 @@ function textOf(html: string): string {
 }
 
 async function readSite(url: URL): Promise<{ html: string; finalUrl: URL }> {
-  const response = await fetch(url, {
-    redirect: "follow",
-    signal: AbortSignal.timeout(12_000),
+  const page = await fetchPublicText(url, {
+    timeoutMs: 12_000,
+    maxBytes: 1_500_000,
     headers: { Accept: "text/html", "User-Agent": "AisleBrandResearch/1.0 (course project)" },
   });
-  if (!response.ok) throw new Error(`The website returned HTTP ${response.status}.`);
-  const html = (await response.text()).slice(0, 1_500_000);
-  return { html, finalUrl: new URL(response.url || url.href) };
+  if (page.status < 200 || page.status >= 300) throw new Error(`The website returned HTTP ${page.status}.`);
+  return { html: page.text, finalUrl: page.url };
 }
 
 function scraped(name: string, site: URL, html: string) {

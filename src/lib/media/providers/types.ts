@@ -15,4 +15,14 @@ export type ProviderContext = {
   onQueued?: (jobId: string) => void;
   signal?: AbortSignal;
 };
-export type MediaProviderAdapter = { id: ProviderId; keyEnv: string[]; generate: (req: GenerateRequest, ctx: ProviderContext) => Promise<ProviderOutput> };
+export type MediaProviderAdapter = {
+  id: ProviderId;
+  keyEnv: string[];
+  /**
+   * The kinds for which `generate` sends `ctx.apiKey` to the provider. For any
+   * other kind it renders on the owner's key whatever the browser sent, so the
+   * caller must hold credits.
+   */
+  callerKeyKinds?: readonly ("image" | "video")[];
+  generate: (req: GenerateRequest, ctx: ProviderContext) => Promise<ProviderOutput>;
+};

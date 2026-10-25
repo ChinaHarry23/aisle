@@ -220,6 +220,8 @@ async function veoVideo(req: GenerateRequest, { model, startImage, onQueued, sig
 export const googleAdapter: MediaProviderAdapter = {
   id: "google",
   keyEnv: [KEY_ENV],
+  // Nano Banana sends the browser's key; the video calls still use the server's.
+  callerKeyKinds: ["image"],
   async generate(req, ctx) {
     if (ctx.model.kind === "image") return nanoBanana(req, ctx);
     if (ctx.model.apiModel.startsWith("veo-")) return veoVideo(req, ctx);

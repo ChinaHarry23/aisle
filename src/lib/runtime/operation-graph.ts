@@ -29,7 +29,7 @@ import { FOUNDER_WAIT_STEPS, MAX_REVISION_ATTEMPTS, type Command } from "./types
 
 export type OpState = {
   work: Work;
-  /** Null only for a Studio run, which keeps the env off the checkpoint and fills `rememberOperationEnv`. */
+  /** Null only in a Studio checkpoint, which cannot store it; Studio fills it in for each node from its own map. */
   env: StepEnv | null;
   command: Command;
   maxSteps: number;
@@ -41,24 +41,9 @@ export type OpState = {
   stop: boolean;
 };
 
-const envByCampaign = new Map<string, StepEnv>();
-
-/**
- * Park a StepEnv outside the graph state.
- *
- * Studio checkpoints every channel. `StepEnv` holds `renderPoster` and the model
- * function, which a checkpoint cannot store, so a Studio run leaves `env` null
- * and nodes read the env from here.
- */
-export function rememberOperationEnv(campaignId: string, env: StepEnv) {
-  envByCampaign.set(campaignId, env);
-}
-
 function envOf(state: OpState): StepEnv {
-  if (state.env) return state.env;
-  const cached = envByCampaign.get(state.work.campaign.id);
-  if (!cached) throw new Error("Operation graph has no StepEnv for this campaign.");
-  return cached;
+  if (!state.env) throw new Error("Operation graph has no StepEnv for this campaign.");
+  return state.env;
 }
 
 const GraphState = Annotation.Root({
@@ -430,7 +415,8 @@ export async function publishNode(state: OpState): Promise<Partial<OpState>> {
     addEvent(w, "media", "escalation", "Publish refused", `Nothing is scheduled (status ${c.status}).`);
     return { work: w, canAdvance: false, message: "Nothing scheduled to publish." };
   }
-  const result = await runFeedbackCollection(w, envOf(state), { publish: true });
+  const actor = state.command.type === "PUBLISH" ? state.command.actor : "founder";
+  const result = await runFeedbackCollection(w, envOf(state), { publish: true, actor });
   // Publishing closes distribution; collecting results stays a separate,
   // explicit founder choice, so the run parks at the feedback step.
   if (!result.blocked) {

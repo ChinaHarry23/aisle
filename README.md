@@ -50,9 +50,9 @@ If port 3000 is busy Next.js picks the next one; use the URL it prints. Run only
 | `DATABASE_URL` | Production. Otherwise a local SQLite file is used. Also accepted: `POSTGRES_URL`, `POSTGRES_PRISMA_URL`, `AISLE_DATABASE_URL`, `NEON_DATABASE_URL`, `STORAGE_URL`. |
 | `AISLE_DB` | Force a backend: `sqlite` or `postgres`. |
 | `AISLE_DB_FILE` | Move the SQLite file (default `./data/aisle.db`). |
-| `AISLE_SEED_PASSWORD` | Password for the seeded team desks. |
+| `AISLE_SEED_PASSWORD` | Password for the seeded team desks. A hosted install seeds no desks without it. |
 | `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` | Server-wide keys for the agents. Each user can instead paste their own under Settings → Connections. |
-| `LOCAL_LLM_BASE_URL` | Ollama or any OpenAI-compatible endpoint (default `http://127.0.0.1:11434/v1`). |
+| `LOCAL_LLM_BASE_URL` | Ollama or any OpenAI-compatible endpoint (default `http://127.0.0.1:11434/v1`). A URL saved under Settings must be loopback, or the one set here; a hosted install only uses the one set here or in `LOCAL_LLM_PROBE_URLS`. |
 | `GOOGLE_AI_API_KEY` (or `GEMINI_API_KEY`), `ARK_API_KEY`, `TOKENHUB_API_KEY`, `DASHSCOPE_API_KEY` | Image providers for campaign posters, see [Models](#models). `BFL_API_KEY` is not wired yet. |
 | `RUNWAYML_API_SECRET`, `KLING_*`, `MINIMAX_API_KEY`, `PIKA_API_KEY` | Video providers. Not wired yet. |
 
@@ -261,4 +261,7 @@ npm run test:intake
 npm run test:agents
 npm run test:billing
 npm run test:workflow
+npm run test:trust-boundary
+npm run test:media-credits
+npm run test:url-guard
 ```

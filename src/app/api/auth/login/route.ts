@@ -45,15 +45,17 @@ export async function POST(request: Request) {
   if (!(await verifyPassword(password, user.passwordHash))) {
     return NextResponse.json({ error: "Email or password is wrong." }, { status: 401 });
   }
-  // Hosted installs still seed the desks with the demo password unless AISLE_SEED_PASSWORD
-  // is set, and nothing else locks them: this check is what keeps the published demo
-  // password from opening a team desk on a hosted install (unless the owner deliberately
-  // set AISLE_SEED_PASSWORD to it).
+  // A hosted install seeds no desks without AISLE_SEED_PASSWORD, but a database seeded
+  // before that rule (or copied from a local install) can still hold the demo hash.
+  // This keeps the published demo password from opening a team desk on a hosted
+  // install, unless the owner deliberately set AISLE_SEED_PASSWORD to it. It tests
+  // the stored hash, not the typed string, because bcrypt accepts other strings
+  // for the same password.
   if (
     isHosted() &&
-    password === DEMO_SEED_PASSWORD &&
     process.env.AISLE_SEED_PASSWORD !== DEMO_SEED_PASSWORD &&
-    SEED_ACCOUNTS.some((account) => account.id === user.id)
+    SEED_ACCOUNTS.some((account) => account.id === user.id) &&
+    (await verifyPassword(DEMO_SEED_PASSWORD, user.passwordHash))
   ) {
     return NextResponse.json({ error: "Email or password is wrong." }, { status: 401 });
   }

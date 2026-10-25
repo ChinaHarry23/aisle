@@ -10,7 +10,7 @@ export type PublicUser = {
 export type AuthUser = PublicUser & {
   passwordHash: string;
   createdAt: string;
-  /** Not mapped by toAuthUser (the session_version column is read via userExtras), so getCurrentUser sees 0; nothing bumps the column, so it revokes no sessions. */
+  /** The users.session_version column. A cookie signed with an older version no longer signs in. */
   sessionVersion?: number;
 };
 

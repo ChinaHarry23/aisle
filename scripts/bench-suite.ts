@@ -292,6 +292,18 @@ async function approveAndAdvance(s: ReturnType<typeof session>, note: string) {
 
 /* CC-03: missing trusted policy must stop the automatic revision chain. */
 {
+  // The bundled registry has binding AU law, so its copyright, ethics, brand
+  // and platform gaps are reported as limitations, not as missing policy.
+  const bundled = await startAndAdvance({ channels: ["web"] });
+  const selection = bundled.campaign.complianceReviewRuns?.[0].ruleSelection;
+  assert.equal(selection?.problems.length, 0, "binding AU advertising and consumer law are present");
+  assert.ok(selection?.limitations?.some((line) => line.includes("copyright")));
+  assert.ok(bundled.campaign.complianceReviewRuns?.[0].report?.limitations.some((line) => line.includes("copyright")), "gaps reach the report");
+  pass("CC-03 — coverage gaps are reported, not treated as missing law", `${selection?.limitations?.length ?? 0} limitation(s)`);
+}
+const bundledRules = process.env.AISLE_COMPLIANCE_RULES_FILE;
+process.env.AISLE_COMPLIANCE_RULES_FILE = path.join(root, "data", "no-such-policy-registry.json");
+{
   const s = await startAndAdvance({ channels: ["web"] });
   const c = s.campaign;
   assert.equal(c.complianceReviewRuns?.length, 1);
@@ -316,6 +328,8 @@ async function approveAndAdvance(s: ReturnType<typeof session>, note: string) {
   assert.notEqual(s.campaign.status, "published");
   pass("CC-03 — model pass cannot override missing policy", "Unpublished, awaiting human resolution.");
 }
+if (bundledRules === undefined) delete process.env.AISLE_COMPLIANCE_RULES_FILE;
+else process.env.AISLE_COMPLIANCE_RULES_FILE = bundledRules;
 
 /* ---------------------------------------------------- AHR-05 distribution -- */
 

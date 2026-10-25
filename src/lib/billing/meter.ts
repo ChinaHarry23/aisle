@@ -66,6 +66,8 @@ export type Hold = {
  */
 export async function holdCredits(ctx: BillingContext | undefined, estimateUsd: number): Promise<Hold | null> {
   if (!ctx) return null;
+  // NaN would round to a zero hold and let the call through for free.
+  if (!Number.isFinite(estimateUsd) || estimateUsd < 0) return null;
   const ref = randomUUID();
   if (ctx.kind === "unmetered" || isUnlimited(ctx)) return { ctx, ref, heldMilli: 0, charged: false, epoch: 0 };
   const milli = milliForCost(estimateUsd);

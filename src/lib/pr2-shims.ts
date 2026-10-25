@@ -10,7 +10,6 @@ import type {
   MediaModel as Pr2MediaModel,
   MediaGeneration as Pr2MediaGeneration,
 } from "@/lib/media/pr2-types";
-import { isHosted } from "@/lib/billing/hosted";
 
 export const LOCAL_DEFAULT_LLM = PROVIDER_DEFAULT_MODEL.local;
 
@@ -25,47 +24,6 @@ export function parseToolArgs(raw: unknown): Record<string, unknown> {
   } catch {
     return { __unparsed: raw };
   }
-}
-
-const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
-
-function normaliseBase(url: string) {
-  return url.trim().replace(/\/+$/, "");
-}
-
-function localProbePorts(): string[] {
-  const custom = process.env.LOCAL_LLM_PROBE_URLS;
-  if (custom !== undefined) return custom.split(",").map((item) => item.trim()).filter(Boolean);
-  return ["http://127.0.0.1:8000/v1", "http://127.0.0.1:1234/v1", "http://127.0.0.1:11434/v1"];
-}
-
-/** The local servers this server itself is configured to use. */
-function configuredLocalBases(): string[] {
-  return [process.env.LOCAL_LLM_BASE_URL, ...localProbePorts()]
-    .filter((value): value is string => Boolean(value?.trim()))
-    .map(normaliseBase);
-}
-
-/**
- * PR #2 SSRF helper (not used by Cindy's adapters). A user-supplied local
- * base URL is allowed only when it is already configured, or — on a private
- * install — http(s) to loopback with no credentials, query, or fragment.
- */
-export function allowedLocalBase(url?: string | null) {
-  if (!url?.trim()) return null;
-  const wanted = normaliseBase(url);
-  if (configuredLocalBases().includes(wanted)) return wanted;
-  if (isHosted()) return null;
-  let parsed: URL;
-  try {
-    parsed = new URL(wanted);
-  } catch {
-    return null;
-  }
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
-  if (!LOOPBACK_HOSTS.has(parsed.hostname)) return null;
-  if (parsed.username || parsed.password || parsed.search || parsed.hash) return null;
-  return normaliseBase(`${parsed.origin}${parsed.pathname}`);
 }
 
 export function getModel(id: string): Pr2MediaModel {

@@ -37,8 +37,20 @@ import { MAX_REVISION_ATTEMPTS, type ChannelResult, type ComplianceIssue, type C
 export type LlmRuntime = {
   request: (req: CompleteRequest) => Promise<CompleteResult>;
   /** live: lets the code paths that bypass `request` run: the LangGraph seat agents (askSeat), rewriteImagePrompts, and the optional intake-formatting call in operation-graph.ts. One-shot `request` calls run either way. billing: the metered identity passed to seat-agent runs. When it is set, decideCompliance sends both of its requests through runComplete(req, billing) instead of `request`. */
-  meta?: { live: boolean; billing?: BillingContext };
+  meta?: {
+    live: boolean;
+    billing?: BillingContext;
+    /** Charged by seat runs that failed and fell back; the next booked trace takes it. */
+    unbookedUsd?: number;
+  };
 };
+
+/** What failed seat runs were charged since the last booking, cleared as it is read. */
+export function takeUnbookedSeatCost(llm: LlmRuntime | undefined): number {
+  const usd = llm?.meta?.unbookedUsd ?? 0;
+  if (llm?.meta) llm.meta.unbookedUsd = 0;
+  return Number.isFinite(usd) && usd > 0 ? usd : 0;
+}
 
 export function makeLlmRuntime(billing?: BillingContext): LlmRuntime {
   return {
@@ -131,6 +143,12 @@ async function askSeat<T>(input: {
     bindTools: false,
     instructions: input.instructions,
     schema: input.schema,
+    // A run that throws has no trace, but its calls were settled; keep the
+    // charge so the step that books the fallback books this too.
+    onFailedUsage: (costUsd) => {
+      const meta = input.llm.meta;
+      if (meta && Number.isFinite(costUsd) && costUsd > 0) meta.unbookedUsd = (meta.unbookedUsd ?? 0) + costUsd;
+    },
   });
 }
 

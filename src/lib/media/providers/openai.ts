@@ -63,6 +63,7 @@ type ImagesResponse = {
 export const openaiAdapter: MediaProviderAdapter = {
   id: "openai",
   keyEnv: ["OPENAI_API_KEY"],
+  callerKeyKinds: ["image"],
   async generate(req, ctx) {
     return traceImage(ctx.model.apiModel, () => generateOpenAIImage(req, ctx));
   },

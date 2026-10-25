@@ -180,6 +180,8 @@ async function seedance(req: GenerateRequest, { model, startImage, onQueued, sig
 export const bytedanceAdapter: MediaProviderAdapter = {
   id: "bytedance",
   keyEnv: [KEY_ENV],
+  // Seedream sends the browser's key; the Seedance video calls still use the server's.
+  callerKeyKinds: ["image"],
   generate(req, ctx) {
     return ctx.model.kind === "image" ? seedream(req, ctx) : seedance(req, ctx);
   },

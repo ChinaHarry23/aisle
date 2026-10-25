@@ -1,4 +1,6 @@
 import { DEFAULT_LOCAL_BASE_URL } from "../settings";
+import { isHosted } from "@/lib/billing/hosted";
+import { allowedLocalBase, refusedLocalBaseMessage } from "./local-base";
 import type { CompleteRequest, LlmModel } from "./types";
 
 class LlmAdapterNotWiredError extends Error {
@@ -10,7 +12,7 @@ class LlmAdapterNotWiredError extends Error {
 
 export function isLlmConfigured(model: LlmModel, localBaseUrl?: string) {
   if (model.providerId === "local") {
-    return Boolean(localBaseUrl || process.env.LOCAL_LLM_BASE_URL);
+    return Boolean(localBaseUrl?.trim() || process.env.LOCAL_LLM_BASE_URL?.trim());
   }
   return model.envKeys.every((key) => Boolean(process.env[key]));
 }
@@ -60,8 +62,22 @@ export function buildLlmBody(model: LlmModel, req: CompleteRequest): Record<stri
   };
 }
 
+/**
+ * The local server a call goes to. An account's own URL must pass
+ * allowedLocalBase; a refused one throws instead of falling back, so the
+ * founder sees why their setting did not take.
+ */
 export function localBase(req: CompleteRequest) {
-  return (req.localBaseUrl || process.env.LOCAL_LLM_BASE_URL || DEFAULT_LOCAL_BASE_URL).replace(/\/$/, "");
+  if (req.localBaseUrl?.trim()) {
+    const allowed = allowedLocalBase(req.localBaseUrl);
+    if (!allowed) throw new Error(refusedLocalBaseMessage());
+    return allowed;
+  }
+  const configured = process.env.LOCAL_LLM_BASE_URL?.trim();
+  if (configured) return configured.replace(/\/+$/, "");
+  // The laptop default is never assumed on a hosted server.
+  if (isHosted()) throw new Error(refusedLocalBaseMessage());
+  return DEFAULT_LOCAL_BASE_URL.replace(/\/$/, "");
 }
 
 export async function callLlm(
@@ -73,6 +89,8 @@ export async function callLlm(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(buildLlmBody(model, req)),
+      // A redirect could carry the request past the URL check above.
+      redirect: "error",
       signal: AbortSignal.timeout(2_500),
     });
     if (!res.ok) {

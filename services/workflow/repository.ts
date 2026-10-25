@@ -4,8 +4,10 @@ import path from "node:path";
 import { randomUUID, createHash } from "node:crypto";
 import { blankCampaign } from "../../src/lib/seed";
 import { attachableRecommendation } from "../../src/lib/runtime/defaults";
+import { isArchived } from "../../src/lib/campaign-lifecycle";
 import { assertTransition, parseCommand, WorkflowError } from "../../src/lib/workflow/commands";
-import type { Campaign, CampaignInput } from "../../src/lib/types";
+import { founderCollectorOverrides, founderInput } from "../../src/lib/workflow/founder-input";
+import type { Campaign } from "../../src/lib/types";
 import type { Command, EngineResult } from "../../src/lib/runtime/types";
 import type { WorkflowJob, WorkflowSubmission } from "../../src/lib/workflow/types";
 import { applyStudioMedia, type StudioMediaUpdate } from "../../src/lib/media/persistence";
@@ -89,27 +91,17 @@ export class WorkflowRepository {
         throw new WorkflowError("This campaign already has an active job. Open Workflow operations to see its progress.", 409);
       }
       let current = this.campaign(user, input.campaign.id);
-      if (typeof current?.archivedAt === "string" && current.archivedAt && command.type !== "PAUSE") {
+      // The trash lives on the workspace document, which the API loads on the
+      // server and passes in as `campaigns`; the durable snapshot never has it.
+      const inWorkspace = input.campaigns.find((item) => item?.id === input.campaign.id);
+      if ((isArchived(current ?? {}) || isArchived(inWorkspace ?? {})) && command.type !== "PAUSE") {
         throw new WorkflowError("This campaign is in the trash. Restore it before the agents can continue.", 409);
       }
       if (!current || (current.status === "draft" && command.type === "START")) {
         if (command.type !== "START" || input.campaign.status !== "draft") throw new WorkflowError("Start a new draft to enter the durable workflow. Existing legacy results are not silently imported.", 409);
         // Only founder inputs cross the trust boundary. Never accept browser approvals, logs or results.
         const raw = input.campaign;
-        const fields: CampaignInput = {
-          name: raw.name,
-          product: raw.product,
-          category: raw.category,
-          targetAudience: raw.targetAudience,
-          objective: raw.objective,
-          budget: raw.budget,
-          channels: raw.channels,
-          startDate: raw.startDate,
-          endDate: raw.endDate,
-          country: raw.country,
-          notes: typeof raw.notes === "string" ? raw.notes : "",
-          spendCapUsd: raw.spendCapUsd,
-        };
+        const fields = founderInput(raw);
         const prior = attachableRecommendation(this.campaigns(user));
         const fresh = { ...blankCampaign(fields, input.brand, prior?.note ?? null, input.settings, prior?.fromCampaignId ?? null), id: raw.id, internalDataAuthorised: raw.internalDataAuthorised === true };
         if (current) { fresh.log = current.log; fresh.createdAt = current.createdAt; }
@@ -118,10 +110,7 @@ export class WorkflowRepository {
       }
       // These are explicit founder-controlled settings, never generated results or approvals.
       if (Number.isFinite(input.campaign.spendCapUsd) && input.campaign.spendCapUsd! > 0) current.spendCapUsd = input.campaign.spendCapUsd;
-      if (command.type === "COLLECT_FEEDBACK") {
-        const valid = ["ok", "no_data", "not_authorised", "late", "incomplete", "excluded"];
-        current.collectorOverrides = Object.fromEntries(Object.entries(input.campaign.collectorOverrides || {}).filter(([channel, status]) => current!.channels.includes(channel as Campaign["channels"][number]) && valid.includes(status)));
-      }
+      if (command.type === "COLLECT_FEEDBACK") current.collectorOverrides = founderCollectorOverrides(current, input.campaign.collectorOverrides);
       assertTransition(current, command);
       this.db.prepare("update workflow_campaigns set snapshot=? where user_id=? and campaign_id=?").run(JSON.stringify(current), user, current.id);
       const id = randomUUID(), at = new Date().toISOString();

@@ -17,7 +17,7 @@
  */
 
 import { buildReport } from "../compliance/report";
-import { loadRules } from "../compliance/rules";
+import { currentRuleSelection } from "../compliance/rules";
 import { checkSubmission } from "../compliance/checks";
 import { resolveReviewOutcome } from "../compliance/outcome";
 import { posterImages } from "../compliance/posters";
@@ -26,6 +26,8 @@ import { beginReview, submissionFor, assertReviewPermission, ComplianceSubmissio
 import { uid } from "@/lib/ids";
 import { copyFromBrief } from "@/lib/media/brief-copy";
 import { getModelOrDefault } from "@/lib/media/catalog";
+import { mediaHoldUsd } from "@/lib/media/estimate";
+import { posterRequest } from "@/lib/media/prompts";
 import type { MediaGeneration } from "@/lib/media/types";
 import { makeLog } from "@/lib/seed";
 import type { WorkspaceSettings } from "@/lib/settings";
@@ -49,6 +51,7 @@ import {
   decideCopy,
   decideRecommendation,
   decideTrendBrief,
+  takeUnbookedSeatCost,
   type CopyVariant,
   type DecisionTrace,
   type LlmRuntime,
@@ -230,17 +233,21 @@ export async function callTool(
   return outcome;
 }
 
-function addTrace(w: Work, trace: DecisionTrace, agent: Actor, purpose: string) {
+/** Books a decision's cost, plus any seat run that failed after it was charged on the way. */
+function addTrace(w: Work, trace: DecisionTrace, agent: Actor, purpose: string, llm?: LlmRuntime) {
+  const failedSeat = takeUnbookedSeatCost(llm);
+  const cost = trace.usage.costUsd + failedSeat;
+  const extra = failedSeat > 0 ? ` Includes $${failedSeat.toFixed(4)} for an agent run that failed after it was charged.` : "";
   addEvent(
     w,
     agent,
     "insight",
     `${purpose} · ${trace.modelName}`,
-    `${trace.path === "live_model" ? "LLM decision" : "Deterministic rules"} · ${trace.status} · est. $${trace.usage.costUsd.toFixed(4)} · ${trace.usage.totalTokens} tokens. ${trace.note}`,
+    `${trace.path === "live_model" ? "LLM decision" : "Deterministic rules"} · ${trace.status} · est. $${cost.toFixed(4)} · ${trace.usage.totalTokens} tokens. ${trace.note}${extra}`,
   );
   w.campaign.spend = {
     ...w.campaign.spend,
-    inferenceUsd: Math.round((w.campaign.spend.inferenceUsd + trace.usage.costUsd) * 1e5) / 1e5,
+    inferenceUsd: Math.round((w.campaign.spend.inferenceUsd + cost) * 1e5) / 1e5,
   };
 }
 
@@ -588,7 +595,7 @@ export async function runTrendResearch(
   });
   const decision = recommended ? pinClearance(decided.decision, recommended) : decided.decision;
   const trace = decided.trace;
-  addTrace(w, trace, "trend", "Brief prioritisation");
+  addTrace(w, trace, "trend", "Brief prioritisation", env.llm);
   for (const l of decision.limitations) {
     gaps.push({
       id: uid("gap"),
@@ -825,25 +832,22 @@ export async function runCreativeGeneration(
     complianceNotes: notes,
     fallback: [fallbackMap.A, fallbackMap.B],
   });
-  addTrace(w, trace, "creative", `Copy for v${version}`);
+  addTrace(w, trace, "creative", `Copy for v${version}`, env.llm);
 
   const creatives = buildCreatives(c, variants, version);
-  const modelId = getModelOrDefault(env.settings.imageModelId, "image").id;
-  const withGen: Creative[] = [];
-  for (const cr of creatives) {
-    const generation = await env.renderPoster({ campaign: c, creative: cr, modelId });
-    withGen.push({ ...cr, createdAt: w.now, generation });
-  }
-  const mediaCost = withGen.reduce((n, cr) => n + (cr.generation?.usage.costUsd ?? 0), 0);
-
-  // Guard the spend before it is booked (UC-01 ext 13.a).
+  const imageModel = getModelOrDefault(env.settings.imageModelId, "image");
+  const modelId = imageModel.id;
+  // Guard the spend on a quote before anything renders (UC-01 ext 13.a), so a
+  // blocked step has not already paid the provider for its pictures.
+  // The same worst-case figure the credit hold uses, so actual cost stays under the cap.
+  const quote = creatives.reduce((n, cr) => n + mediaHoldUsd(imageModel, posterRequest(c, cr, modelId)), 0);
   const spend = evaluateGuard(
     {
       actor: "creative",
       action: "SPEND_MEDIA",
       campaign: c,
       target: `image generation on ${modelId}`,
-      amountUsd: mediaCost,
+      amountUsd: quote,
       triggeredBy: "creative.generate",
     },
     w.now,
@@ -864,6 +868,13 @@ export async function runCreativeGeneration(
     );
     return { message: spend.reason, blocked: true };
   }
+
+  const withGen: Creative[] = [];
+  for (const cr of creatives) {
+    const generation = await env.renderPoster({ campaign: c, creative: cr, modelId });
+    withGen.push({ ...cr, createdAt: w.now, generation });
+  }
+  const mediaCost = withGen.reduce((n, cr) => n + (cr.generation?.usage.costUsd ?? 0), 0);
 
   c.creatives = withGen;
   c.imageModelId = modelId;
@@ -915,7 +926,7 @@ export async function runCreativeGeneration(
 export function receiveComplianceSubmission(w: Work, env: StepEnv) {
   try {
     const review = beginReview(w.campaign, env.brand, submissionFor(w.campaign, env.brand), w.now);
-    review.ruleSelection ??= loadRules(review.submission, w.now);
+    review.ruleSelection = currentRuleSelection(review.ruleSelection, review.submission, w.now);
     w.campaign.status = "compliance";
     w.campaign.running = true;
     setRun(w, { step: "compliance.review", status: "running" });
@@ -955,7 +966,7 @@ export async function runComplianceReview(
   );
   addStep(w, "compliance.receive", "compliance", "ok", "Submission received", `Input digest recorded. Attempt ${attemptNo}.`);
 
-  const selection = reviewRun.ruleSelection ?? loadRules(reviewRun.submission, w.now);
+  const selection = currentRuleSelection(reviewRun.ruleSelection, reviewRun.submission, w.now);
   reviewRun.ruleSelection = selection;
   const checked = checkSubmission(reviewRun.submission, selection);
   const images = await posterImages(c, env.ownerUserId);
@@ -984,7 +995,7 @@ export async function runComplianceReview(
     fallback: { summary: "The compliance agent did not return a usable review." },
     rules: selection.rules,
   });
-  addTrace(w, trace, "compliance", "Policy review");
+  addTrace(w, trace, "compliance", "Policy review", env.llm);
 
   const outcome = resolveReviewOutcome({
     agentOutcome: decision.outcome,
@@ -1002,7 +1013,7 @@ export async function runComplianceReview(
   const verdict = { outcome, risk, score: decision.issues.length };
   const summary = [
     decision.summary,
-    selection.problems.length > 0 ? "No authorised policy registry is configured, so this review was not passed." : "",
+    selection.problems.length > 0 ? `The policy registry is not usable for this review, so it was not passed: ${selection.problems.join(" ")}` : "",
     documentProblems[0] ?? "",
     imageProblems[0] ?? "",
   ].filter(Boolean).join(" ");
@@ -1025,7 +1036,7 @@ export async function runComplianceReview(
     summary,
     issues: decision.issues,
     policyRefs: selection.rules.map(r => `${r.id}@${r.version}: ${r.source}`),
-    policyComplete: selection.problems.length === 0,
+    policyComplete: selection.problems.length === 0 && (selection.limitations ?? []).length === 0,
   };
 
   // Legacy-shaped report so existing views keep working.
@@ -1340,7 +1351,7 @@ export async function runMediaAdaptation(
     channels: c.channels.map((ch) => ({ channel: ch, spec: CHANNEL_SPECS[ch] })),
     approvedClaims,
   });
-  addTrace(w, captionTrace, "media", "Per-channel captions");
+  addTrace(w, captionTrace, "media", "Per-channel captions", env.llm);
   const captionsLive = captionTrace.path === "live_model";
 
   const versions: ChannelVersion[] = [];
@@ -1984,27 +1995,28 @@ export function runPublish(w: Work): { escalated: boolean } {
 export async function runFeedbackCollection(
   w: Work,
   env: StepEnv,
-  options: { publish: boolean },
+  options: { publish: boolean; actor?: "founder" | "media" },
 ): Promise<{ message: string; blocked: boolean }> {
   const c = w.campaign;
 
   if (options.publish) {
-    // Only the founder reaches this path; the guard is asked anyway so the
-    // decision is on the record.
+    // The guard sees who really asked: only the founder may publish, so an
+    // agent-framed PUBLISH is refused and recorded here.
+    const actor = options.actor ?? "founder";
     const outcome = evaluateGuard(
       {
-        actor: "founder",
+        actor,
         action: "PUBLISH_CONTENT",
         campaign: c,
         target: `${c.channels.join(", ")}`,
         kind: c.channels.includes("print") ? "catalogue_cover" : "social",
-        triggeredBy: "founder.publish",
+        triggeredBy: `${actor}.publish`,
       },
       w.now,
     );
     recordPolicy(w, outcome.decision);
     if (outcome.verdict === "block") {
-      addEvent(w, "founder", "policy", "Publish blocked", outcome.reason, {
+      addEvent(w, actor, "policy", "Publish blocked", `${outcome.reason} ${outcome.remedy ?? ""}`.trim(), {
         policyDecisionId: outcome.decision.id,
       });
       return { message: outcome.reason, blocked: true };
@@ -2055,7 +2067,7 @@ export async function runFeedbackCollection(
     summary: report.summary,
     fallback: deterministicRecommendation(c, report),
   });
-  addTrace(w, trace, "media", "Next-campaign recommendation");
+  addTrace(w, trace, "media", "Next-campaign recommendation", env.llm);
 
   report.recommendationPoints = points;
   report.recommendationText = text;

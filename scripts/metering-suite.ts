@@ -87,7 +87,8 @@ const local = await fakeServer((req, res) => {
 process.env.OPENAI_API_BASE = `${cloud.base}/v1`;
 
 const { runComplete, OUT_OF_CREDITS } = await import("../src/lib/llm/metered-complete");
-const { allowedLocalBase } = await import("../src/lib/pr2-shims");
+const { allowedLocalBase } = await import("../src/lib/llm/local-base");
+const { localBase } = await import("../src/lib/llm/adapters");
 const { DEFAULT_LLM, getLlmModel, getLlmOrDefault, PROVIDER_DEFAULT_MODEL } = await import("../src/lib/llm/catalog");
 const { llmCostUsd, outputCap, worstCaseUsd } = await import("../src/lib/llm/estimate");
 const { UNMETERED_TEST } = await import("../src/lib/billing/meter");
@@ -277,18 +278,37 @@ try {
     assert.equal(allowedLocalBase("http://localhost:11434/v1"), "http://localhost:11434/v1");
     assert.equal(allowedLocalBase("http://[::1]:1234/v1"), "http://[::1]:1234/v1");
 
+    // A private install may use its own loopback server; an error is reported.
     const echoed = await runComplete(custom(`${internal.base}/v1`), beta("ssrf-1"));
     assert.equal(echoed.status, "error");
-    // Cindy's adapters.ts includes a 240-char slice of the upstream body in the
-    // Error; PR #2's helper still rejects the URL. Do not change her adapters.
     assert.match(echoed.note ?? "", /Local LLM 500/);
+
+    // A loopback server cannot bounce the call to another address.
+    const localHits = local.seen.length;
+    const bounced = await runComplete(custom(`${internal.base}/redirect/v1`), beta("ssrf-1"));
+    assert.equal(bounced.status, "error");
+    assert.equal(local.seen.length, localHits, "the redirect was not followed");
+
+    // Hosted: a user URL the server does not name is refused before any fetch.
     process.env.VERCEL = "1";
-    assert.equal(allowedLocalBase(`${internal.base}/v1`), null, "PR #2 helper still rejects hosted user URLs");
+    assert.equal(allowedLocalBase(`${internal.base}/v1`), null, "hosted user URLs are refused");
+    assert.equal(allowedLocalBase("http://127.0.0.1:11434/v1"), null, "hosted, the laptop probe ports are not trusted by default");
+    // A blank URL must not fall back to the laptop default on a hosted server.
+    for (const blank of [" ", "\t"]) {
+      assert.throws(() => localBase(custom(blank)), /LOCAL_LLM_BASE_URL/, JSON.stringify(blank));
+      assert.equal((await runComplete(custom(blank), beta("ssrf-1"))).status, "unconfigured", "a blank URL is not a configured local model");
+    }
+    const internalHits = internal.seen.length;
+    const hosted = await runComplete(custom(`${internal.base}/v1`), beta("ssrf-1"));
+    assert.equal(hosted.status, "error");
+    assert.equal(internal.seen.length, internalHits, "no request reached the internal server");
+    assert.doesNotMatch(hosted.note ?? "", /SECRET-INTERNAL-BODY/);
+    assert.match(hosted.note ?? "", /LOCAL_LLM_BASE_URL/);
     process.env.LOCAL_LLM_BASE_URL = `${local.base}/v1`;
     assert.equal(allowedLocalBase(`${local.base}/v1/`), `${local.base}/v1`);
     delete process.env.LOCAL_LLM_BASE_URL;
     delete process.env.VERCEL;
-    pass("allowedLocalBase rejects non-loopback URLs; Cindy's adapters fail closed on a 500");
+    pass("local model URLs: non-loopback and hosted user URLs refused, redirects not followed");
   } finally {
     delete process.env.LOCAL_LLM_BASE_URL;
     delete process.env.VERCEL;
@@ -376,11 +396,11 @@ try {
   renders = 0;
   const posterSettings = { ...cloudSettings("openai:gpt-6-luna"), imageModelId: "openai:gpt-image-2.5" };
   const capped = await drive(posterSettings, UNMETERED_TEST, { spendCapUsd: 0.01 });
-  assert(renders > 0, "Cindy's creative step calls renderPoster before the spend guard");
+  assert.equal(renders, 0, "a blocked step renders nothing, so nothing was paid for");
   assert.equal(capped.spend.mediaUsd, 0, "blocked spend is not booked");
   assert(capped.policyDecisions.some((d) => d.action === "SPEND_MEDIA" && d.verdict === "block"));
   assert(capped.log.some((e) => e.title === "Media spend blocked"));
-  pass("Cindy's spend cap is checked after rendering; a blocked step does not book mediaUsd");
+  pass("the poster spend cap is checked on a quote before rendering; a blocked step renders and books nothing");
 
   /* ------------------------------------ the worker looks the payer up itself */
   const db = await getDatabase();

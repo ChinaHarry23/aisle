@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/current";
-import { demoWorkspace, loadWorkspace, saveWorkspace, type WorkspaceSnapshot } from "@/lib/auth/workspace";
+import { demoWorkspace, loadWorkspace, updateWorkspace, type WorkspaceSnapshot } from "@/lib/auth/workspace";
 import { renderCampaignPoster } from "@/lib/media/campaign-poster";
 import { lookupShelfPrices } from "@/lib/retail/whichgrocer/connection";
 import { runEngine } from "@/lib/runtime/engine";
@@ -131,12 +131,12 @@ export async function POST(request: Request) {
     if (graphUrl) {
       let savedInput = false;
       try {
-        await saveWorkspace(user.id, {
-          ...stored,
+        // A compare-and-set on the latest copy, so this cannot undo another save.
+        savedInput = await updateWorkspace(user.id, user.role, (latest) => ({
+          ...latest,
           brand,
-          campaigns: [target, ...campaigns.filter((item) => item.id !== target.id)],
-        });
-        savedInput = true;
+          campaigns: [target, ...latest.campaigns.filter((item) => item.id !== target.id)],
+        }));
       } catch {
         // The graph hydrates from the workspace. If that write fails, run here instead.
       }
@@ -189,11 +189,18 @@ export async function POST(request: Request) {
       },
     );
     try {
-      const latest = await loadWorkspace(user.id, user.role);
-      const rest = latest.campaigns.filter((item) => item.id !== result.campaign.id);
-      await saveWorkspace(user.id, { ...latest, campaigns: [result.campaign, ...rest] });
-    } catch {
-      // The browser still writes the workspace. A failed save must not drop the result.
+      // A compare-and-set on the latest copy, so a concurrent save cannot undo this result.
+      const saved = await updateWorkspace(user.id, user.role, (latest) => ({
+        ...latest,
+        campaigns: [result.campaign, ...latest.campaigns.filter((item) => item.id !== result.campaign.id)],
+      }));
+      if (!saved) throw new Error("the workspace kept changing");
+    } catch (error) {
+      // PUT /api/workspace keeps agent results from the stored copy, so the browser
+      // cannot save this result for us. Reporting it as done would leave the browser
+      // ahead of the server; say it failed and leave the campaign as it was.
+      console.error("[engine] result could not be saved", error instanceof Error ? error.message : error);
+      return NextResponse.json({ error: "The result could not be saved. Nothing changed; try again." }, { status: 503 });
     }
     return NextResponse.json({
       campaign: result.campaign,

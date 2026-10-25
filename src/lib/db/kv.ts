@@ -43,3 +43,36 @@ export async function kvKeys(prefix: string): Promise<string[]> {
   );
   return rows.map((r) => r.key);
 }
+
+/** The stored text as well as the parsed value, for a later `kvSetIfUnchanged`. */
+export async function kvGetRaw<T>(key: string): Promise<{ text: string; value: T | null } | null> {
+  const db = await getDatabase();
+  const rows = await db.query<KvRow>("select value from kv where key = $1", [key]);
+  if (rows.length === 0) return null;
+  const text = String(rows[0].value);
+  try {
+    return { text, value: JSON.parse(text) as T };
+  } catch {
+    return { text, value: null };
+  }
+}
+
+/**
+ * Write only if the row still holds `expected` (null: the key must not exist
+ * yet). Returns false when another save got there first, so the caller can
+ * read again and redo its change instead of overwriting that save.
+ */
+export async function kvSetIfUnchanged(key: string, value: unknown, expected: string | null): Promise<boolean> {
+  const db = await getDatabase();
+  const now = new Date().toISOString();
+  const rows = expected === null
+    ? await db.query<Row & { key: string }>(
+        "insert into kv (key, value, updated_at) values ($1, $2, $3) on conflict (key) do nothing returning key",
+        [key, JSON.stringify(value), now],
+      )
+    : await db.query<Row & { key: string }>(
+        "update kv set value = $1, updated_at = $2 where key = $3 and value = $4 returning key",
+        [JSON.stringify(value), now, key, expected],
+      );
+  return rows.length === 1;
+}

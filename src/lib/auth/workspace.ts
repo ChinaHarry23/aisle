@@ -2,7 +2,7 @@ import { retainCampaignLifecycle } from "@/lib/campaign-lifecycle";
 import { defaultBrand, migrateLegacyBrand, seedCampaigns } from "@/lib/seed";
 import { defaultSettings, withSettingsDefaults, type WorkspaceSettings } from "@/lib/settings";
 import type { BrandProfile, Campaign } from "@/lib/types";
-import { kvGet, kvSet } from "@/lib/db/kv";
+import { kvGet, kvGetRaw, kvSet, kvSetIfUnchanged } from "@/lib/db/kv";
 import type { UserRole } from "./types";
 
 export type WorkspaceSnapshot = {
@@ -93,6 +93,33 @@ export async function loadWorkspace(userId: string, role: UserRole): Promise<Wor
 
 export async function saveWorkspace(userId: string, snapshot: WorkspaceSnapshot) {
   const previous = await kvGet<WorkspaceSnapshot>(workspaceKey(userId));
+  await kvSet(workspaceKey(userId), mergeForSave(previous, snapshot));
+}
+
+/**
+ * Read, change and write the workspace without losing a save that lands in
+ * between (an engine result, a poster revision). The write goes through only
+ * if the document is unchanged since the read; otherwise `change` runs again
+ * on the newer copy. False when it kept losing to other saves.
+ */
+export async function updateWorkspace(
+  userId: string,
+  role: UserRole,
+  change: (stored: WorkspaceSnapshot) => Promise<WorkspaceSnapshot> | WorkspaceSnapshot,
+  attempts = 4,
+): Promise<boolean> {
+  const key = workspaceKey(userId);
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const current = await kvGetRaw<WorkspaceSnapshot>(key);
+    const stored = current?.value ? normalizeWorkspace(current.value) : role === "dev" ? demoWorkspace() : emptyWorkspace();
+    const next = mergeForSave(current?.value ?? null, await change(stored));
+    if (await kvSetIfUnchanged(key, next, current?.text ?? null)) return true;
+  }
+  return false;
+}
+
+/** Keeps retired ids and the trash from the stored copy when a save omits them. */
+function mergeForSave(previous: WorkspaceSnapshot | null, snapshot: WorkspaceSnapshot): WorkspaceSnapshot {
   const retired = [...new Set([...(previous?.retiredCampaignIds ?? []), ...(snapshot.retiredCampaignIds ?? [])])];
   const previousById = new Map((previous?.campaigns ?? []).map((campaign) => [campaign.id, campaign]));
   const campaigns = snapshot.campaigns
@@ -107,5 +134,5 @@ export async function saveWorkspace(userId: string, snapshot: WorkspaceSnapshot)
       return campaign;
     });
   const kept = retainCampaignLifecycle(campaigns, retired, campaigns);
-  await kvSet(workspaceKey(userId), normalizeWorkspace({ ...snapshot, campaigns: kept, retiredCampaignIds: retired }));
+  return normalizeWorkspace({ ...snapshot, campaigns: kept, retiredCampaignIds: retired });
 }

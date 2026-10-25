@@ -20,15 +20,27 @@ export type RuleSelection = {
   rules: ComplianceRule[];
   /** Foreign-jurisdiction context retained only when binding local law is missing. */
   referenceRules?: ComplianceRule[];
+  /** Blocks a pass: an invalid registry, or no binding advertising or consumer law. */
   problems: string[];
+  /**
+   * Reported, but does not block a pass: no copyright, ethics, brand or platform
+   * policy in the registry. Absent on reviews stored before this split.
+   */
+  limitations?: string[];
   checkedAt: string;
 };
+
+/** Without binding rules of these types a review cannot pass. */
+const BLOCKING_TYPES = ["advertising_law", "consumer_protection"] as const;
+/** Coverage the registry may lack; the gap is reported as a limitation. */
+const ADVISORY_TYPES = ["copyright", "ethics", "brand"] as const;
 const registrySchema = z.object({ authorisedSources: z.array(nonempty), rules: z.array(ruleSchema) });
 export function selectRules(raw: unknown, s: ComplianceSubmission, now: string): RuleSelection {
   const parsed = registrySchema.safeParse(raw);
-  if (!parsed.success) return { rules: [], referenceRules: [], problems: ["Policy registry is missing or invalid; an authorised maintainer must configure it."], checkedAt: now };
+  if (!parsed.success) return { rules: [], referenceRules: [], problems: ["Policy registry is missing or invalid; an authorised maintainer must configure it."], limitations: [], checkedAt: now };
   const { authorisedSources, rules } = parsed.data;
   const problems: string[] = [];
+  const limitations: string[] = [];
   const scoped = rules.filter(r => (!r.platforms.length || r.platforms.some(p => s.targetPlatforms.includes(p as typeof s.targetPlatforms[number])))
     && (!r.audiencePattern || s.targetAudience.toLowerCase().includes(r.audiencePattern.toLowerCase()))
     && (!r.productPattern || `${s.productInformation} ${s.campaignObjective}`.toLowerCase().includes(r.productPattern.toLowerCase())));
@@ -40,8 +52,7 @@ export function selectRules(raw: unknown, s: ComplianceSubmission, now: string):
     return true;
   });
   const selected = valid.filter(r => r.jurisdiction === "*" || r.jurisdiction === s.country);
-  const missingLegalTypes = (["advertising_law", "consumer_protection"] as const)
-    .filter(type => !selected.some(rule => rule.type === type));
+  const missingLegalTypes = BLOCKING_TYPES.filter(type => !selected.some(rule => rule.type === type));
   const referenceRules = valid.filter(rule => rule.jurisdiction !== "*"
     && rule.jurisdiction !== s.country
     && missingLegalTypes.includes(rule.type as typeof missingLegalTypes[number]));
@@ -51,20 +62,37 @@ export function selectRules(raw: unknown, s: ComplianceSubmission, now: string):
     if (r.conflictsWith.some(id => ids.includes(id))) problems.push(`Conflicting policy: ${r.id}.`);
     if (selected.some(other => other.id !== r.id && other.mode !== r.mode && other.mode !== "manual" && r.mode !== "manual" && other.terms.some(t => r.terms.some(x => x.toLowerCase() === t.toLowerCase())))) problems.push(`Contradictory required/forbidden wording: ${r.id}.`);
   }
-  for (const type of ["advertising_law", "consumer_protection", "copyright", "ethics", "brand"] as const) {
+  for (const type of BLOCKING_TYPES) {
     if (selected.some(r => r.type === type)) continue;
     const references = referenceRules.filter(rule => rule.type === type);
     problems.push(references.length
       ? `No binding ${type} policy for ${s.country}; ${references.length} foreign reference rule(s) retained as non-binding context.`
       : `Missing applicable ${type} policy.`);
   }
+  for (const type of ADVISORY_TYPES)
+    if (!selected.some(r => r.type === type)) limitations.push(`No ${type} policy in the registry, so ${type} was not checked against one.`);
   for (const platform of s.targetPlatforms)
-    if (!selected.some(r => r.type === "platform" && r.platforms.includes(platform))) problems.push(`Missing policy for ${platform}.`);
-  return { rules: structuredClone(selected), referenceRules: structuredClone(referenceRules), problems: [...new Set(problems)], checkedAt: now };
+    if (!selected.some(r => r.type === "platform" && r.platforms.includes(platform))) limitations.push(`No ${platform} platform policy in the registry, so ${platform} rules were not checked.`);
+  return {
+    rules: structuredClone(selected),
+    referenceRules: structuredClone(referenceRules),
+    problems: [...new Set(problems)],
+    limitations: [...new Set(limitations)],
+    checkedAt: now,
+  };
 }
+/**
+ * The selection a review keeps for its record. One saved before coverage gaps
+ * were split out as limitations (no `limitations` field) is selected again, or
+ * it would keep blocking on gaps that no longer block.
+ */
+export function currentRuleSelection(saved: RuleSelection | undefined, s: ComplianceSubmission, now: string): RuleSelection {
+  return saved && Array.isArray(saved.limitations) ? saved : loadRules(s, now);
+}
+
 export function loadRules(s: ComplianceSubmission, now: string): RuleSelection {
   const path = process.env.AISLE_COMPLIANCE_RULES_FILE;
   if (!path) return selectRules(bundledRegistry, s, now);
   try { return selectRules(JSON.parse(readFileSync(path, "utf8")), s, now); }
-  catch { return { rules: [], referenceRules: [], problems: ["Configured policy registry could not be read."], checkedAt: now }; }
+  catch { return { rules: [], referenceRules: [], problems: ["Configured policy registry could not be read."], limitations: [], checkedAt: now }; }
 }

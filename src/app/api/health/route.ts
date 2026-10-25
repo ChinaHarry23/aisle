@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/current";
 import { SEED_ACCOUNTS } from "@/lib/auth/seed-accounts";
 import { countUsers, ensureSeedAccounts, listUsers } from "@/lib/auth/users";
+import { isHosted } from "@/lib/billing/hosted";
 import { billingFor, isUnlimited } from "@/lib/billing/meter";
 import { getDatabase, isDatabaseUnavailable } from "@/lib/db";
 
@@ -16,13 +17,24 @@ export const dynamic = "force-dynamic";
  * accounts exist — the three facts needed to tell a missing database apart from a
  * bad password.
  *
+ * The route is public, so on a hosted install an anonymous caller only learns
+ * whether storage answered. The database host or file, the account count and
+ * error details are shown locally, or to a signed-in unlimited team desk.
+ *
  * It also runs the seed, so the team desks exist as soon as the database is
  * reachable rather than only once somebody has tried to sign in.
  */
+async function showDetails() {
+  if (!isHosted()) return true;
+  const viewer = await getCurrentUser().catch(() => null);
+  return Boolean(viewer && isUnlimited(billingFor(viewer)));
+}
+
 export async function GET() {
   try {
     const db = await getDatabase();
     const seeded = await ensureSeedAccounts();
+    if (!(await showDetails())) return NextResponse.json({ ok: true, database: { kind: db.kind } });
     const users = await countUsers();
     return NextResponse.json({
       ok: true,
@@ -31,6 +43,7 @@ export async function GET() {
       seededAccounts: seeded.seeded || users >= SEED_ACCOUNTS.length,
     });
   } catch (error) {
+    const details = !isHosted();
     if (isDatabaseUnavailable(error)) {
       console.error(`[health] ${error.message}`);
       return NextResponse.json(
@@ -39,14 +52,14 @@ export async function GET() {
           code: "storage_unavailable",
           error:
             "No database is configured. In development the app creates a SQLite file automatically; in production set DATABASE_URL.",
-          detail: error.reason,
+          ...(details ? { detail: error.reason } : {}),
         },
         { status: 503 },
       );
     }
     const message = error instanceof Error ? error.message : "Storage check failed.";
     console.error(`[health] ${message}`);
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    return NextResponse.json({ ok: false, error: details ? message : "Storage check failed." }, { status: 500 });
   }
 }
 

@@ -8,9 +8,9 @@
  */
 
 import { billingFor, type BillingContext } from "@/lib/billing/meter";
-import { findUserByEmail, findUserById, listUsers, ensureSeedAccounts } from "@/lib/auth/users";
+import { findUserByEmail, findUserById, ensureSeedAccounts } from "@/lib/auth/users";
 import type { AuthUser } from "@/lib/auth/types";
-import { loadWorkspace, saveWorkspace, type WorkspaceSnapshot } from "@/lib/auth/workspace";
+import { loadWorkspace, updateWorkspace, type WorkspaceSnapshot } from "@/lib/auth/workspace";
 import { createServerTrendRuntime } from "@/lib/agents/trend-server";
 import { renderCampaignPoster } from "@/lib/media/campaign-poster";
 import { isArchived } from "@/lib/campaign-lifecycle";
@@ -60,16 +60,17 @@ export function readStudioContext(config?: unknown, runtime?: unknown): StudioCo
   };
 }
 
+/**
+ * The account Studio runs and bills. An id or email that does not resolve is
+ * an error: falling back to another account would run and charge someone
+ * else's workspace.
+ */
 async function resolveUser(requested: string): Promise<AuthUser> {
   await ensureSeedAccounts();
   let user = await findUserById(requested);
   if (!user && requested.includes("@")) user = await findUserByEmail(requested);
   if (!user) {
-    const listed = await listUsers();
-    user = listed[0] ? await findUserById(listed[0].id) : null;
-  }
-  if (!user) {
-    throw new Error("No Aisle account found. Sign up in the app, or set AISLE_STUDIO_USER_ID.");
+    throw new Error(`No Aisle account "${requested}". Pass an existing account id or email as userId, or set AISLE_STUDIO_USER_ID.`);
   }
   return user;
 }
@@ -180,8 +181,11 @@ export async function loadStudioSeat(input: { campaignId?: string; userId?: stri
 
 export async function saveStudioCampaign(userId: string, work: Work) {
   const user = await findUserById(userId);
-  const latest = await loadWorkspace(userId, user?.role ?? "dev");
   const campaign = sealEngineWork(work);
-  const rest = latest.campaigns.filter((item) => item.id !== campaign.id);
-  await saveWorkspace(userId, { ...latest, campaigns: [campaign, ...rest] });
+  // A compare-and-set on the latest copy, so a concurrent save cannot undo this step.
+  const saved = await updateWorkspace(userId, user?.role ?? "dev", (latest) => ({
+    ...latest,
+    campaigns: [campaign, ...latest.campaigns.filter((item) => item.id !== campaign.id)],
+  }));
+  if (!saved) throw new Error("The campaign could not be saved because the workspace kept changing.");
 }

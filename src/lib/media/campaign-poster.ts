@@ -7,8 +7,11 @@
  * reference, and stores the bytes. The campaign keeps a short id, not the
  * picture, so the engine response can finish and the image step is saved.
  */
+import { findUserById } from "@/lib/auth/users";
+import { billingFor } from "@/lib/billing/meter";
 import type { Campaign, Creative } from "@/lib/types";
 import { getModel } from "./catalog";
+import { failMediaCredits, holdMediaCredits, settleMediaCredits, type MediaHold } from "./credits";
 import { runGeneration } from "./generate";
 import { posterPrompt, posterRequest } from "./prompts";
 import { MEDIA_ADAPTERS, providerKeysSet } from "./providers";
@@ -54,12 +57,28 @@ export async function renderCampaignPoster(input: {
   if (!adapter || (!key && !providerKeysSet(adapter))) {
     return runGeneration(req, key);
   }
+  const startImage = input.editFrom ?? referenceImage(req.contextImages);
+  // A browser key pays the provider only if this adapter really sends it.
+  // Otherwise the render runs on the owner's key and the campaign's owner pays
+  // in credits, held before the render.
+  const callerPays = Boolean(key) && (adapter.callerKeyKinds ?? []).includes(model.kind);
+  let held: MediaHold | null = null;
+  if (!callerPays) {
+    const owner = await findUserById(input.ownerId).catch(() => null);
+    const billing = owner ? billingFor(owner) : undefined;
+    const outcome = await holdMediaCredits(billing, model, { ...req, contextImages: startImage ? ["reference"] : [] }, input.editFrom ? "poster revision" : "campaign poster");
+    if ("refused" in outcome) return stubGenerate(req, outcome.refused);
+    held = outcome;
+  }
   try {
-    const rendered = await adapter.generate(req, {
-      model,
-      startImage: input.editFrom ?? referenceImage(req.contextImages),
-      apiKey: key,
-    });
+    let rendered;
+    try {
+      rendered = await adapter.generate(req, { model, startImage, apiKey: key });
+    } catch (error) {
+      if (held) await failMediaCredits(held, error);
+      throw error;
+    }
+    if (held) await settleMediaCredits(held, rendered.costUsd);
     const stored = await putMedia({
       ownerId: input.ownerId,
       kind: "image",

@@ -466,10 +466,12 @@ try {
   /* ---------- Proxy ---------- */
   {
     const hook = await proxy(new NextRequest("http://localhost:3000/api/stripe/webhook", { method: "POST" }));
-    // Cindy's proxy.ts is restored exactly: only `/`, login/signup, `/api/auth/*`
-    // and `/api/health` are public. Stripe webhook is a PR #2 route and is
-    // session-gated here the same as other APIs.
-    assert.equal(hook.status, 307);
+    // Stripe sends no session cookie. A redirect here would drop every
+    // delivery, so the route's signature check is the only gate.
+    assert.equal(hook.status, 200);
+    assert.equal(hook.headers.get("location"), null);
+    const nearMiss = await proxy(new NextRequest("http://localhost:3000/api/stripe/webhook/x", { method: "POST" }));
+    assert.equal(nearMiss.status, 307, "only the exact webhook path is public");
     const billing = await proxy(new NextRequest("http://localhost:3000/api/billing"));
     assert.equal(billing.status, 307);
     assert.match(billing.headers.get("location") ?? "", /\/login/);
@@ -1150,14 +1152,15 @@ try {
       assert.equal((await meter.holdCredits(desk, usd(5)))?.charged, false);
       delete process.env.AISLE_UNLIMITED_USERS;
 
-      // PR #2 seedPassword() still reports no default on a hosted install.
-      // Cindy's users.ts always seeds with SEED_PASSWORD and never locks desks.
+      // Hosted with no AISLE_SEED_PASSWORD: nothing to seed desks with. These
+      // desks were seeded locally earlier in the suite, so they keep the demo
+      // hash, which the login route refuses on a hosted install.
       assert.equal(seeds.seedPassword(), null);
       const alex = await users.findUserByEmail("alex@aisle.website");
       assert.equal(
         await verifyPassword(seeds.DEMO_SEED_PASSWORD, alex!.passwordHash),
         true,
-        "Cindy's desks stay on the published password — locking is not in her users.ts",
+        "desks seeded before going hosted keep their hash; the login route is what refuses it",
       );
       // Login lookups still work when kv is down (Cindy's findUserByEmail does not read the lock row).
       const realQuery = db.query;
@@ -1177,7 +1180,7 @@ try {
       }
     }
     assert.equal(seeds.seedPassword(), seeds.DEMO_SEED_PASSWORD, "locally the demo password still applies");
-    pass("C1: hosted — desks bill unless in AISLE_UNLIMITED_USERS; Cindy does not lock demo desks; seedPassword() is still null on hosted");
+    pass("C1: hosted — desks bill unless in AISLE_UNLIMITED_USERS; seedPassword() is null on hosted without AISLE_SEED_PASSWORD");
   }
 
   {
@@ -1242,15 +1245,20 @@ try {
     try {
       delete penv.AISLE_SEED_PASSWORD;
       assert.equal(await users.setPassword("sam@aisle.website", seeds.DEMO_SEED_PASSWORD), true);
-      const login = () =>
+      const login = (password = seeds.DEMO_SEED_PASSWORD) =>
         loginRoute.POST(new Request("http://localhost/api/auth/login", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ email: "sam@aisle.website", password: seeds.DEMO_SEED_PASSWORD }),
+          body: JSON.stringify({ email: "sam@aisle.website", password }),
         }));
       assert.equal((await login()).status, 200, "locally the demo password opens a desk");
       penv.VERCEL = "1";
       assert.equal((await login()).status, 401, "hosted, the published password never opens a desk");
+      // bcrypt reads only 72 bytes, so this longer string matches the demo hash too.
+      const variant = `${seeds.DEMO_SEED_PASSWORD}\u0000`.repeat(6);
+      const sam = await users.findUserByEmail("sam@aisle.website");
+      assert.equal(await verifyPassword(variant, sam!.passwordHash), true, "the variant really matches the stored hash");
+      assert.equal((await login(variant)).status, 401, "a string bcrypt treats as the demo password is refused too");
       delete penv.VERCEL;
       penv.NODE_ENV = "production";
       assert.equal(isHosted(), false, "a production build on local SQLite is a private install");

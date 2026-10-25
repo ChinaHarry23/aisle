@@ -357,6 +357,8 @@ async function callLlmWithTools(
       messages,
       ...(req.tools?.length ? { tools: openAITools(req) } : {}),
     }),
+    // localBase checked the URL; a redirect must not take the call elsewhere.
+    redirect: "error",
     signal: AbortSignal.timeout(2_500),
   });
   if (!res.ok) {

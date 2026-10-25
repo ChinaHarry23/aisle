@@ -20,7 +20,6 @@ import {
   pauseNode,
   publishNode,
   rejectNode,
-  rememberOperationEnv,
   requestChangesNode,
   resolveNode,
   COMMAND_DESTINATIONS,
@@ -33,7 +32,7 @@ import {
   type OpState,
 } from "@/lib/runtime/operation-graph";
 import type { Command, GuardedAction } from "@/lib/runtime/types";
-import type { Work } from "@/lib/runtime/steps";
+import type { StepEnv, Work } from "@/lib/runtime/steps";
 import { loadStudioRun, saveStudioCampaign } from "./context";
 
 const MAX_STEPS = 12;
@@ -147,11 +146,21 @@ function asCommand(raw: CommandInput | undefined): Command {
   }
 }
 
+/**
+ * StepEnv for each run, outside the checkpoint: it holds `renderPoster` and the
+ * model function, which a checkpoint cannot store. Keyed by account and
+ * campaign, because sample campaigns share an id across every account.
+ */
+const envByRun = new Map<string, StepEnv>();
+const runKey = (userId: string, campaignId: string) => `${userId}\u0000${campaignId}`;
+
 function toOp(state: StudioState): OpState {
   if (!state.work) throw new Error("No campaign is loaded. The hydrate node did not run.");
+  const env = envByRun.get(runKey(state.userId, state.work.campaign.id));
+  if (!env) throw new Error("Operation graph has no StepEnv for this campaign. The hydrate node did not run.");
   return {
     work: state.work,
-    env: null,
+    env,
     command: asCommand(state.command),
     maxSteps: clampSteps(state.maxSteps),
     taken: state.taken ?? 0,
@@ -167,7 +176,7 @@ async function hydrate(state: StudioState): Promise<Partial<StudioState>> {
     campaignId: state.campaignId,
     userId: state.userId,
   });
-  rememberOperationEnv(loaded.work.campaign.id, loaded.env);
+  envByRun.set(runKey(loaded.userId, loaded.work.campaign.id), loaded.env);
   return {
     work: loaded.work,
     userId: loaded.userId,

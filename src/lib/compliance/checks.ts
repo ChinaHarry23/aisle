@@ -14,6 +14,7 @@ export function checkSubmission(
   const limitations = [
     ...s.limitations,
     ...selection.problems,
+    ...(selection.limitations ?? []),
     "No phrase, price, image, or claim scan is applied in code. The compliance agent reviews the submitted advertisement against the rules it was given.",
   ];
   return { limitations: [...new Set(limitations)] };

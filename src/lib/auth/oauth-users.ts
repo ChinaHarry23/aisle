@@ -117,7 +117,7 @@ export async function signInWithProvider(input: {
   } catch (error) {
     if (isUniqueViolation(error)) {
       const raced = await findUserByEmail(email);
-      if (raced) return publicUser(raced);
+      if (raced) return { ...publicUser(raced), sessionVersion: raced.sessionVersion ?? 0 };
       throw new Error("That email already has an account. Sign in instead.");
     }
     throw error;

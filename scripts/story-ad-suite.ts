@@ -13,7 +13,7 @@ import { applyStudioMedia } from "../src/lib/media/persistence";
 import { createRenderJob, listRenderJobs, updateRenderJob } from "../src/lib/media/progress-store";
 import { reconcileRenderJob } from "../src/lib/media/progress";
 import { ProductionRepository, type ProductionInput } from "../src/lib/media/production-store";
-import { workProductionOnce, type ProductionDependencies } from "../src/lib/media/production";
+import { renderStoryScene, workProductionOnce, type ProductionDependencies } from "../src/lib/media/production";
 import { endCardSvg, probeVideo, verifyScene } from "../src/lib/media/production-edit";
 import { storyAdPlan, storySourceSnapshot, type AuthoredStory } from "../src/lib/media/storyboard";
 import type { Creative } from "../src/lib/types";
@@ -169,5 +169,26 @@ assert(existsSync(failedPartial.shots[0].file!)); assert.equal(failedPartial.sho
 assert.equal(await workProductionOnce(repo, "worker", deps), false);
 assert.equal(current.videos.length, 2);
 console.log("PASS partial-output retention, recorded submissions and no automatic duplicate generation after failure");
+{
+  // The default renderer must reach ComfyUI for comfy ids, not Studio's catalog
+  // generate, which has no comfy models and only ever returned a stub.
+  const savedComfy = process.env.COMFYUI_URL;
+  process.env.COMFYUI_URL = "http://127.0.0.1:9";
+  try {
+    // LTX is text-to-video; MiniMax animates the poster, so only it gets a start frame.
+    for (const modelId of ["comfy:ltx-2.5", "comfy:minimax-h3"]) {
+      const startImageUrl = modelId === "comfy:minimax-h3" ? "fixture:start" : undefined;
+      await assert.rejects(
+        renderStoryScene({ kind: "video", modelId, prompt: "Routing check", durationSec: 5, startImageUrl, ownerId: "alice" }, () => undefined),
+        /ComfyUI is not running/,
+        modelId,
+      );
+    }
+  } finally {
+    if (savedComfy === undefined) delete process.env.COMFYUI_URL;
+    else process.env.COMFYUI_URL = savedComfy;
+  }
+  console.log("PASS story scenes on comfy models go to the local ComfyUI renderers, not the catalog stub");
+}
 repo.close();
 console.log(`All story-ad checks passed. Isolated test artifacts: ${dir}`);

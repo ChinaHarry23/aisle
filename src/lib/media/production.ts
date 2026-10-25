@@ -2,11 +2,12 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { findUserById } from "../auth/users";
-import { loadWorkspace, saveWorkspace } from "../auth/workspace";
+import { loadWorkspace, updateWorkspace } from "../auth/workspace";
 import { mergeWorkflowCampaigns, saveWorkflowMedia, workflowEnabled } from "../workflow/gateway";
 import type { Campaign } from "../types";
 import { getModel, runGeneration } from "../pr2-shims";
-import { LTX_SAMPLERS } from "./ltx";
+import { generateComfyImage, generateComfyVideo } from "./comfy";
+import { generateLtxVideo, LTX_SAMPLERS } from "./ltx";
 import { applyStudioMedia, type StudioMediaUpdate } from "./persistence";
 import { ensureProgressMonitor } from "./progress";
 import { renderActive } from "./progress-types";
@@ -32,11 +33,16 @@ async function saveLatest(input: ProductionInput, update: StudioMediaUpdate) {
   if (input.workflowManaged) return saveWorkflowMedia(input.ownerId, input.campaignId, update);
   const user = await findUserById(input.ownerId);
   if (!user) throw new Error("Campaign owner no longer exists.");
-  const latest = await loadWorkspace(input.ownerId, user.role);
-  const campaign = latest.campaigns.find(c => c.id === input.campaignId);
-  if (!campaign) throw new Error("Campaign no longer exists.");
-  const saved = applyStudioMedia(campaign, update);
-  await saveWorkspace(input.ownerId, { ...latest, campaigns: latest.campaigns.map(c => c.id === saved.id ? saved : c) });
+  let saved: Campaign | null = null;
+  // A compare-and-set on the latest copy, so a concurrent save cannot undo this video.
+  const written = await updateWorkspace(input.ownerId, user.role, (latest) => {
+    const campaign = latest.campaigns.find(c => c.id === input.campaignId);
+    if (!campaign) throw new Error("Campaign no longer exists.");
+    const next = applyStudioMedia(campaign, update);
+    saved = next;
+    return { ...latest, campaigns: latest.campaigns.map(c => c.id === next.id ? next : c) };
+  });
+  if (!written || !saved) throw new Error("The video could not be saved because the workspace kept changing.");
   return saved;
 }
 
@@ -48,7 +54,20 @@ export type ProductionDependencies = {
   store: typeof putMedia;
   monitor: () => unknown;
 };
-const defaults: ProductionDependencies = { load: loadLatest, save: saveLatest, render: runGeneration, read: readMedia, store: putMedia, monitor: ensureProgressMonitor };
+/**
+ * One scene. Story ads render on local ComfyUI, so comfy ids go straight to its
+ * renderers, which report the queued prompt id the checkpoint needs. Studio's
+ * catalog generate has no comfy models and would only return a stub.
+ */
+export async function renderStoryScene(request: GenerateRequest, onQueued: (id: string) => void): Promise<MediaGeneration> {
+  if (request.modelId === "comfy:ltx-2.5") return generateLtxVideo(request, onQueued);
+  if (request.modelId.startsWith("comfy:")) {
+    return getModel(request.modelId).kind === "image" ? generateComfyImage(request, onQueued) : generateComfyVideo(request, onQueued);
+  }
+  return runGeneration(request);
+}
+
+const defaults: ProductionDependencies = { load: loadLatest, save: saveLatest, render: renderStoryScene, read: readMedia, store: putMedia, monitor: ensureProgressMonitor };
 
 export async function workProductionOnce(repo: ProductionRepository, workerId: string, overrides: Partial<ProductionDependencies> = {}) {
   repo.workerSeen(workerId);

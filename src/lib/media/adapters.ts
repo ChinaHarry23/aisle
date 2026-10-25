@@ -14,24 +14,30 @@ export function isProviderConfigured(envKeys: string[]) {
   return envKeys.every((key) => Boolean(process.env[key]));
 }
 
+/** Whether callProvider renders this request: an OpenAI or Google image model with a reference image. */
+export function canRender(model: MediaModel, req: GenerateRequest) {
+  return (
+    model.kind === "image" &&
+    (model.providerId === "openai" || model.providerId === "google") &&
+    Boolean(referenceImage(req.contextImages))
+  );
+}
+
 export async function callProvider(
   model: MediaModel,
   req: GenerateRequest,
   userKey?: string,
-): Promise<{ url: string; raw?: unknown }> {
+): Promise<{ url: string; costUsd: number }> {
   const apiKey = userKey || process.env[model.envKeys[0]];
-  if (!apiKey) {
+  const reference = referenceImage(req.contextImages);
+  if (!apiKey || !reference || !canRender(model, req)) {
     throw new AdapterNotWiredError(model.provider);
   }
-  const reference = referenceImage(req.contextImages);
-  if (reference && model.kind === "image" && (model.providerId === "openai" || model.providerId === "google")) {
-    const adapter = model.providerId === "openai" ? openaiAdapter : googleAdapter;
-    const rendered = await adapter.generate(req, {
-      model,
-      startImage: reference,
-      apiKey: userKey,
-    });
-    return { url: `data:${rendered.mime};base64,${rendered.bytes.toString("base64")}` };
-  }
-  throw new AdapterNotWiredError(model.provider);
+  const adapter = model.providerId === "openai" ? openaiAdapter : googleAdapter;
+  const rendered = await adapter.generate(req, {
+    model,
+    startImage: reference,
+    apiKey: userKey,
+  });
+  return { url: `data:${rendered.mime};base64,${rendered.bytes.toString("base64")}`, costUsd: rendered.costUsd };
 }

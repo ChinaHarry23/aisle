@@ -19,7 +19,19 @@ assert.ok(selectRules(registry, s, "2027-01-01T00:00:00Z").problems.some(p => p.
 assert.ok(selectRules({ ...registry, rules: [...rules, rules[0]] }, s, now).problems.some(p => p.includes("Conflicting")));
 assert.ok(selectRules({ ...registry, rules: rules.map(r => ({ ...r, conflictsWith: ["brand"] })) }, s, now).problems.some(p => p.includes("Conflicting")));
 assert.ok(selectRules(registry, { ...s, country: "NZ" }, now).problems.length);
-assert.ok(selectRules(registry, { ...s, targetPlatforms: ["instagram"] }, now).problems.some(p => p.includes("instagram")));
+{
+  // A missing platform policy is reported but does not block a pass.
+  const platformGap = selectRules(registry, { ...s, targetPlatforms: ["instagram"] }, now);
+  assert.ok(platformGap.limitations?.some(p => p.includes("instagram")));
+  assert.equal(platformGap.problems.length, 0);
+  // Copyright, ethics and brand gaps are limitations; binding ad and consumer law are required.
+  const lawOnly = selectRules({ ...registry, rules: rules.filter(r => r.type === "advertising_law" || r.type === "consumer_protection") }, s, now);
+  assert.equal(lawOnly.problems.length, 0, "binding ad and consumer law are enough to allow a pass");
+  for (const type of ["copyright", "ethics", "brand", "web"]) assert.ok(lawOnly.limitations?.some(p => p.includes(type)), type);
+  assert.ok(checkSubmission(s, lawOnly).limitations.some(p => p.includes("copyright")), "gaps reach the report as limitations");
+  const noConsumerLaw = selectRules({ ...registry, rules: rules.filter(r => r.type !== "consumer_protection") }, s, now);
+  assert.ok(noConsumerLaw.problems.some(p => p.includes("consumer_protection")), "missing consumer law still blocks");
+}
 assert.equal(selectRules({ ...registry, rules: rules.map(r => ({ ...r, audiencePattern: "children" })) }, s, now).rules.length, 0);
 const foreignOnly = { ...registry, rules: rules.map(r => ({ ...r, jurisdiction: "NZ" })) };
 const foreignSelection = selectRules(foreignOnly, s, now);
