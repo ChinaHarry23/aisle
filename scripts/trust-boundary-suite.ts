@@ -21,6 +21,8 @@ const { closeDatabase } = await import("../src/lib/db");
 import { blankCampaign, defaultBrand } from "../src/lib/seed";
 import { defaultSettings } from "../src/lib/settings";
 import { acceptWorkspaceCampaigns, founderInput } from "../src/lib/workflow/founder-input";
+import { campaignForCommand } from "../src/lib/workflow/command-campaign";
+import type { Command } from "../src/lib/runtime/types";
 import type { Campaign, CampaignInput } from "../src/lib/types";
 
 const results: string[] = [];
@@ -90,6 +92,69 @@ const forge = (campaign: Campaign): Campaign => ({
   assert.equal(acceptWorkspaceCampaigns(doc, [stored, stored, null, { id: "" }]).length, 1, "duplicates and junk are dropped");
   assert.equal(acceptWorkspaceCampaigns(doc, []).length, 0, "leaving a campaign out still deletes it");
   pass("workspace save keeps agent results from the stored copy and takes only founder controls");
+}
+
+/* -------------------------------------------- retail export through the save */
+{
+  const upload = { sha256: "a".repeat(64), importedAt: "2026-10-01T00:00:00.000Z", rows: [{ sku: "OIL-1", category: "Pantry", week: "2026-09-28", units: 40 }] };
+  const stored = blankCampaign(brief, defaultBrand, null, settings);
+  const doc = { brand: defaultBrand, settings, campaigns: [stored] };
+  const attached = { ...stored, retailUpload: upload, internalDataAuthorised: true };
+
+  const [kept] = acceptWorkspaceCampaigns(doc, [attached]);
+  assert.deepEqual(kept.retailUpload, upload, "a stored draft keeps the export attached in the browser");
+  assert.equal(kept.internalDataAuthorised, true);
+
+  const [unauthorised] = acceptWorkspaceCampaigns(doc, [{ ...attached, internalDataAuthorised: false }]);
+  assert.equal(unauthorised.retailUpload, undefined, "an export the founder did not authorise is dropped");
+  const withEmail = { ...upload, rows: [{ ...upload.rows[0], email: "shopper@example.com" }] };
+  const [invalid] = acceptWorkspaceCampaigns(doc, [{ ...attached, retailUpload: withEmail as never }]);
+  assert.equal(invalid.retailUpload, undefined, "an export with a personal-data column is refused");
+  const [running] = acceptWorkspaceCampaigns({ ...doc, campaigns: [{ ...stored, running: true }] }, [attached]);
+  assert.equal(running.retailUpload, undefined, "a running campaign does not take one");
+  const researched = { ...stored, status: "paused" as const, researchMode: "agent" as const };
+  const [held] = acceptWorkspaceCampaigns({ ...doc, campaigns: [researched] }, [{ ...researched, retailUpload: upload, internalDataAuthorised: true }]);
+  assert.equal(held.retailUpload, undefined, "nor does one whose research the server holds; that goes through RESOLVE_TREND");
+
+  const [fresh] = acceptWorkspaceCampaigns(doc, [{ ...blankCampaign(brief, defaultBrand, null, settings), retailUpload: upload, internalDataAuthorised: true }]);
+  assert.deepEqual(fresh.retailUpload, upload, "a new draft keeps it too");
+  pass("workspace save keeps an authorised, valid retail export on a campaign that is not running or researched");
+}
+
+/* ------------------------------------------------- engine command, both modes */
+{
+  const collect: Command = { type: "COLLECT_FEEDBACK", actor: "founder" };
+  const published = { ...blankCampaign(brief, defaultBrand, null, settings), status: "published" as const };
+  const incoming = forge(published);
+  incoming.collectorOverrides = { web: "late", instagram: "ok", email: "bogus" } as never;
+  incoming.spendCapUsd = 7;
+  const target = campaignForCommand(published, incoming, collect);
+  assert.equal(target.status, "published", "the stored copy wins over a forged browser copy");
+  assert.equal(target.founderDecision, null);
+  assert.deepEqual(target.creatives, published.creatives);
+  assert.deepEqual(target.collectorOverrides, { web: "late" }, "declared outcomes come from the request, filtered");
+  assert.equal(target.spendCapUsd, 7, "so does the spend cap");
+  assert.deepEqual(published.collectorOverrides, {}, "the stored copy itself is not changed");
+  assert.throws(() => campaignForCommand(undefined, incoming, collect), /Start and store/);
+  pass("an engine command runs on the stored campaign with the founder's declared outcomes and spend cap");
+
+  // Service mode: the workspace save keeps the durable snapshot, which has no
+  // declared outcome yet. The queued collect must still see the founder's.
+  const repo = new WorkflowRepository(":memory:");
+  try {
+    const draft = blankCampaign(brief, defaultBrand, null, settings);
+    repo.enqueue("bob", "start", { campaign: draft, campaigns: [], brand: defaultBrand, settings, command: { type: "START", actor: "founder" } });
+    const job = repo.claim("trust-boundary-worker")!;
+    const done = { ...job.input.campaign, status: "published" as const, running: false };
+    repo.checkpoint(job, { campaign: done, run: done.run as never, events: [], runSteps: [], policyDecisions: [], canAdvance: false, message: "Published." }, true);
+    const snapshot = repo.campaign("bob", draft.id)!;
+    const browser = { ...snapshot, collectorOverrides: { web: "late" as const } };
+    repo.enqueue("bob", "collect", { campaign: campaignForCommand(snapshot, browser, collect), campaigns: [snapshot], brand: defaultBrand, settings, command: collect });
+    assert.deepEqual(repo.campaign("bob", draft.id)!.collectorOverrides, { web: "late" }, "the durable collect sees the declared outcome");
+    pass("durable COLLECT_FEEDBACK receives the founder's declared outcomes");
+  } finally {
+    repo.close();
+  }
 }
 
 /* ------------------------------------------------------------ durable queue */

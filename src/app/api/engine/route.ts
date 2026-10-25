@@ -1,6 +1,5 @@
 import {withWorkspaceLock,requestInlinePause,resumeInlineResearch,inlineResearchAllowed} from '@/lib/trend/inline-state';
 import {recordStoredTrend} from '@/lib/trend/quality';
-import {retailUploadSchema} from '@/lib/trend/internal-retail';
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/current";
 import { demoWorkspace, loadWorkspace, updateWorkspace, type WorkspaceSnapshot } from "@/lib/auth/workspace";
@@ -17,6 +16,7 @@ import type { Command } from "@/lib/runtime/types";
 import type { Campaign } from "@/lib/types";
 import { workflowEnabled, submitWorkflow } from "@/lib/workflow/gateway";
 import { parseCommand, WorkflowError } from "@/lib/workflow/commands";
+import { campaignForCommand } from "@/lib/workflow/command-campaign";
 import { createServerResearchRuntime } from "@/lib/agents/trend-server";
 import { billingForSession } from "@/lib/billing/meter";
 
@@ -80,29 +80,6 @@ export async function POST(request:Request){
  if(['PAUSE','CANCEL_TREND'].includes(preview?.command?.type)&&typeof preview?.campaign?.id==='string')requestInlinePause(owner.id,preview.campaign.id);
  return withWorkspaceLock(owner.id,()=>handlePost(request));
 }
-/** Stored research wins over a browser copy. A draft still takes the brief the founder just edited. */
-function campaignForCommand(existing: Campaign | undefined, incoming: Campaign, command: Command): Campaign {
-  if (!existing && command.type !== "START") {
-    throw new WorkflowError("Start and store the campaign before submitting workflow or feedback decisions.", 409);
-  }
-  if (!existing && incoming.trendQuality) {
-    throw new WorkflowError("No stored research version exists for this campaign.", 409);
-  }
-  const protectedResearch = Boolean(existing?.trendQuality || existing?.researchMode === "agent");
-  const target = withRuntimeDefaults(existing && existing.status !== "draft" ? structuredClone(existing) : incoming);
-  if (
-    protectedResearch &&
-    command.type === "RESOLVE_TREND" &&
-    command.action === "provide_data" &&
-    incoming.internalDataAuthorised &&
-    incoming.retailUpload
-  ) {
-    target.retailUpload = retailUploadSchema.parse(incoming.retailUpload);
-    target.internalDataAuthorised = true;
-  }
-  return target;
-}
-
 async function handlePost(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
