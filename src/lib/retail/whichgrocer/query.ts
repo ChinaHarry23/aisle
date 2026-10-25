@@ -19,6 +19,11 @@ export type ShelfOffer = {
   discountPct: number | null;
   outOfStock: boolean;
   observedAt: string | null;
+  archived?: boolean;
+  stale?: boolean;
+  unitPrice?: number | null;
+  unitMeasure?: string | null;
+  priceStats?: { average30d: number | null; lowest30d: number | null; highest30d: number | null };
 };
 
 const STORE_LABELS: Record<string, string> = {
@@ -67,7 +72,7 @@ function asText(value: unknown): string | null {
 
 function asDay(value: unknown): string | null {
   const text = asText(value);
-  return text && /^\d{4}-\d{2}-\d{2}/.test(text) ? text.slice(0, 10) : null;
+  return text && /^\d{4}-\d{2}-\d{2}/.test(text) && Number.isFinite(Date.parse(text)) ? text.slice(0, 10) : null;
 }
 
 function offerFromRecord(record: Record<string, unknown>): ShelfOffer | null {
@@ -80,6 +85,11 @@ function offerFromRecord(record: Record<string, unknown>): ShelfOffer | null {
       ? (record.price_stats as Record<string, unknown>)
       : null;
   return {
+    archived: Boolean(record.last_seen_at),
+    stale: record.is_stale === true,
+    unitPrice: typeof record.unit_price === 'number' ? record.unit_price : null,
+    unitMeasure: asText(record.unit_measure),
+    priceStats: stats ? {average30d: typeof stats.average_30d==='number'?stats.average_30d:null,lowest30d:typeof stats.lowest_30d==='number'?stats.lowest_30d:null,highest30d:typeof stats.highest_30d==='number'?stats.highest_30d:null}:undefined,
     id: asText(record.id) ?? `${store}:${name}`,
     name,
     store,
@@ -179,7 +189,7 @@ export function describeShelf(query: string, offers: ShelfOffer[], at: string): 
   claim: string;
   detail: string;
   sourceRef: string;
-  observedAt: string;
+  observedAt: string | null;
 } {
   const priced = [...offers].sort((a, b) => a.price - b.price);
   const claim = `${query}: ${priced.map((offer) => `${offer.storeLabel} ${aud(offer.price)}`).join(", ")}`;
@@ -188,15 +198,18 @@ export function describeShelf(query: string, offers: ShelfOffer[], at: string): 
     const cup = offer.cupPrice ? `, ${offer.cupPrice}` : "";
     const special =
       offer.special && offer.discountPct != null
-        ? `, on special (${Math.round(offer.discountPct)}% below the 30-day average)`
+        ? `, ${Math.round(offer.discountPct)}% below the 30-day average (not a verified promotion)`
         : offer.special
-          ? ", on special"
+          ? ", provider special flag; promotion dates unknown"
           : "";
-    return `${offer.storeLabel} — ${offer.name} ${aud(offer.price)}${cup}${special}${stock}`;
+    const stats=offer.priceStats?`, 30-day average/low/high ${offer.priceStats.average30d ?? 'unknown'}/${offer.priceStats.lowest30d ?? 'unknown'}/${offer.priceStats.highest30d ?? 'unknown'}`:'';
+    const unit=offer.unitPrice!=null&&offer.unitMeasure?`, ${offer.unitPrice} AUD per ${offer.unitMeasure}`:'';
+    return `${offer.storeLabel} — ${offer.name} ${aud(offer.price)}${cup}${unit}${stats}${special}${stock}`;
   });
   const observedAt =
-    priced.map((offer) => offer.observedAt).find((day) => day) ??
-    (at.length >= 10 ? at.slice(0, 10) : new Date().toISOString().slice(0, 10));
+    priced.length > 0 && priced.every(offer => offer.observedAt === priced[0].observedAt)
+      ? priced[0].observedAt : null;
+  void at; // Retrieval time must never substitute for a missing source date.
   const sourceRef = priced.find((offer) => offer.url)?.url ?? "https://www.whichgrocer.com/";
   return {
     claim: claim.slice(0, 180),

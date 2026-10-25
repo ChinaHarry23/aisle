@@ -55,13 +55,19 @@ export type Evidence = {
   sourceRef: string;
   sourceKind: SourceKind;
   /** ISO date the underlying information describes (not when we fetched it). */
-  observedAt: string;
+  observedAt: string | null;
+  /** Meaning of observedAt; null means the source supplied no information date. */
+  dateBasis?: "revision" | "source_record" | "unknown";
+  /** Forecast validity is separate from its publication date. */
+  coverage?: { start: string; end: string; location: string };
   fetchedAt: string;
   status: EvidenceStatus;
   confidence: number;
   /** Which agent raised it. */
   raisedBy: Actor;
   usedFor: string;
+  research?: { category: import('@/lib/trend/contracts').ResearchCategory; channel?: string; geography: string;
+    queryScope: string; permission: 'allowed'; quality: 'snippet' | 'unassessed'; transformation?: string };
 };
 
 export type TrendFinding = {
@@ -281,8 +287,28 @@ export type DeliveryAttempt = {
   confirmationRef: string | null;
   /** True when a late result was matched to this item id rather than resubmitted. */
   reconciled: boolean;
+  /** Publish-and-confirm latency for this item, in ms (simulated). 0 when never submitted. */
+  latencyMs: number;
   note: string;
   at: string;
+};
+
+/**
+ * DI-03 — the distribution context verified before any adaptation begins. Records
+ * that the ad was AHR-04-approved, the compliance approval id, and which channels
+ * the gateways can carry. `ok: false` means distribution was refused.
+ */
+export type DistributionContext = {
+  verifiedAt: string;
+  ok: boolean;
+  /** Id of the passing AHR-04 compliance attempt this release rests on. */
+  complianceApprovalId: string | null;
+  /** Authorised access per selected channel, loaded from the channel gateways. */
+  channels: { channel: Channel; type: "digital" | "physical"; available: boolean }[];
+  /** Required context fields that were missing (empty when ok). */
+  missing: string[];
+  /** Why distribution was refused, when ok is false. */
+  reason: string | null;
 };
 
 /**
@@ -390,6 +416,15 @@ export type RecommendationDecision = {
 
 type RunStatus = "idle" | "running" | "paused" | "awaiting_human" | "complete" | "halted";
 
+export type ResearchToolUsage = {
+  provider: 'firecrawl' | 'whichgrocer' | 'serpapi' | 'model_search';
+  cache: 'miss' | 'hit' | 'same_run';
+  credits: number | null;
+  creditsBasis: 'reported' | 'unknown' | 'cache';
+  originalCredits?: number | null;
+  originalFetchedAt?: string;
+  estimatedCostUsd?: number;
+};
 export type ToolCall = {
   id: string;
   at: string;
@@ -401,11 +436,14 @@ export type ToolCall = {
   latencyMs: number;
   /** Evidence raised by this call, if any. */
   evidenceIds: string[];
+  usage?: ResearchToolUsage;
 };
 
 export type RunStepId =
   | "intake.validate"
   | "trend.receive"
+  | "trend.quality"
+  | "trend.handoff"
   | "trend.research"
   | "trend.brief"
   | "creative.receive"
@@ -456,6 +494,8 @@ export type AgentRun = {
 /* ------------------------------------------------------------------ commands */
 
 export type Command =
+  | import("@/lib/trend/quality-contracts").TrendResolution
+  | {type:"CANCEL_TREND";actor:"founder";note:string}
   /** Validate the brief, write the shared context, hand to the Trend Analyser. */
   | { type: "START"; actor: "founder"; note?: string }
   | { type: "PAUSE"; actor: "founder"; note?: string }

@@ -12,6 +12,7 @@
 import { jsonHeadersWithKey } from "@/lib/media/byo-key";
 import type { BrandProfile, Campaign } from "@/lib/types";
 import type { WorkspaceSettings } from "@/lib/settings";
+import type { WorkflowJob } from "@/lib/workflow/types";
 import type { Command, EngineResult } from "./types";
 
 type WorkspaceContext = {
@@ -35,18 +36,33 @@ export async function sendCommand(
       body: JSON.stringify({
         campaign,
         command,
+        requestId:crypto.randomUUID(),
         campaigns: context.campaigns,
         brand: context.brand,
         settings: context.settings,
       }),
     });
-    const json = (await res.json()) as EngineResponse;
+    const json = (await res.json()) as EngineResponse & {job?:WorkflowJob};
     if (!res.ok) {
       return {
         ...emptyResult(campaign),
         message: json.error ?? "The engine refused that command.",
         error: json.error ?? "The engine refused that command.",
       };
+    }
+    if(res.status===202&&json.job){
+      let job=json.job;
+      // Closing the page stops observation, not the independent worker. A timed
+      // out poll never resubmits or automatically retries a paid provider call.
+      const until=Date.now()+700000;
+      while(['queued','running'].includes(job.status)&&Date.now()<until){
+        await new Promise(resolve=>setTimeout(resolve,1000));
+        const response=await fetch(`/api/engine/jobs/${encodeURIComponent(job.id)}`,{cache:'no-store'});
+        if(!response.ok)throw Error('The saved job could not be read. Open Workflow operations; do not relaunch it.');
+        job=await response.json() as WorkflowJob;
+      }
+      if(job.result)return {...job.result,canAdvance:false,...(job.status==='failed'||job.status==='interrupted'?{error:job.message}:{}),message:job.message};
+      throw Error(job.message||'Workflow saved. Check Workflow operations for progress.');
     }
     return json;
   } catch (error) {

@@ -232,7 +232,7 @@ async function callOpenAIChatTools(model: LlmModel, req: CompleteRequest) {
     reasoning_effort: "none",
     ...(req.maxOutputTokens !== undefined ? { max_completion_tokens: req.maxOutputTokens } : {}),
     messages: openAIMessages(req),
-    ...(req.tools?.length ? { tools: openAITools(req) } : {}),
+    ...(req.tools?.length ? { tools: openAITools(req), ...(req.toolChoice ? {tool_choice:req.toolChoice} : {}) } : {}),
     ...(req.responseSchema
       ? {
           response_format: {
@@ -292,7 +292,7 @@ async function callOpenAIResponses(model: LlmModel, req: CompleteRequest) {
     input,
     reasoning: { effort: model.effort ?? "low" },
     ...(req.maxOutputTokens !== undefined ? { max_output_tokens: req.maxOutputTokens } : {}),
-    ...(tools.length ? { tools } : {}),
+    ...(tools.length ? { tools, ...(req.toolChoice ? {tool_choice:req.toolChoice} : {}) } : {}),
     ...(req.responseSchema
       ? {
           text: {
@@ -330,11 +330,27 @@ async function callOpenAIResponses(model: LlmModel, req: CompleteRequest) {
   };
 }
 
+/** Provider-safe aliases must also round-trip through assistant/tool history. */
+async function callLlmWithTools(model: LlmModel, req: CompleteRequest) {
+  if (model.providerId === "local") return callProviderTools(model, req);
+  const aliases = new Map((req.tools ?? []).map(t => [t.name, t.name.replace(/[^a-zA-Z0-9_-]/g, c => `_${c.charCodeAt(0).toString(16)}_`)]));
+  if (new Set(aliases.values()).size !== aliases.size || [...aliases.values()].some(name => name.length > 64)) throw Error('Tool alias collision or unsupported length.');
+  // A collection phase may narrow the current tool list. Earlier calls still
+  // need the same provider-safe names in history even when no longer offered.
+  const wireName = (name: string) => aliases.get(name) ?? name.replace(/[^a-zA-Z0-9_-]/g, c => `_${c.charCodeAt(0).toString(16)}_`);
+  const wire: CompleteRequest = {...req, tools:req.tools?.map(t => ({...t,name:wireName(t.name)})),
+    history:req.history?.map(turn => turn.role === 'assistant' ? {...turn,toolCalls:turn.toolCalls?.map(call => ({...call,name:wireName(call.name)}))}
+      : turn.role === 'tool' ? {...turn,...(turn.name ? {name:wireName(turn.name)} : {})} : turn)};
+  const result = await callProviderTools(model, wire);
+  const originals = new Map([...aliases].map(([original,alias]) => [alias,original]));
+  return {...result, ...(result.toolCalls ? {toolCalls:result.toolCalls.map(call => ({...call,name:originals.get(call.name) ?? call.name}))} : {})};
+}
+
 /**
  * Tool-calling seats need OpenAI-format `tools` / `tool_calls`. OpenAI models go to the
  * Responses or Chat Completions helpers; local models go to the local OpenAI-compatible server.
  */
-async function callLlmWithTools(
+async function callProviderTools(
   model: LlmModel,
   req: CompleteRequest,
 ): Promise<{ text: string; inputTokens?: number; outputTokens?: number; toolCalls?: ToolCall[] }> {

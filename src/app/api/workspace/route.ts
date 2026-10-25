@@ -1,3 +1,4 @@
+import {withWorkspaceLock,protectResearchSnapshots} from '@/lib/trend/inline-state';
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/current";
 import { loadWorkspace, updateWorkspace, type WorkspaceSnapshot } from "@/lib/auth/workspace";
@@ -24,7 +25,11 @@ export async function GET() {
   return NextResponse.json(workspace);
 }
 
-export async function PUT(request: Request) {
+export async function PUT(request:Request){
+ const owner=await getCurrentUser();if(!owner)return NextResponse.json({error:'Sign in first.'},{status:401});
+ return withWorkspaceLock(owner.id,()=>handlePut(request));
+}
+async function handlePut(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
   const body = (await request.json().catch(() => null)) as Partial<WorkspaceSnapshot> | null;
@@ -46,6 +51,12 @@ export async function PUT(request: Request) {
       const accepted = acceptWorkspaceCampaigns({ brand, settings, campaigns: stored.campaigns }, submitted);
       let campaigns = accepted;
       if (workflowEnabled()) campaigns = (await mergeWorkflowCampaigns(user.id, campaigns)).campaigns;
+      else {
+        // A stale tab that leaves out a campaign holding stored research must not
+        // delete it; deleting goes through retiredCampaignIds.
+        const listed = new Set(campaigns.map((c) => c.id));
+        campaigns = [...campaigns, ...protectResearchSnapshots([], stored.campaigns).filter((c) => !listed.has(c.id))];
+      }
       // The founder's trash and restores win over the durable worker's copy.
       campaigns = retainCampaignLifecycle(accepted, body.retiredCampaignIds ?? [], campaigns);
       const wasTrashed = new Set(stored.campaigns.filter(isArchived).map((c) => c.id));

@@ -1,3 +1,6 @@
+import {withWorkspaceLock,requestInlinePause,resumeInlineResearch,inlineResearchAllowed} from '@/lib/trend/inline-state';
+import {recordStoredTrend} from '@/lib/trend/quality';
+import {retailUploadSchema} from '@/lib/trend/internal-retail';
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/current";
 import { demoWorkspace, loadWorkspace, updateWorkspace, type WorkspaceSnapshot } from "@/lib/auth/workspace";
@@ -14,7 +17,7 @@ import type { Command } from "@/lib/runtime/types";
 import type { Campaign } from "@/lib/types";
 import { workflowEnabled, submitWorkflow } from "@/lib/workflow/gateway";
 import { parseCommand, WorkflowError } from "@/lib/workflow/commands";
-import { createServerTrendRuntime } from "@/lib/agents/trend-server";
+import { createServerResearchRuntime } from "@/lib/agents/trend-server";
 import { billingForSession } from "@/lib/billing/meter";
 
 export const runtime = "nodejs";
@@ -71,7 +74,36 @@ type Body = {
  * produced. Inline mode still depends on browser ADVANCE requests. Service mode
  * submits durable jobs to the independent worker, which survives closing the tab.
  */
-export async function POST(request: Request) {
+export async function POST(request:Request){
+ const owner=await getCurrentUser();if(!owner)return NextResponse.json({error:'Sign in first.'},{status:401});
+ const preview=await request.clone().json().catch(()=>null);
+ if(['PAUSE','CANCEL_TREND'].includes(preview?.command?.type)&&typeof preview?.campaign?.id==='string')requestInlinePause(owner.id,preview.campaign.id);
+ return withWorkspaceLock(owner.id,()=>handlePost(request));
+}
+/** Stored research wins over a browser copy. A draft still takes the brief the founder just edited. */
+function campaignForCommand(existing: Campaign | undefined, incoming: Campaign, command: Command): Campaign {
+  if (!existing && command.type !== "START") {
+    throw new WorkflowError("Start and store the campaign before submitting workflow or feedback decisions.", 409);
+  }
+  if (!existing && incoming.trendQuality) {
+    throw new WorkflowError("No stored research version exists for this campaign.", 409);
+  }
+  const protectedResearch = Boolean(existing?.trendQuality || existing?.researchMode === "agent");
+  const target = withRuntimeDefaults(existing && existing.status !== "draft" ? structuredClone(existing) : incoming);
+  if (
+    protectedResearch &&
+    command.type === "RESOLVE_TREND" &&
+    command.action === "provide_data" &&
+    incoming.internalDataAuthorised &&
+    incoming.retailUpload
+  ) {
+    target.retailUpload = retailUploadSchema.parse(incoming.retailUpload);
+    target.internalDataAuthorised = true;
+  }
+  return target;
+}
+
+async function handlePost(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
 
@@ -80,17 +112,27 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "campaign and command are required." }, { status: 400 });
   }
 
+  let command: Command;
+  try {
+    command = parseCommand(body.command);
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Invalid command." },
+      { status: error instanceof WorkflowError ? error.status : 400 },
+    );
+  }
+
   if (workflowEnabled()) {
     try {
       // Authentication owns the tenant; browser approvals and runtime output are not trusted.
-      const command = parseCommand(body.command);
       const stored = await loadWorkspace(user.id, user.role);
       const kept = stored.campaigns.find((item) => item.id === body.campaign!.id);
       if (isArchived(kept ?? {}) || isArchived(body.campaign)) {
         return NextResponse.json({ error: "This campaign is in the trash. Restore it before the agents can continue." }, { status: 409 });
       }
+      const submitted = campaignForCommand(kept, body.campaign, command);
       const job = await submitWorkflow(user.id, {
-        campaign: body.campaign, command, campaigns: stored.campaigns,
+        campaign: submitted, command, campaigns: stored.campaigns,
         brand: stored.brand, settings: stored.settings,
       }, body.requestId || "");
       return NextResponse.json({ job }, { status: 202 });
@@ -101,13 +143,23 @@ export async function POST(request: Request) {
 
   const loaded = await loadWorkspaceStrict(user.id, user.role);
   const stored = loaded.snapshot;
-  const brand = (body.brand as typeof stored.brand) ?? stored.brand;
+  const brand = stored.brand;
   const settings = stored.settings;
-  const campaigns = (body.campaigns ?? []).map(withRuntimeDefaults);
-  const target = withRuntimeDefaults(body.campaign);
-  const storedCampaign = stored.campaigns.find((item) => item.id === target.id);
-  if (isArchived(storedCampaign ?? {}) || isArchived(target)) {
-    const campaign = { ...(storedCampaign ?? target), archivedAt: storedCampaign?.archivedAt ?? target.archivedAt, running: false };
+  // Prior advice and neighbouring campaigns come from platform storage, never
+  // a browser-supplied acceptance or report record.
+  const campaigns = stored.campaigns.map(withRuntimeDefaults);
+  const existing = stored.campaigns.find((item) => item.id === body.campaign!.id);
+  let target: Campaign;
+  try {
+    target = campaignForCommand(existing, body.campaign, command);
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Invalid command." },
+      { status: error instanceof WorkflowError ? error.status : 409 },
+    );
+  }
+  if (isArchived(existing ?? {}) || isArchived(target)) {
+    const campaign = { ...(existing ?? target), archivedAt: existing?.archivedAt ?? target.archivedAt, running: false };
     return NextResponse.json({
       campaign,
       run: campaign.run,
@@ -132,9 +184,9 @@ export async function POST(request: Request) {
       let savedInput = false;
       try {
         // A compare-and-set on the latest copy, so this cannot undo another save.
+        // The brand is the stored one, so it is not written back.
         savedInput = await updateWorkspace(user.id, user.role, (latest) => ({
           ...latest,
-          brand,
           campaigns: [target, ...latest.campaigns.filter((item) => item.id !== target.id)],
         }));
       } catch {
@@ -146,7 +198,7 @@ export async function POST(request: Request) {
           campaignId: target.id,
           userId: user.id,
           maxSteps,
-          command: body.command,
+          command,
         });
         const latest = await loadWorkspace(user.id, user.role);
         const saved = latest.campaigns.find((item) => item.id === target.id);
@@ -166,17 +218,19 @@ export async function POST(request: Request) {
         });
       }
     }
-    const llm = createServerTrendRuntime(billing);
+    if (command.type === "START" || command.type === "RESOLVE_TREND") resumeInlineResearch(user.id, target.id);
+    const llm = createServerResearchRuntime(billing);
     const result = await runEngine(
       { campaigns, now: new Date().toISOString() },
       target,
-      body.command,
+      command,
       settings,
       brand,
       {
         maxSteps,
         ownerUserId: user.id,
         billing,
+        researchAllowed: () => !request.signal.aborted && inlineResearchAllowed(user.id, target.id),
         llm,
         renderPoster: (input) =>
           renderCampaignPoster({
@@ -189,6 +243,7 @@ export async function POST(request: Request) {
       },
     );
     try {
+      recordStoredTrend(result.campaign);
       // A compare-and-set on the latest copy, so a concurrent save cannot undo this result.
       const saved = await updateWorkspace(user.id, user.role, (latest) => ({
         ...latest,

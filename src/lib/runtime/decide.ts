@@ -35,6 +35,9 @@ import type { BrandProfile, Campaign, Creative, PriceRecommendation } from "@/li
 import { MAX_REVISION_ATTEMPTS, type ChannelResult, type ComplianceIssue, type ComplianceOutcome, type RecommendationPoint } from "./types";
 
 export type LlmRuntime = {
+  brief?: import('@/lib/trend/brief-contracts').BriefRunner;
+  quality?: import("@/lib/trend/quality-contracts").QualityRunner;
+  research?: import("@/lib/trend/contracts").ResearchRunner;
   request: (req: CompleteRequest) => Promise<CompleteResult>;
   /** live: lets the code paths that bypass `request` run: the LangGraph seat agents (askSeat), rewriteImagePrompts, and the optional intake-formatting call in operation-graph.ts. One-shot `request` calls run either way. billing: the metered identity passed to seat-agent runs. When it is set, decideCompliance sends both of its requests through runComplete(req, billing) instead of `request`. */
   meta?: {
@@ -167,6 +170,7 @@ function traceFromSeat(agent: AgentSlot, answer: AgentAnswer<unknown>): Decision
 /* -------------------------------------------------------------- trend brief -- */
 
 export type TrendDecision = {
+  researchAnalysis?: import('@/lib/trend/contracts').ResearchAnalysis[];
   priorities: { topic: string; relevance: number; confidence: number; theme?: string; visual?: string }[];
   angle: string;
   keyMessage: string;

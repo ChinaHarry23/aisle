@@ -12,6 +12,7 @@
  * keeps the per-seat tool sets honest.
  */
 
+import { redact } from "@/lib/trend/source-tools";
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
 import {
@@ -27,6 +28,7 @@ import {
  * category or a country, and the tools coerce what they need.
  */
 export function toolSchema(definition: ToolDefinition) {
+  if (definition.schema) return definition.schema;
   const shape: Record<string, z.ZodString> = {};
   for (const arg of definition.args) {
     shape[arg] = z.string().describe(toolArgHelp(definition.name, arg));
@@ -59,6 +61,9 @@ function toolArgHelp(tool: string, arg: string): string {
 export type AgentToolContext = {
   /** Runs the tool and records the call. Supplied by the engine. */
   execute: (name: string, args: Record<string, string>) => Promise<ToolOutcome>;
+  names?: readonly string[];
+  /** Bounded model-facing view; the engine retains the complete original outcome. */
+  projectResult?: (outcome: ToolOutcome) => unknown;
 };
 
 /**
@@ -70,7 +75,7 @@ export type AgentToolContext = {
  * adapt, instead of the agent loop dying on an exception.
  */
 export function agentTools(agent: ToolAgent, context: AgentToolContext): DynamicStructuredTool[] {
-  return TOOL_REGISTRY.filter((definition) => definition.agent === agent).map((definition) =>
+  return TOOL_REGISTRY.filter((definition) => definition.agent === agent && (!context.names || context.names.includes(definition.name))).map((definition) =>
     new DynamicStructuredTool({
       name: definition.name,
       description: definition.description,
@@ -84,12 +89,14 @@ export function agentTools(agent: ToolAgent, context: AgentToolContext): Dynamic
           flat[key] = typeof value === "string" ? value : String(value ?? "");
         }
         const outcome = await context.execute(definition.name, flat);
-        return JSON.stringify({
+        const payload = {
           status: outcome.status,
           summary: outcome.summary,
           data: outcome.data,
+          evidence: outcome.evidence,
           ...(outcome.gap ? { gap: outcome.gap } : {}),
-        });
+        };
+        return JSON.stringify(context.projectResult ? context.projectResult(outcome) : payload, (_key, value) => agent === "trend" && typeof value === "string" ? redact(value) : value);
       },
     }),
   );

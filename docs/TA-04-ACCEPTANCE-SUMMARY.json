@@ -1,0 +1,46 @@
+{
+  "at": "2026-10-23T09:44:59.947Z",
+  "mode": "Actual shared model review of previously retrieved public evidence; synthetic campaign inputs; no advertising",
+  "cases": [
+    {
+      "product": "Apple juice",
+      "category": "Grocery",
+      "model": "openai:gpt-6-luna",
+      "checks": {
+        "realSharedModel": true,
+        "typedAssessment": true,
+        "allResearchAreas": true,
+        "allReportCategories": true,
+        "unknownDatesNotFresh": true,
+        "safeHandoff": true,
+        "boundedReplacement": true
+      },
+      "status": "INCOMPLETE",
+      "acceptedEvidence": 0,
+      "requiredFindingsSupported": 0,
+      "openRequests": 15,
+      "replacementAttempts": 2,
+      "estimatedCostUsd": 0.10457000000000001
+    },
+    {
+      "product": "Rain jacket",
+      "category": "Apparel",
+      "model": "openai:gpt-6-luna",
+      "checks": {
+        "realSharedModel": true,
+        "typedAssessment": true,
+        "allResearchAreas": true,
+        "allReportCategories": true,
+        "unknownDatesNotFresh": true,
+        "safeHandoff": true,
+        "boundedReplacement": true
+      },
+      "status": "INCOMPLETE",
+      "acceptedEvidence": 0,
+      "requiredFindingsSupported": 0,
+      "openRequests": 15,
+      "replacementAttempts": 2,
+      "estimatedCostUsd": 0.10453000000000001
+    }
+  ]
+}

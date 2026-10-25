@@ -68,7 +68,7 @@
 | `country` | `Country` | Yes | One of `"AU" \| "NZ" \| "UK" \| "US"` | `UC-01 ext 4.a` | Selects `brand.countryRules[country]` and Open-Meteo centroid. |
 | `notes` | `string` | Optional | String (sliced to `<= 4000` chars on command boundary); assistant-drafted notes are prefixed until founder-confirmed | — | Merged into `sharedContext.founderNotes`. |
 | `spendCapUsd` | `number` | Optional | Finite number `> 0` when supplied | `UC-01 ext 13.a` | Defaults via `defaultSpendCap()` to `clamp(round(budget * 0.002, 2), 5, 50)` USD. |
-| `internalDataAuthorised` | `boolean` | Optional | Boolean (`true` allows `retail.internal_signals`; `false` blocks via `AHR-02-R.privacy`) | `UC-02 ext 4.b` | Defaults to `true` in `withRuntimeDefaults()`; explicit `=== true` in `repository.enqueue()`. |
+| `internalDataAuthorised` | `boolean` | Optional | Boolean (`true` allows `retail.internal_signals`; `false` blocks via `AHR-02-R.privacy`) | `UC-02 ext 4.b` | TA-03: defaults to `false`; explicit `=== true` is required in defaults, engine, repository and tool. Permission alone does not connect a POS source. |
 | `fieldSources` | `Partial<Record<keyof CampaignInput, "founder" \| "assistant">>` | Optional | Provenance map recording whether each field was typed by the founder or drafted by the intake assistant | `CE-07 / CE-08` | Displayed on the campaign Brief and Runtime tabs. |
 | `intakeLog` | `AgentEvent[]` | Optional | Conversation transcript (`agent: "intake"`, `kind: "intake"`) appended to `campaign.log` on creation | `CE-08` | Preserves the intake assistant transcript for audit. |
 
@@ -297,6 +297,7 @@ type DeliveryAttempt = {
   status: "published" | "failed";
   confirmationRef: string | null; // present only when confirmed — no outcome without a real submission
   reconciled: boolean;        // true when a late result was matched to this itemId, not resubmitted
+  latencyMs: number;          // DI-11: publish-and-confirm latency for this item (0 when never submitted)
   note: string;
   at: string;
 };
@@ -304,9 +305,15 @@ type DeliveryAttempt = {
 
 ### 7.4 Handoff rule (`DI-10` / `SCRUM-108` ↔ `FB-01` / `SCRUM-116`)
 
-- A `channelVersion` with `status === "failed"` **stays** `"failed"` through `PUBLISH`.
-- AHR-06 (`collectChannelResults()`) reads results **only** for channels that reached `status === "published"`. Any selected channel that did **not** publish — whether adaptation was withheld (`"failed"` version) or delivery never confirmed (`deliveryReport` failure) — is recorded as a **gap** with `figures: null`, never estimated.
-- While `deliveryReport.outcome` is `"partial"`/`"none"` (a channel unconfirmed), the campaign is held at `status: "scheduled"`, `run.awaiting: "failure"`; `COLLECT_FEEDBACK` is refused until the founder resolves the unconfirmed channels. AHR-06 therefore only ever collects from a fully- or partially-published campaign whose live channels carry a `confirmationRef`.
+Agreed with the AHR-06 owner (Bao Xinlong); the AHR-06 side is the Feedback contract [`docs/contracts/feedback.md`](./feedback.md) (`FB-00` / `SCRUM-119`, implemented by `FB-01` / `SCRUM-116`).
+
+- A `channelVersion` with `status === "failed"` **stays** `"failed"` through `PUBLISH`. A delivery attempt counts as a reporter for AHR-06 **only** when its item reached `status === "published"` **and** carries a `confirmationRef` (no outcome without a real, confirmed publish).
+- **Gap rule — OD-2 confirmed (keep the channel, never omit it).** Any founder-selected channel that did **not** meet that test is still surfaced as a gap for the founder — a `ChannelResult` with `figures: null` and one of the agreed reasons — so the founder can see what failed to run (UC-06 ext 4.a). It is excluded from totals but **never dropped from the report**. The agreed reasons are:
+  - `not published: adaptation withheld` — the claims-frozen guard blocked the channel's adaptation (`ChannelVersion.status === "failed"`).
+  - `not published: delivery not confirmed` — the channel adapted but its submission never confirmed within the retry cap (`deliveryReport` failure).
+  - `not published: no live item` — the channel had no scheduled/live item to report on.
+- Ownership: the published-only reader that applies this rule (changing `collectChannelResults()` from iterating `campaign.channels` to reading only the published set, with the gap row kept) is **FB-01's** to implement; Distribution keeps the gap-row contract above until Distribution says otherwise.
+- While `deliveryReport.outcome` is `"partial"`/`"none"` (a channel unconfirmed), the campaign is held at `status: "scheduled"`, `run.awaiting: "failure"`; `COLLECT_FEEDBACK` is refused until the founder resolves the unconfirmed channels (matches UC-06 ext 2.a). AHR-06 therefore only ever collects from a fully- or partially-published campaign whose live channels carry a `confirmationRef`.
 
 ### 7.5 Guardrails enforced on AHR-05 (`evaluateGuard`)
 
@@ -364,3 +371,45 @@ Distribution is served by gateways, not a live platform client. `src/lib/runtime
 `src/lib/runtime/agents.ts` provides the Stage-1 class model as Stage-2 code: an abstract `Agent` base and `AIMediaManager extends Agent` (`slot: "media"`) whose `adapt()` / `schedule()` / `publish()` operations delegate to the step handlers.
 
 **Automated proof**: `npm run bench` — *DI-02 — Media Manager agent generalizes Agent; digital/physical gateways registered & selected*.
+
+### 7.8 Receive & verify distribution context (`DI-03` / `SCRUM-101`)
+
+Before any adaptation, `verifyDistributionContext()` (`src/lib/runtime/steps.ts`, called at the top of `runMediaAdaptation`) confirms the distribution context and records it on `campaign.distributionContext` (`DistributionContext`):
+
+- **Approved only.** Distribution begins only for an AHR-04-approved advertisement (`founderDecision.action === "approve"` or a compliance `pass`); otherwise it is refused.
+- **Compliance approval id recorded** — the passing compliance attempt's id (falling back to the last reviewed attempt), carried on `distributionContext.complianceApprovalId`.
+- **Authorised channel access loaded** — for each selected channel, `{ channel, type, available }` from `selectGateway(channel).isAvailable(channel)`.
+- **Invalid input blocks with a reason + founder notification** — missing context (`channels`, `startDate`, `endDate`, `country`, `targetAudience`) or an unavailable channel sets `ok: false` with a `reason`, raises a founder escalation event, and parks the run (`run.awaiting: "failure"`, `step: "media.receive"`) — nothing is adapted or scheduled.
+
+**Automated proof**: `npm run bench` — *DI-03 — approved ad received, context verified (approval id + channel auth)*.
+
+### 7.9 Pause, cancellation & late results; latency (`DI-08` / `SCRUM-106`, `DI-11` / `SCRUM-109`)
+
+- **Pause/cancel (DI-08).** Pause/resume is owned by the **run** (the pipeline), never the individual item: a paused campaign is not `scheduled`, so `publishNode` refuses to start a publish. A result that returns after the publish loop has moved on is handled by `reconcileLateResult(campaign, itemId, confirmationRef, now)`: it matches the stable `itemId` and records the confirmation as **fact** (`reconciled: true`), never a second publish (an already-`published` item returns `already_published`); a result for an id no longer held — e.g. a cancelled item — returns `ignored_unknown` and is never invented into a publish.
+- **Latency (DI-11).** Each `DeliveryAttempt` records a simulated `latencyMs` (publish-and-confirm time; `0` when never submitted). A late-reconciled item carries the highest latency (it timed out before the late confirmation). The bench evaluates success, partial, divergent-withheld (a claims-frozen withheld channel), retry-exhaustion and late-result cases, asserting claims stay frozen, retries are capped, every escalation reaches the founder, no outcome exists without a real publish, and scope is not exceeded.
+
+**Automated proof**: `npm run bench` — *DI-08 — pause respected; late result reconciled by id; duplicate & unknown handled*; *DI-11 — publish-and-confirm latency recorded per item (late costs most)*.
+
+## TA-03 evidence contract amendment (18 October 2026)
+
+`campaign.evidence` remains the evidence ledger. `observedAt` now accepts `null`
+(unknown information date); `fetchedAt` always records retrieval time. Optional
+`dateBasis` distinguishes page revision, source record and unknown dates. Forecast
+`coverage` records its validity window and sample city separately. Existing string
+dates remain compatible. A successful fetch is not proof of a general market trend.
+
+`campaign.dataAccessPolicy.externalSources` optionally narrows the registered
+public-source allowlist; an empty list denies all external research. An absent
+policy uses the fixed prototype policy documented in [TA-03](../TA-03-AUTHORISED-EVIDENCE.md).
+The durable repository persists the policy on initial intake. It is not generated
+by the LLM. Internal access is denied unless explicitly true.
+
+Trend research pauses before creative handoff when no usable external evidence
+exists or unresolved source/conflict/currency gaps need founder attention. Partial
+briefs and provenance remain stored; `approvedClaims` is empty while blocked.
+This is a minimum retrieval gate, not the complete UC-02 category-sufficiency and
+founder-resolution workflow. See the TA-03 document for those remaining boundaries.
+
+### TA-03 required-area execution (21 October 2026, local)
+
+`Campaign.researchAttempts` records category, optional channel, tool, status, summary and evidence IDs for mandatory collection. `researchCoverage` includes every mandatory area and each selected channel even when missing/blocked. Its optional `analysis` is a source-cited draft; retrieval and syntactically valid citations never certify COMPLETE. `retailUpload` holds explicitly authorised validated aggregate rows plus file SHA-256/import time; raw customer data is rejected. See `docs/TA-03-AUTHORISED-EVIDENCE.md` for scope and unresolved acceptance items.

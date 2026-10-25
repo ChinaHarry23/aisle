@@ -5,7 +5,7 @@ import { runEngine, type EngineOptions } from "../../src/lib/runtime/engine";
 import { setShelfPriceLookup } from "../../src/lib/runtime/tools";
 import type { Command } from "../../src/lib/runtime/types";
 import { WorkflowRepository } from "./repository";
-import { createServerTrendRuntime } from "../../src/lib/agents/trend-server";
+import { createServerResearchRuntime } from "../../src/lib/agents/trend-server";
 import { findUserById } from "../../src/lib/auth/users";
 import { billingFor } from "../../src/lib/billing/meter";
 
@@ -26,20 +26,21 @@ export async function workOnce(repo: WorkflowRepository, workerId: string, optio
       const context = [...job.input.campaigns.filter(c => !managed.some(m => m.id === c.id)), ...managed];
       if (repo.pauseRequested(job)) command = { type: "PAUSE", actor: "founder" };
       // Resume a pause from its saved step; START must not repeat trend research.
-      if (command.type === "START" && campaign.status === "paused" && campaign.run && campaign.run.step !== "intake.validate") {
+      if (command.type === "START" && campaign.status === "paused" && campaign.run && campaign.run.step !== "intake.validate" && !campaign.trendQuality) {
         campaign.run.status = "running"; campaign.running = true;
         command = { type: "ADVANCE", actor: "system" };
       }
       // Recheck the owner's current role instead of trusting a saved/browser role.
       const owner = await findUserById(job.user_id);
       const billing = owner ? billingFor(owner) : undefined;
-      const llm = options.llm ?? createServerTrendRuntime(billing);
+      const llm = options.llm ?? createServerResearchRuntime(billing);
       const result = await runEngine({ campaigns: context, now: new Date().toISOString() }, campaign, command, job.input.settings, job.input.brand, {
         ...options,
         billing,
         llm,
         maxSteps: 1,
         ownerUserId: job.user_id,
+        researchAllowed: async () => leaseValid && !repo.pauseRequested(job) && (await options.researchAllowed?.() ?? true),
         renderPoster: options.renderPoster ?? ((input) => renderCampaignPoster({
           campaign: input.campaign,
           creative: input.creative,

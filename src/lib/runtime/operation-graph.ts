@@ -1,3 +1,4 @@
+import {runTrendQuality,handoffTrend,resolveTrend,cancelTrend} from './trend-quality';
 /**
  * The campaign operation as a LangGraph.
  *
@@ -8,6 +9,7 @@
  * draws it; the campaign document stays the record.
  */
 
+import type { RunnableConfig } from "@langchain/core/runnables";
 import { Annotation, END, START, StateGraph } from "@langchain/langgraph";
 import { evaluateGuard } from "./guard";
 import { validateIntake } from "./intake";
@@ -81,6 +83,7 @@ export const COMMAND_DESTINATIONS = [
   "decide_recommendation",
   "resolve_conflict",
   "boundary_check",
+  "trend_decision",
 ] as const;
 
 export const stageDestinations = {
@@ -93,12 +96,13 @@ export const stageDestinations = {
   [END]: END,
 } as const;
 
-export const intakeDestinations = { trend: "trend", [END]: END } as const;
 export const reviseDestinations = { revise: "revise", [END]: END } as const;
 
 export function stageFor(state: OpState): StageNode {
   switch (state.work.run?.step) {
     case "trend.receive":
+    case "trend.quality":
+    case "trend.handoff":
       return "trend";
     case "trend.brief":
     case "creative.receive":
@@ -190,6 +194,10 @@ async function executeStep(w: Work, env: StepEnv): Promise<{ blocked: boolean; m
   switch (run.step) {
     case "trend.receive":
       return runTrendResearch(w, env);
+    case "trend.quality":
+      return runTrendQuality(w,env);
+    case "trend.handoff":
+      return handoffTrend(w,env);
     case "trend.brief":
     case "creative.receive":
       return runCreativeGeneration(w, env, 1);
@@ -257,7 +265,7 @@ export async function stageNode(state: OpState): Promise<Partial<OpState>> {
 
 export function afterStage(state: OpState): StageNode | typeof END {
   if (state.command.type !== "ADVANCE") return END;
-  if (state.taken >= state.maxSteps || state.blocked) return END;
+  if (state.taken >= state.maxSteps || state.blocked || state.work.run?.step === "trend.handoff") return END;
   const run = state.work.run!;
   if (run.status !== "running" || FOUNDER_WAIT_STEPS.has(run.step)) return END;
   return stageFor(state);
@@ -274,6 +282,15 @@ export async function intakeNode(state: OpState): Promise<Partial<OpState>> {
       `This campaign is at ${w.campaign.status}. The existing run and its log are left unchanged (UC-01 ext 10.a).`,
     );
     return { work: w, stop: true, canAdvance: false, message: "This campaign is already running." };
+  }
+  if (w.campaign.status === "paused" && w.campaign.trendQuality) {
+    if (w.campaign.trendRequests?.some((request) => request.status === "pending")) {
+      return { work: w, stop: true, canAdvance: false, message: "Resolve the research requests before resuming." };
+    }
+    setRun(w, { status: "running", awaiting: null, awaitingDetail: null, haltedReason: null });
+    w.campaign.running = true;
+    addEvent(w, "founder", "decision", "Research explicitly resumed", `Continuing the saved ${w.run?.step} checkpoint.`);
+    return { work: w, stop: false, canAdvance: true, message: "Research resumed." };
   }
   const env = envOf(state);
   const started = startIntake(w, env);
@@ -530,8 +547,22 @@ export async function boundaryNode(state: OpState): Promise<Partial<OpState>> {
   return { work: w, canAdvance: false, message: outcome.reason };
 }
 
+export async function trendDecisionNode(state: OpState): Promise<Partial<OpState>> {
+  const env = envOf(state);
+  if (state.command.type === "CANCEL_TREND") {
+    cancelTrend(state.work, env, state.command.note);
+    return { work: state.work, canAdvance: false, message: "Analysis cancelled; partial work retained." };
+  }
+  if (state.command.type !== "RESOLVE_TREND") return { stop: true };
+  const result = resolveTrend(state.work, env, state.command);
+  return { work: state.work, canAdvance: !result.blocked, message: result.message };
+}
+
 export function routeCommand(state: OpState): (typeof COMMAND_DESTINATIONS)[number] {
   switch (state.command.type) {
+    case "RESOLVE_TREND":
+    case "CANCEL_TREND":
+      return "trend_decision";
     case "START":
       return "intake";
     case "ADVANCE":
@@ -560,6 +591,7 @@ export function routeCommand(state: OpState): (typeof COMMAND_DESTINATIONS)[numb
 function buildOperationGraph() {
   const graph = new StateGraph(GraphState)
     .addNode("route", () => ({}))
+    .addNode("trend_decision", trendDecisionNode)
     .addNode("intake", intakeNode)
     .addNode("advance", beginAdvance)
     .addNode("approve", approveNode)
@@ -577,9 +609,10 @@ function buildOperationGraph() {
     .addNode("compliance", stageNode)
     .addNode("media", stageNode)
     .addNode("unhandled", stageNode)
+    .addEdge("trend_decision", END)
     .addEdge(START, "route")
     .addConditionalEdges("route", routeCommand, [...COMMAND_DESTINATIONS])
-    .addConditionalEdges("intake", (state) => (state.stop ? END : "trend"), intakeDestinations)
+    .addConditionalEdges("intake", (state) => (state.stop ? END : stageFor(state)), stageDestinations)
     .addConditionalEdges("advance", (state) => (state.stop ? END : stageFor(state)), stageDestinations)
     .addEdge("approve", "media")
     .addConditionalEdges("request_changes", (state) => (state.stop ? END : "revise"), reviseDestinations);
@@ -628,6 +661,7 @@ export async function runOperation(
     command: Command;
     maxSteps: number;
   },
+  config?: RunnableConfig,
 ): Promise<{ canAdvance: boolean; message: string }> {
   const graph = operationGraph();
   const output = await graph.invoke(
@@ -652,6 +686,7 @@ export async function runOperation(
         step: input.work.run?.step ?? "start",
       },
       recursionLimit: 48,
+      ...config,
     },
   );
   return { canAdvance: output.canAdvance, message: output.message };

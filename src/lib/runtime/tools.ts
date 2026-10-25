@@ -11,10 +11,15 @@
  *  - `external_public` tools make a real HTTP request, with a timeout, and report
  *    honestly when the network is unavailable (status `empty` + an `unavailable`
  *    evidence row) instead of inventing a result.
- *  - `internal_retail` tools read the POS file uploaded on Brand for this
- *    retailer. A file for another banner is not used.
+ *  - `internal_retail` tools read an authorised campaign CSV when one is attached,
+ *    and otherwise the POS file uploaded on Brand for this retailer. A file for
+ *    another banner is not used, and no figure is invented when neither exists.
  */
 
+import { internalRetailOutcome, retailUploadSchema } from '@/lib/trend/internal-retail';
+import { researchTools, RESEARCH_TOOL_IDS, definePublicResearchTool } from "@/lib/trend/source-tools";
+import { z } from "zod";
+import { describeShelf } from "@/lib/retail/whichgrocer/query";
 import { uid } from "@/lib/ids";
 import { aud, matchRetailData } from "@/lib/retail-data";
 import type { ShelfLookup as ShelfLookupResult } from "@/lib/retail/whichgrocer/connection";
@@ -30,6 +35,7 @@ export type ToolOutcome = {
   evidence: Evidence[];
   /** Tool-specific payload the calling agent consumes. */
   data: unknown;
+  usage?: import('./types').ResearchToolUsage;
   /** Something the analysis could not establish, surfaced as a brief gap. */
   gap?: { kind: TrendBriefGap["kind"]; detail: string; effect: string };
 };
@@ -41,10 +47,12 @@ export type ToolDefinition = {
   description: string;
   /** Shown in the runtime view so the founder can audit what an agent may call. */
   args: string[];
+  schema?: z.ZodType;
+  cached?: (input: ToolInput) => Promise<ToolOutcome | null>;
   run: (input: ToolInput) => Promise<ToolOutcome>;
 };
 
-type ToolInput = {
+export type ToolInput = {
   campaign: Campaign;
   brand: BrandProfile;
   at: string;
@@ -53,6 +61,9 @@ type ToolInput = {
 };
 
 const FETCH_TIMEOUT_MS = 6_000;
+function sourceDate(value: unknown): string | null {
+  return typeof value === "string" && /^\d{4}-\d{2}-\d{2}/.test(value) && Number.isFinite(Date.parse(value)) ? value.slice(0, 10) : null;
+}
 
 async function getJson<T>(url: string): Promise<{ ok: true; json: T } | { ok: false; reason: string }> {
   try {
@@ -70,7 +81,7 @@ async function getJson<T>(url: string): Promise<{ ok: true; json: T } | { ok: fa
   } catch (error) {
     return {
       ok: false,
-      reason: error instanceof Error ? error.message.slice(0, 120) : "network error",
+      reason: error instanceof Error && error.name === "TimeoutError" ? "request timed out" : "network or invalid JSON response",
     };
   }
 }
@@ -81,7 +92,9 @@ function evidence(input: {
   sourceName: string;
   sourceRef: string;
   sourceKind: SourceKind;
-  observedAt: string;
+  observedAt: string | null;
+  dateBasis?: Evidence["dateBasis"];
+  coverage?: Evidence["coverage"];
   at: string;
   status?: Evidence["status"];
   confidence: number;
@@ -97,6 +110,8 @@ function evidence(input: {
     sourceKind: input.sourceKind,
     observedAt: input.observedAt,
     fetchedAt: input.at,
+    dateBasis: input.observedAt ? (input.dateBasis ?? "source_record") : "unknown",
+    ...(input.coverage ? { coverage: input.coverage } : {}),
     status: input.status ?? "verified",
     confidence: input.confidence,
     raisedBy: input.raisedBy,
@@ -122,6 +137,7 @@ export function toToolCall(input: {
     summary: input.outcome.summary,
     latencyMs: input.latencyMs,
     evidenceIds: input.outcome.evidence.map((e) => e.id),
+    usage: input.outcome.usage,
   };
 }
 
@@ -131,43 +147,29 @@ function signedPct(value: number) {
   return `${value > 0 ? "+" : ""}${value}%`;
 }
 
-const internalRetailTool: ToolDefinition = {
+/** Fixed, bounded public adapters authorised by the prototype's default policy.
+ * Campaign overrides can narrow this list; credentials alone never override a denial.
+ */
+export const DEFAULT_EXTERNAL_SOURCES = ["web.market_context", "web.season_weather", "web.shelf_prices", "web.competitor_scan", ...RESEARCH_TOOL_IDS] as const;
+function denied(campaign: Campaign, name: string): ToolOutcome | null {
+  const allowed: readonly string[] = campaign.dataAccessPolicy === undefined ? DEFAULT_EXTERNAL_SOURCES
+    : Array.isArray(campaign.dataAccessPolicy?.externalSources) ? campaign.dataAccessPolicy.externalSources : [];
+  if (allowed.includes(name)) return null;
+  return { summary: `${name} excluded by DataAccessPolicy.`, status: "skipped", evidence: [], data: null,
+    gap: { kind: "unauthorised", detail: `${name} is not authorised for this campaign.`, effect: "No request was made and no evidence was inferred." } };
+}
+
+export const internalRetailTool: ToolDefinition = {
   name: "retail.internal_signals",
   label: "Internal retail signals",
   agent: "trend",
   description:
-    "Reads the POS file uploaded on Brand for this retailer. It does not use another retailer's file.",
+    "Reads an authorised aggregate CSV for this campaign, or the POS file uploaded on Brand for this retailer. It does not use another retailer's file.",
   args: ["category", "country"],
   async run({ campaign, brand, at }) {
-    const authorised = campaign.internalDataAuthorised !== false;
-    if (!authorised) {
-      return {
-        summary: "Internal retail data is not authorised for this campaign — skipped.",
-        status: "skipped",
-        data: null,
-        evidence: [
-          evidence({
-            claim: "Internal retail data not included",
-            detail:
-              "The retailer has not authorised internal retail data for this campaign, so POS and catalogue history were excluded from the analysis.",
-            sourceName: "Authorisation register",
-            sourceRef: "workspace://authorisation/internal-retail",
-            sourceKind: "internal_retail",
-            observedAt: at,
-            at,
-            status: "unavailable",
-            confidence: 100,
-            raisedBy: "trend",
-            usedFor: "Authorisation",
-          }),
-        ],
-        gap: {
-          kind: "unauthorised",
-          detail: "POS, catalogue history and basket data were excluded (not authorised).",
-          effect: "Conclusions rest on public sources only; confidence is reduced.",
-        },
-      };
-    }
+    if (!campaign.internalDataAuthorised) return internalRetailOutcome(campaign, at);
+    if (retailUploadSchema.safeParse(campaign.retailUpload).success) return internalRetailOutcome(campaign, at);
+    if (!brand.retailData) return internalRetailOutcome(campaign, at);
     const matched = matchRetailData(brand, campaign);
     const observedAt = brand.retailData?.extractedAt || at.slice(0, 10);
     if (matched.kind !== "product" && matched.kind !== "category") {
@@ -272,7 +274,7 @@ type WikipediaSummary = {
   title?: string;
 };
 
-const marketContextTool: ToolDefinition = {
+export const marketContextTool: ToolDefinition = {
   name: "web.market_context",
   label: "Public market context (Wikipedia)",
   agent: "trend",
@@ -280,6 +282,8 @@ const marketContextTool: ToolDefinition = {
     "Fetches the public summary of the product/category to ground the campaign theme. Records the page URL and the revision date.",
   args: ["topic"],
   async run({ campaign, at, args }) {
+    const permission = denied(campaign, "web.market_context");
+    if (permission) return permission;
     const topic = (args.topic || campaign.product.split(/[(+—,]/)[0] || campaign.category).trim();
     const url = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(topic.replace(/\s+/g, "_"))}`;
     const result = await getJson<WikipediaSummary>(url);
@@ -295,7 +299,7 @@ const marketContextTool: ToolDefinition = {
             sourceName: "Wikipedia REST API",
             sourceRef: url,
             sourceKind: "external_public",
-            observedAt: at.slice(0, 10),
+            observedAt: null,
             at,
             status: "unavailable",
             confidence: 100,
@@ -311,9 +315,9 @@ const marketContextTool: ToolDefinition = {
       };
     }
     const json = result.json;
-    const extract = (json.extract ?? "").trim();
-    const page = json.content_urls?.desktop?.page ?? url;
-    const observedAt = (json.timestamp ?? at).slice(0, 10);
+    const extract = typeof json?.extract === "string" ? json.extract.trim() : "";
+    const page = json?.content_urls?.desktop?.page || url;
+    const observedAt = sourceDate(json?.timestamp);
     if (!extract) {
       return {
         summary: `Public reference for "${topic}" returned no extract.`,
@@ -328,7 +332,7 @@ const marketContextTool: ToolDefinition = {
       };
     }
     return {
-      summary: `Public reference for "${topic}" (${observedAt}).`,
+      summary: `Public reference for "${topic}" (revision: ${observedAt ?? "unknown"}).`,
       status: "ok",
       data: { topic, extract, page, observedAt },
       evidence: [
@@ -342,21 +346,24 @@ const marketContextTool: ToolDefinition = {
           at,
           confidence: 72,
           raisedBy: "trend",
-          usedFor: "Category context and theme grounding",
+          dateBasis: "revision",
+          usedFor: "Category context only; not demand or consumer preference evidence",
         }),
       ],
     };
   },
 };
 
-const competitorScanTool: ToolDefinition = {
+export const competitorScanTool: ToolDefinition = {
   name: "web.competitor_scan",
   label: "Public competitor scan (DuckDuckGo)",
   agent: "trend",
   description:
-    "Searches public results for competitor promotion language in the campaign's country, and counts how many lead with superlatives.",
+    "Queries a public instant-answer index; results are contextual references, not a representative competitor survey.",
   args: ["query"],
   async run({ campaign, at, args }) {
+    const permission = denied(campaign, "web.competitor_scan");
+    if (permission) return permission;
     const query = (
       args.query ||
       `${campaign.category} ${campaign.country} advertising claim "best" OR "number one"`
@@ -380,7 +387,7 @@ const competitorScanTool: ToolDefinition = {
             sourceName: "DuckDuckGo Instant Answer API",
             sourceRef: url,
             sourceKind: "external_public",
-            observedAt: at.slice(0, 10),
+            observedAt: null,
             at,
             status: "unavailable",
             confidence: 100,
@@ -396,10 +403,10 @@ const competitorScanTool: ToolDefinition = {
       };
     }
     const json = result.json;
-    const related = (json.RelatedTopics ?? []).filter((t) => t.Text).slice(0, 4);
-    const abstract = (json.AbstractText ?? "").trim();
-    const ref = json.AbstractURL ?? url;
-    const observedAt = at.slice(0, 10);
+    const related = (Array.isArray(json?.RelatedTopics) ? json.RelatedTopics : []).filter((t) => typeof t?.Text === "string").slice(0, 4);
+    const abstract = typeof json?.AbstractText === "string" ? json.AbstractText.trim() : "";
+    const ref = json?.AbstractURL || url;
+    const observedAt = null;
     const terms = related.map((t) => t.Text ?? "").join(" ");
     const superlatives = (terms + abstract).match(
       /\b(best|number one|#1|guaranteed|clinically proven|world'?s)\b/gi,
@@ -413,9 +420,9 @@ const competitorScanTool: ToolDefinition = {
           : `Public index: ${hits} superlative term(s) across ${related.length + (abstract ? 1 : 0)} indexed result(s).`,
       status: related.length === 0 && !abstract ? "empty" : "ok",
       data: { abstract, related, hits, ref },
-      evidence: [
+      evidence: related.length === 0 && !abstract ? [] : [
         evidence({
-          claim: "Competitor/public promotion language in market",
+          claim: "Public index context (not a representative competitor sample)",
           detail:
             (abstract || related.map((t) => `${t.Text} (${t.FirstURL})`).join(" · ")).slice(0, 420) ||
             "No indexed public description available.",
@@ -426,7 +433,7 @@ const competitorScanTool: ToolDefinition = {
           at,
           confidence: 64,
           raisedBy: "trend",
-          usedFor: "Competitor pattern",
+          usedFor: "Public index context; competitor coverage unverified",
         }),
       ],
       gap:
@@ -448,15 +455,17 @@ const COUNTRY_CENTROID: Record<Country, { lat: number; lon: number; label: strin
   US: { lat: 40.71, lon: -74.01, label: "New York" },
 };
 
-/** Open-Meteo needs no key and answers with the campaign window's real forecast. */
-const seasonWeatherTool: ToolDefinition = {
+/** Open-Meteo returns forecast context for the overlapping campaign dates only. */
+export const seasonWeatherTool: ToolDefinition = {
   name: "web.season_weather",
   label: "Season and weather window (Open-Meteo)",
   agent: "trend",
   description:
-    "Reads the real forecast for the campaign's country and date window, so a seasonal claim is grounded rather than guessed.",
+    "Reads a sample city forecast, filters to the campaign date window, and reports geographic and temporal limitations.",
   args: ["country", "start", "end"],
   async run({ campaign, at }) {
+    const permission = denied(campaign, "web.season_weather");
+    if (permission) return permission;
     const c = COUNTRY_CENTROID[campaign.country] ?? COUNTRY_CENTROID.AU;
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${c.lat}&longitude=${c.lon}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=auto&forecast_days=16`;
     const result = await getJson<{
@@ -467,7 +476,7 @@ const seasonWeatherTool: ToolDefinition = {
         precipitation_sum?: number[];
       };
     }>(url);
-    const observedAt = at.slice(0, 10);
+    const observedAt = null;
     if (!result.ok) {
       return {
         summary: `Forecast unavailable (${result.reason}).`,
@@ -495,28 +504,26 @@ const seasonWeatherTool: ToolDefinition = {
         },
       };
     }
-    const daily = result.json.daily;
-    const temps = daily?.temperature_2m_max ?? [];
-    const mins = daily?.temperature_2m_min ?? [];
-    const rain = daily?.precipitation_sum ?? [];
-    if (temps.length === 0) {
-      return {
-        summary: "Forecast returned no daily series.",
-        status: "empty",
-        data: null,
-        evidence: [],
-      };
-    }
-    const avgMax = temps.reduce((a, b) => a + b, 0) / temps.length;
-    const avgMin = mins.length ? mins.reduce((a, b) => a + b, 0) / mins.length : avgMax - 8;
-    const wetDays = rain.filter((r) => r >= 1).length;
-    const start = daily?.time?.[0] ?? observedAt;
-    const end = daily?.time?.[daily.time.length - 1] ?? observedAt;
+    const daily = result.json?.daily;
+    const days = (Array.isArray(daily?.time) ? daily.time : []).map((day, i) => ({
+      day, max: daily?.temperature_2m_max?.[i], min: daily?.temperature_2m_min?.[i], rain: daily?.precipitation_sum?.[i],
+    })).filter(d => typeof d.day === "string" && d.day >= campaign.startDate && d.day <= campaign.endDate
+      && typeof d.max === "number" && Number.isFinite(d.max)
+      && typeof d.min === "number" && Number.isFinite(d.min)
+      && typeof d.rain === "number" && Number.isFinite(d.rain));
+    if (!days.length) return { summary: "No complete forecast days overlap the campaign window.", status: "empty", data: null, evidence: [],
+      gap: { kind: "missing_source", detail: "Forecast unavailable for the requested campaign dates.", effect: "No seasonal conditions are asserted." } };
+    const avgMax = days.reduce((n, d) => n + d.max!, 0) / days.length;
+    const avgMin = days.reduce((n, d) => n + d.min!, 0) / days.length;
+    const wetDays = days.filter(d => d.rain! >= 1).length;
+    const start = days[0].day;
+    const end = days.at(-1)!.day;
 
     return {
       summary: `${c.label}: ${avgMax.toFixed(1)}°C max / ${avgMin.toFixed(1)}°C min, ${wetDays} wet day(s) in the ${start}–${end} window.`,
       status: "ok",
       data: { avgMax, avgMin, wetDays, start, end },
+      gap: { kind: "low_confidence", detail: `Forecast covers ${days.length} complete days in ${c.label}, ${start}–${end}; one city is not the entire country.`, effect: "Forecast context only; not evidence of demand or historical market trends." },
       evidence: [
         evidence({
           claim: `Campaign-window conditions in ${c.label}`,
@@ -524,7 +531,8 @@ const seasonWeatherTool: ToolDefinition = {
           sourceName: "Open-Meteo forecast API",
           sourceRef: url,
           sourceKind: "external_public",
-          observedAt: start,
+          observedAt: null,
+          coverage: { start, end, location: c.label },
           at,
           confidence: 79,
           raisedBy: "trend",
@@ -555,14 +563,11 @@ export function setShelfPriceLookup(lookup: ShelfLookup) {
   shelfLookup = lookup;
 }
 
-export const shelfPriceTool: ToolDefinition = {
-  name: "web.shelf_prices",
-  label: "Shelf prices (WhichGrocer)",
-  agent: "trend",
-  description:
-    "Reads live Australian catalogue prices for the product from the WhichGrocer API (Coles, Woolworths, ALDI and other retailers). Cites each price with the retailer page and the date WhichGrocer last saw it. Uses the server WHICHGROCER_API_KEY.",
-  args: ["query"],
-  async run({ campaign, at, args }) {
+export const shelfPriceTool = definePublicResearchTool('web.shelf_prices', 'Shelf prices (WhichGrocer)',
+  z.object({query:z.string().min(2).max(100).describe('Approved public product query; defaults to the campaign product. Australian catalogue only.').optional()}).strict(),
+  async ({ campaign, at, args }) => {
+    const permission = denied(campaign, "web.shelf_prices");
+    if (permission) return permission;
     const lookup =
       campaign.country !== "AU"
         ? {
@@ -593,7 +598,7 @@ export const shelfPriceTool: ToolDefinition = {
             sourceName: "WhichGrocer",
             sourceRef,
             sourceKind: "external_public",
-            observedAt: at.slice(0, 10),
+            observedAt: null,
             at,
             status: "unavailable",
             confidence: 100,
@@ -612,25 +617,21 @@ export const shelfPriceTool: ToolDefinition = {
     }
     return {
       summary: lookup.summary,
+      usage: lookup.usage,
       status: "ok",
-      data: { query: lookup.query, offers: lookup.offers },
-      evidence: [
-        evidence({
-          claim: lookup.claim,
-          detail: lookup.detail,
-          sourceName: "WhichGrocer",
-          sourceRef: lookup.sourceRef,
-          sourceKind: "external_public",
-          observedAt: lookup.observedAt,
-          at,
-          confidence: lookup.offers.length > 1 ? 84 : 74,
-          raisedBy: "trend",
-          usedFor: "Shelf price comparison",
-        }),
-      ],
+      data: { query: lookup.query, offers: lookup.offers.filter(offer=>{
+        const age=offer.observedAt?(Date.parse(at.slice(0,10))-Date.parse(offer.observedAt))/86400000:Infinity;
+        return !offer.archived&&!offer.stale&&age>=0&&age<=7&&offer.currency==='AUD'&&Number.isFinite(offer.price)&&offer.price>0;
+      }) },
+      evidence: lookup.offers.map(offer => {
+        const item = describeShelf(lookup.query, [offer], at);
+        const age=offer.observedAt?(Date.parse(at.slice(0,10))-Date.parse(offer.observedAt))/86400000:Infinity;
+        const stale=offer.archived||offer.stale||age<0||age>7;
+        return evidence({ ...item, status:stale?'stale':'verified', sourceName: "WhichGrocer", sourceKind: "external_public", at,
+          confidence: 74, raisedBy: "trend", usedFor: "Shelf price snapshot; not historical demand" });
+      }),
     };
-  },
-};
+  });
 
 /* ---------------------------------------------------------- shared registry -- */
 
@@ -640,6 +641,7 @@ export const TOOL_REGISTRY: ToolDefinition[] = [
   competitorScanTool,
   seasonWeatherTool,
   shelfPriceTool,
+  ...researchTools,
 ];
 
 export function toolByName(name: string): ToolDefinition | undefined {

@@ -104,6 +104,8 @@ export type CompleteRequest = {
    * what every decision did before the agents existed.
    */
   tools?: ToolSpec[];
+  /** Server-only collection phase: require a real tool before a final answer. */
+  toolChoice?: 'auto' | 'required';
   /** Prior turns for the tool-calling loop. Absent means a single-shot call. */
   history?: ChatTurn[];
   /**

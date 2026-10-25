@@ -18,7 +18,7 @@ type Decided = Campaign & {
 };
 
 export function withRuntimeDefaults(campaign: Campaign): Campaign {
-  const internalDataAuthorised = campaign.internalDataAuthorised !== false;
+  const internalDataAuthorised = campaign.internalDataAuthorised === true;
   const capUsd =
     campaign.spend?.capUsd && campaign.spend.capUsd > 0
       ? campaign.spend.capUsd
@@ -93,22 +93,21 @@ export function attachableRecommendation(
 
   for (const c of published) {
     const decision = c.recommendationDecision;
-    if (decision.action === "discarded") continue;
+    if (!['accepted','edited'].includes(decision.action) || c.performanceReport.recommendationUnsupported || !decision.at || !decision.author) continue;
     const text = decision.text ?? c.performanceReport.recommendationText;
     if (!text) continue;
     return { note: text, fromCampaignId: c.id, fromCampaignName: c.name };
   }
 
-  // Seeded history carries a plain recommendation without a decision record.
-  const seeded = campaigns.find(
-    (c) => !isArchived(c) && c.status === "published" && !c.recommendationDecision && c.performance?.recommendation,
-  );
-  if (seeded?.performance?.recommendation) {
-    return {
-      note: seeded.performance.recommendation,
-      fromCampaignId: seeded.id,
-      fromCampaignName: seeded.name,
-    };
-  }
   return null;
+}
+
+/** Trend consumer checks the platform record, rather than trusting an attached
+ * browser/legacy note. Absence never blocks a first campaign. */
+export function verifiedPreviousAdvice(c:Campaign,campaigns:Campaign[]):NonNullable<Campaign['sharedContext']['previousAdvice']>|null{
+ const source=campaigns.find(v=>v.id===c.sharedContext.previousPerformanceFrom&&v.id!==c.id);
+ if(!source)return null;
+ const eligible=attachableRecommendation([source]),decision=source.recommendationDecision,report=source.performanceReport;
+ if(!eligible||!decision||!report||eligible.note!==c.sharedContext.previousPerformanceNote)return null;
+ return {sourceCampaignId:source.id,wording:eligible.note,action:decision.action as 'accepted'|'edited',decidedAt:decision.at,author:decision.author,reportId:report.id};
 }

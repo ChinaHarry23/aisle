@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { useMemo, useState, type ReactNode } from "react";
+import { useParams, useSearchParams, useRouter } from "next/navigation";
+import { Suspense, useMemo, useState, type ReactNode } from "react";
 import { AgentLog } from "@/components/AgentLog";
 import { OperationGraph } from "@/components/OperationGraph";
 import { ChecksPanel } from "@/components/ChecksPanel";
@@ -12,7 +12,6 @@ import { InstagramPost } from "@/components/InstagramPost";
 import { CampaignContent } from "@/components/studio/CampaignContent";
 import {
   AgentPipeline,
-  Confidence,
   Empty,
   ResultStatusChip,
   SectionTitle,
@@ -24,6 +23,7 @@ import { formatDate, formatNumber } from "@/lib/ids";
 import { channelLabel } from "@/lib/status";
 import { isArchived } from "@/lib/campaign-lifecycle";
 import { campaignCanAdvance } from "@/lib/runtime/resume";
+import { TrendReport } from '@/components/trend/TrendReport';
 import { useAisle } from "@/lib/store";
 
 const tabs = [
@@ -75,7 +75,12 @@ function Details({
   );
 }
 
-export default function CampaignWorkspace() {
+export default function CampaignWorkspacePage() {
+  return <Suspense fallback={<p className="p-6 text-sm text-mute">Loading campaign…</p>}><CampaignWorkspace /></Suspense>;
+}
+
+function CampaignWorkspace() {
+  const searchParams = useSearchParams();
   const params = useParams<{ id: string }>();
   const id = params.id;
   const campaign = useAisle((s) => s.campaigns.find((c) => c.id === id));
@@ -96,16 +101,16 @@ export default function CampaignWorkspace() {
   const restoreCampaign = useAisle((s) => s.restoreCampaign);
   const deleteCampaign = useAisle((s) => s.deleteCampaign);
   const busy = useAisle((s) => s.busy[id] ?? false);
-  const [pickedTab, setTab] = useState<Tab | null>(null);
+  const router = useRouter();
+  const setTab = (next: Tab) => router.replace(`/campaigns/${id}?tab=${next}`, { scroll: false });
+  const attachRetailUpload = useAisle((s) => s.attachRetailUpload);
+  const [retailConsent, setRetailConsent] = useState(false);
+  const [retailImportMessage, setRetailImportMessage] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [note, setNote] = useState("");
   const [recommendationDraft, setRecommendationDraft] = useState<string | null>(null);
   const [boundaryResult, setBoundaryResult] = useState<string | null>(null);
 
-  const evidenceById = useMemo(
-    () => new Map((campaign?.evidence ?? []).map((e) => [e.id, e])),
-    [campaign],
-  );
   const run = campaign?.run ?? null;
   /** The creative that goes out on social: the approved one, else the first. */
   const postCreative =
@@ -131,10 +136,12 @@ export default function CampaignWorkspace() {
     );
   }
 
-  // When the campaign is waiting on the founder, open on the legal check.
-  const tab: Tab = pickedTab ?? (campaign.status === "awaiting_approval" ? "compliance" : "brief");
   const archived = isArchived(campaign);
   const canLaunch = !archived && ["draft", "paused", "rejected"].includes(campaign.status);
+  const requestedTab = searchParams.get("tab");
+  const researchPending = campaign.trendRequests?.some((request) => request.status === "pending") ?? false;
+  const fallbackTab: Tab = researchPending ? "research" : campaign.status === "awaiting_approval" ? "compliance" : "brief";
+  const tab: Tab = tabs.includes(requestedTab as Tab) ? (requestedTab as Tab) : fallbackTab;
   const needsYou = campaign.status === "awaiting_approval";
   const canPublish = campaign.status === "scheduled";
 
@@ -394,234 +401,27 @@ export default function CampaignWorkspace() {
 
       {tab === "research" ? (
         <section className="flex flex-col gap-8">
-          {campaign.priceRecommendation ? (
-            <div className="hairline p-4">
-              <SectionTitle
-                kicker="Clearance price"
-                title={
-                  campaign.priceRecommendation.discountPct > 0
-                    ? `${campaign.priceRecommendation.discountPct}% off`
-                    : "Hold the current price"
-                }
-              />
-              <p className="mt-3 text-sm leading-relaxed text-ink-soft">{campaign.priceRecommendation.rationale}</p>
-              <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-4">
-                <div>
-                  <dt className="text-mute">Your cost</dt>
-                  <dd>${campaign.priceRecommendation.unitCostAud.toFixed(2)}</dd>
-                </div>
-                <div>
-                  <dt className="text-mute">Your price</dt>
-                  <dd>${campaign.priceRecommendation.currentPriceAud.toFixed(2)}</dd>
-                </div>
-                <div>
-                  <dt className="text-mute">Similar shelf</dt>
-                  <dd>{campaign.priceRecommendation.marketLabel}</dd>
-                </div>
-                <div>
-                  <dt className="text-mute">Recommended</dt>
-                  <dd>${campaign.priceRecommendation.recommendedPriceAud.toFixed(2)}</dd>
-                </div>
-              </dl>
-            </div>
-          ) : null}
-          <div>
-            <SectionTitle kicker="Trends" title="What is worth promoting right now" />
-            <ul className="mt-4 grid gap-3 md:grid-cols-2">
-              {campaign.trends.map((t) => (
-                <li key={t.id} className="hairline p-4">
-                  <p className="text-[11px] uppercase tracking-wider text-mute">{t.source}</p>
-                  <h3 className="mt-1 font-serif text-lg md:text-xl">{t.topic}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-ink-soft">{t.evidence}</p>
-                  <div className="mt-4 flex gap-6">
-                    <Confidence value={t.relevance} label="Relevance" />
-                    <Confidence value={t.confidence} />
-                  </div>
-                </li>
-              ))}
-            </ul>
-            {campaign.trends.length === 0 ? (
-              <p className="mt-3 text-sm text-mute">No trends yet.</p>
-            ) : null}
-          </div>
-
-          <div className="order-last">
-          <Details title="Sources, findings and limitations">
-          {campaign.trendFindings.length > 0 ? (
-            <div>
-              <SectionTitle
-                kicker="Findings"
-                title="What is backed by a source, and what is an assumption"
-              />
-              <ul className="mt-4 grid gap-3">
-                {campaign.trendFindings.map((f) => (
-                  <li key={f.id} className="hairline p-4">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span
-                        className={cn(
-                          "status-chip",
-                          f.basis === "supported" ? "risk-low" : "risk-mid",
-                        )}
-                      >
-                        {f.basis === "supported" ? "cited source" : "assumption"}
-                      </span>
-                      <span className="text-xs text-mute">
-                        relevance {f.relevance}% · confidence {f.confidence}%
-                      </span>
-                    </div>
-                    <h3 className="mt-2 font-serif text-lg md:text-xl">{f.topic}</h3>
-                    <p className="mt-1 text-sm leading-relaxed text-ink-soft">{f.finding}</p>
-                    {f.risk ? <p className="mt-2 text-sm text-signal">Risk: {f.risk}</p> : null}
-                    {f.evidenceIds.length > 0 ? (
-                      <ul className="mt-3 flex flex-col gap-1 text-xs text-mute">
-                        {f.evidenceIds.map((eid) => {
-                          const ev = evidenceById.get(eid);
-                          if (!ev) return null;
-                          return (
-                            <li key={eid}>
-                              ↳ {ev.sourceName} · observed {ev.observedAt} · {ev.status} ·{" "}
-                              {ev.confidence}%
-                              {ev.sourceRef ? (
-                                <>
-                                  {" · "}
-                                  {/^https?:/.test(ev.sourceRef) ? (
-                                    <a
-                                      href={ev.sourceRef}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="text-signal hover:underline"
-                                    >
-                                      source
-                                    </a>
-                                  ) : (
-                                    <span>{ev.sourceRef}</span>
-                                  )}
-                                </>
-                              ) : null}
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-
-          {campaign.trendGaps.length > 0 ? (
-            <div>
-              <SectionTitle
-                kicker="Limitations"
-                title="What the research could not establish"
-                aside={
-                  campaign.trendGaps.some((g) => g.needsFounder) ? (
-                    <span className="status-chip status-wait">needs your input</span>
-                  ) : null
-                }
-              />
-              <ul className="mt-4 flex flex-col gap-2">
-                {campaign.trendGaps.map((g) => (
-                  <li key={g.id} className="hairline p-3 text-sm">
-                    <span className="text-[10px] uppercase tracking-wider text-signal">
-                      {g.kind.replace(/_/g, " ")}
-                    </span>
-                    <p className="mt-1">{g.detail}</p>
-                    <p className="mt-1 text-mute">Effect: {g.effect}</p>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-
-          {campaign.evidence.length > 0 ? (
-            <div>
-              <SectionTitle
-                kicker="Sources"
-                title={`${campaign.evidence.length} source${campaign.evidence.length === 1 ? "" : "s"} used`}
-              />
-              <div className="mt-4 overflow-x-auto">
-                <table className="w-full min-w-[46rem] border-collapse text-sm">
-                  <thead>
-                    <tr className="text-left text-[10px] uppercase tracking-wider text-mute">
-                      <th className="border-b border-line py-2 pr-3">Claim</th>
-                      <th className="border-b border-line py-2 pr-3">Source</th>
-                      <th className="border-b border-line py-2 pr-3">Observed</th>
-                      <th className="border-b border-line py-2 pr-3">Kind</th>
-                      <th className="border-b border-line py-2">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {campaign.evidence.map((e) => (
-                      <tr key={e.id} className="align-top">
-                        <td className="border-b border-line py-2 pr-3">
-                          <span className="font-medium">{e.claim}</span>
-                          <span className="mt-0.5 block text-xs text-ink-soft">
-                            {e.detail.slice(0, 150)}
-                          </span>
-                        </td>
-                        <td className="border-b border-line py-2 pr-3 text-xs">{e.sourceName}</td>
-                        <td className="border-b border-line py-2 pr-3 text-xs tabular-nums">
-                          {e.observedAt}
-                        </td>
-                        <td className="border-b border-line py-2 pr-3 text-xs">
-                          {e.sourceKind.replace(/_/g, " ")}
-                        </td>
-                        <td className="border-b border-line py-2 text-xs">
-                          <span
-                            className={cn(
-                              "status-chip",
-                              e.status === "verified"
-                                ? "risk-low"
-                                : e.status === "assumed"
-                                  ? "risk-mid"
-                                  : "risk-high",
-                            )}
-                          >
-                            {e.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ) : null}
+          <TrendReport campaign={campaign} />
+          {campaign.status === 'paused' && campaign.run?.step === 'trend.receive' && <div className="hairline p-5">
+            <h3 className="font-medium">Continue the research</h3>
+            <p className="mt-2 text-sm text-mute">After resolving source access or attaching an authorised export, run research again for the same campaign scope. Existing evidence remains in the audit history. Another run may use model and research credits; it cannot approve unsupported findings.</p>
+            <button disabled={busy} className="mt-4 rounded-full bg-signal px-5 py-2 text-sm text-white disabled:opacity-50" onClick={()=>void launch(campaign.id)}>Run research again</button>
+          </div>}
+          <div id="retail-data">
+          <Details title="Optional authorised retail data">
+            <p className="text-sm">Upload aggregate sales only, using CSV columns sku,category,week,units. Week dates must use YYYY-MM-DD. No customer-level data or extra columns. The analysis receives category totals by week; raw SKU rows are excluded from model and search requests.</p>
+            <label className="text-sm"><input type="checkbox" checked={retailConsent} onChange={e=>setRetailConsent(e.target.checked)} disabled={busy || campaign.running} /> I authorise this aggregate retail data to be used for this campaign.</label>
+            <input aria-label="Aggregate retail CSV" type="file" accept=".csv" disabled={!retailConsent || busy || campaign.running} onChange={async e=>{
+              const file=e.target.files?.[0];if(!file)return;
+              const form=new FormData();form.set('file',file);form.set('authorised','true');
+              setRetailImportMessage('Validating aggregate CSV…');
+              try {const response=await fetch('/api/retail/import',{method:'POST',body:form});const body=await response.json();
+                if(!response.ok)throw Error(body.error ?? 'Import failed.');
+                attachRetailUpload(id,body.upload);setRetailImportMessage('Aggregate export attached. It will be used on the next permitted research run.');
+              } catch(error) {setRetailImportMessage(error instanceof Error ? error.message : 'Import failed.');}
+            }} />
+            <p className="text-sm" role="status">{retailImportMessage || (campaign.retailUpload ? `Export attached: ${campaign.retailUpload.rows.length} aggregate rows.` : 'External-only research is available without an upload.')}</p>
           </Details>
-          </div>
-
-          <div>
-            <SectionTitle kicker="Opportunities" title="Best ideas for this campaign" />
-            <ol className="mt-4 flex flex-col gap-3">
-              {campaign.opportunities.map((o) => (
-                <li key={o.id} className="hairline flex gap-4 p-4">
-                  <span className="font-serif text-2xl text-signal">{o.rank}</span>
-                  <div>
-                    <h3 className="font-medium">{o.title}</h3>
-                    <p className="mt-1 text-sm text-ink-soft">{o.why}</p>
-                    <p className="mt-2 text-xs text-mute">
-                      Audience fit {o.audienceFit}% · {o.expectedValue}
-                    </p>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </div>
-          <div>
-            <SectionTitle kicker="Audience" title="Who this is written for" />
-            <ul className="mt-4 grid gap-3 md:grid-cols-2">
-              {campaign.personas.map((p) => (
-                <li key={p.id} className="hairline p-4">
-                  <h3 className="font-serif text-lg md:text-xl">{p.name}</h3>
-                  <p className="text-xs text-mute">{p.age}</p>
-                  <p className="mt-2 text-sm text-ink-soft">{p.summary}</p>
-                  <p className="mt-3 text-xs text-mute">
-                    {p.channels.join(" · ")} — {p.motivations.join(", ")}
-                  </p>
-                </li>
-              ))}
-            </ul>
           </div>
         </section>
       ) : null}

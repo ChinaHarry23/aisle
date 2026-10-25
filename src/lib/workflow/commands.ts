@@ -1,3 +1,6 @@
+import {z} from 'zod';
+import {RESEARCH_CATEGORIES} from '@/lib/trend/contracts';
+import {publicSourceUrl} from '@/lib/trend/source-tools';
 import type { Command } from "../runtime/types";
 import type { Campaign } from "../types";
 
@@ -18,6 +21,15 @@ export function parseCommand(raw: unknown): Command {
   }
   if (c.actor !== "founder") throw new WorkflowError("Only the signed-in founder can submit commands.", 403);
   switch (c.type) {
+    case 'CANCEL_TREND':return {type:'CANCEL_TREND',actor:'founder',note};
+    case 'RESOLVE_TREND': {
+      const schema=z.object({type:z.literal('RESOLVE_TREND'),actor:z.literal('founder'),requestId:z.string().max(300),reviewVersion:z.number().int().positive(),contextVersion:z.string().max(100),action:z.enum(['correct_context','provide_data','continue_limited','decline']),note:z.string().trim().min(1).max(4000),
+        context:z.object({product:z.string().min(3).max(500),category:z.string().min(3).max(200),targetAudience:z.string().min(3).max(1000),objective:z.string().min(3).max(1000),budget:z.number().positive(),channels:z.array(z.enum(['instagram','web','email','print','digital_signage'])).min(1),startDate:z.string().max(10),endDate:z.string().max(10),country:z.enum(['AU','NZ','UK','US'])}).partial().strict().optional(),
+        sources:z.array(z.object({url:z.string().max(1200).refine(url=>Boolean(publicSourceUrl(url)),'Source must be an allowed public URL.'),category:z.enum(RESEARCH_CATEGORIES),channel:z.string().max(40).optional()}).strict()).max(4).optional(),
+      }).strict();
+      const parsed=schema.safeParse(c);if(!parsed.success)throw new WorkflowError('Invalid or incomplete research resolution. Provide the current request version and valid inputs.');
+      return parsed.data;
+    }
     case "START": case "PAUSE": case "APPROVE": case "REQUEST_CHANGES": case "REJECT": case "PUBLISH":
       return { type: c.type, actor: "founder", note };
     case "ADVANCE": case "COLLECT_FEEDBACK": return { type: c.type, actor: "founder" };
@@ -34,7 +46,9 @@ export function parseCommand(raw: unknown): Command {
 /** Enforce legal transitions against the durable snapshot, not browser fields. */
 export function assertTransition(c: Campaign, command: Command) {
   const allowed: Partial<Record<Command["type"], boolean>> = {
-    START: c.status === "draft" || c.status === "paused",
+    RESOLVE_TREND:c.status==='paused'&&Boolean(c.trendQuality)&&c.trendRequests?.some(r=>r.status==='pending'&&r.id===(command as Extract<Command,{type:'RESOLVE_TREND'}>).requestId),
+    CANCEL_TREND:['analysing','paused'].includes(c.status)&&Boolean(c.run?.step.startsWith('trend.')),
+    START: c.status === "draft" || c.status === "paused" && !c.trendRequests?.some(r=>r.status==='pending'),
     ADVANCE: c.run?.status === "running",
     PAUSE: c.run?.status === "running" || c.status === "paused",
     APPROVE: c.status === "awaiting_approval" && c.creatives.length > 0 && c.complianceAttempts.length > 0,

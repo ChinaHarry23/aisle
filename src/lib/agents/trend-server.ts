@@ -1,4 +1,7 @@
+import { createTrendQuality } from './trend-quality';
+import { createTrendBrief } from './trend-brief';
 /** The campaign engine's trend backend. Model selection stays in stored workspace settings. */
+import { createTrendResearch, researchEnabled } from "./trend-research";
 import { createTrendAgentRuntime } from "./trend-runtime";
 import { getLlmModel, getLlmOrDefault } from "@/lib/llm/catalog";
 import { runComplete } from "@/lib/llm/metered-complete";
@@ -75,4 +78,10 @@ export function createServerTrendRuntime(billing?: BillingContext): LlmRuntime {
       return runtime.request(req);
     },
   };
+}
+
+/** TA-03 research augments the shared server runtime; other agent paths stay shared. */
+export function createServerResearchRuntime(billing?: BillingContext): LlmRuntime {
+  const baseline = createServerTrendRuntime(billing);
+  return { ...baseline, brief:createTrendBrief(billing), quality:createTrendQuality(billing), research: researchEnabled() ? createTrendResearch(billing) : async () => null };
 }

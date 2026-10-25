@@ -34,6 +34,9 @@ import type { Command } from "../src/lib/runtime/types";
 import type { CompleteRequest, CompleteResult } from "../src/lib/llm/types";
 
 const settings = defaultSettings();
+// Synthetic category reference for downstream scenarios; source failure/pausing is
+// covered by trend-evidence-suite. No live retrieval is implied by this fixture.
+globalThis.fetch = async () => Response.json({ title: "Synthetic fixture", extract: "Synthetic category context; not measured market research." });
 
 function usageStub() {
   return {
@@ -257,7 +260,7 @@ async function approveAndAdvance(s: ReturnType<typeof session>, note: string) {
 /* --------------------------------------------------- AHR-02 evidence + gaps */
 
 {
-  const s = await startAndAdvance({ channels: ["instagram", "web", "email", "print"] });
+  const s = await startAndAdvance({ channels: ["instagram", "web", "email", "print"] }, { internalDataAuthorised: true });
   const c = s.campaign;
   assert.ok(c.evidence.length > 0, "the trend step must record evidence");
   assert.ok(
@@ -266,8 +269,8 @@ async function approveAndAdvance(s: ReturnType<typeof session>, note: string) {
   );
   assert.ok(c.trendGaps.length > 0, "limitations must be recorded");
   assert.ok(
-    c.evidence.every((e) => e.sourceName && e.observedAt),
-    "every evidence row needs a source and a date",
+    c.evidence.every((e) => e.sourceName && e.fetchedAt && (e.observedAt === null || typeof e.observedAt === "string")),
+    "every evidence row needs provenance, retrieval time and an explicit known or unknown information date",
   );
   assert.ok(c.toolCalls.length > 0, "tool calls must be recorded");
   assert.ok(c.evidence.some((e) => e.sourceName === "Woolworths POS"), "authorised POS must cite the uploaded Woolworths file");
@@ -360,6 +363,7 @@ else process.env.AISLE_COMPLIANCE_RULES_FILE = bundledRules;
 
 {
   const s = await startAndAdvance({ channels: ["instagram", "print"] });
+  const blockedBefore = s.campaign.spend.blockedAttempts;
   const blocked: Record<string, string> = {};
   for (const action of [
     "PUBLISH_CONTENT",
@@ -374,7 +378,7 @@ else process.env.AISLE_COMPLIANCE_RULES_FILE = bundledRules;
     assert.ok(decision?.clause.length, `${action} must cite its requirement clause`);
     blocked[action] = decision!.rule;
   }
-  assert.equal(s.campaign.spend.blockedAttempts, 5, "each refusal must be counted");
+  assert.equal(s.campaign.spend.blockedAttempts - blockedBefore, 5, "each refusal must be counted");
   assert.ok(
     s.campaign.log.some((e) => e.kind === "policy"),
     "a refusal must reach the campaign log (ext 13.a)",
@@ -629,6 +633,109 @@ else process.env.AISLE_COMPLIANCE_RULES_FILE = bundledRules;
   pass(
     "DI-02 — Media Manager agent generalizes Agent; digital/physical gateways registered & selected",
     `${GATEWAYS.digital.name} · ${GATEWAYS.physical.name}`,
+  );
+}
+
+/* ----------------------------- DI-03 — receive & verify distribution context */
+
+{
+  // Before any adaptation, the approved ad and distribution context are verified:
+  // the compliance approval id is recorded and each channel's authorised access is
+  // loaded from the gateways.
+  const s = await startAndClear({ channels: ["web", "email", "print"], budget: 12000 });
+  await s.run({ type: "APPROVE", actor: "founder", note: "Go." });
+  let i = 0;
+  let r = await s.run({ type: "ADVANCE", actor: "founder" });
+  while ((r.canAdvance || s.campaign.run?.status === "running") && i++ < 8) {
+    r = await s.run({ type: "ADVANCE", actor: "founder" });
+  }
+  const dc = s.campaign.distributionContext;
+  assert.ok(dc, "a distribution context must be recorded before adaptation");
+  assert.equal(dc!.ok, true, "an approved campaign with full context passes the check");
+  assert.ok(dc!.complianceApprovalId, "the compliance approval id is recorded");
+  assert.equal(dc!.channels.length, s.campaign.channels.length, "authorised access is loaded for every selected channel");
+  assert.ok(dc!.channels.every((ch) => ch.available), "each selected channel reports authorised access");
+  assert.ok(dc!.channels.some((ch) => ch.channel === "print" && ch.type === "physical"), "print routes to the physical gateway");
+  assert.equal(dc!.missing.length, 0, "no required context field is missing");
+  pass(
+    "DI-03 — approved ad received, context verified (approval id + channel auth)",
+    dc!.channels.map((ch) => `${ch.channel}:${ch.type}:${ch.available ? "auth" : "no"}`).join(" "),
+  );
+}
+
+/* ----------------------------------- DI-11 — per-item publish latency recorded */
+
+{
+  // Publish-and-confirm latency is measured per item. A late-reconciled result
+  // costs the most (it timed out before the late confirmation), so it is a stable,
+  // seed-free ordering to assert on.
+  const s = await startAndClear(
+    { channels: ["web", "email", "print"], budget: 12000 },
+    { publishOverrides: { web: "late", email: "ok", print: "retry_then_ok" } },
+  );
+  await s.run({ type: "APPROVE", actor: "founder", note: "Go." });
+  let i = 0;
+  let r = await s.run({ type: "ADVANCE", actor: "founder" });
+  while ((r.canAdvance || s.campaign.run?.status === "running") && i++ < 8) {
+    r = await s.run({ type: "ADVANCE", actor: "founder" });
+  }
+  await s.run({ type: "PUBLISH", actor: "founder" });
+  const dr = s.campaign.deliveryReport!;
+  assert.ok(dr.attempts.every((a) => typeof a.latencyMs === "number"), "latency is recorded for every item");
+  assert.ok(
+    dr.attempts.filter((a) => a.status === "published").every((a) => a.latencyMs > 0),
+    "a confirmed publish carries a non-zero latency",
+  );
+  const web = dr.attempts.find((a) => a.channel === "web");
+  const email = dr.attempts.find((a) => a.channel === "email");
+  assert.equal(web?.reconciled, true, "web is the late-reconciled channel");
+  assert.ok((web?.latencyMs ?? 0) > (email?.latencyMs ?? 0), "the late-reconciled channel took the longest to confirm");
+  pass(
+    "DI-11 — publish-and-confirm latency recorded per item (late costs most)",
+    dr.attempts.map((a) => `${a.channel}:${a.latencyMs}ms`).join(" "),
+  );
+}
+
+/* --------------------- DI-08 — respect pause / cancellation and late results */
+
+{
+  const { reconcileLateResult } = (await import(
+    pathToFileURL(path.join(root, "src/lib/runtime/steps.ts")).href
+  )) as typeof import("../src/lib/runtime/steps");
+
+  // A paused campaign does not start a publish (the pause is owned by the pipeline).
+  const paused = session({ channels: ["web"] }, { status: "paused" });
+  await paused.run({ type: "PUBLISH", actor: "founder" });
+  assert.notEqual(paused.campaign.status, "published", "a paused campaign must not publish");
+  assert.ok(!paused.campaign.deliveryReport, "no delivery is recorded while paused");
+
+  // One channel fails to confirm; a late result then arrives for it.
+  const s = await startAndClear(
+    { channels: ["web", "email", "print"], budget: 12000 },
+    { publishOverrides: { web: "fail" } },
+  );
+  await s.run({ type: "APPROVE", actor: "founder", note: "Go." });
+  let i = 0;
+  let r = await s.run({ type: "ADVANCE", actor: "founder" });
+  while ((r.canAdvance || s.campaign.run?.status === "running") && i++ < 8) {
+    r = await s.run({ type: "ADVANCE", actor: "founder" });
+  }
+  await s.run({ type: "PUBLISH", actor: "founder" });
+  const webId = s.campaign.deliveryReport!.attempts.find((a) => a.channel === "web")!.itemId;
+
+  // The late result is reconciled to the same item id and recorded as fact.
+  assert.equal(reconcileLateResult(s.campaign, webId, "web-late-ref", new Date().toISOString()), "reconciled");
+  const web = s.campaign.deliveryReport!.attempts.find((a) => a.channel === "web")!;
+  assert.equal(web.status, "published", "the late result is recorded as fact");
+  assert.equal(web.reconciled, true, "it is reconciled, not resubmitted");
+  assert.equal(s.campaign.deliveryReport!.outcome, "complete", "every channel is now accounted for");
+  // Idempotent: a second late result does not double-publish.
+  assert.equal(reconcileLateResult(s.campaign, webId, "dup", new Date().toISOString()), "already_published");
+  // A result for an id we no longer hold (cancelled/unknown) is ignored, not invented.
+  assert.equal(reconcileLateResult(s.campaign, "si_unknown", "x", new Date().toISOString()), "ignored_unknown");
+  pass(
+    "DI-08 — pause respected; late result reconciled by id; duplicate & unknown handled",
+    "paused→no publish · late→reconciled · dup→already_published · unknown→ignored",
   );
 }
 

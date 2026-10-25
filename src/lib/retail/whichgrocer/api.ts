@@ -40,6 +40,7 @@ async function getJson(
   path: string,
   query: Record<string, string>,
   fetchImpl: typeof fetch,
+  onCredits?: (value: number | null) => void,
 ): Promise<unknown> {
   const key = whichGrocerApiKey();
   if (!key) throw new WhichGrocerApiError("WhichGrocer API key is not set.", 0);
@@ -51,6 +52,8 @@ async function getJson(
     cache: "no-store",
   });
   const body = (await response.json().catch(() => null)) as unknown;
+  const credits = body && typeof body==='object' ? (body as {meta?:{credits_charged?:unknown}}).meta?.credits_charged : undefined;
+  onCredits?.(typeof credits==='number'&&Number.isFinite(credits)&&credits>=0?credits:null);
   if (!response.ok) {
     const message = messageFrom(body) || `WhichGrocer request failed (HTTP ${response.status}).`;
     throw new WhichGrocerApiError(message, response.status);
@@ -59,8 +62,8 @@ async function getJson(
 }
 
 /** Search the catalogue, then ask for other retailers when the first page names only one. */
-export async function loadCatalogue(query: string, fetchImpl: typeof fetch = fetch): Promise<ShelfOffer[]> {
-  const searched = await getJson("/v2/products/search", { q: query, page: "1", page_size: "25" }, fetchImpl);
+export async function loadCatalogue(query: string, fetchImpl: typeof fetch = fetch, onCredits?: (value:number|null)=>void): Promise<ShelfOffer[]> {
+  const searched = await getJson("/v2/products/search", { q: query, page: "1", page_size: "25" }, fetchImpl, onCredits);
   let offers = offersFromPayload(searched);
   const stores = new Set(offers.map((offer) => offer.store).filter((store) => GROCERY_STORES.has(store)));
   const anchor = offers.find((offer) => offer.id && !offer.id.includes(":"));
@@ -70,6 +73,7 @@ export async function loadCatalogue(query: string, fetchImpl: typeof fetch = fet
       `/v2/products/${encodeURIComponent(anchor.id)}/equivalents`,
       { stores: "coles,woolworths,aldi" },
       fetchImpl,
+      onCredits,
     );
     const extra = offersFromPayload(compared);
     if (extra.length > 0) offers = extra;
