@@ -38,7 +38,7 @@ import {
   PRESETS,
   textCostPerRun,
 } from "@/lib/llm/presets";
-import type { AgentSlot, LlmProviderId } from "@/lib/llm/types";
+import type { LlmProviderId } from "@/lib/llm/types";
 import { getByoKey } from "@/lib/media/byo-key";
 import {
   ENABLED_IMAGE_PROVIDERS,
@@ -47,7 +47,7 @@ import {
   PROVIDERS,
 } from "@/lib/media/catalog";
 import { quoteModel } from "@/lib/media/estimate";
-import type { MediaModel, ProviderId } from "@/lib/media/types";
+import type { ProviderId } from "@/lib/media/types";
 import { useAisle } from "@/lib/store";
 import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 
@@ -76,18 +76,17 @@ function parseHash(hash: string): { tab: TabId; row: string | null } {
 /* ---- Shared connection state, read by both tabs ---- */
 
 type Conn = {
-  /** False until the server status and device keys have loaded, so we never flash "Not connected". */
-  ready: boolean;
   stateOf: (kind: ConnectionKind, providerId: string) => ConnectionState;
   /** True when a step using this provider can be expected to work (or we do not know yet). */
   ok: (kind: ConnectionKind, providerId: string) => boolean;
   goConnect: (kind: ConnectionKind, providerId: string) => void;
 };
 
-const IMAGE_PROVIDER_IDS = PROVIDERS.filter((p) => ENABLED_IMAGE_PROVIDERS.includes(p.id)).map((p) => p.id);
+const IMAGE_PROVIDERS = PROVIDERS.filter((p) => ENABLED_IMAGE_PROVIDERS.includes(p.id));
+const IMAGE_PROVIDER_IDS = IMAGE_PROVIDERS.map((p) => p.id);
 
-function mediaRows(kind: MediaModel["kind"], conn: Conn): ModelRow[] {
-  return modelsOf(kind).map((m) => ({
+function mediaRows(conn: Conn): ModelRow[] {
+  return modelsOf("image").map((m) => ({
     id: m.id,
     name: m.name,
     providerId: m.providerId,
@@ -164,7 +163,7 @@ function ModelsTab({ conn }: { conn: Conn }) {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [pickedProvider, setPickedProvider] = useState<LlmProviderId | null>(null);
 
-  const imageRows = useMemo(() => mediaRows("image", conn), [conn]);
+  const imageRows = useMemo(() => mediaRows(conn), [conn]);
   const image = getModelOrDefault(settings.imageModelId, "image");
   const imageProviderName = PROVIDERS.find((p) => p.id === image.providerId)?.name ?? image.provider;
 
@@ -310,7 +309,7 @@ function ModelsTab({ conn }: { conn: Conn }) {
                         updateSettings({
                           agents: {
                             ...settings.agents,
-                            [slot.id as AgentSlot]: { provider: next.providerId, modelId: next.id },
+                            [slot.id]: { provider: next.providerId, modelId: next.id },
                           },
                         });
                       }}
@@ -374,7 +373,6 @@ function ConnectionsTab({
   const endpointDirty = baseUrl.trim() !== settings.localBaseUrl || localModel.trim() !== settings.localModel;
   const customInUse = AGENT_SLOTS.some((s) => settings.agents[s.id].modelId === "local:custom");
 
-  const imageProviders = PROVIDERS.filter((p) => ENABLED_IMAGE_PROVIDERS.includes(p.id));
   const textProviders = LLM_PROVIDERS.filter((p) => OFFERED_LLM_PROVIDERS.includes(p.id) && p.id !== "local");
   const planned = [
     ...LLM_PROVIDERS.filter((p) => !OFFERED_LLM_PROVIDERS.includes(p.id)).map((p) => p.name),
@@ -429,7 +427,7 @@ function ConnectionsTab({
         description="Add your own key to use a provider. Your keys stay in this browser and are never stored on our servers."
       >
         <div className="hairline divide-y divide-line">
-          {imageProviders.map((p) => {
+          {IMAGE_PROVIDERS.map((p) => {
             const id = rowId("image", p.id);
             const state = conn.stateOf("image", p.id);
             return (
@@ -625,6 +623,7 @@ export default function SettingsPage() {
 
   const [status, setStatus] = useState<ServerStatus | null>(null);
   const [deviceKeys, setDeviceKeys] = useState<Record<string, boolean>>({});
+  /** False until the server status and device keys have loaded, so we never flash "Not connected". */
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -655,9 +654,8 @@ export default function SettingsPage() {
 
   const conn = useMemo<Conn>(() => {
     const stateOf = (kind: ConnectionKind, providerId: string) =>
-      connectionState(kind, providerId as LlmProviderId & ProviderId, status, deviceKeys);
+      connectionState(kind, providerId, status, deviceKeys);
     return {
-      ready,
       stateOf,
       ok: (kind, providerId) => !ready || isConnected(stateOf(kind, providerId)),
       goConnect: (kind, providerId) => {

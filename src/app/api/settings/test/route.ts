@@ -1,6 +1,7 @@
 import { LLM_MODELS } from "@/lib/llm/catalog";
 import { MEDIA_MODELS } from "@/lib/media/catalog";
 import type { ConnectionTestResult } from "@/lib/connections";
+import { allowedLocalBase, refusedLocalBaseMessage } from "@/lib/llm/local-base";
 
 type Body = { kind?: "llm" | "image"; providerId?: string; baseUrl?: string };
 
@@ -21,7 +22,7 @@ function explain(status: number): string {
 async function probe(url: string, headers: Record<string, string>): Promise<ConnectionTestResult> {
   const started = Date.now();
   try {
-    const res = await fetch(url, { headers, signal: AbortSignal.timeout(TIMEOUT_MS) });
+    const res = await fetch(url, { headers, redirect: "error", signal: AbortSignal.timeout(TIMEOUT_MS) });
     const ms = Date.now() - started;
     if (res.ok) return { ok: true, message: "Connected.", ms };
     if (res.status === 429) return { ok: true, message: explain(429), ms };
@@ -50,7 +51,10 @@ export async function POST(req: Request) {
     if (base.protocol !== "http:" && base.protocol !== "https:") {
       return Response.json(fail("The base URL must start with http:// or https://.", 0));
     }
-    const result = await probe(`${raw.replace(/\/$/, "")}/models`, {});
+    // The same check the agents' calls use, so this cannot probe internal hosts.
+    const allowed = allowedLocalBase(raw);
+    if (!allowed) return Response.json(fail(refusedLocalBaseMessage(), 0));
+    const result = await probe(`${allowed}/models`, {});
     return Response.json(
       result.ok ? { ...result, message: "Endpoint reachable." } : { ...result, message: `${result.message} Is the server running and reachable from where Aisle runs?` },
     );

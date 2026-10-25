@@ -24,7 +24,7 @@ export function createTrendAgentRuntime(options: {
   if (mock && !options.testCompletion) throw new Error("Mock mode requires an injected completion.");
   const complete = options.testCompletion ?? runComplete;
   return {
-    meta: { label: mock ? "TA-02 mock (no provider call)" : "TA-02 shared metered agent", live: !mock },
+    meta: { live: !mock },
     async request(req) {
       if (req.agent !== "trend") {
         if (mock) throw new Error("TA-02 mock runtime only accepts Trend requests.");

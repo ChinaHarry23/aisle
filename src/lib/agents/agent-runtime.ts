@@ -13,22 +13,14 @@ import type { BillingContext } from "@/lib/billing/meter";
 import type { CompleteResult } from "@/lib/llm/types";
 import { getLlmOrDefault } from "@/lib/llm/catalog";
 import { runComplete } from "@/lib/llm/metered-complete";
-import type { ToolAgent, ToolOutcome } from "@/lib/runtime/tools";
+import type { ToolAgent } from "@/lib/runtime/tools";
 import { agentTools, type AgentToolContext } from "./agent-tools";
 import {
   MeteredCallUnavailable,
   MeteredChatModel,
   MAX_MODEL_CALLS_PER_RUN,
 } from "./metered-chat-model";
-import {
-  buildAgent,
-  complianceSchema,
-  copySchema,
-  intakeTurnSchema,
-  recommendationSchema,
-  trendBriefSchema,
-  type AgentSeat,
-} from "./seats";
+import { buildAgent, SEAT_SCHEMAS, type AgentSeat } from "./seats";
 
 export type AgentAnswer<T> = {
   /** Every model that answered, so a local reroute is visible. */
@@ -46,14 +38,6 @@ export type AgentAnswer<T> = {
   /** What the agent decided to call, in order. */
   usedTools: string[];
 };
-
-const SCHEMAS = {
-  trend: trendBriefSchema,
-  creative: copySchema,
-  compliance: complianceSchema,
-  media: recommendationSchema,
-  intake: intakeTurnSchema,
-} as const;
 
 /** The trace for a decision that ran on the deterministic rules. */
 function ruleTrace(seat: AgentSeat, modelId: string, note: string): AgentAnswer<never>["trace"] {
@@ -152,8 +136,8 @@ export async function runSeatAgent<T>(options: {
     tools: library,
     ...(options.instructions ? { instructions: options.instructions } : {}),
     // The seat's schema is fixed per seat; the cast keeps the caller's `T` honest
-    // without duplicating the schema map as four overloads.
-    schema: (options.schema ?? SCHEMAS[options.seat]) as unknown as z.ZodType<T>,
+    // without duplicating the schema map as per-seat overloads.
+    schema: (options.schema ?? SEAT_SCHEMAS[options.seat]) as unknown as z.ZodType<T>,
   });
 
   let failed = false;
@@ -207,4 +191,3 @@ export async function runSeatAgent<T>(options: {
 }
 
 export { ruleTrace };
-export type { ToolOutcome };

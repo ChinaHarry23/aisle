@@ -23,15 +23,19 @@ export class GraphRequestError extends Error {
   }
 }
 
-/** Stable thread id so one campaign is one Studio thread. */
-export function operationThreadId(campaignId: string): string {
-  const hex = createHash("sha256").update(`aisle.operation:${campaignId}`).digest("hex");
+/**
+ * Stable thread id so one campaign is one Studio thread. The account is part of
+ * it: sample campaigns share an id across accounts, and a shared thread would
+ * show one account's campaign in another's history.
+ */
+export function operationThreadId(campaignId: string, userId: string): string {
+  const hex = createHash("sha256").update(`aisle.operation:${userId}:${campaignId}`).digest("hex");
   const clock = ((Number.parseInt(hex.slice(16, 18), 16) & 0x3f) | 0x80).toString(16).padStart(2, "0");
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-${clock}${hex.slice(18, 20)}-${hex.slice(20, 32)}`;
 }
 
 /** Where Studio draws the server named by `graphServerUrl`. */
-export function studioOrigin(): string {
+function studioOrigin(): string {
   const explicit = process.env.LANGSMITH_STUDIO_URL?.trim();
   if (explicit) return explicit.replace(/\/$/, "");
   const endpoint = process.env.LANGSMITH_ENDPOINT ?? "";
@@ -48,8 +52,8 @@ export function studioHref(baseUrl: string, threadId?: string): string {
 }
 
 /** The campaign thread when it already exists, otherwise the server's graph list. */
-export async function studioHrefForCampaign(baseUrl: string, campaignId: string): Promise<string> {
-  const threadId = operationThreadId(campaignId);
+export async function studioHrefForCampaign(baseUrl: string, campaignId: string, userId: string): Promise<string> {
+  const threadId = operationThreadId(campaignId, userId);
   try {
     const response = await fetch(`${baseUrl}/threads/${threadId}`, { signal: AbortSignal.timeout(400) });
     if (response.ok) return studioHref(baseUrl, threadId);
@@ -106,7 +110,7 @@ export function readGraphFailure(values: unknown): string | null {
 
 let probe: { url: string; ok: boolean; at: number } | null = null;
 
-export function forgetOperationGraph() {
+function forgetOperationGraph() {
   probe = null;
 }
 
@@ -155,8 +159,8 @@ export async function invokeOperationGraph(input: {
   userId: string;
   maxSteps: number;
   command: Command;
-}): Promise<{ canAdvance: boolean; message: string; threadId: string }> {
-  const threadId = operationThreadId(input.campaignId);
+}): Promise<{ canAdvance: boolean; message: string }> {
+  const threadId = operationThreadId(input.campaignId, input.userId);
   const url = input.url.replace(/\/$/, "");
   let response: Response;
   try {
@@ -201,6 +205,5 @@ export async function invokeOperationGraph(input: {
   }
   const failure = readGraphFailure(values);
   if (failure) throw new GraphRequestError(failure, false);
-  const outcome = readGraphOutcome(values);
-  return { ...outcome, threadId };
+  return readGraphOutcome(values);
 }

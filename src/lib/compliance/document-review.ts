@@ -1,13 +1,13 @@
 import { z } from "zod";
 
-export type ReviewSource = { id: string; name: string; version: string; text: string; uploadedAt: string; truncated: boolean };
+type ReviewSource = { id: string; name: string; version: string; text: string; uploadedAt: string; truncated: boolean };
 const finding = z.object({
   advertisementQuote: z.string().trim().min(1), documentId: z.string().trim().min(1),
   sourceQuote: z.string().trim().min(1), explanation: z.string().trim().min(1),
   improvement: z.string().trim().min(1), severity: z.enum(["low", "medium", "high"]),
   judgement: z.enum(["violation", "uncertain"]),
 });
-export const comparisonSchema = z.object({
+const comparisonSchema = z.object({
   summary: z.string().min(1), findings: z.array(finding).max(40),
   limitations: z.array(z.string()).max(30),
   applicabilityConfirmed: z.boolean(),

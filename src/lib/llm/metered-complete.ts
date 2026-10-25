@@ -1,20 +1,16 @@
 /**
- * PR #2 metered completion funnel (billing, tool-calling, local reroute).
- *
- * Cindy's `src/lib/llm/complete.ts` stays the client-safe 1-arg path her
- * `decide.ts` / store import. This module is server-only: importing it from a
- * Client Component would pull `pg` into the browser bundle.
+ * The single LLM completion entry point (credit hold, tool calling, local reroute).
+ * Server-only: importing it from a Client Component would pull `pg` into the browser bundle.
  */
 
 import { balanceMilli } from "@/lib/billing/ledger";
 import { holdCredits, releaseHold, settleHold, type BillingContext, type Hold } from "@/lib/billing/meter";
 import { formatCredits, milliForCost } from "@/lib/billing/plan";
-import { callLlm, isLlmConfigured, systemFor } from "./adapters";
+import { callLlm, isLlmConfigured, localBase, systemFor } from "./adapters";
 import { getLlmOrDefault } from "./catalog";
 import { estimateLlmUsage, llmCostUsd, usageFromProvider, worstCaseUsd } from "./estimate";
 import { traceModelCall } from "./langsmith";
 import { parseToolArgs } from "@/lib/pr2-shims";
-import { traceable } from "langsmith/traceable";
 import { stubComplete } from "./stub";
 import type { CompleteRequest, CompleteResult, LlmModel, ToolCall } from "./types";
 
@@ -32,11 +28,7 @@ async function outOfCreditsNote(model: LlmModel, req: CompleteRequest, billing: 
   }
 }
 
-/**
- * `billing` is optional so Cindy's `runComplete(req)` call sites typecheck.
- * Pass `undefined` explicitly from PR #2 callers to mean "nobody pays", which
- * keeps cloud calls from going out at all when credits cannot be held.
- */
+/** `billing` undefined means nobody pays: cloud calls are not sent. */
 export async function runComplete(req: CompleteRequest, billing?: BillingContext): Promise<CompleteResult> {
   const assigned = getLlmOrDefault(req.modelId);
   let model = assigned;
@@ -51,7 +43,7 @@ export async function runComplete(req: CompleteRequest, billing?: BillingContext
     // 401 that dropped GPT-6.1 Sol at the compliance step.
     if (req.direct || req.images?.length) return false;
     const local = getLlmOrDefault("local:custom");
-    if (!isLlmConfigured(local, req.localBaseUrl || process.env.LOCAL_LLM_BASE_URL)) return false;
+    if (!isLlmConfigured(local, req.localBaseUrl)) return false;
     reroute = `${why} This decision ran free on the local model instead of ${assigned.name}.`;
     model = local;
     active = { ...req, modelId: model.id };
@@ -138,10 +130,10 @@ export async function runComplete(req: CompleteRequest, billing?: BillingContext
 }
 
 /** The call already happened; a ledger hiccup must not turn it into a failure. */
-async function settle(hold: Hold, costUsd: number, model: LlmModel, req: CompleteRequest, outcome?: string) {
+async function settle(hold: Hold, costUsd: number, model: LlmModel, req: CompleteRequest) {
   try {
     // Rounded to a nano-dollar only to keep float noise out of the ledger.
-    const note = `${model.name} · ${req.agent} decision${outcome ? ` (${outcome})` : ""}`;
+    const note = `${model.name} · ${req.agent} decision`;
     await settleHold(hold, Math.round(costUsd * 1e9) / 1e9, { modelId: model.id, note });
   } catch (err) {
     console.error("[credits] settle failed", err);
@@ -156,11 +148,6 @@ async function release(hold: Hold) {
   }
 }
 
-/**
- * Cindy's adapters return text only. Tool-calling seats (PR #2 LangChain)
- * need OpenAI-format `tools` / `tool_calls`, so this path talks to a local
- * OpenAI-compatible server without changing her adapter module.
- */
 function openaiBase() {
   return (process.env.OPENAI_API_BASE?.trim() || "https://api.openai.com/v1").replace(/\/$/, "");
 }
@@ -359,6 +346,10 @@ async function callLlmWithTools(model: LlmModel, req: CompleteRequest) {
   return {...result, ...(result.toolCalls ? {toolCalls:result.toolCalls.map(call => ({...call,name:originals.get(call.name) ?? call.name}))} : {})};
 }
 
+/**
+ * Tool-calling seats need OpenAI-format `tools` / `tool_calls`. OpenAI models go to the
+ * Responses or Chat Completions helpers; local models go to the local OpenAI-compatible server.
+ */
 async function callProviderTools(
   model: LlmModel,
   req: CompleteRequest,
@@ -369,39 +360,9 @@ async function callProviderTools(
   if (model.providerId !== "local") {
     throw new Error(`${model.provider} tool calling is not wired through Cindy's adapters.`);
   }
-  const base = (req.localBaseUrl || process.env.LOCAL_LLM_BASE_URL || "http://127.0.0.1:11434/v1").replace(
-    /\/$/,
-    "",
-  );
+  const base = localBase(req);
   const apiModel = model.id === "local:custom" ? req.localModel || "llama3.3" : model.apiModel;
-  const messages: Record<string, unknown>[] = [
-    { role: "system", content: req.system || systemFor(req.agent) },
-  ];
-  for (const turn of req.history ?? []) {
-    if (turn.role === "user") messages.push({ role: "user", content: turn.content });
-    else if (turn.role === "assistant") {
-      messages.push({
-        role: "assistant",
-        content: turn.content,
-        ...(turn.toolCalls?.length
-          ? {
-              tool_calls: turn.toolCalls.map((call) => ({
-                id: call.id,
-                type: "function",
-                function: { name: call.name, arguments: JSON.stringify(call.args) },
-              })),
-            }
-          : {}),
-      });
-    } else {
-      messages.push({ role: "tool", tool_call_id: turn.toolCallId, name: turn.name, content: turn.content });
-    }
-  }
-  if (req.lastTurnIsToolResult) {
-    messages.push({ role: "tool", tool_call_id: req.toolCallId, content: req.prompt });
-  } else {
-    messages.push({ role: "user", content: req.prompt });
-  }
+  const messages = openAIMessages({ ...req, images: undefined });
 
   const res = await fetch(`${base}/chat/completions`, {
     method: "POST",
@@ -410,19 +371,10 @@ async function callProviderTools(
       model: apiModel,
       temperature: 0.4,
       messages,
-      ...(req.tools?.length
-        ? {
-            tools: req.tools.map((tool) => ({
-              type: "function",
-              function: {
-                name: tool.name,
-                description: tool.description,
-                parameters: tool.parameters,
-              },
-            })),
-          }
-        : {}),
+      ...(req.tools?.length ? { tools: openAITools(req) } : {}),
     }),
+    // localBase checked the URL; a redirect must not take the call elsewhere.
+    redirect: "error",
     signal: AbortSignal.timeout(2_500),
   });
   if (!res.ok) {
@@ -438,13 +390,7 @@ async function callProviderTools(
     usage?: { prompt_tokens?: number; completion_tokens?: number };
   };
   const message = json.choices?.[0]?.message;
-  const toolCalls: ToolCall[] = (message?.tool_calls ?? [])
-    .filter((call) => call.function?.name)
-    .map((call, index) => ({
-      id: call.id || `call_${index}`,
-      name: call.function!.name!,
-      args: parseToolArgs(call.function?.arguments),
-    }));
+  const toolCalls = toolCallsFromChat(message);
   return {
     text: message?.content ?? "",
     inputTokens: json.usage?.prompt_tokens,

@@ -4,13 +4,12 @@ import Link from "next/link";
 import { useState } from "react";
 import { ChecksPanel } from "@/components/ChecksPanel";
 import { Empty, PageHeader, RiskBadge, SectionTitle } from "@/components/ui";
-import { isArchived } from "@/lib/campaign-lifecycle";
-import { useAisle } from "@/lib/store";
+import { useActiveCampaigns, useAisle } from "@/lib/store";
 
 const RISK_ORDER = { high: 0, medium: 1, low: 2 } as const;
 
 export default function ApprovalsPage() {
-  const campaigns = useAisle((s) => s.campaigns).filter((campaign) => !isArchived(campaign));
+  const campaigns = useActiveCampaigns();
   const approve = useAisle((s) => s.approve);
   const reject = useAisle((s) => s.reject);
   const requestChanges = useAisle((s) => s.requestChanges);

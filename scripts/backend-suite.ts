@@ -1,16 +1,7 @@
-/** Offline checks for "Apply one backend to all", adapted to Cindy's catalogs. */
+/** Offline checks for the LLM catalog defaults and a Local seat, adapted to Cindy's catalogs. */
 import assert from "node:assert/strict";
 import { once } from "node:events";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import {
-  BACKENDS,
-  CLOUD_IMAGE_MODEL,
-  CLOUD_VIDEO_MODEL,
-  applyBackend,
-  currentBackend,
-  getBackend,
-  DEFAULT_LOCAL_BASE_URL,
-} from "../src/lib/backends";
 import { buildLlmBody, isLlmConfigured } from "../src/lib/llm/adapters";
 import {
   AGENT_SLOTS,
@@ -22,18 +13,15 @@ import {
   getLlmModel,
   getLlmOrDefault,
 } from "../src/lib/llm/catalog";
-import { runComplete } from "../src/lib/llm/complete";
-import { getModel } from "../src/lib/media/catalog";
-import { defaultSettings, withSettingsDefaults, type WorkspaceSettings } from "../src/lib/settings";
-import { LOCAL_DEFAULT_LLM, renderingModel } from "../src/lib/pr2-shims";
+import { runComplete } from "../src/lib/llm/metered-complete";
+import { defaultSettings, type WorkspaceSettings } from "../src/lib/settings";
+import { LOCAL_DEFAULT_LLM } from "../src/lib/pr2-shims";
 
 let checks = 0;
 const pass = (label: string) => {
   checks++;
   console.log(`PASS ${label}`);
 };
-const apply = (settings: WorkspaceSettings, id: Parameters<typeof applyBackend>[1]) =>
-  withSettingsDefaults({ ...settings, ...applyBackend(settings, id) });
 const seats = (settings: WorkspaceSettings) => AGENT_SLOTS.map((slot) => settings.agents[slot.id]);
 
 const llama = getLlmModel(LOCAL_DEFAULT_LLM);
@@ -46,70 +34,22 @@ const fresh = defaultSettings();
 assert(seats(fresh).every((seat) => seat.provider === "openai" && seat.modelId === DEFAULT_LLM));
 assert.equal(fresh.imageModelId, "openai:gpt-image-2.5");
 assert.equal(fresh.videoModelId, "google:veo-3.1-fast");
-assert.equal(fresh.localBaseUrl, DEFAULT_LOCAL_BASE_URL);
-assert.equal(currentBackend(fresh), "openai");
+assert.equal(fresh.localBaseUrl, "http://127.0.0.1:11434/v1");
 pass("a new workspace starts on OpenAI (Cindy's Settings defaults)");
 
-for (const backend of BACKENDS) {
-  assert.equal(getLlmModel(backend.llmModelId).providerId, backend.id);
-  assert.equal(getModel(backend.imageModelId).kind, "image");
-  assert.equal(getModel(backend.videoModelId).kind, "video");
-  const applied = apply(fresh, backend.id);
-  assert(
-    seats(applied).every(
-      (seat) => seat.provider === backend.id && seat.modelId === PROVIDER_DEFAULT_MODEL[backend.id],
-    ),
-  );
-  assert.equal(applied.imageModelId, backend.imageModelId);
-  assert.equal(applied.videoModelId, backend.videoModelId);
-  assert.equal(currentBackend(applied), backend.id);
-  assert.deepEqual(withSettingsDefaults(JSON.parse(JSON.stringify(applied))), applied);
+for (const p of LLM_PROVIDERS) {
+  assert.equal(getLlmModel(PROVIDER_DEFAULT_MODEL[p.id]).providerId, p.id);
+  assert.deepEqual(assignmentFor(p.id), { provider: p.id, modelId: PROVIDER_DEFAULT_MODEL[p.id] });
 }
-assert.deepEqual(BACKENDS.map((b) => b.id), ["local", "openai", "anthropic", "cursor"]);
-pass("every backend moves all four seats and both media models, and survives a save");
-
-const local = getBackend("local");
-assert.equal(local.llmModelId, LOCAL_DEFAULT_LLM);
-assert.equal(local.imageModelId, "openai:gpt-image-2.5");
-assert.equal(local.videoModelId, "google:veo-3.1-fast");
-for (const id of ["openai", "anthropic", "cursor"] as const) {
-  const cloud = getBackend(id);
-  assert.equal(cloud.where, "cloud");
-  assert.deepEqual([cloud.imageModelId, cloud.videoModelId], [CLOUD_IMAGE_MODEL, CLOUD_VIDEO_MODEL]);
-}
-assert.equal(CLOUD_IMAGE_MODEL, "openai:gpt-image-2.5");
-assert.equal(CLOUD_VIDEO_MODEL, "bytedance:seedance-2-fast");
-pass("cloud backends share Cindy's GPT Image 2 + Seedance Fast");
+pass("every provider default is a model of that provider");
 
 assert.deepEqual(LLM_PROVIDERS.map((p) => p.id), ["local", "openai", "anthropic", "cursor"]);
 assert(LLM_MODELS.some((m) => m.id.startsWith("cursor:")));
 assert.equal(DEFAULT_LLM, "openai:gpt-6-luna");
 assert.equal(PROVIDER_DEFAULT_MODEL.openai, "openai:gpt-6-luna");
 assert.equal(PROVIDER_DEFAULT_MODEL.anthropic, "anthropic:claude-sonnet-5.5");
-assert.equal(getBackend("openai").llmModelId, "openai:gpt-6-luna");
-pass("catalog keeps Cindy's Cursor seats and GPT-6 Luna as the OpenAI default");
-
 assert.equal(getLlmOrDefault("missing-model").id, DEFAULT_LLM);
-assert.equal(apply({ ...fresh, localBaseUrl: "  " }, "local").localBaseUrl, DEFAULT_LOCAL_BASE_URL);
-assert.equal(
-  apply({ ...fresh, localBaseUrl: "http://127.0.0.1:8002/v1" }, "local").localBaseUrl,
-  "http://127.0.0.1:8002/v1",
-);
-assert.equal("localBaseUrl" in applyBackend({ ...fresh, localBaseUrl: "" }, "openai"), false);
-pass("Local fills a blank URL with Ollama; a typed URL is kept; cloud leaves it alone");
-
-const custom = {
-  ...fresh,
-  agents: Object.fromEntries(
-    AGENT_SLOTS.map((s) => [s.id, { provider: "local", modelId: "local:custom" }]),
-  ) as WorkspaceSettings["agents"],
-};
-assert.equal(currentBackend(custom), "local");
-assert.equal(
-  currentBackend({ ...fresh, agents: { ...fresh.agents, media: { provider: "openai", modelId: "openai:gpt-6.1-sol" } } }),
-  "openai",
-);
-pass("the Now readout tracks a single provider across seats");
+pass("catalog keeps Cindy's Cursor seats and GPT-6 Luna as the OpenAI default; an unknown id falls back to it");
 
 const luna = buildLlmBody(getLlmModel("openai:gpt-6-luna"), {
   agent: "trend",
@@ -123,10 +63,6 @@ const customSeat = getLlmModel("local:custom");
 assert.equal(isLlmConfigured(customSeat, "http://127.0.0.1:11434/v1"), true);
 assert.equal(isLlmConfigured(getLlmModel("openai:gpt-6-luna")), false);
 pass("GPT-6 Luna omits temperature; local is configured when a base URL is set");
-
-const rendered = renderingModel({ kind: "image", modelId: fresh.imageModelId });
-assert.equal(rendered.id, fresh.imageModelId);
-pass("Studio quotes Cindy's default image model");
 
 const seen: { path?: string; body?: Record<string, unknown> }[] = [];
 const fake = createServer(async (req: IncomingMessage, res: ServerResponse) => {
@@ -153,7 +89,7 @@ const address = fake.address();
 assert(address && typeof address !== "string");
 const base = `http://127.0.0.1:${address.port}`;
 try {
-  const settings = apply({ ...fresh, localBaseUrl: `${base}/v1` }, "local");
+  const settings = { ...fresh, localBaseUrl: `${base}/v1`, agents: Object.fromEntries(AGENT_SLOTS.map((s) => [s.id, assignmentFor("local")])) as WorkspaceSettings["agents"] };
   const done = await runComplete({
     agent: "compliance",
     modelId: settings.agents.compliance.modelId,

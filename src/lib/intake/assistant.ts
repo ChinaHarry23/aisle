@@ -27,15 +27,10 @@ import { z } from "zod";
 import { buildAgent, intakeTurnSchema } from "@/lib/agents/seats";
 import { MeteredChatModel } from "@/lib/agents/metered-chat-model";
 import type { BillingContext } from "@/lib/billing/meter";
-import { uid } from "@/lib/ids";
 import { getLlmOrDefault } from "@/lib/llm/catalog";
 import { runComplete } from "@/lib/llm/metered-complete";
 import type { CompleteRequest, CompleteResult } from "@/lib/llm/types";
-import {
-  CHANNELS,
-  COUNTRIES,
-  validateIntake,
-} from "@/lib/runtime/intake";
+import { CHANNELS, isChannel, isCountry, validateIntake } from "@/lib/runtime/intake";
 import { makeLog } from "@/lib/seed";
 import type { WorkspaceSettings } from "@/lib/settings";
 import type { AgentEvent, BrandProfile, CampaignInput, Channel, Country } from "@/lib/types";
@@ -46,7 +41,6 @@ import {
   optionsForMissingField,
   type IntakeChatMessage,
   type IntakeDraftState,
-  type IntakeFieldSources,
   type IntakeTurnOutput,
 } from "./shared";
 
@@ -54,13 +48,11 @@ export {
   ASSISTANT_NOTE_PREFIX,
   MAX_INTAKE_TURNS,
   emptyIntakeDraft,
-  optionsForMissingField,
   type IntakeChatMessage,
   type IntakeDraftState,
-  type IntakeTurnOutput,
 };
 
-export type IntakeTurnInput = {
+type IntakeTurnInput = {
   messages: IntakeChatMessage[];
   draft: Partial<IntakeDraftState>;
   brand: BrandProfile;
@@ -94,21 +86,18 @@ export function normaliseDraft(partial?: Partial<IntakeDraftState>): IntakeDraft
         ? partial.budget
         : base.budget,
     channels: Array.isArray(partial.channels)
-      ? partial.channels.filter((c): c is Channel => (CHANNELS as string[]).includes(c))
+      ? partial.channels.filter(isChannel)
       : base.channels,
     startDate: typeof partial.startDate === "string" ? partial.startDate.slice(0, 10) : base.startDate,
     endDate: typeof partial.endDate === "string" ? partial.endDate.slice(0, 10) : base.endDate,
-    country:
-      typeof partial.country === "string" && (COUNTRIES as string[]).includes(partial.country)
-        ? (partial.country as Country)
-        : base.country,
+    country: isCountry(partial.country) ? partial.country : base.country,
     notes: typeof partial.notes === "string" ? partial.notes.slice(0, 2000) : base.notes,
     fieldSources: { ...(partial.fieldSources ?? {}) },
   };
 }
 
 /** Detect if the founder is asking the intake assistant to execute a command it is forbidden from running. */
-export function detectForbiddenCommandRequest(message: string): boolean {
+function detectForbiddenCommandRequest(message: string): boolean {
   const lower = message.toLowerCase();
   return /\b(launch\s+(?:the\s+)?(?:campaign|agents|pipeline|now|it)|start\s+(?:the\s+)?pipeline|publish\s+(?:the\s+)?(?:campaign|it|now)|approve\s+(?:the\s+)?(?:campaign|ad|creative))\b/i.test(
     lower,
@@ -120,19 +109,18 @@ export function detectForbiddenCommandRequest(message: string): boolean {
  * `endDate`, `country`) and clear free-text answers directly from the founder's
  * message. Only values present in the founder's own text are marked `"founder"`.
  */
-export function extractFounderEntries(
+function extractFounderEntries(
   message: string,
   current: IntakeDraftState,
   lastAskedField?: string,
-): { draft: IntakeDraftState; updatedFields: (keyof IntakeFieldSources)[] } {
+): IntakeDraftState {
   const next: IntakeDraftState = {
     ...current,
     channels: [...current.channels],
     fieldSources: { ...current.fieldSources },
   };
-  const updated: (keyof IntakeFieldSources)[] = [];
   const text = message.trim();
-  if (!text) return { draft: next, updatedFields: updated };
+  if (!text) return next;
 
   // 1. Budget (e.g., "$12,000", "12k", "budget 8000", "AUD 15000", or bare number when asked for budget)
   const kMatch = text.match(
@@ -141,28 +129,18 @@ export function extractFounderEntries(
   const suffixK = text.match(/\b(\d[\d,]*(?:\.\d+)?)\s*k\b/i);
   const bareNum =
     lastAskedField === "budget" ? text.match(/^\s*\$?\s*(\d[\d,]*(?:\.\d+)?)\s*$/) : null;
-  if (kMatch) {
-    const base = Number(kMatch[1].replace(/,/g, ""));
-    const amount = kMatch[2] ? Math.round(base * 1000) : Math.round(base);
-    if (Number.isFinite(amount) && amount > 0) {
-      next.budget = amount;
-      next.fieldSources.budget = "founder";
-      updated.push("budget");
-    }
-  } else if (suffixK) {
-    const amount = Math.round(Number(suffixK[1].replace(/,/g, "")) * 1000);
-    if (Number.isFinite(amount) && amount > 0) {
-      next.budget = amount;
-      next.fieldSources.budget = "founder";
-      updated.push("budget");
-    }
-  } else if (bareNum) {
-    const amount = Math.round(Number(bareNum[1].replace(/,/g, "")));
-    if (Number.isFinite(amount) && amount > 0) {
-      next.budget = amount;
-      next.fieldSources.budget = "founder";
-      updated.push("budget");
-    }
+  const amount = kMatch
+    ? kMatch[2]
+      ? Math.round(Number(kMatch[1].replace(/,/g, "")) * 1000)
+      : Math.round(Number(kMatch[1].replace(/,/g, "")))
+    : suffixK
+      ? Math.round(Number(suffixK[1].replace(/,/g, "")) * 1000)
+      : bareNum
+        ? Math.round(Number(bareNum[1].replace(/,/g, "")))
+        : NaN;
+  if (Number.isFinite(amount) && amount > 0) {
+    next.budget = amount;
+    next.fieldSources.budget = "founder";
   }
 
   // 2. Channels (only when explicitly mentioned by the founder)
@@ -180,12 +158,10 @@ export function extractFounderEntries(
   if (/\ball\s+channels\b/i.test(text)) {
     next.channels = [...CHANNELS];
     next.fieldSources.channels = "founder";
-    updated.push("channels");
   } else if (mentionedChannels.length > 0) {
     const merged = Array.from(new Set([...next.channels, ...mentionedChannels]));
     next.channels = merged;
     next.fieldSources.channels = "founder";
-    updated.push("channels");
   }
 
   // 3. Dates (YYYY-MM-DD)
@@ -195,16 +171,13 @@ export function extractFounderEntries(
     next.endDate = isoDates[1];
     next.fieldSources.startDate = "founder";
     next.fieldSources.endDate = "founder";
-    updated.push("startDate", "endDate");
   } else if (isoDates.length === 1) {
     if (!next.startDate) {
       next.startDate = isoDates[0];
       next.fieldSources.startDate = "founder";
-      updated.push("startDate");
     } else if (!next.endDate) {
       next.endDate = isoDates[0];
       next.fieldSources.endDate = "founder";
-      updated.push("endDate");
     }
   }
 
@@ -219,7 +192,6 @@ export function extractFounderEntries(
     if (regex.test(text)) {
       next.country = code;
       next.fieldSources.country = "founder";
-      updated.push("country");
       break;
     }
   }
@@ -229,7 +201,6 @@ export function extractFounderEntries(
     if (new RegExp(`\\b${cat}\\b`, "i").test(text)) {
       next.category = cat;
       next.fieldSources.category = "founder";
-      updated.push("category");
       break;
     }
   }
@@ -246,7 +217,6 @@ export function extractFounderEntries(
     );
     next.product = (stripped.length >= 3 ? stripped : cleanPhrase(text)).slice(0, 140);
     next.fieldSources.product = "founder";
-    updated.push("product");
   } else if (
     lastAskedField === "targetAudience" &&
     !next.targetAudience &&
@@ -255,7 +225,6 @@ export function extractFounderEntries(
   ) {
     next.targetAudience = cleanPhrase(text).slice(0, 180);
     next.fieldSources.targetAudience = "founder";
-    updated.push("targetAudience");
   } else if (
     lastAskedField === "objective" &&
     !next.objective &&
@@ -264,11 +233,9 @@ export function extractFounderEntries(
   ) {
     next.objective = cleanPhrase(text).slice(0, 200);
     next.fieldSources.objective = "founder";
-    updated.push("objective");
   } else if (lastAskedField === "name" && !next.name && text.length >= 3) {
     next.name = cleanPhrase(text).slice(0, 120);
     next.fieldSources.name = "founder";
-    updated.push("name");
   }
 
   // Heuristic extraction from rich multi-clause founder messages (e.g. "Promote navel oranges to inner-west families to lift weekend basket attach")
@@ -283,7 +250,6 @@ export function extractFounderEntries(
     if (prodMatch?.[1] && prodMatch[1].trim().length >= 3) {
       next.product = cleanPhrase(prodMatch[1]).slice(0, 140);
       next.fieldSources.product = "founder";
-      updated.push("product");
     }
   }
 
@@ -294,7 +260,6 @@ export function extractFounderEntries(
     if (audMatch?.[1] && audMatch[1].trim().length >= 3) {
       next.targetAudience = cleanPhrase(audMatch[1]).slice(0, 180);
       next.fieldSources.targetAudience = "founder";
-      updated.push("targetAudience");
     }
   }
 
@@ -309,16 +274,15 @@ export function extractFounderEntries(
       if (cleaned.length >= 3) {
         next.objective = (cleaned[0].toUpperCase() + cleaned.slice(1)).slice(0, 200);
         next.fieldSources.objective = "founder";
-        updated.push("objective");
       }
     }
   }
 
-  return { draft: next, updatedFields: updated };
+  return next;
 }
 
 /** Scrub any banned terms from assistant-proposed text and return the list of terms caught. */
-export function filterBannedTerms(
+function filterBannedTerms(
   text: string,
   brand: BrandProfile,
 ): { cleaned: string; caught: string[] } {
@@ -355,7 +319,7 @@ export function nextMissingField(
 }
 
 /** Deterministic question generator when no live model is available or as a safety net. */
-export function deterministicIntakeTurn(
+function deterministicIntakeTurn(
   draft: IntakeDraftState,
   brand: BrandProfile,
   refusedCommand: boolean,
@@ -381,7 +345,6 @@ export function deterministicIntakeTurn(
 
   const questions: Record<Exclude<IntakeTurnOutput["missingField"], "none">, string> = {
     product: `What product or seasonal line are we promoting for ${brand.retailerName} this cycle?`,
-    category: `Which category does ${draft.product || "this product"} sit under (Grocery, Apparel, Pantry, Home, or Beauty)?`,
     targetAudience: `Got it (${draft.product}). Who is the target audience for this campaign?`,
     objective: `What is the primary campaign objective for ${draft.product} with ${draft.targetAudience}?`,
     budget: `What is your campaign budget (in AUD)? As a guardrail (UC-01 step 6), I never guess or auto-fill budget.`,
@@ -398,6 +361,15 @@ export function deterministicIntakeTurn(
   };
 }
 
+/** Propose a clean campaign name when the product is known and the name is still blank. */
+function proposeName(draft: IntakeDraftState, brand: BrandProfile, caught: string[]) {
+  if (!draft.product || draft.name.trim().length >= 3) return;
+  const f = filterBannedTerms(`${brand.retailerName} — ${draft.product.slice(0, 48)}`, brand);
+  caught.push(...f.caught);
+  draft.name = f.cleaned.length >= 3 ? f.cleaned : `Campaign — ${draft.product.slice(0, 48)}`;
+  draft.fieldSources.name = "assistant";
+}
+
 /**
  * Run one turn of the conversational intake assistant (`intake` LangChain seat).
  */
@@ -409,23 +381,13 @@ export async function runIntakeTurn(input: IntakeTurnInput): Promise<IntakeTurnO
   const refusedCommand = detectForbiddenCommandRequest(lastUserMessage);
 
   // Determine what the assistant asked about in its previous message so short answers ("8000", "Household shoppers") map cleanly.
-  const prevMissing = nextMissingField(normaliseDraft(input.draft), input.brand);
-  const { draft: extractedDraft } = extractFounderEntries(
-    lastUserMessage,
-    normaliseDraft(input.draft),
-    prevMissing === "none" ? undefined : prevMissing,
-  );
-  const draft = extractedDraft;
+  const base = normaliseDraft(input.draft);
+  const prevMissing = nextMissingField(base, input.brand);
+  const draft = extractFounderEntries(lastUserMessage, base, prevMissing === "none" ? undefined : prevMissing);
   const caughtBanned: string[] = [];
 
   // Auto-propose a clean campaign name if product is known and name is still blank.
-  if (draft.product && (!draft.name || draft.name.trim().length < 3)) {
-    const rawName = `${input.brand.retailerName} — ${draft.product.slice(0, 48)}`;
-    const filtered = filterBannedTerms(rawName, input.brand);
-    caughtBanned.push(...filtered.caught);
-    draft.name = filtered.cleaned.length >= 3 ? filtered.cleaned : `Campaign — ${draft.product.slice(0, 48)}`;
-    draft.fieldSources.name = "assistant";
-  }
+  proposeName(draft, input.brand, caughtBanned);
 
   // Enforce the 12-turn conversation cap (CE-08).
   if (turnCount >= MAX_INTAKE_TURNS) {
@@ -477,10 +439,7 @@ export async function runIntakeTurn(input: IntakeTurnInput): Promise<IntakeTurnO
     }),
     func: async (args: { country?: string }) => {
       usedTools.push("brand.profile");
-      const c =
-        args.country && (COUNTRIES as string[]).includes(args.country)
-          ? (args.country as Country)
-          : draft.country;
+      const c = isCountry(args.country) ? args.country : draft.country;
       return JSON.stringify({
         retailerName: input.brand.retailerName,
         tone: input.brand.tone,
@@ -511,6 +470,7 @@ export async function runIntakeTurn(input: IntakeTurnInput): Promise<IntakeTurnO
   });
 
   const assignment = input.settings.agents.trend;
+  const assignedModel = getLlmOrDefault(assignment.modelId);
   const chatModel = new MeteredChatModel({
     agent: "intake",
     modelId: assignment.modelId,
@@ -621,15 +581,7 @@ export async function runIntakeTurn(input: IntakeTurnInput): Promise<IntakeTurnO
     }
 
     // Re-generate campaign name if product was newly extracted by the model and name is still blank.
-    if (draft.product && (!draft.name || draft.name.trim().length < 3)) {
-      const { cleaned, caught } = filterBannedTerms(
-        `${input.brand.retailerName} — ${draft.product.slice(0, 48)}`,
-        input.brand,
-      );
-      caughtBanned.push(...caught);
-      draft.name = cleaned.length >= 3 ? cleaned : `Campaign — ${draft.product.slice(0, 48)}`;
-      draft.fieldSources.name = "assistant";
-    }
+    proposeName(draft, input.brand, caughtBanned);
 
     const postProblems = validateIntake(draft, input.brand);
     missingField = postProblems.length === 0 ? "none" : nextMissingField(draft, input.brand);
@@ -660,7 +612,7 @@ export async function runIntakeTurn(input: IntakeTurnInput): Promise<IntakeTurnO
         ? rawOptions
         : optionsForMissingField(missingField, draft).slice(0, 3);
 
-    const spoken = chatModel.usage.models[0] ?? getLlmOrDefault(assignment.modelId).name;
+    const spoken = chatModel.usage.models[0] ?? assignedModel.name;
     traceNote = `${spoken} ran intake seat (${chatModel.usage.calls} call(s))${
       usedTools.length ? `; tools: ${usedTools.join(", ")}` : ""
     }.`;
@@ -682,7 +634,6 @@ export async function runIntakeTurn(input: IntakeTurnInput): Promise<IntakeTurnO
     missingField = "none";
   }
 
-  const assignedModel = getLlmOrDefault(assignment.modelId);
   const spokenName = chatModel.usage.models[0] ?? assignedModel.name;
   const costUsd = Math.round(chatModel.usage.costUsd * 1e5) / 1e5;
 
@@ -698,8 +649,8 @@ export async function runIntakeTurn(input: IntakeTurnInput): Promise<IntakeTurnO
       ),
     );
   }
-  logEvents.push({
-    ...makeLog(
+  logEvents.push(
+    makeLog(
       "intake",
       "intake",
       readyToReview
@@ -708,8 +659,7 @@ export async function runIntakeTurn(input: IntakeTurnInput): Promise<IntakeTurnO
       `${reply.slice(0, 360)} (${path === "live_model" ? spokenName : "deterministic fallback"} · $${costUsd.toFixed(4)})`,
       now,
     ),
-    id: uid("log"),
-  });
+  );
 
   return {
     reply,
@@ -737,12 +687,8 @@ export async function runIntakeTurn(input: IntakeTurnInput): Promise<IntakeTurnO
   };
 }
 
-/** Convert an `IntakeDraftState` and accumulated `AgentEvent[]` transcript into a `CampaignInput`. */
-export function toCampaignInput(
-  draft: IntakeDraftState,
-  intakeLog: AgentEvent[],
-): CampaignInput {
-  void intakeLog;
+/** Convert an `IntakeDraftState` into a `CampaignInput`. */
+export function toCampaignInput(draft: IntakeDraftState): CampaignInput {
   return {
     name: draft.name.trim(),
     product: draft.product.trim(),

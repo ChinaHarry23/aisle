@@ -10,9 +10,8 @@
 
 import { randomUUID } from "node:crypto";
 import type { SessionUser, UserRole } from "@/lib/auth/types";
-import { findUserById } from "@/lib/auth/users";
 import { isHosted } from "./hosted";
-import { balanceMilli, parkSettle, recordDevUsage, reserveCredits, settleCredits } from "./ledger";
+import { parkSettle, recordDevUsage, reserveCredits, settleCredits } from "./ledger";
 import { milliForCost } from "./plan";
 
 export type BillingContext =
@@ -25,9 +24,6 @@ export const UNMETERED_TEST: BillingContext = { kind: "unmetered", reason: "offl
 export function billingFor(user: { id: string; role: UserRole; email?: string }): BillingContext {
   return { kind: "user", userId: user.id, role: user.role, email: user.email };
 }
-
-/** A hosted deployment, where anyone on the internet can reach the seeded desks. */
-export { isHosted };
 
 /**
  * Who spends the owner's keys without credits. Team desks (role "dev") are
@@ -45,24 +41,12 @@ export function isUnlimited(ctx: BillingContext | undefined): boolean {
 }
 
 /**
- * Billing for a signed-in session, with the role read from the database rather
- * than the 30-day cookie, so a demoted desk stops being unlimited at once.
- * Undefined (cloud calls refused) when the account no longer exists.
+ * Billing for a signed-in session. Pass the SessionUser from getCurrentUser(),
+ * whose role was read from the database rather than the 30-day cookie, so a
+ * demoted desk stops being unlimited at once.
  */
-export async function billingForSession(session: SessionUser): Promise<BillingContext | undefined> {
-  const user = await findUserById(session.id);
-  return user ? billingFor(user) : undefined;
-}
-
-export class InsufficientCreditsError extends Error {
-  readonly neededMilli: number;
-  readonly balanceMilli: number;
-  constructor(neededMilli: number, balance: number) {
-    super("Not enough credits for this cloud call. Subscribe or wait for next month's credits on Billing.");
-    this.name = "InsufficientCreditsError";
-    this.neededMilli = neededMilli;
-    this.balanceMilli = balance;
-  }
+export async function billingForSession(session: SessionUser): Promise<BillingContext> {
+  return billingFor(session);
 }
 
 export type Hold = {
@@ -82,20 +66,14 @@ export type Hold = {
  */
 export async function holdCredits(ctx: BillingContext | undefined, estimateUsd: number): Promise<Hold | null> {
   if (!ctx) return null;
+  // NaN would round to a zero hold and let the call through for free.
+  if (!Number.isFinite(estimateUsd) || estimateUsd < 0) return null;
   const ref = randomUUID();
   if (ctx.kind === "unmetered" || isUnlimited(ctx)) return { ctx, ref, heldMilli: 0, charged: false, epoch: 0 };
   const milli = milliForCost(estimateUsd);
   const epoch = await reserveCredits(ctx.userId, milli, ref);
   if (epoch === null) return null;
   return { ctx, ref, heldMilli: milli, charged: true, epoch };
-}
-
-/** Like `holdCredits`, but says how short the user is. */
-export async function holdOrThrow(ctx: BillingContext | undefined, estimateUsd: number): Promise<Hold> {
-  const hold = await holdCredits(ctx, estimateUsd);
-  if (hold) return hold;
-  const balance = ctx?.kind === "user" ? await balanceMilli(ctx.userId) : 0;
-  throw new InsufficientCreditsError(milliForCost(estimateUsd), balance);
 }
 
 /** Charge what the call really cost and return the rest of the hold. */

@@ -1,9 +1,9 @@
 /**
  * Pure shelf-price shaping for WhichGrocer.
  *
- * The MCP connector returns whatever JSON the tool produced. These helpers turn
- * that payload into one comparable offer per grocery retailer, without calling
- * the network, so the brief text can be tested on its own.
+ * The WhichGrocer API returns catalogue JSON. These helpers turn that payload
+ * into one comparable offer per grocery retailer, without calling the network,
+ * so the brief text can be tested on its own.
  */
 
 export type ShelfOffer = {
@@ -39,9 +39,9 @@ const STORE_LABELS: Record<string, string> = {
 };
 
 /** Supermarket chains. A juice brief should not be priced at Bunnings. */
-const GROCERY_STORES = new Set(["coles", "woolworths", "aldi", "iga"]);
+export const GROCERY_STORES = new Set(["coles", "woolworths", "aldi", "iga"]);
 
-export function storeLabel(store: string): string {
+function storeLabel(store: string): string {
   const key = store.trim().toLowerCase();
   return STORE_LABELS[key] ?? key.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
@@ -131,7 +131,7 @@ export function offersFromPayload(payload: unknown): ShelfOffer[] {
 }
 
 /** MCP tools return `{ content: [{ type: "text", text }] }`. Parse that text when it is JSON. */
-export function unwrapToolResult(result: unknown): unknown {
+function unwrapToolResult(result: unknown): unknown {
   if (!result || typeof result !== "object") return result;
   const record = result as Record<string, unknown>;
   if (!Array.isArray(record.content)) return result;
@@ -151,17 +151,6 @@ export function unwrapToolResult(result: unknown): unknown {
     }
   }
   return { text };
-}
-
-export function toolResultIsError(result: unknown): string | null {
-  if (!result || typeof result !== "object") return null;
-  const record = result as Record<string, unknown>;
-  if (record.isError !== true) return null;
-  const unwrapped = unwrapToolResult(result);
-  if (unwrapped && typeof unwrapped === "object" && typeof (unwrapped as { text?: unknown }).text === "string") {
-    return (unwrapped as { text: string }).text.slice(0, 180);
-  }
-  return "WhichGrocer reported an error.";
 }
 
 function nameScore(name: string, query: string): number {

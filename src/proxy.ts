@@ -7,8 +7,12 @@ function isPublicPath(pathname: string) {
   if (pathname === "/") return true;
   if (pathname === "/login" || pathname === "/signup") return true;
   if (pathname.startsWith("/api/auth/")) return true;
-  // Storage health must be readable when sign-in is what is broken: it reports
-  // the backend, not any account data.
+  // Stripe calls this without a session cookie. The route verifies the
+  // Stripe-Signature header against STRIPE_WEBHOOK_SECRET, so that check is
+  // the authentication.
+  if (pathname === "/api/stripe/webhook") return true;
+  // Storage health must be readable when sign-in is what is broken. On a hosted
+  // install it tells an anonymous caller only whether storage answered.
   if (pathname === "/api/health") return true;
   return false;
 }
@@ -22,7 +26,7 @@ export async function proxy(request: NextRequest) {
   if (!user && !publicPath) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
-    if (pathname !== "/") url.searchParams.set("next", pathname);
+    url.searchParams.set("next", pathname);
     return NextResponse.redirect(url);
   }
 

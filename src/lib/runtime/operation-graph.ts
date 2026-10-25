@@ -2,11 +2,11 @@ import {runTrendQuality,handoffTrend,resolveTrend,cancelTrend} from './trend-qua
 /**
  * The campaign operation as a LangGraph.
  *
- * `runEngine` used to switch on the command and the run pointer itself. Those
- * same branches are nodes here, so a launch is a graph run: LangSmith can trace
- * it, and `getGraphAsync()` can draw it. The step functions in `steps.ts` are
- * unchanged — a node calls the same function the switch used to call, and the
- * campaign document is still the record. The graph decides which node runs.
+ * Each engine command is one graph run: `routeCommand` picks the handler
+ * node, stage nodes call the step functions in `steps.ts`, and on ADVANCE
+ * `afterStage` follows the run pointer until a founder gate, a block, a
+ * stopped run, or the step budget. LangSmith traces it and `getGraphAsync()`
+ * draws it; the campaign document stays the record.
  */
 
 import type { RunnableConfig } from "@langchain/core/runnables";
@@ -27,11 +27,11 @@ import {
   type StepEnv,
   type Work,
 } from "./steps";
-import { MAX_REVISION_ATTEMPTS, type AgentRun, type Command } from "./types";
+import { FOUNDER_WAIT_STEPS, MAX_REVISION_ATTEMPTS, type Command } from "./types";
 
 export type OpState = {
   work: Work;
-  /** Null only for a Studio run, which keeps the env off the checkpoint and fills `rememberOperationEnv`. */
+  /** Null only in a Studio checkpoint, which cannot store it; Studio fills it in for each node from its own map. */
   env: StepEnv | null;
   command: Command;
   maxSteps: number;
@@ -43,24 +43,9 @@ export type OpState = {
   stop: boolean;
 };
 
-const envByCampaign = new Map<string, StepEnv>();
-
-/**
- * Park a StepEnv outside the graph state.
- *
- * Studio checkpoints every channel. `StepEnv` holds `renderPoster` and the model
- * function, which a checkpoint cannot store, so a Studio run leaves `env` null
- * and nodes read the env from here.
- */
-export function rememberOperationEnv(campaignId: string, env: StepEnv) {
-  envByCampaign.set(campaignId, env);
-}
-
 function envOf(state: OpState): StepEnv {
-  if (state.env) return state.env;
-  const cached = envByCampaign.get(state.work.campaign.id);
-  if (!cached) throw new Error("Operation graph has no StepEnv for this campaign.");
-  return cached;
+  if (!state.env) throw new Error("Operation graph has no StepEnv for this campaign.");
+  return state.env;
 }
 
 const GraphState = Annotation.Root({
@@ -112,10 +97,6 @@ export const stageDestinations = {
 } as const;
 
 export const reviseDestinations = { revise: "revise", [END]: END } as const;
-
-function isHalted(run: AgentRun): boolean {
-  return run.status === "complete" || run.status === "halted";
-}
 
 export function stageFor(state: OpState): StageNode {
   switch (state.work.run?.step) {
@@ -243,7 +224,6 @@ async function executeStep(w: Work, env: StepEnv): Promise<{ blocked: boolean; m
           c.running = false;
           setRun(w, { status: "awaiting_human", awaiting: "approval", step: "founder.gate" });
         }
-        return result;
       }
       return result;
     }
@@ -251,8 +231,7 @@ async function executeStep(w: Work, env: StepEnv): Promise<{ blocked: boolean; m
       const result = await runMediaAdaptation(w, env);
       if (result.blocked) return result;
       if (c.channelVersions.some((v) => v.status === "failed")) return result;
-      const sched = runSchedule(w, env.allCampaigns);
-      void sched;
+      runSchedule(w, env.allCampaigns);
       return { blocked: false, message: "Scheduled." };
     }
     case "founder.gate":
@@ -268,14 +247,12 @@ function settle(state: OpState, blocked: boolean, message: string): Partial<OpSt
     setRun(state.work, { stepsTaken: run.stepsTaken + 1, updatedAt: envOf(state).now });
   }
   const taken = state.taken + 1;
-  const human = ["founder.gate", "media.schedule"].includes(state.work.run!.step);
-  const running = state.work.run!.status === "running";
+  const human = FOUNDER_WAIT_STEPS.has(run.step);
+  const running = run.status === "running";
   let canAdvance = false;
-  if (state.command.type === "START") {
-    canAdvance = !blocked && !isHalted(state.work.run!) && running;
-  } else if (state.command.type === "ADVANCE") {
+  if (state.command.type === "ADVANCE") {
     canAdvance = running && !human;
-  } else if (state.command.type === "APPROVE" || state.command.type === "REQUEST_CHANGES") {
+  } else if (state.command.type === "START" || state.command.type === "APPROVE" || state.command.type === "REQUEST_CHANGES") {
     canAdvance = !blocked && running;
   }
   return { work: state.work, message, blocked, taken, canAdvance, stop: false };
@@ -290,7 +267,7 @@ export function afterStage(state: OpState): StageNode | typeof END {
   if (state.command.type !== "ADVANCE") return END;
   if (state.taken >= state.maxSteps || state.blocked || state.work.run?.step === "trend.handoff") return END;
   const run = state.work.run!;
-  if (run.status !== "running" || ["founder.gate", "media.schedule"].includes(run.step)) return END;
+  if (run.status !== "running" || FOUNDER_WAIT_STEPS.has(run.step)) return END;
   return stageFor(state);
 }
 
@@ -352,12 +329,12 @@ export async function intakeNode(state: OpState): Promise<Partial<OpState>> {
 
 export function beginAdvance(state: OpState): Partial<OpState> {
   const run = state.work.run!;
-  const gate = ["founder.gate", "media.schedule"].includes(run.step);
+  const gate = FOUNDER_WAIT_STEPS.has(run.step);
   if (run.status !== "running" || gate) {
     return {
       stop: true,
       message: "The bench is not running for this campaign.",
-      canAdvance: run.status === "running" && !gate,
+      canAdvance: false,
     };
   }
   return { stop: false };
@@ -372,7 +349,7 @@ export async function approveNode(state: OpState): Promise<Partial<OpState>> {
       actor: "founder",
       action: "FOUNDER.DECIDE",
       campaign: c,
-      target: `${c.channels.join(", ")}`,
+      target: c.channels.join(", "),
       triggeredBy: "founder.gate",
     },
     envOf(state).now,
@@ -385,7 +362,6 @@ export async function approveNode(state: OpState): Promise<Partial<OpState>> {
     founderNotes: state.command.note ? [...c.sharedContext.founderNotes, state.command.note] : c.sharedContext.founderNotes,
   };
   c.creatives = c.creatives.map((cr) => ({ ...cr, status: "approved" }));
-  c.complianceAttempts = c.complianceAttempts.map((a) => ({ ...a }));
   addEvent(
     w,
     "founder",
@@ -394,7 +370,6 @@ export async function approveNode(state: OpState): Promise<Partial<OpState>> {
     state.command.note || "Founder signed off. Media Manager may adapt and schedule; it still may not publish.",
   );
   setRun(w, { status: "running", step: "media.receive", awaiting: null, awaitingDetail: null });
-  c.run = w.run;
   return { work: w, stop: false };
 }
 
@@ -413,12 +388,10 @@ export async function requestChangesNode(state: OpState): Promise<Partial<OpStat
     c.status = "awaiting_approval";
     c.running = false;
     setRun(w, { status: "awaiting_human", awaiting: "approval", awaitingDetail: "Revision limit reached; founder decision required." });
-    c.run = w.run;
     addEvent(w, "compliance", "escalation", "Revision limit reached", `v${nextVersion} would exceed ${MAX_REVISION_ATTEMPTS} attempts. The case stays with the founder.`);
     return { work: w, stop: true, canAdvance: false, message: "Revision limit reached." };
   }
   setRun(w, { status: "running", step: "creative.revise", revisionAttempts: nextVersion - 1, awaiting: null, awaitingDetail: null });
-  c.run = w.run;
   c.running = true;
   return { work: w, stop: false };
 }
@@ -432,7 +405,6 @@ export async function rejectNode(state: OpState): Promise<Partial<OpState>> {
   c.founderDecision = { action: "reject", note: state.command.note, at: envOf(state).now };
   c.creatives = c.creatives.map((cr) => ({ ...cr, status: "rejected" }));
   setRun(w, { status: "halted", haltedReason: "Rejected by the founder." });
-  c.run = w.run;
   addEvent(w, "founder", "decision", "Rejected", state.command.note || "Campaign will not publish. Nothing was distributed.");
   return { work: w, canAdvance: false, message: "Rejected." };
 }
@@ -442,7 +414,6 @@ export async function pauseNode(state: OpState): Promise<Partial<OpState>> {
   w.campaign.status = "paused";
   w.campaign.running = false;
   setRun(w, { status: "paused", haltedReason: "Paused by the founder." });
-  w.campaign.run = w.run;
   addEvent(
     w,
     "founder",
@@ -461,7 +432,8 @@ export async function publishNode(state: OpState): Promise<Partial<OpState>> {
     addEvent(w, "media", "escalation", "Publish refused", `Nothing is scheduled (status ${c.status}).`);
     return { work: w, canAdvance: false, message: "Nothing scheduled to publish." };
   }
-  const result = await runFeedbackCollection(w, envOf(state), { publish: true });
+  const actor = state.command.type === "PUBLISH" ? state.command.actor : "founder";
+  const result = await runFeedbackCollection(w, envOf(state), { publish: true, actor });
   // Publishing closes distribution; collecting results stays a separate,
   // explicit founder choice, so the run parks at the feedback step.
   if (!result.blocked) {
@@ -516,7 +488,6 @@ export async function decideNode(state: OpState): Promise<Partial<OpState>> {
   );
   addStep(w, "feedback.summarise", "founder", "ok", `Recommendation ${state.command.action}`, state.command.note ?? "");
   setRun(w, { status: "complete", awaiting: null, awaitingDetail: null, step: "feedback.summarise" });
-  c.run = w.run;
   return { work: w, canAdvance: false, message: `Recommendation ${state.command.action}.` };
 }
 
@@ -534,7 +505,6 @@ export async function resolveNode(state: OpState): Promise<Partial<OpState>> {
   const unresolved = c.scheduleConflicts.filter((x) => !x.resolved).length;
   if (unresolved === 0 && w.run) {
     setRun(w, { awaiting: null, awaitingDetail: null, status: "complete" });
-    c.run = w.run;
   }
   return { work: w, canAdvance: false, message: `Conflict resolved. ${unresolved} remaining.` };
 }
@@ -588,7 +558,7 @@ export async function trendDecisionNode(state: OpState): Promise<Partial<OpState
   return { work: state.work, canAdvance: !result.blocked, message: result.message };
 }
 
-export function routeCommand(state: OpState): string {
+export function routeCommand(state: OpState): (typeof COMMAND_DESTINATIONS)[number] {
   switch (state.command.type) {
     case "RESOLVE_TREND":
     case "CANCEL_TREND":
@@ -661,7 +631,7 @@ function buildOperationGraph() {
 let compiled: ReturnType<typeof buildOperationGraph> | null = null;
 
 /** The compiled operation graph. One instance: the topology does not change per campaign. */
-export function operationGraph() {
+function operationGraph() {
   compiled ??= buildOperationGraph();
   return compiled;
 }

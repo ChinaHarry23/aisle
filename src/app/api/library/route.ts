@@ -1,10 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/current";
-import { loadWorkspace } from "@/lib/auth/workspace";
 import { indexAccountAssets, listAssets, type LibraryAsset } from "@/lib/media/library";
-import { retainCampaignLifecycle } from "@/lib/campaign-lifecycle";
-import { mergeWorkflowCampaigns, workflowEnabled } from "@/lib/workflow/gateway";
-import type { Campaign } from "@/lib/types";
+import { accountCampaigns } from "@/lib/workflow/gateway";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,19 +27,12 @@ function published(asset: LibraryAsset) {
   };
 }
 
-async function campaignsFor(userId: string, role: Parameters<typeof loadWorkspace>[1]): Promise<Campaign[]> {
-  const workspace = await loadWorkspace(userId, role);
-  if (!workflowEnabled()) return workspace.campaigns;
-  const merged = await mergeWorkflowCampaigns(userId, workspace.campaigns);
-  return retainCampaignLifecycle(workspace.campaigns, workspace.retiredCampaignIds ?? [], merged.campaigns);
-}
-
 /** Every generated image and video kept for this account. */
 export async function GET() {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
   try {
-    const campaigns = await campaignsFor(user.id, user.role);
+    const campaigns = await accountCampaigns(user.id, user.role);
     await indexAccountAssets(user.id, campaigns);
     const assets = await listAssets(user.id, campaigns);
     return NextResponse.json({ assets: assets.map(published) });

@@ -161,11 +161,12 @@ const mediaAnswered = (mediaRun as { structuredResponse?: { points?: unknown[] }
 assert.deepEqual(mediaAnswered?.points, []);
 console.log("PASS studio media seat has no research tools");
 
-const threadA = operationThreadId("cmp_demo");
-const threadB = operationThreadId("cmp_demo");
+const threadA = operationThreadId("cmp_demo", "dev-alex");
+const threadB = operationThreadId("cmp_demo", "dev-alex");
 assert.equal(threadA, threadB, "one campaign keeps one Studio thread");
 assert.match(threadA, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
-assert.notEqual(operationThreadId("cmp_other"), threadA);
+assert.notEqual(operationThreadId("cmp_other", "dev-alex"), threadA);
+assert.notEqual(operationThreadId("cmp_demo", "dev-sam"), threadA, "the same sample campaign in another account is another thread");
 assert.deepEqual(readGraphOutcome({ canAdvance: true, message: "Trend analysis" }), {
   canAdvance: true,
   message: "Trend analysis",

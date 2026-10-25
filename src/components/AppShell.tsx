@@ -21,6 +21,7 @@ import { UserMenu } from "@/components/UserMenu";
 import { BrandLogo } from "@/components/BrandLogo";
 import { WorkspaceSync } from "@/components/WorkspaceSync";
 import { cn } from "@/lib/cn";
+import { signOutAndReload } from "@/lib/auth/client";
 import type { PublicUser } from "@/lib/auth/types";
 import { isArchived } from "@/lib/campaign-lifecycle";
 import { useAisle } from "@/lib/store";
@@ -64,10 +65,6 @@ export function AppShell({ children, signedIn }: { children: ReactNode; signedIn
   const pathname = usePathname();
   const router = useRouter();
   const [user, setUser] = useState<PublicUser | null>(null);
-  // Auth pages and the signed-out landing page render straight away; every other route waits for /api/auth/me.
-  const [sessionReady, setSessionReady] = useState(
-    () => isAuthPath(pathname) || (pathname === "/" && !signedIn),
-  );
   const campaigns = useAisle((s) => s.campaigns);
   const hydrated = useAisle((s) => s.hydrated);
 
@@ -84,7 +81,6 @@ export function AppShell({ children, signedIn }: { children: ReactNode; signedIn
           return;
         }
         setUser(json.user);
-        setSessionReady(true);
       })
       .catch(() => {
         if (!cancelled) router.replace("/login");
@@ -94,17 +90,7 @@ export function AppShell({ children, signedIn }: { children: ReactNode; signedIn
     };
   }, [pathname, router]);
 
-  async function signOut() {
-    try {
-      await fetch("/api/auth/logout", { method: "POST" });
-    } catch {
-      /* offline: the cookie may survive, so fall through to the redirect and let the proxy decide */
-    }
-    // A full navigation drops the in-memory workspace so the next account never sees it.
-    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-    window.location.href = "/login";
-  }
-
+  // Auth pages and the signed-out landing page render straight away; every other route waits for /api/auth/me.
   if (isAuthPath(pathname)) {
     return (
       <div className="flex min-h-screen flex-col">
@@ -117,7 +103,7 @@ export function AppShell({ children, signedIn }: { children: ReactNode; signedIn
     return <>{children}</>;
   }
 
-  if (!sessionReady || !user) {
+  if (!user) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-paper text-mute">
         Opening the studio…
@@ -188,7 +174,7 @@ export function AppShell({ children, signedIn }: { children: ReactNode; signedIn
             <div className="min-w-0">
               <div className="flex items-center justify-end gap-4 px-[var(--page-pad)] pt-4">
                 <CreditsBadge pathname={pathname} />
-                <UserMenu user={user} onSignOut={signOut} />
+                <UserMenu user={user} onSignOut={signOutAndReload} />
               </div>
               <div className="shell-page !pt-4">{children}</div>
             </div>

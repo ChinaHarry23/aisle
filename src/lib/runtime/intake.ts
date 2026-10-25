@@ -34,7 +34,7 @@ function daysBetween(a: string, b: string) {
   return Math.round((end - start) / 86_400_000);
 }
 
-export type IntakeInput = Pick<
+type IntakeInput = Pick<
   CampaignInput,
   | "name"
   | "product"
@@ -50,7 +50,7 @@ export type IntakeInput = Pick<
   | "currentPriceAud"
 >;
 
-/** Required fields, usable values, and brand/country-law configuration. */
+/** Required fields, usable values, and the brand retailer name. */
 export function validateIntake(input: IntakeInput, brand: BrandProfile | null): ValidationProblem[] {
   const problems: ValidationProblem[] = [];
   const required: [keyof IntakeInput, string][] = [
@@ -128,7 +128,7 @@ export function validateIntake(input: IntakeInput, brand: BrandProfile | null): 
     });
   }
 
-  // Step 5: brand settings and country-law text must already exist.
+  // Step 5: brand settings must exist (country law is checked at compliance against the law index).
   if (!brand) {
     problems.push({
       field: "brand",

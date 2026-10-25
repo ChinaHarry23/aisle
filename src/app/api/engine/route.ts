@@ -1,9 +1,8 @@
 import {withWorkspaceLock,requestInlinePause,resumeInlineResearch,inlineResearchAllowed} from '@/lib/trend/inline-state';
 import {recordStoredTrend} from '@/lib/trend/quality';
-import {retailUploadSchema} from '@/lib/trend/internal-retail';
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/current";
-import { demoWorkspace, loadWorkspace, saveWorkspace, type WorkspaceSnapshot } from "@/lib/auth/workspace";
+import { demoWorkspace, loadWorkspace, updateWorkspace, type WorkspaceSnapshot } from "@/lib/auth/workspace";
 import { renderCampaignPoster } from "@/lib/media/campaign-poster";
 import { lookupShelfPrices } from "@/lib/retail/whichgrocer/connection";
 import { runEngine } from "@/lib/runtime/engine";
@@ -17,6 +16,7 @@ import type { Command } from "@/lib/runtime/types";
 import type { Campaign } from "@/lib/types";
 import { workflowEnabled, submitWorkflow } from "@/lib/workflow/gateway";
 import { parseCommand, WorkflowError } from "@/lib/workflow/commands";
+import { campaignForCommand } from "@/lib/workflow/command-campaign";
 import { createServerResearchRuntime } from "@/lib/agents/trend-server";
 import { billingForSession } from "@/lib/billing/meter";
 
@@ -80,29 +80,6 @@ export async function POST(request:Request){
  if(['PAUSE','CANCEL_TREND'].includes(preview?.command?.type)&&typeof preview?.campaign?.id==='string')requestInlinePause(owner.id,preview.campaign.id);
  return withWorkspaceLock(owner.id,()=>handlePost(request));
 }
-/** Stored research wins over a browser copy. A draft still takes the brief the founder just edited. */
-function campaignForCommand(existing: Campaign | undefined, incoming: Campaign, command: Command): Campaign {
-  if (!existing && command.type !== "START") {
-    throw new WorkflowError("Start and store the campaign before submitting workflow or feedback decisions.", 409);
-  }
-  if (!existing && incoming.trendQuality) {
-    throw new WorkflowError("No stored research version exists for this campaign.", 409);
-  }
-  const protectedResearch = Boolean(existing?.trendQuality || existing?.researchMode === "agent");
-  const target = withRuntimeDefaults(existing && existing.status !== "draft" ? structuredClone(existing) : incoming);
-  if (
-    protectedResearch &&
-    command.type === "RESOLVE_TREND" &&
-    command.action === "provide_data" &&
-    incoming.internalDataAuthorised &&
-    incoming.retailUpload
-  ) {
-    target.retailUpload = retailUploadSchema.parse(incoming.retailUpload);
-    target.internalDataAuthorised = true;
-  }
-  return target;
-}
-
 async function handlePost(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
@@ -183,12 +160,12 @@ async function handlePost(request: Request) {
     if (graphUrl) {
       let savedInput = false;
       try {
-        await saveWorkspace(user.id, {
-          ...stored,
-          brand,
-          campaigns: [target, ...campaigns.filter((item) => item.id !== target.id)],
-        });
-        savedInput = true;
+        // A compare-and-set on the latest copy, so this cannot undo another save.
+        // The brand is the stored one, so it is not written back.
+        savedInput = await updateWorkspace(user.id, user.role, (latest) => ({
+          ...latest,
+          campaigns: [target, ...latest.campaigns.filter((item) => item.id !== target.id)],
+        }));
       } catch {
         // The graph hydrates from the workspace. If that write fails, run here instead.
       }
@@ -244,16 +221,18 @@ async function handlePost(request: Request) {
     );
     try {
       recordStoredTrend(result.campaign);
-      const latest = await loadWorkspace(user.id, user.role);
-      const rest = latest.campaigns.filter((item) => item.id !== result.campaign.id);
-      await saveWorkspace(user.id, { ...latest, campaigns: [result.campaign, ...rest] });
-    } catch {
-      if(result.campaign.trendQuality){
-        result.campaign.trendQuality.storedVersion=null;
-        result.campaign.status='paused';result.campaign.running=false;result.run.status='paused';
-        result.run.haltedReason='Research storage failed; current work retained. Retry storage before handoff.';
-        result.canAdvance=false;result.message=result.run.haltedReason;
-      }
+      // A compare-and-set on the latest copy, so a concurrent save cannot undo this result.
+      const saved = await updateWorkspace(user.id, user.role, (latest) => ({
+        ...latest,
+        campaigns: [result.campaign, ...latest.campaigns.filter((item) => item.id !== result.campaign.id)],
+      }));
+      if (!saved) throw new Error("the workspace kept changing");
+    } catch (error) {
+      // PUT /api/workspace keeps agent results from the stored copy, so the browser
+      // cannot save this result for us. Reporting it as done would leave the browser
+      // ahead of the server; say it failed and leave the campaign as it was.
+      console.error("[engine] result could not be saved", error instanceof Error ? error.message : error);
+      return NextResponse.json({ error: "The result could not be saved. Nothing changed; try again." }, { status: 503 });
     }
     return NextResponse.json({
       campaign: result.campaign,

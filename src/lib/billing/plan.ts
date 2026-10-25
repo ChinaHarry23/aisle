@@ -60,3 +60,6 @@ export function formatCredits(milli: number): string {
   if (credits > 0 && credits < 0.1) return "<0.1";
   return (Math.round(credits * 10) / 10).toLocaleString("en-US", { maximumFractionDigits: 1 });
 }
+
+/** Statuses of a subscription that is billing or about to (shared by lib/billing/summary.ts and BillingView). */
+export const LIVE_STATUSES = ["active", "trialing", "past_due", "unpaid", "incomplete"];

@@ -45,7 +45,7 @@ export const channelLabel: Record<Channel, string> = {
   digital_signage: "In-store signage",
 };
 
-export const pipelineOrder: CampaignStatus[] = [
+const pipelineOrder: CampaignStatus[] = [
   "draft",
   "analysing",
   "generating",

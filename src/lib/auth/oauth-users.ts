@@ -18,12 +18,8 @@ import {
   recordLogin,
 } from "./users";
 
-export function resetSeedCheck() {
-  /* Cindy's users.ts does not export a seed reset; tests share one process. */
-}
-
 /** Columns PR #2 added; Cindy's `toAuthUser` does not map them. */
-export type UserExtras = {
+type UserExtras = {
   passwordLogin: boolean;
   googleSub: string | null;
   appleSub: string | null;
@@ -121,7 +117,7 @@ export async function signInWithProvider(input: {
   } catch (error) {
     if (isUniqueViolation(error)) {
       const raced = await findUserByEmail(email);
-      if (raced) return publicUser(raced);
+      if (raced) return { ...publicUser(raced), sessionVersion: raced.sessionVersion ?? 0 };
       throw new Error("That email already has an account. Sign in instead.");
     }
     throw error;

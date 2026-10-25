@@ -12,7 +12,9 @@ export async function withWorkspaceLock<T>(owner:string,operation:()=>Promise<T>
  const next=previous.catch(()=>undefined).then(operation);queues.set(owner,next);
  try{return await next;}finally{if(queues.get(owner)===next)queues.delete(owner);}
 }
+/** The server holds this campaign's research, report or advice; a browser copy never replaces them. */
+export function holdsStoredResearch(c:Campaign):boolean{return Boolean(c.trendQuality||c.researchMode==='agent'||c.performanceReport||c.recommendationDecision);}
 export function protectResearchSnapshots(incoming:Campaign[],stored:Campaign[]):Campaign[]{
- const canonical=new Map(stored.filter(c=>c.trendQuality||c.researchMode==='agent'||c.performanceReport||c.recommendationDecision).map(c=>[c.id,c]));
+ const canonical=new Map(stored.filter(holdsStoredResearch).map(c=>[c.id,c]));
  return [...incoming.map(c=>canonical.get(c.id)??{...c,performanceReport:null,recommendationDecision:null,structuredTrendBrief:undefined,trendBriefHistory:undefined,trendBriefBudget:undefined,trendRequestBudget:undefined,trendBriefRequired:undefined,sharedContext:{...c.sharedContext,structuredTrendBrief:undefined,previousAdvice:undefined},trendQualityHistory:undefined,trendQuality:undefined,trendRequests:undefined,trendSupplementarySources:undefined}),...stored.filter(c=>canonical.has(c.id)&&!incoming.some(i=>i.id===c.id))];
 }

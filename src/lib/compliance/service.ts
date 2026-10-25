@@ -7,7 +7,7 @@ import type { BrandProfile, Campaign } from "../types";
 import type { ComplianceIssue, ComplianceOutcome } from "../runtime/types";
 
 const text = z.string().trim().min(1);
-export const submissionSchema = z.object({
+const submissionSchema = z.object({
   campaignId: text,
   advertisementVersionId: text,
   version: z.number().int().positive(),
@@ -64,7 +64,7 @@ export function parseSubmission(value: unknown): ComplianceSubmission {
   return parsed.data;
 }
 /** Hash the exact content AND review context; never use a version number alone. */
-export function versionId(submission: Omit<ComplianceSubmission, "advertisementVersionId">): string {
+function versionId(submission: Omit<ComplianceSubmission, "advertisementVersionId">): string {
   return `adv_${createHash("sha256").update(JSON.stringify(submission)).digest("hex")}`;
 }
 export function submissionFor(c: Campaign, brand: BrandProfile): ComplianceSubmission {
@@ -86,7 +86,7 @@ export function submissionFor(c: Campaign, brand: BrandProfile): ComplianceSubmi
   };
   return parseSubmission({ ...input, advertisementVersionId: versionId(input) });
 }
-export function assertReviewPermission(c: Campaign) {
+export function assertReviewPermission(c: Campaign): asserts c is Campaign & { run: NonNullable<Campaign["run"]> } {
   if (!c.run || c.run.status !== "running" || !["compliance.receive", "compliance.review"].includes(c.run.step)
     || !["generating", "revising", "compliance"].includes(c.status)
     || c.creatives.some(cr => cr.status === "approved" || cr.status === "rejected")) {
@@ -99,11 +99,11 @@ export function beginReview(c: Campaign, brand: BrandProfile, raw: unknown, now:
   const expected = submissionFor(c, brand);
   if (JSON.stringify(submission) !== JSON.stringify(expected))
     throw new ComplianceSubmissionError("VERSION_MISMATCH", "Submission does not match the current advertisement and campaign context.");
-  const existing = c.complianceReviewRuns?.find(r => r.pipelineRunId === c.run!.id && r.advertisementVersionId === submission.advertisementVersionId);
+  const existing = c.complianceReviewRuns?.find(r => r.pipelineRunId === c.run.id && r.advertisementVersionId === submission.advertisementVersionId);
   if (existing) return existing;
   const run: ComplianceReviewRun = {
     reviewId: randomUUID(), campaignId: c.id, advertisementVersionId: submission.advertisementVersionId,
-    pipelineRunId: c.run!.id, status: "UNDER_REVIEW", startedAt: now,
+    pipelineRunId: c.run.id, status: "UNDER_REVIEW", startedAt: now,
     attemptNumber: Math.max(c.complianceAttempts.length, ...(c.complianceReviewRuns ?? []).map(r => r.attemptNumber)) + 1,
     submission: structuredClone(submission),
   };

@@ -2,6 +2,9 @@ import { DEFAULT_IMAGE_MODEL, DEFAULT_VIDEO_MODEL, getModelOrDefault } from "./m
 import { DEFAULT_LLM } from "./llm/catalog";
 import type { AgentSlot, LlmAssignment } from "./llm/types";
 
+/** Ollama's OpenAI-compatible endpoint, the shipped Local default. */
+export const DEFAULT_LOCAL_BASE_URL = "http://127.0.0.1:11434/v1";
+
 export type TrendSourceKind = "url" | "feed" | "document" | "keyword";
 
 /** Something the Trend Analyser is allowed to retrieve from. The founder owns this list. */
@@ -47,7 +50,7 @@ export function defaultSettings(): WorkspaceSettings {
     imageModelId: DEFAULT_IMAGE_MODEL,
     videoModelId: DEFAULT_VIDEO_MODEL,
     videoDurationSec: 8,
-    localBaseUrl: "http://127.0.0.1:11434/v1",
+    localBaseUrl: DEFAULT_LOCAL_BASE_URL,
     localModel: "llama3.1",
   };
 }

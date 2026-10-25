@@ -2,10 +2,10 @@ import { ShoppingCart } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 // Default mark: a shopping cart in a rounded tile, with the wordmark beside it.
-export function BrandLogo({ size = "md", className }: { size?: "md" | "lg"; className?: string }) {
+export function BrandLogo({ size = "md" }: { size?: "md" | "lg" }) {
   const lg = size === "lg";
   return (
-    <span className={cn("inline-flex items-center gap-2.5", className)} aria-label="Aisle">
+    <span className="inline-flex items-center gap-2.5" aria-label="Aisle">
       <span
         aria-hidden
         className={cn(

@@ -19,16 +19,16 @@ const kindTone: Partial<Record<AgentEvent["kind"], string>> = {
   tool: "text-mute",
 };
 
-export function AgentLog({ events, dense }: { events: AgentEvent[]; dense?: boolean }) {
+export function AgentLog({ events }: { events: AgentEvent[] }) {
   const list = [...events].reverse();
   return (
-    <ol className={cn("flex flex-col", dense ? "gap-3" : "gap-4")}>
+    <ol className="flex flex-col gap-4">
       {list.map((event) => (
         <li key={event.id} className="flex gap-3">
           <span className={cn("mt-1.5 h-2 w-2 shrink-0 rounded-full", agentMark[event.agent])} />
           <div className="min-w-0">
             <p className="text-[10px] uppercase tracking-wider text-mute">
-              <span className={cn(kindTone[event.kind])}>{event.kind}</span> ·{" "}
+              <span className={kindTone[event.kind]}>{event.kind}</span> ·{" "}
               {agentLabel[event.agent]} · {formatDate(event.at, true)}
             </p>
             <p className="mt-0.5 text-sm font-medium text-ink">{event.title}</p>

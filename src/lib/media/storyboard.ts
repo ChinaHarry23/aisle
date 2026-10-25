@@ -23,8 +23,7 @@ export function storyLayout(textVideo = true) {
     : [10, 10, 6].map((durationSec, i) => ({ startSec: [0, 10, 20][i], durationSec, renderDurationSec: durationSec }));
 }
 
-export function storyAdPlan(campaign: Campaign, creative: Creative, textVideo = true, authored?: AuthoredStory): StoryAdPlan {
-  void creative; // Source identity is retained by storySourceSnapshot, not used as a canned story.
+export function storyAdPlan(campaign: Campaign, textVideo = true, authored?: AuthoredStory): StoryAdPlan {
   if (!authored) throw new Error("A live art-director plan is required; there is no hardcoded story fallback.");
   const layout = storyLayout(textVideo);
   if (authored.scenes.length !== layout.length) throw new Error("The authored shot count does not fit this renderer.");

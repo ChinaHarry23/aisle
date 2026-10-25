@@ -30,7 +30,7 @@ function clip(text: string, max: number) {
 }
 
 /** Drop banned wording and the stock superlatives that used to be pasted onto every draft. */
-export function scrubClaims(text: string, banned: string[]) {
+function scrubClaims(text: string, banned: string[]) {
   let out = text;
   const terms = [...banned, ...SUPERLATIVES]
     .map((term) => term.trim())

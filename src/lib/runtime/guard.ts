@@ -15,7 +15,7 @@ import { uid } from "@/lib/ids";
 import type { Campaign } from "@/lib/types";
 import type { Actor, GuardRuleId, GuardVerdict, GuardedAction, PolicyDecision } from "./types";
 
-export type GuardInput = {
+type GuardInput = {
   actor: Actor;
   action: GuardedAction;
   campaign: Campaign;
@@ -26,17 +26,13 @@ export type GuardInput = {
   /** Set when the attempt originates from a run step. */
   triggeredBy?: string;
   /** Optional channel context, e.g. a print lock. */
-  kind?: "catalogue_cover" | "social" | "web" | "email" | "signage";
-  /** Human-readable description of what should change instead. */
-  remedy?: string;
+  kind?: "catalogue_cover" | "social";
   /** Free-text detail used by some rules (e.g. the claim being edited). */
   detail?: string;
 };
 
-export type GuardOutcome = {
+type GuardOutcome = {
   verdict: GuardVerdict;
-  rule: GuardRuleId;
-  clause: string;
   reason: string;
   remedy?: string;
   decision: PolicyDecision;
@@ -53,10 +49,10 @@ type Rule = {
 
 const FOUNDER_ONLY = "Only the Human Founder may do this (UC-01 step 13).";
 
-function isPrintLock(campaign: Campaign, input: GuardInput) {
+function isPrintLock(input: GuardInput) {
   return (
     input.kind === "catalogue_cover" ||
-    (campaign.channels.includes("print") && input.action === "PUBLISH_CONTENT")
+    (input.campaign.channels.includes("print") && input.action === "PUBLISH_CONTENT")
   );
 }
 
@@ -72,7 +68,7 @@ const rules: Rule[] = [
           reason: "Founder decision — the only actor permitted to publish.",
         };
       }
-      if (isPrintLock(i.campaign, i)) {
+      if (isPrintLock(i)) {
         return {
           verdict: "block",
           reason: `The ${i.target} includes a print/catalogue piece. A catalogue cover is a founder decision and may not be sent live by an agent.`,
@@ -221,17 +217,12 @@ export function evaluateGuard(input: GuardInput, at: string): GuardOutcome {
     clause,
     target: input.target,
     reason: evaluated.reason,
-    remedy:
-      evaluated.verdict === "block"
-        ? (evaluated.remedy ?? input.remedy)
-        : input.remedy,
+    remedy: evaluated.verdict === "block" ? evaluated.remedy : undefined,
     triggeredBy: input.triggeredBy,
   };
 
   return {
     verdict: evaluated.verdict,
-    rule: matchedRule,
-    clause,
     reason: evaluated.reason,
     remedy: decision.remedy,
     decision,

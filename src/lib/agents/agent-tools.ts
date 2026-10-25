@@ -15,7 +15,6 @@
 import { redact } from "@/lib/trend/source-tools";
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
-import type { BrandProfile, Campaign } from "@/lib/types";
 import {
   TOOL_REGISTRY,
   type ToolAgent,
@@ -60,17 +59,11 @@ function toolArgHelp(tool: string, arg: string): string {
 }
 
 export type AgentToolContext = {
-  campaign: Campaign;
-  brand: BrandProfile;
-  /** Frozen "now" for the whole command, so every tool records one instant. */
-  at: string;
   /** Runs the tool and records the call. Supplied by the engine. */
   execute: (name: string, args: Record<string, string>) => Promise<ToolOutcome>;
-  /** Called for every call the agent makes, for the run trace. */
   names?: readonly string[];
   /** Bounded model-facing view; the engine retains the complete original outcome. */
   projectResult?: (outcome: ToolOutcome) => unknown;
-  onCall?: (name: string, args: Record<string, string>, outcome: ToolOutcome) => void;
 };
 
 /**
@@ -96,7 +89,6 @@ export function agentTools(agent: ToolAgent, context: AgentToolContext): Dynamic
           flat[key] = typeof value === "string" ? value : String(value ?? "");
         }
         const outcome = await context.execute(definition.name, flat);
-        context.onCall?.(definition.name, flat, outcome);
         const payload = {
           status: outcome.status,
           summary: outcome.summary,

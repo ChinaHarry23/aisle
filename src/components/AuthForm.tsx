@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { BrandLogo } from "@/components/BrandLogo";
+import { safeNextPath } from "@/lib/auth/next-path";
 
 type Mode = "login" | "signup";
 
@@ -19,7 +20,7 @@ const oauthErrors: Record<string, string> = {
 export function AuthForm({ mode }: { mode: Mode }) {
   const router = useRouter();
   const search = useSearchParams();
-  const next = search.get("next") || "/";
+  const next = safeNextPath(search.get("next"));
   const oauthError = oauthErrors[search.get("error") ?? ""] ?? "";
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -42,7 +43,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
         setError(json?.error ?? "Something went wrong.");
         return;
       }
-      router.replace(next.startsWith("/") ? next : "/");
+      router.replace(next);
       router.refresh();
     } catch {
       setError("Could not reach the server. Try again.");

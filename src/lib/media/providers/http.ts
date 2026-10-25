@@ -132,7 +132,7 @@ export function pollJob<T>(
 }
 
 /** Thrown when an accepted job is still running at its deadline: it may finish and be billed. */
-export function deadlineError(provider: string, what = "the video") {
+function deadlineError(provider: string, what = "the video") {
   const minutes = videoJobMs() / 60_000;
   return new ProviderError(`${provider} did not finish ${what} within ${minutes >= 1 ? `${Math.round(minutes)} minutes` : `${Math.round(minutes * 60)} seconds`}.`, { retryable: false, billable: true });
 }
@@ -151,12 +151,12 @@ export function apiBase(envName: string, fallback: string) {
 }
 
 /** Poll interval; AISLE_MEDIA_POLL_MS shortens it for offline tests. */
-export function pollInterval(defaultMs: number) {
+function pollInterval(defaultMs: number) {
   const override = Number(process.env.AISLE_MEDIA_POLL_MS);
   return Number.isFinite(override) && override > 0 ? override : defaultMs;
 }
 
-export function sleep(ms: number, signal?: AbortSignal) {
+function sleep(ms: number, signal?: AbortSignal) {
   return new Promise<void>((resolve, reject) => {
     if (signal?.aborted) return reject(signal.reason);
     const timer = setTimeout(() => { signal?.removeEventListener("abort", onAbort); resolve(); }, ms);
@@ -207,7 +207,7 @@ export async function providerJson<T>(
 }
 
 /** Read a body without holding more than `max` bytes. */
-export async function readCapped(response: Response, max: number): Promise<Buffer> {
+async function readCapped(response: Response, max: number): Promise<Buffer> {
   if (!response.body) return Buffer.alloc(0);
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];

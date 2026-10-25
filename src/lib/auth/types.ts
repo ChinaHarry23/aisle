@@ -10,11 +10,7 @@ export type PublicUser = {
 export type AuthUser = PublicUser & {
   passwordHash: string;
   createdAt: string;
-  /** False when the account was created by Google or Apple and has no password. */
-  passwordLogin?: boolean;
-  googleSub?: string | null;
-  appleSub?: string | null;
-  /** Sessions signed with an older version are no longer accepted. */
+  /** The users.session_version column. A cookie signed with an older version no longer signs in. */
   sessionVersion?: number;
 };
 

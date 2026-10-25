@@ -50,11 +50,11 @@ export async function createPostgresDatabase(url: string): Promise<Database> {
     kind: "postgres",
     label: `postgres ${host}`,
     async query<T extends Row = Row>(text: string, params: unknown[] = []): Promise<T[]> {
-      const result = await client.query(text, params as unknown[]);
+      const result = await client.query(text, params);
       return result.rows as T[];
     },
     async execute(text: string, params: unknown[] = []): Promise<void> {
-      await client.query(text, params as unknown[]);
+      await client.query(text, params);
     },
   };
 }

@@ -4,25 +4,10 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/ui";
 import { cn } from "@/lib/cn";
+import { formatDate } from "@/lib/ids";
+import type { AssetReview as Review, LibraryAsset } from "@/lib/media/library";
 
-type Review = "approved" | "rejected" | "sent_back" | "needs_review" | "earlier" | "unlinked";
-
-type Asset = {
-  id: string;
-  kind: "image" | "video";
-  campaignId: string | null;
-  campaignName: string | null;
-  product: string | null;
-  label: string;
-  modelName: string | null;
-  createdAt: string;
-  costUsd: number | null;
-  costEstimated: boolean | null;
-  inputTokens: number | null;
-  outputTokens: number | null;
-  review: Review;
-  reasons: string[];
-};
+type Asset = Omit<LibraryAsset, "mime" | "mediaUrl" | "prompt">;
 
 const FILTERS: { id: Review | "all"; label: string }[] = [
   { id: "all", label: "All" },
@@ -42,12 +27,6 @@ const REVIEW_LABEL: Record<Review, string> = {
   earlier: "Earlier version",
   unlinked: "Not on a campaign",
 };
-
-function when(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString("en-AU", { day: "numeric", month: "short", year: "numeric" });
-}
 
 function money(value: number) {
   return `$${value.toFixed(3)}`;
@@ -247,7 +226,7 @@ export default function LibraryPage() {
                           </ul>
                         ) : null}
                         <p className="text-xs text-mute">
-                          {when(asset.createdAt)}
+                          {formatDate(asset.createdAt)}
                           {asset.modelName ? ` · ${asset.modelName}` : ""}
                         </p>
                         <p className="text-xs text-ink-soft">{costLine(asset)}</p>

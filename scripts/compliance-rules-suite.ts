@@ -19,7 +19,19 @@ assert.ok(selectRules(registry, s, "2027-01-01T00:00:00Z").problems.some(p => p.
 assert.ok(selectRules({ ...registry, rules: [...rules, rules[0]] }, s, now).problems.some(p => p.includes("Conflicting")));
 assert.ok(selectRules({ ...registry, rules: rules.map(r => ({ ...r, conflictsWith: ["brand"] })) }, s, now).problems.some(p => p.includes("Conflicting")));
 assert.ok(selectRules(registry, { ...s, country: "NZ" }, now).problems.length);
-assert.ok(selectRules(registry, { ...s, targetPlatforms: ["instagram"] }, now).problems.some(p => p.includes("instagram")));
+{
+  // A missing platform policy is reported but does not block a pass.
+  const platformGap = selectRules(registry, { ...s, targetPlatforms: ["instagram"] }, now);
+  assert.ok(platformGap.limitations?.some(p => p.includes("instagram")));
+  assert.equal(platformGap.problems.length, 0);
+  // Copyright, ethics and brand gaps are limitations; binding ad and consumer law are required.
+  const lawOnly = selectRules({ ...registry, rules: rules.filter(r => r.type === "advertising_law" || r.type === "consumer_protection") }, s, now);
+  assert.equal(lawOnly.problems.length, 0, "binding ad and consumer law are enough to allow a pass");
+  for (const type of ["copyright", "ethics", "brand", "web"]) assert.ok(lawOnly.limitations?.some(p => p.includes(type)), type);
+  assert.ok(checkSubmission(s, lawOnly).limitations.some(p => p.includes("copyright")), "gaps reach the report as limitations");
+  const noConsumerLaw = selectRules({ ...registry, rules: rules.filter(r => r.type !== "consumer_protection") }, s, now);
+  assert.ok(noConsumerLaw.problems.some(p => p.includes("consumer_protection")), "missing consumer law still blocks");
+}
 assert.equal(selectRules({ ...registry, rules: rules.map(r => ({ ...r, audiencePattern: "children" })) }, s, now).rules.length, 0);
 const foreignOnly = { ...registry, rules: rules.map(r => ({ ...r, jurisdiction: "NZ" })) };
 const foreignSelection = selectRules(foreignOnly, s, now);
@@ -27,21 +39,9 @@ assert.equal(foreignSelection.rules.length, 0);
 assert.ok(foreignSelection.referenceRules?.some(r => r.type === "advertising_law"));
 assert.ok(foreignSelection.problems.some(p => p.includes("non-binding context")));
 const original = JSON.stringify(s);
-const checked = checkSubmission(s, selection);
+const result = checkSubmission(s, selection);
 assert.equal(JSON.stringify(s), original);
-assert.equal(checked.issues.length, 0);
-const risky = structuredClone(s);
-risky.targetAudience = "children";
-risky.content[0] = { ...risky.content[0], headline: "test-prohibited guaranteed", body: "Free offer $30", imageUrl: "https://example.invalid/asset.png" };
-const result = checkSubmission(risky, selection);
-assert.equal(result.issues.length, 0, "prices, phrases, images and audiences are not scanned into findings");
 assert.ok(result.limitations.some(line => /scan is applied in code/i.test(line)));
-const clean = structuredClone(s);
-clean.brandAssets.bannedTerms = [];
-clean.content = clean.content.map(c => ({ ...c, headline: "Cotton shirt", body: "Available in store", caption: "Everyday wear", callToAction: "Browse" }));
-assert.equal(checkSubmission(clean, selection).issues.length, 0);
-const required = { ...rules[0], mode: "required_phrase" as const, terms: ["conditions apply"] };
-assert.equal(checkSubmission(clean, { ...selection, rules: [required] }).issues.length, 0, "a configured phrase is context for the agent, not a hardcoded breach");
 const gate = { issueCount: 0, policyProblems: [] as string[], attempt: 1, maxAttempts: 3 };
 assert.equal(resolveReviewOutcome({ ...gate, agentOutcome: "pass" }), "pass");
 assert.equal(resolveReviewOutcome({ ...gate, agentOutcome: "pass", issueCount: 1 }), "manual_review");

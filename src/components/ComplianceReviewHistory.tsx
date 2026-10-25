@@ -1,5 +1,6 @@
 import type { Campaign } from "@/lib/types";
 import { formatDate } from "@/lib/ids";
+import { advertisementLetter, excerptExplainer } from "./advertisementLabels";
 
 const statusLabels = {
   PASSED: "Checks passed — human approval required",
@@ -20,13 +21,8 @@ export function ComplianceReviewHistory({ campaign }: { campaign: Campaign }) {
       <p className="text-sm text-mute">Each report belongs to the saved advertisement version shown below.</p></div>
     {[...runs].reverse().map((run, index) => {
       const report = run.report;
-      const advertisementLabels = new Map(
-        run.submission.content.map((advertisement, advertisementIndex) => [
-          advertisement.creativeId,
-          `Advertisement ${String.fromCharCode(65 + advertisementIndex)} — ${advertisement.headline}`,
-        ]),
-      );
-      const explainExcerpt = (excerpt: string) => advertisementLabels.get(excerpt) ?? excerpt;
+      const limitations = report?.limitations ?? run.result?.limitations ?? run.submission.limitations;
+      const explainExcerpt = excerptExplainer(run.submission.content);
       return <details key={run.reviewId} open={index === 0} className="rounded border border-line bg-surface p-4">
         <summary className="cursor-pointer font-medium">Review {run.attemptNumber} · v{run.submission.version} · {report ? statusLabels[report.status] : run.status === "UNDER_REVIEW" ? "Review pending" : "Legacy review completed"}</summary>
         <dl className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
@@ -55,7 +51,7 @@ export function ComplianceReviewHistory({ campaign }: { campaign: Campaign }) {
           </article>)}
         </div>
         <details className="mt-4"><summary className="cursor-pointer text-sm font-medium">Reviewed advertisement snapshot</summary>
-          {run.submission.content.map((ad, advertisementIndex) => <article key={ad.creativeId} className="mt-3 border border-line p-3"><p className="text-xs text-mute">Advertisement {String.fromCharCode(65 + advertisementIndex)}</p><h4 className="font-medium">{ad.headline}</h4><p>{ad.body}</p><p className="text-sm">{ad.caption}</p><p className="text-sm">{ad.callToAction}</p></article>)}
+          {run.submission.content.map((ad, advertisementIndex) => <article key={ad.creativeId} className="mt-3 border border-line p-3"><p className="text-xs text-mute">Advertisement {advertisementLetter(advertisementIndex)}</p><h4 className="font-medium">{ad.headline}</h4><p>{ad.body}</p><p className="text-sm">{ad.caption}</p><p className="text-sm">{ad.callToAction}</p></article>)}
         </details>
         <details className="mt-3">
           <summary className="cursor-pointer text-sm font-medium">Binding local and global rules ({run.ruleSelection?.rules.length ?? 0})</summary>
@@ -68,7 +64,7 @@ export function ComplianceReviewHistory({ campaign }: { campaign: Campaign }) {
             <ul className="mt-2 space-y-2 text-xs">{run.ruleSelection?.referenceRules?.map((r, i) => <li key={`${r.id}-${i}`}>{r.id} · {r.version} · {r.jurisdiction} · {r.source}</li>)}</ul>
           </details>
         ) : null}
-        {(report?.limitations ?? run.result?.limitations ?? run.submission.limitations).length > 0 && <div className="mt-4"><h3 className="text-sm font-medium">Known limitations</h3><ul className="list-disc pl-5 text-sm text-mute">{(report?.limitations ?? run.result?.limitations ?? run.submission.limitations).map(l => <li key={l}>{l}</li>)}</ul></div>}
+        {limitations.length > 0 && <div className="mt-4"><h3 className="text-sm font-medium">Known limitations</h3><ul className="list-disc pl-5 text-sm text-mute">{limitations.map(l => <li key={l}>{l}</li>)}</ul></div>}
       </details>;
     })}
   </section>;

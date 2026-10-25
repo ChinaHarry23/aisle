@@ -4,6 +4,9 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { MediaKind } from "./pr2-types";
 
+/** Largest generated image/video Aisle keeps: the ComfyUI cache and the media store share these caps. */
+export const MEDIA_MAX_BYTES: Record<MediaKind, number> = { image: 25_000_000, video: 150_000_000 };
+
 /**
  * A ComfyUI `/view` link Aisle itself rendered: an output (never an upload,
  * which may be another account's start frame) in Aisle's own `aisle/`
@@ -36,7 +39,7 @@ export async function cachedComfyAsset(url: string, kind: MediaKind) {
   if (!response.ok || !response.body || mime !== (kind === "image" ? "image/png" : "video/mp4")) {
     throw new Error(`Generated ${kind} is unavailable or has an unsupported format.`);
   }
-  const max = kind === "image" ? 25_000_000 : 150_000_000;
+  const max = MEDIA_MAX_BYTES[kind];
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
   let size = 0;

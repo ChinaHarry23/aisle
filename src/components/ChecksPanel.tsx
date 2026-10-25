@@ -1,6 +1,7 @@
 "use client";
 
 import { ComplianceReviewHistory } from "./ComplianceReviewHistory";
+import { excerptExplainer } from "./advertisementLabels";
 import { useMemo, useState } from "react";
 import { cn } from "@/lib/cn";
 import { channelLabel } from "@/lib/status";
@@ -8,11 +9,13 @@ import { formatDate } from "@/lib/ids";
 import type { Campaign, ComplianceReport, Creative } from "@/lib/types";
 
 /**
- * Layout, top to bottom:
+ * Layout, single column, top to bottom:
+ *   0. Version-bound compliance reports (ComplianceReviewHistory). With no legacy report and no founder decision, only this renders.
  *   1. Triage strip: what needs attention, in one line.
- *   2. Two columns: the wording under review (left) and the agent's findings (right).
- *   3. Review history, collapsed.
- *   4. A sticky decision bar while the founder still has to decide.
+ *   2. The ad under review with the agent's findings pinned to it, then findings that quote no ad wording.
+ *   3. Legacy review history, collapsed.
+ *   4. The founder's note, once a decision with a note exists.
+ *   5. A decision bar while the founder still has to decide: sticky, except when `inline` (the Approvals list), where it scrolls with the card.
  */
 
 type Flag = {
@@ -176,14 +179,7 @@ export function ChecksPanel({
   // copy, which has the recommended fix, so the list does not render it twice.
   const flags: Flag[] = useMemo(() => {
     const byId = new Map<string, Flag>();
-    const advertisements = campaign.complianceReviewRuns?.at(-1)?.submission.content ?? [];
-    const advertisementLabels = new Map(
-      advertisements.map((advertisement, index) => [
-        advertisement.creativeId,
-        `Advertisement ${String.fromCharCode(65 + index)} — ${advertisement.headline}`,
-      ]),
-    );
-    const explainExcerpt = (excerpt: string) => advertisementLabels.get(excerpt) ?? excerpt;
+    const explainExcerpt = excerptExplainer(campaign.complianceReviewRuns?.at(-1)?.submission.content ?? []);
     for (const i of attempt?.issues ?? []) {
       byId.set(i.id, {
         id: i.id,
@@ -353,6 +349,7 @@ export function ChecksPanel({
         </details>
       ) : null}
 
+      {/* 4. Founder's note */}
       {decision?.note ? (
         <div className="border border-line p-4 text-sm">
           <p className="text-[11px] uppercase tracking-wider text-mute">Your note</p>
@@ -360,7 +357,7 @@ export function ChecksPanel({
         </div>
       ) : null}
 
-      {/* 4. Decision bar */}
+      {/* 5. Decision bar */}
       {awaiting ? (
         <div
           className={cn(

@@ -7,32 +7,19 @@
  * reference, and stores the bytes. The campaign keeps a short id, not the
  * picture, so the engine response can finish and the image step is saved.
  */
-import { createHash } from "node:crypto";
+import { findUserById } from "@/lib/auth/users";
+import { billingFor } from "@/lib/billing/meter";
 import type { Campaign, Creative } from "@/lib/types";
 import { getModel } from "./catalog";
+import { failMediaCredits, holdMediaCredits, settleMediaCredits, type MediaHold } from "./credits";
 import { runGeneration } from "./generate";
 import { posterPrompt, posterRequest } from "./prompts";
 import { MEDIA_ADAPTERS, providerKeysSet } from "./providers";
-import type { GenerateRequest, MediaModel as ProviderModel, ProviderId } from "./pr2-types";
+import { referenceImage } from "./providers/frame";
 import { rememberAsset } from "./library";
 import { putMedia } from "./store";
 import { stubGenerate } from "./stub";
 import type { MediaGeneration } from "./types";
-
-function referenceImage(images: string[] | undefined) {
-  const raw = images?.find((item) => item.startsWith("data:image/"));
-  if (!raw) return undefined;
-  const match = /^data:(image\/(?:jpeg|jpg|png|webp));base64,([A-Za-z0-9+/=\s]+)$/.exec(raw);
-  if (!match) return undefined;
-  const bytes = Buffer.from(match[2].replace(/\s/g, ""), "base64");
-  if (bytes.length < 32 || bytes.length > 4_000_000) return undefined;
-  const mime = match[1] === "image/jpg" ? "image/jpeg" : match[1];
-  return {
-    bytes,
-    mime,
-    sha256: createHash("sha256").update(bytes).digest("hex"),
-  };
-}
 
 export async function renderCampaignPoster(input: {
   campaign: Campaign;
@@ -65,17 +52,33 @@ export async function renderCampaignPoster(input: {
   } catch (error) {
     return stubGenerate(req, error instanceof Error ? error.message : "Unknown media model.");
   }
-  const adapter = MEDIA_ADAPTERS[model.providerId as ProviderId];
+  const adapter = MEDIA_ADAPTERS[model.providerId];
   const key = input.userKey?.trim() || undefined;
   if (!adapter || (!key && !providerKeysSet(adapter))) {
     return runGeneration(req, key);
   }
+  const startImage = input.editFrom ?? referenceImage(req.contextImages);
+  // A browser key pays the provider only if this adapter really sends it.
+  // Otherwise the render runs on the owner's key and the campaign's owner pays
+  // in credits, held before the render.
+  const callerPays = Boolean(key) && (adapter.callerKeyKinds ?? []).includes(model.kind);
+  let held: MediaHold | null = null;
+  if (!callerPays) {
+    const owner = await findUserById(input.ownerId).catch(() => null);
+    const billing = owner ? billingFor(owner) : undefined;
+    const outcome = await holdMediaCredits(billing, model, { ...req, contextImages: startImage ? ["reference"] : [] }, input.editFrom ? "poster revision" : "campaign poster");
+    if ("refused" in outcome) return stubGenerate(req, outcome.refused);
+    held = outcome;
+  }
   try {
-    const rendered = await adapter.generate(req as GenerateRequest, {
-      model: model as ProviderModel,
-      startImage: input.editFrom ?? referenceImage(req.contextImages),
-      apiKey: key,
-    });
+    let rendered;
+    try {
+      rendered = await adapter.generate(req, { model, startImage, apiKey: key });
+    } catch (error) {
+      if (held) await failMediaCredits(held, error);
+      throw error;
+    }
+    if (held) await settleMediaCredits(held, rendered.costUsd);
     const stored = await putMedia({
       ownerId: input.ownerId,
       kind: "image",

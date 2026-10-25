@@ -29,6 +29,7 @@ export async function PATCH(request: Request) {
 
   // The name lives in the session token too, so reissue it or the header keeps the old one.
   const response = NextResponse.json({ user });
-  response.cookies.set(SESSION_COOKIE, await signSession(user), sessionCookieOptions());
+  // Keep the account's session version, or the new cookie would stop signing in.
+  response.cookies.set(SESSION_COOKIE, await signSession({ ...user, sessionVersion: current.sessionVersion }), sessionCookieOptions());
   return response;
 }

@@ -10,15 +10,13 @@
 
 import { isArchived } from "@/lib/campaign-lifecycle";
 import type { Campaign } from "@/lib/types";
-
-/** Steps where the bench is waiting on the founder, not on another command. */
-const WAITING_ON_FOUNDER = new Set(["founder.gate", "media.schedule"]);
+import { FOUNDER_WAIT_STEPS } from "./types";
 
 export function campaignCanAdvance(campaign: Campaign): boolean {
   if (isArchived(campaign)) return false;
   const run = campaign.run;
   if (!run || run.status !== "running") return false;
-  return !WAITING_ON_FOUNDER.has(run.step);
+  return !FOUNDER_WAIT_STEPS.has(run.step);
 }
 
 function timestamp(value: string | undefined): number {

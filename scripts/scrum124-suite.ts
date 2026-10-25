@@ -90,7 +90,7 @@ try{
 
  for(const batch of [1,13]){
   let completed=0,dispatched=0;
-  const limited=await runSeatAgent({seat:'trend',toolAgent:'trend',modelId:'local:custom',billing:undefined,task:'SYNTHETIC bound probe',tools:{campaign:campaign(),brand:defaultBrand,at,names:['calendar.public_holidays'],execute:async()=>{dispatched++;return {status:'ok',summary:'Synthetic',evidence:[],data:null};}},complete:async req=>{completed++;return {...stubComplete(req,'MOCK'),status:'ok',text:null,toolCalls:Array.from({length:batch},(_,i)=>({id:`${completed}-${i}`,name:'calendar.public_holidays',args:{year:'2026'}}))};}});
+  const limited=await runSeatAgent({seat:'trend',toolAgent:'trend',modelId:'local:custom',billing:undefined,task:'SYNTHETIC bound probe',tools:{names:['calendar.public_holidays'],execute:async()=>{dispatched++;return {status:'ok',summary:'Synthetic',evidence:[],data:null};}},complete:async req=>{completed++;return {...stubComplete(req,'MOCK'),status:'ok',text:null,toolCalls:Array.from({length:batch},(_,i)=>({id:`${completed}-${i}`,name:'calendar.public_holidays',args:{year:'2026'}}))};}});
   assert.equal(limited,null);assert.ok(completed<=6);assert.ok(dispatched<=12);
   assert.ok(completed>=1);if(batch===13)assert.equal(completed,1);
  }

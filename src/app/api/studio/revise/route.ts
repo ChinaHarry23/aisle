@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/current";
-import { loadWorkspace, saveWorkspace } from "@/lib/auth/workspace";
+import { loadWorkspace, updateWorkspace } from "@/lib/auth/workspace";
 import { billingForSession } from "@/lib/billing/meter";
-import { runComplete } from "@/lib/llm/metered-complete";
 import { renderCampaignPoster } from "@/lib/media/campaign-poster";
-import { MediaNotFoundError, readMedia } from "@/lib/media/store";
-import { rewriteImagePrompts, type LlmRuntime } from "@/lib/runtime/decide";
+import { readMedia } from "@/lib/media/store";
+import { makeLlmRuntime, rewriteImagePrompts, takeUnbookedSeatCost } from "@/lib/runtime/decide";
 import { makeLog } from "@/lib/seed";
 import type { Campaign, Creative } from "@/lib/types";
 
@@ -43,16 +42,12 @@ export async function POST(request: Request) {
 
   const userKey = request.headers.get("x-provider-key")?.trim() || undefined;
   const billing = await billingForSession(user);
-  const llm: LlmRuntime = {
-    request: (req) => runComplete(req, billing),
-    meta: { label: "server", live: true, billing },
-  };
+  const llm = makeLlmRuntime(billing);
   const rewritten = await rewriteImagePrompts({
     campaign,
     brand: stored.brand,
     settings: stored.settings,
     llm,
-    billing,
     note,
     creatives: campaign.creatives,
   }).catch(() => ({ prompts: new Map<string, string>(), trace: null }));
@@ -66,8 +61,8 @@ export async function POST(request: Request) {
     if (url) {
       try {
         editFrom = await readMedia(url, "image", user.id);
-      } catch (error) {
-        if (!(error instanceof MediaNotFoundError)) editFrom = undefined;
+      } catch {
+        /* No readable poster: render from the product photo instead. */
       }
     }
     const agentPrompt = rewritten.prompts.get(creative.id);
@@ -95,48 +90,62 @@ export async function POST(request: Request) {
     });
   }
 
+  // The prompt rewrite was paid for whether or not a poster came back, and so
+  // was a seat run that failed before falling back.
+  const inferenceUsd = (rewritten.trace?.usage.costUsd ?? 0) + takeUnbookedSeatCost(llm);
+
   if (revised.size === 0) {
+    if (inferenceUsd > 0) {
+      await updateWorkspace(user.id, user.role, (latest) => ({
+        ...latest,
+        campaigns: latest.campaigns.map((item) =>
+          item.id === campaign.id ? { ...item, spend: { ...item.spend, inferenceUsd: item.spend.inferenceUsd + inferenceUsd } } : item,
+        ),
+      })).catch(() => false);
+    }
     return NextResponse.json(
       { error: failures[0] ?? "The pictures could not be revised." },
       { status: 502 },
     );
   }
 
-  const latest = await loadWorkspace(user.id, user.role);
-  const current = latest.campaigns.find((item) => item.id === campaign.id) ?? campaign;
-  const updated: Campaign = {
-    ...current,
-    imageRevisionNote: note,
-    creatives: current.creatives.map((creative) => revised.get(creative.id) ?? creative),
-    spend: {
-      ...current.spend,
-      inferenceUsd: current.spend.inferenceUsd + (rewritten.trace?.usage.costUsd ?? 0),
-      mediaUsd: current.spend.mediaUsd + cost,
-    },
-    log: [
-      ...current.log,
-      makeLog(
-        "creative",
-        "revision",
-        rewritten.trace ? "Image Generation rewrote the revision prompt" : "Posters revised from the founder's note",
-        [
-          note,
-          rewritten.trace
-            ? `${rewritten.prompts.size} prompt(s) from ${rewritten.trace.modelName}.`
-            : "The Image Generation agent did not return a prompt, so the note was sent to the image model.",
-          failures.length ? failures.join(" ") : "",
-        ]
-          .filter(Boolean)
-          .join(" "),
-      ),
-    ],
-    updatedAt: new Date().toISOString(),
-    studioBusy: null,
-  };
-  await saveWorkspace(user.id, {
-    ...latest,
-    campaigns: latest.campaigns.map((item) => (item.id === updated.id ? updated : item)),
-  });
+  let updated: Campaign = campaign;
+  const saved = await updateWorkspace(user.id, user.role, (latest) => {
+    const current = latest.campaigns.find((item) => item.id === campaign.id) ?? campaign;
+    updated = {
+      ...current,
+      imageRevisionNote: note,
+      creatives: current.creatives.map((creative) => revised.get(creative.id) ?? creative),
+      spend: {
+        ...current.spend,
+        inferenceUsd: current.spend.inferenceUsd + inferenceUsd,
+        mediaUsd: current.spend.mediaUsd + cost,
+      },
+      log: [
+        ...current.log,
+        makeLog(
+          "creative",
+          "revision",
+          rewritten.trace ? "Image Generation rewrote the revision prompt" : "Posters revised from the founder's note",
+          [
+            note,
+            rewritten.trace
+              ? `${rewritten.prompts.size} prompt(s) from ${rewritten.trace.modelName}.`
+              : "The Image Generation agent did not return a prompt, so the note was sent to the image model.",
+            failures.length ? failures.join(" ") : "",
+          ]
+            .filter(Boolean)
+            .join(" "),
+        ),
+      ],
+      updatedAt: new Date().toISOString(),
+      studioBusy: null,
+    };
+    return { ...latest, campaigns: latest.campaigns.map((item) => (item.id === updated.id ? updated : item)) };
+  }).catch(() => false);
+  if (!saved) {
+    return NextResponse.json({ error: "The revised pictures could not be saved. Try again." }, { status: 503 });
+  }
 
   return NextResponse.json({
     campaign: updated,

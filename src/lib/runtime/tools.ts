@@ -19,13 +19,14 @@
 import { internalRetailOutcome, retailUploadSchema } from '@/lib/trend/internal-retail';
 import { researchTools, RESEARCH_TOOL_IDS, definePublicResearchTool } from "@/lib/trend/source-tools";
 import { z } from "zod";
-import { describeShelf, type ShelfOffer } from "@/lib/retail/whichgrocer/query";
+import { describeShelf } from "@/lib/retail/whichgrocer/query";
 import { uid } from "@/lib/ids";
 import { aud, matchRetailData } from "@/lib/retail-data";
+import type { ShelfLookup as ShelfLookupResult } from "@/lib/retail/whichgrocer/connection";
 import type { BrandProfile, Campaign, Channel, Country } from "@/lib/types";
-import type { Evidence, SourceKind, ToolCall } from "./types";
+import type { AgentActor, Evidence, SourceKind, ToolCall, TrendBriefGap } from "./types";
 
-export type ToolAgent = "trend" | "creative" | "compliance" | "media";
+export type ToolAgent = AgentActor;
 
 export type ToolOutcome = {
   /** Short human summary written to the campaign log / run trace. */
@@ -36,7 +37,7 @@ export type ToolOutcome = {
   data: unknown;
   usage?: import('./types').ResearchToolUsage;
   /** Something the analysis could not establish, surfaced as a brief gap. */
-  gap?: { kind: "missing_source" | "outdated" | "conflict" | "unauthorised" | "low_confidence"; detail: string; effect: string };
+  gap?: { kind: TrendBriefGap["kind"]; detail: string; effect: string };
 };
 
 export type ToolDefinition = {
@@ -57,8 +58,6 @@ export type ToolInput = {
   at: string;
   /** Agent-provided arguments, already coerced to strings. */
   args: Record<string, string>;
-  /** Signed-in founder, when the run has one. Shelf prices use the server API key. */
-  ownerUserId?: string;
 };
 
 const FETCH_TIMEOUT_MS = 6_000;
@@ -71,7 +70,7 @@ async function getJson<T>(url: string): Promise<{ ok: true; json: T } | { ok: fa
     const res = await fetch(url, {
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       headers: {
-        // Wikimedia asks for a descriptive UA; DuckDuckGo's HTML endpoint blocks empty UAs.
+        // Wikimedia asks for a descriptive UA; DuckDuckGo and Open-Meteo get the same one.
         "User-Agent": "AisleAgentBench/0.2 (ELEC5620 prototype; contact: team@aisle.website)",
         Accept: "application/json, text/html;q=0.9",
       },
@@ -546,22 +545,7 @@ export const seasonWeatherTool: ToolDefinition = {
 
 /* --------------------------------------------------------------- shelf price -- */
 
-type ShelfLookupResult =
-  | {
-      ok: true;
-      query: string;
-      claim: string;
-      detail: string;
-      sourceRef: string;
-      observedAt: string | null;
-      summary: string;
-      offers: ShelfOffer[];
-      usage?: import("./types").ResearchToolUsage;
-    }
-  | { ok: false; kind: string; reason: string };
-
 type ShelfLookup = (input: {
-  userId?: string;
   product: string;
   category: string;
   country: string;
@@ -581,7 +565,7 @@ export function setShelfPriceLookup(lookup: ShelfLookup) {
 
 export const shelfPriceTool = definePublicResearchTool('web.shelf_prices', 'Shelf prices (WhichGrocer)',
   z.object({query:z.string().min(2).max(100).describe('Approved public product query; defaults to the campaign product. Australian catalogue only.').optional()}).strict(),
-  async ({ campaign, at, args, ownerUserId }) => {
+  async ({ campaign, at, args }) => {
     const permission = denied(campaign, "web.shelf_prices");
     if (permission) return permission;
     const lookup =
@@ -593,7 +577,6 @@ export const shelfPriceTool = definePublicResearchTool('web.shelf_prices', 'Shel
           }
         : shelfLookup
           ? await shelfLookup({
-              userId: ownerUserId,
               product: campaign.product,
               category: campaign.category,
               country: campaign.country,

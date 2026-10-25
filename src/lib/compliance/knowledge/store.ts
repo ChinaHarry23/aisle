@@ -5,7 +5,7 @@ import { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
 
 const text = z.string().trim().min(1);
-export const metadataSchema = z.object({
+const metadataSchema = z.object({
   documentId: text, title: text, publisher: text,
   sourceUrl: z.url().refine(value => ["https:", "http:"].includes(new URL(value).protocol)),
   version: text, jurisdiction: text,
@@ -15,7 +15,7 @@ export const metadataSchema = z.object({
   downloadedAt: z.iso.datetime(), checkedAt: z.iso.datetime(), reviewAfter: z.iso.date(),
 }).strict().refine(m => !m.effectiveFrom || !m.effectiveTo || m.effectiveFrom <= m.effectiveTo, "Invalid effective date range")
   .refine(m => m.checkedAt.slice(0, 10) <= m.reviewAfter, "Review date precedes source check");
-export type DocumentMetadata = z.infer<typeof metadataSchema>;
+type DocumentMetadata = z.infer<typeof metadataSchema>;
 type Passage = { location: string; text: string };
 type DocumentRow = { id: string; metadata: string; hash: string };
 const hash = (value: Uint8Array | string) => createHash("sha256").update(value).digest("hex");

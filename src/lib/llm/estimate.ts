@@ -2,7 +2,7 @@ import { getLlmModel } from "./catalog";
 import type { CompleteRequest, LlmModel, LlmUsage } from "./types";
 import { POSTER_ARTIST_SYSTEM } from "../media/art-director-system";
 
-export function promptTokens(prompt: string) {
+function promptTokens(prompt: string) {
   return Math.max(48, Math.ceil(prompt.length / 4));
 }
 
@@ -26,7 +26,6 @@ export function outputCap(model: LlmModel, req?: Pick<CompleteRequest, "maxOutpu
     if (!Number.isInteger(req.maxOutputTokens) || req.maxOutputTokens < 1 || req.maxOutputTokens > 8000) throw new Error("Invalid server output allowance.");
     return req.maxOutputTokens;
   }
-  if (model.maxOutputTokens) return model.maxOutputTokens;
   return model.providerId === "anthropic" ? 3000 : 2000;
 }
 
@@ -42,24 +41,40 @@ function typicalOut(model: LlmModel, agent: string) {
   return (TYPICAL_OUT[agent] ?? 500) + (thinks ? THINKING_ALLOWANCE : 0);
 }
 
-export function estimateLlmUsage(
+function usageRecord(
   model: LlmModel,
-  req: Pick<CompleteRequest, "prompt" | "agent" | "system">,
-  latencyMs = 0,
+  agent: string,
+  inputTokens: number,
+  outputTokens: number,
+  estimate: boolean,
+  latencyMs: number,
 ): LlmUsage {
-  const inputTokens = promptTokens(req.system ? `${req.system}\n${req.prompt}` : req.prompt);
-  const outputTokens = typicalOut(model, req.agent);
   const costUsd = llmCostUsd(model, inputTokens, outputTokens);
   return {
     inputTokens,
     outputTokens,
     totalTokens: inputTokens + outputTokens,
     costUsd: Math.round(costUsd * 100000) / 100000,
-    billedAs: `${model.name} · ${req.agent} call`,
-    estimate: true,
+    billedAs: `${model.name} · ${agent} call`,
+    estimate,
     latencyMs,
   };
 }
+
+export function estimateLlmUsage(
+  model: LlmModel,
+  req: Pick<CompleteRequest, "prompt" | "agent" | "system">,
+  latencyMs = 0,
+): LlmUsage {
+  const inputTokens = promptTokens(req.system ? `${req.system}\n${req.prompt}` : req.prompt);
+  return usageRecord(model, req.agent, inputTokens, typicalOut(model, req.agent), true, latencyMs);
+}
+
+/**
+ * One attached poster, reserved before the provider reports the real count.
+ * High-detail tiles land around this; the base64 string is not billed as text.
+ */
+const VISION_TOKENS_PER_IMAGE = 1_600;
 
 /**
  * The most one call can cost: the prompt counted as a token per UTF-16 unit
@@ -67,12 +82,6 @@ export function estimateLlmUsage(
  * system prompt, and the full output ceiling. This is what a credit hold
  * reserves before the call goes out.
  */
-/**
- * One attached poster, reserved before the provider reports the real count.
- * High-detail tiles land around this; the base64 string is not billed as text.
- */
-const VISION_TOKENS_PER_IMAGE = 1_600;
-
 export function worstCaseUsd(model: LlmModel, req: Pick<CompleteRequest, "prompt" | "system" | "maxOutputTokens"> & Partial<Pick<CompleteRequest, "agent" | "images">>): number {
   const inputTokens =
     req.prompt.length +
@@ -84,17 +93,7 @@ export function worstCaseUsd(model: LlmModel, req: Pick<CompleteRequest, "prompt
 /** Typical cost of one decision on this model, for pickers and seat cards. */
 export function quoteLlm(modelId: string, agent: CompleteRequest["agent"] = "trend") {
   const model = getLlmModel(modelId);
-  const outputTokens = typicalOut(model, agent);
-  const costUsd = llmCostUsd(model, TYPICAL_PROMPT_TOKENS, outputTokens);
-  return {
-    inputTokens: TYPICAL_PROMPT_TOKENS,
-    outputTokens,
-    totalTokens: TYPICAL_PROMPT_TOKENS + outputTokens,
-    costUsd: Math.round(costUsd * 100000) / 100000,
-    billedAs: `${model.name} · ${agent} call`,
-    estimate: true,
-    latencyMs: 0,
-  } satisfies LlmUsage;
+  return usageRecord(model, agent, TYPICAL_PROMPT_TOKENS, typicalOut(model, agent), true, 0);
 }
 
 /**
@@ -126,14 +125,5 @@ export function usageFromProvider(
   latencyMs: number,
   agent: CompleteRequest["agent"],
 ): LlmUsage {
-  const costUsd = llmCostUsd(model, inputTokens, outputTokens);
-  return {
-    inputTokens,
-    outputTokens,
-    totalTokens: inputTokens + outputTokens,
-    costUsd: Math.round(costUsd * 100000) / 100000,
-    billedAs: `${model.name} · ${agent} call`,
-    estimate: false,
-    latencyMs,
-  };
+  return usageRecord(model, agent, inputTokens, outputTokens, false, latencyMs);
 }

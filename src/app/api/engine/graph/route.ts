@@ -14,7 +14,7 @@ export async function GET(request: Request) {
   const campaignId = new URL(request.url).searchParams.get("campaign")?.trim() || "";
   const baseUrl = await reachableOperationGraph();
   const studio = baseUrl
-    ? { href: campaignId ? await studioHrefForCampaign(baseUrl, campaignId) : studioHref(baseUrl) }
+    ? { href: campaignId ? await studioHrefForCampaign(baseUrl, campaignId, user.id) : studioHref(baseUrl) }
     : null;
   return NextResponse.json({ mermaid, tracing: tracingStatus(), studio });
 }

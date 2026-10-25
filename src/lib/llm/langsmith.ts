@@ -3,7 +3,7 @@ import { langsmithUsage, llmCostUsd } from "./estimate";
 import type { CompleteRequest, LlmModel } from "./types";
 
 /** One name per seat, so a campaign trace is not only the compliance call. */
-export function llmSpanName(req: CompleteRequest, model: LlmModel) {
+function llmSpanName(req: CompleteRequest, model: LlmModel) {
   if (req.purpose === "intake") return "intake.chat";
   if (req.webSearch) return "trend.web_search";
   if (req.images?.length) return "compliance.vision";

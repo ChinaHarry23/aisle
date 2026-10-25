@@ -8,8 +8,7 @@
  *  3. Refuses a founder prompt that asks the assistant to launch or publish (`UC-01 step 9 / 13`).
  *  4. Stops at the 12-turn conversation cap (`MAX_INTAKE_TURNS`) with a "finish in the form" message.
  *  5. Scrubs brand banned terms (`brand.bannedTerms`) from proposed campaign names, notes, and replies.
- *  6. Marks assistant-drafted notes with `ASSISTANT_NOTE_PREFIX` and records field provenance
- *     (`fieldSources`) and `intake` transcript events on the created `Campaign`.
+ *  6. Marks assistant-drafted notes with `ASSISTANT_NOTE_PREFIX` and keeps field provenance (`fieldSources`) on the intake draft.
  *
  *   npm run test:intake
  */
@@ -239,7 +238,7 @@ function makeScriptedComplete(
   assert.equal(turn.problems.length, 0, "validateIntake returns 0 problems");
   assert.equal(turn.readyToReview, true);
 
-  const input = toCampaignInput(turn.draft, turn.logEvents);
+  const input = toCampaignInput(turn.draft);
   const campaign = blankCampaign(input, defaultBrand, null, settings);
   assert.equal(campaign.product, turn.draft.product);
   assert.equal(campaign.budget, turn.draft.budget);

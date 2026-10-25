@@ -37,7 +37,7 @@ const good = await decideCompliance({ ...base, llm: { request: async request => 
     assert.ok(request.prompt.includes(sources[0].text.replace(/\n/g, "\\n")));
     return result;
   }
-  assert.ok(request.prompt.includes("Advertisement under review"));
+  assert.ok(request.prompt.includes("Written copy, which may differ from the picture"));
   return { ...result, text: JSON.stringify({ issues: [], summary: "Text and image review complete." }) };
 } } });
 assert.equal(calls, 2);

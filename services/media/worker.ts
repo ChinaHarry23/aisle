@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { ProductionRepository } from "../../src/lib/media/production-store";
 import { workProductionOnce } from "../../src/lib/media/production";
+import { closeProgressMonitor } from "../../src/lib/media/progress";
 
 if (process.argv.includes("--work")) {
   const repo = new ProductionRepository();
@@ -16,5 +17,5 @@ if (process.argv.includes("--work")) {
     await new Promise(resolve => setTimeout(resolve, 1500));
   }
   repo.close();
-  (globalThis as typeof globalThis & { aisleRenderMonitor?: { socket?: WebSocket } }).aisleRenderMonitor?.socket?.close();
+  closeProgressMonitor();
 }

@@ -11,10 +11,11 @@ import { createHash, randomBytes } from "node:crypto";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import { NextResponse, type NextRequest } from "next/server";
 import { sessionCookieOptions, signSession, SESSION_COOKIE } from "./session";
+import { safeNextPath } from "./next-path";
 import { signInWithProvider } from "./oauth-users";
 import type { SessionUser } from "./types";
 
-export type OAuthProvider = "google" | "apple";
+type OAuthProvider = "google" | "apple";
 
 const STATE_COOKIE = "aisle_oauth";
 const STATE_MAX_AGE = 60 * 10;
@@ -30,18 +31,11 @@ type PendingOAuth = {
   next: string;
 };
 
-export function providerConfigured(provider: OAuthProvider) {
+function providerConfigured(provider: OAuthProvider) {
   if (provider === "google") {
     return Boolean(process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET);
   }
   return Boolean(process.env.AUTH_APPLE_ID);
-}
-
-export function safeNext(value: string | null) {
-  if (!value || !value.startsWith("/") || value.startsWith("//") || value.startsWith("/login")) {
-    return "/";
-  }
-  return value;
 }
 
 /** The site origin as users see it: AUTH_URL, else the forwarded host. */
@@ -97,7 +91,8 @@ function loginError(request: Request, code: string) {
 
 async function finish(request: Request, user: SessionUser, next: string) {
   const token = await signSession(user);
-  const response = NextResponse.redirect(new URL(next, publicOrigin(request)));
+  // The state cookie is not signed, so the path is checked again here.
+  const response = NextResponse.redirect(new URL(safeNextPath(next), publicOrigin(request)));
   response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions());
   response.cookies.set(STATE_COOKIE, "", { ...stateCookieOptions(request), maxAge: 0 });
   return response;
@@ -113,7 +108,7 @@ export function beginOAuth(request: NextRequest, provider: OAuthProvider) {
     state: randomToken(),
     nonce: randomToken(),
     verifier: randomToken(),
-    next: safeNext(url.searchParams.get("next")),
+    next: safeNextPath(url.searchParams.get("next")),
   };
   const origin = publicOrigin(request);
   const redirectUri = callbackUrl(origin, provider);

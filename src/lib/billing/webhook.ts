@@ -32,7 +32,7 @@ const idOf = (value: unknown): string | null => str(value) ?? str(obj(value)?.id
 const isoFromUnix = (value: unknown): string | null =>
   typeof value === "number" && Number.isFinite(value) ? new Date(value * 1000).toISOString() : null;
 
-export type WebhookOutcome = { handled: boolean; note: string };
+type WebhookOutcome = { handled: boolean; note: string };
 
 const LINKED = { handled: true };
 const ignored = (note: string): WebhookOutcome => ({ handled: false, note });
@@ -118,7 +118,10 @@ async function storedLink(userId: string): Promise<StoredLink | null> {
 }
 
 /** A different subscription is stored and still live. */
-function otherLiveSubscription(stored: StoredLink | null, subscriptionId: string) {
+function otherLiveSubscription(
+  stored: StoredLink | null,
+  subscriptionId: string,
+): stored is StoredLink & { stripe_subscription_id: string } {
   return Boolean(
     stored?.stripe_subscription_id && stored.stripe_subscription_id !== subscriptionId && CURRENT.has(stored.status ?? ""),
   );
@@ -195,7 +198,7 @@ async function onCheckoutCompleted(session: Obj, livemode: boolean | null, event
   if (subscriptionId && otherLiveSubscription(existing, subscriptionId)) {
     // Another subscription is live: keep it as the stored one and only refresh the customer link.
     await saveLink({ userId, customerId, livemode });
-    return { ...LINKED, note: `linked ${customerId} to ${userId}; ${existing!.stripe_subscription_id} stays current` };
+    return { ...LINKED, note: `linked ${customerId} to ${userId}; ${existing.stripe_subscription_id} stays current` };
   }
   // A returning subscriber's old, dead subscription says nothing about this one.
   const replacesDead = Boolean(subscriptionId && existing?.stripe_subscription_id && existing.stripe_subscription_id !== subscriptionId);
@@ -251,7 +254,7 @@ async function onInvoicePaid(invoice: Obj, livemode: boolean | null, eventAt: nu
   }
   const reset = await resetForInvoice(userId, invoiceId);
   const note = reset ? `reset ${userId} for ${invoiceId}` : `${invoiceId} already granted`;
-  return { handled: true, note: secondLive ? `${note}; ${stored!.stripe_subscription_id} stays current` : note };
+  return { handled: true, note: secondLive ? `${note}; ${stored.stripe_subscription_id} stays current` : note };
 }
 
 async function onInvoiceFailed(invoice: Obj, livemode: boolean | null, eventAt: number | null): Promise<WebhookOutcome> {
@@ -315,7 +318,7 @@ async function onSubscriptionChanged(
     livemode,
     eventAt: order.stamp,
   });
-  if (deleted && sameSub) {
+  if (deleted) {
     await expireCredits(userId, subscriptionId, "Subscription ended; monthly credits expired");
   }
   return { handled: true, note: `${userId} ${status}` };
@@ -355,7 +358,7 @@ async function onPaymentReversed(object: Obj, kind: "refund" | "dispute"): Promi
   return expired ? { handled: true, note: `${userId} credits expired after ${kind}` } : ignored(`${kind} for ${chargeId} already applied`);
 }
 
-export async function processStripeEvent(event: StripeEvent): Promise<WebhookOutcome> {
+async function processStripeEvent(event: StripeEvent): Promise<WebhookOutcome> {
   const object = obj(event.data?.object) ?? {};
   const livemode = typeof event.livemode === "boolean" ? event.livemode : null;
   const eventAt = typeof event.created === "number" && Number.isFinite(event.created) ? Math.floor(event.created) : null;

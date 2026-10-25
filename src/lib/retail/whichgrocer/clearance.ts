@@ -6,9 +6,7 @@
  */
 
 import type { PriceRecommendation } from "@/lib/types";
-import { aud, type ShelfOffer } from "./query";
-
-const GROCERY_STORES = new Set(["coles", "woolworths", "aldi", "iga"]);
+import { aud, GROCERY_STORES, type ShelfOffer } from "./query";
 
 function cents(amount: number): number {
   return Math.round(amount * 100) / 100;

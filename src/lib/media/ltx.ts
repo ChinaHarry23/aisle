@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { comfyGet, listed, requireServer, result, submit, viewUrl, waitForFile, type PromptNode } from "./comfy";
 import type { GenerateRequest, GenerateResult } from "./pr2-types";
 
-export const LTX_WEIGHTS = {
+const LTX_WEIGHTS = {
   unet: "ltx-2.5-22b-distilled-transformer-bf16.safetensors",
   clip: "gemma4-12b-with-proj-ltx-2.5-bf16.safetensors",
   video: "ltx-2.5-video-vae-bf16.safetensors",

@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { formatCredits, MILLI, PLAN } from "@/lib/billing/plan";
+import { formatCredits, LIVE_STATUSES, MILLI, PLAN } from "@/lib/billing/plan";
 import type { LedgerEntry } from "@/lib/billing/ledger";
 import type { BillingSummary } from "@/lib/billing/summary";
 import { formatDate, formatUsd } from "@/lib/ids";
@@ -41,9 +41,6 @@ async function fetchSummary(): Promise<BillingSummary> {
   if (!res.ok || !json) throw new Error(json?.error ?? `Billing returned ${res.status}`);
   return json as BillingSummary;
 }
-
-/** Same list as `LIVE_STATUSES` in lib/billing/summary.ts: a subscription that is billing or about to. */
-const LIVE = ["active", "trialing", "past_due", "unpaid", "incomplete"];
 
 /** How far before this page opened the webhook may have granted (it can beat the redirect, and clocks differ). */
 const GRANT_WINDOW_MS = 30 * 60_000;
@@ -123,7 +120,7 @@ export function BillingView({ checkout }: { checkout: "success" | "cancel" | nul
 
   const sub = summary?.subscription ?? null;
   const status = sub ? (STATUS[sub.status] ?? { label: sub.status, tone: "mute" as const }) : null;
-  const live = sub && LIVE.includes(sub.status);
+  const live = sub && LIVE_STATUSES.includes(sub.status);
   const arrived = summary ? creditsArrived(summary, openedAt) : false;
   const plan = summary?.plan ?? PLAN;
 

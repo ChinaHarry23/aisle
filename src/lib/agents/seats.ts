@@ -1,5 +1,5 @@
 /**
- * The four agents of the one-person marketing company, as LangGraph agents.
+ * The five seats of the one-person marketing company, as LangGraph agents.
  *
  * `createAgent` compiles each seat into a LangGraph. The campaign operation that
  * calls them is its own graph in `runtime/operation-graph.ts`, so a run traces as
@@ -264,6 +264,14 @@ const INSTRUCTIONS = {
   intake: INTAKE_SYSTEM,
 } as const;
 
+export const SEAT_SCHEMAS = {
+  trend: trendBriefSchema,
+  creative: copySchema,
+  compliance: complianceSchema,
+  media: recommendationSchema,
+  intake: intakeTurnSchema,
+} as const;
+
 /* --------------------------------------------------------------- factory --- */
 
 export type AgentSeat = keyof typeof INSTRUCTIONS;
@@ -272,18 +280,24 @@ export function instructionsFor(seat: AgentSeat): string {
   return INSTRUCTIONS[seat];
 }
 
-export type BuiltAgent<T> = {
-  seat: AgentSeat;
+type BuiltAgent<T> = {
   /** Answers the task, having called whatever tools it decided it needed. */
-  invoke: (input: { task: string; context?: string }) => Promise<T>;
+  invoke: (input: { task: string }) => Promise<T>;
 };
 
-type SeatOptions<T> = {
+type SeatOptions<T> = (
+  | {
+      /** A ready chat model, so the caller can read its usage meter afterwards. */
+      chat: MeteredChatModel;
+      model?: never;
+    }
+  | {
+      chat?: never;
+      /** Or a config, in which case one is built here. */
+      model: MeteredModelConfig;
+    }
+) & {
   seat: AgentSeat;
-  /** A ready chat model, so the caller can read its usage meter afterwards. */
-  chat?: MeteredChatModel;
-  /** Or a config, in which case one is built here. */
-  model?: MeteredModelConfig;
   tools: StructuredToolInterface[];
   schema: z.ZodType<T>;
   /** Overrides the default instructions, for the art-director seat. */
@@ -304,7 +318,7 @@ type SeatOptions<T> = {
  * on the Agent Server.
  */
 export function compileSeatAgent<T>(options: SeatOptions<T>) {
-  const chat = options.chat ?? new MeteredChatModel(options.model!);
+  const chat = options.chat ? options.chat : new MeteredChatModel(options.model);
   return createAgent({
     model: chat,
     tools: options.tools,
@@ -338,11 +352,9 @@ export function buildAgent<T>(options: SeatOptions<T>): BuiltAgent<T> {
   const agent = compileSeatAgent(options);
 
   return {
-    seat: options.seat,
     async invoke(input) {
-      const content = input.context ? `${input.task}\n\n${input.context}` : input.task;
       const result = await agent.invoke({
-        messages: [{ role: "user", content }],
+        messages: [{ role: "user", content: input.task }],
       });
 
       // Two answer shapes are legitimate, and both occur in practice.

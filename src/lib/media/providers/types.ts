@@ -1,7 +1,8 @@
 /**
  * The contract every cloud media provider implements. An adapter turns one
- * GenerateRequest into verified bytes plus what the call really cost; storing,
- * metering and provenance are `runGeneration`'s job, not the adapter's.
+ * GenerateRequest into verified bytes plus what the call really cost; storing
+ * and provenance are the caller's job (`renderCampaignPoster` in
+ * campaign-poster.ts), not the adapter's.
  */
 import type { AspectRatio, GenerateRequest, MediaModel, ProviderId } from "../pr2-types";
 
@@ -14,4 +15,14 @@ export type ProviderContext = {
   onQueued?: (jobId: string) => void;
   signal?: AbortSignal;
 };
-export type MediaProviderAdapter = { id: ProviderId; keyEnv: string[]; generate: (req: GenerateRequest, ctx: ProviderContext) => Promise<ProviderOutput> };
+export type MediaProviderAdapter = {
+  id: ProviderId;
+  keyEnv: string[];
+  /**
+   * The kinds for which `generate` sends `ctx.apiKey` to the provider. For any
+   * other kind it renders on the owner's key whatever the browser sent, so the
+   * caller must hold credits.
+   */
+  callerKeyKinds?: readonly ("image" | "video")[];
+  generate: (req: GenerateRequest, ctx: ProviderContext) => Promise<ProviderOutput>;
+};

@@ -9,7 +9,7 @@
 import { getDatabase } from "@/lib/db";
 import { uid } from "@/lib/ids";
 import { hashPassword, normalizeEmail } from "./password";
-import { SEED_ACCOUNTS, SEED_PASSWORD } from "./seed-accounts";
+import { SEED_ACCOUNTS, seedPassword } from "./seed-accounts";
 import type { AuthUser, PublicUser, UserRole } from "./types";
 
 type UserRow = {
@@ -19,6 +19,7 @@ type UserRow = {
   role: string;
   password_hash: string;
   created_at: string;
+  session_version?: number | string | null;
 };
 
 function toAuthUser(row: UserRow): AuthUser {
@@ -29,6 +30,9 @@ function toAuthUser(row: UserRow): AuthUser {
     role: row.role === "dev" ? "dev" : "beta",
     passwordHash: row.password_hash,
     createdAt: row.created_at,
+    // Login and OAuth sign the cookie with this column, and getCurrentUser
+    // compares the two, so it must be read here too.
+    sessionVersion: Number(row.session_version ?? 0),
   };
 }
 
@@ -49,9 +53,16 @@ let seedChecked = false;
 
 export async function ensureSeedAccounts(): Promise<{ seeded: boolean; password?: string }> {
   if (seedChecked) return { seeded: false };
+  // A hosted install without AISLE_SEED_PASSWORD gets no desks: the demo
+  // password is published, so a desk created with it would be open to anyone.
+  const password = seedPassword();
+  if (!password) {
+    seedChecked = true;
+    return { seeded: false };
+  }
   const db = await getDatabase();
   const createdAt = new Date().toISOString();
-  const hash = await hashPassword(SEED_PASSWORD);
+  const hash = await hashPassword(password);
   let created = 0;
 
   for (const account of SEED_ACCOUNTS) {
@@ -74,7 +85,7 @@ export async function ensureSeedAccounts(): Promise<{ seeded: boolean; password?
 
   seedChecked = true;
   // Only report the password when this call is what put a desk in place.
-  return created > 0 ? { seeded: true, password: SEED_PASSWORD } : { seeded: false };
+  return created > 0 ? { seeded: true, password } : { seeded: false };
 }
 
 export async function findUserByEmail(email: string): Promise<AuthUser | null> {

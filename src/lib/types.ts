@@ -1,5 +1,6 @@
 import type { ComplianceReviewRun } from "./compliance/service";
 import type { AdVideo, MediaGeneration, StudioRun } from "./media/types";
+import type { ValidationProblem } from "./runtime/intake";
 import type {
   AgentRun,
   ChannelResultStatus,
@@ -79,7 +80,7 @@ export type Trend = {
   confidence: number;
 };
 
-export type Opportunity = {
+type Opportunity = {
   id: string;
   title: string;
   why: string;
@@ -88,7 +89,7 @@ export type Opportunity = {
   rank: number;
 };
 
-export type Persona = {
+type Persona = {
   id: string;
   name: string;
   age: string;
@@ -169,7 +170,7 @@ export type ComplianceReport = {
   attempt?: ComplianceAttempt;
 };
 
-export type ChannelAdaptation = {
+type ChannelAdaptation = {
   channel: Channel;
   headline: string;
   body: string;
@@ -186,7 +187,7 @@ export type ScheduleItem = {
   note: string;
 };
 
-export type PerformanceMetrics = {
+type PerformanceMetrics = {
   impressions: number;
   clicks: number;
   ctr: number;
@@ -218,8 +219,7 @@ export type AgentEvent = {
     | "intake";
   title: string;
   detail: string;
-  /** Links the line back to the run step, guard decision or tool call. */
-  runStepId?: string;
+  /** Links the line back to the guard decision or tool call. */
   policyDecisionId?: string;
   toolCallId?: string;
   evidenceIds?: string[];
@@ -349,7 +349,7 @@ export type Campaign = CampaignInput & {
   };
   run: AgentRun | null;
   /** Set when a launch was refused, so the brief can show what to fix. */
-  validationProblems: { field: string; message: string; clause: string }[];
+  validationProblems: ValidationProblem[];
 };
 
 /** Weekly sales extract for one ranged article. */
@@ -421,7 +421,7 @@ export type RetailDataset = {
 };
 
 /** A brand-guideline document the founder uploaded; only its extracted text is kept. */
-export type GuidelineDoc = {
+type GuidelineDoc = {
   id: string;
   name: string;
   /** Size of the original upload in bytes. */

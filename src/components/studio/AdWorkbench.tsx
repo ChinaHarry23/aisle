@@ -5,7 +5,8 @@ import { modelsOf } from "@/lib/media/catalog";
 import { requestGenerate } from "@/lib/media/client";
 import type { AspectRatio, MediaGeneration } from "@/lib/media/types";
 import { useAisle } from "@/lib/store";
-import { useEffect, useRef, useState } from "react";
+import { useDismiss } from "@/components/useDismiss";
+import { useRef, useState } from "react";
 
 type Quality = "low" | "medium" | "high";
 
@@ -234,19 +235,7 @@ function DockMenu<T extends string | number>({
   const ref = useRef<HTMLDivElement>(null);
   const current = options.find((o) => o.value === value) ?? options[0];
 
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    document.addEventListener("mousedown", close);
-    document.addEventListener("keydown", esc);
-    return () => {
-      document.removeEventListener("mousedown", close);
-      document.removeEventListener("keydown", esc);
-    };
-  }, [open]);
+  useDismiss(ref, open, setOpen);
 
   return (
     <div ref={ref} className="relative shrink-0">

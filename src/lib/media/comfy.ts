@@ -11,7 +11,7 @@ import type { AspectRatio, GenerateRequest, GenerateResult } from "./pr2-types";
 import { randomUUID } from "node:crypto";
 import { readMedia } from "./store";
 
-export class ComfyUnavailableError extends Error {
+class ComfyUnavailableError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "ComfyUnavailableError";
@@ -45,7 +45,7 @@ export async function comfyGet<T>(path: string): Promise<T> {
   return (await res.json()) as T;
 }
 
-export async function comfyReachable(): Promise<boolean> {
+async function comfyReachable(): Promise<boolean> {
   try {
     const res = await fetch(`${comfyBase()}/system_stats`, { signal: AbortSignal.timeout(800) });
     return res.ok;

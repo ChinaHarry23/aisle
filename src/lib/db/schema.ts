@@ -1,10 +1,11 @@
 /**
  * Schema.
  *
- * Two tables carry the whole application. Keeping accounts as real rows (rather
- * than a JSON document) is what makes email uniqueness a database constraint
- * instead of a read-then-write race, which is exactly the bug the old Blob store
- * could not avoid.
+ * Every table in the main database (the one `getDatabase()` opens); the
+ * workflow, media-progress, production and compliance-knowledge stores keep
+ * their own SQLite files. Keeping accounts as real rows (rather than a JSON
+ * document) is what makes email uniqueness a database constraint instead of a
+ * read-then-write race.
  *
  * `CREATE TABLE IF NOT EXISTS` plus an additive `ALTER TABLE` for each new column
  * means the file can be opened by a newer build without a migration tool: the
@@ -103,16 +104,6 @@ create table if not exists stripe_events (
   received_at text not null
 );
 
-create table if not exists whichgrocer_connections (
-  user_id       text primary key,
-  access_token  text not null,
-  refresh_token text,
-  expires_at    text,
-  client_id     text not null,
-  redirect_uri  text not null,
-  updated_at    text not null
-);
-
 create table if not exists media_objects (
   id            text primary key,
   owner_user_id text not null,
@@ -166,7 +157,7 @@ const ADDITIVE = [
   "alter table credit_holds add column charged_milli integer",
   // Stripe's `created` (unix seconds) of the newest event that wrote the subscription's status.
   "alter table billing_customers add column subscription_event_at bigint",
-  // Bumped when a password is replaced or an email is claimed by Google/Apple, which ends every older session.
+  // Session version stamped into cookies; nothing bumps it in the current build.
   "alter table users add column session_version integer not null default 0",
   "alter table account_assets add column cost_usd real",
   "alter table account_assets add column cost_estimated integer",

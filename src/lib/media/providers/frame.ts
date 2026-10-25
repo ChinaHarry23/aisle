@@ -1,8 +1,12 @@
 /**
- * Start-frame helpers for image-to-video adapters whose clip keeps the
- * poster's framing (Seedance "adaptive", Hunyuan Video, Kling, Wan). The
- * aspect a clip really has is read from the poster's own header, not assumed.
+ * Start-frame helpers for provider adapters. Image-to-video adapters whose
+ * clip keeps the poster's framing (Seedance "adaptive", Hunyuan Video, Kling,
+ * Wan) read the aspect a clip really has from the poster's own header rather
+ * than assuming it. `referenceImage` decodes a request's data-URL context image into
+ * the start-image bytes that poster edits (adapters.ts, campaign-poster.ts)
+ * pass to OpenAI/Google.
  */
+import { createHash } from "node:crypto";
 import type { AspectRatio } from "../pr2-types";
 
 const RATIOS: [AspectRatio, number][] = [["1:1", 1], ["4:5", 4 / 5], ["3:4", 3 / 4], ["16:9", 16 / 9], ["9:16", 9 / 16]];
@@ -55,6 +59,22 @@ export function frameAspect(bytes: Buffer): AspectRatio | undefined {
 /** A provider's "W:H" ratio label as an Aisle aspect, when it is one. */
 export function ratioAspect(ratio: string | undefined): AspectRatio | undefined {
   return RATIOS.find(([id]) => id === ratio)?.[0];
+}
+
+/** The first data-URL image in a request's context as start-image bytes, when it decodes to 32 B–4 MB. */
+export function referenceImage(images: string[] | undefined) {
+  const raw = images?.find((item) => item.startsWith("data:image/"));
+  if (!raw) return undefined;
+  const match = /^data:(image\/(?:jpeg|jpg|png|webp));base64,([A-Za-z0-9+/=\s]+)$/.exec(raw);
+  if (!match) return undefined;
+  const bytes = Buffer.from(match[2].replace(/\s/g, ""), "base64");
+  if (bytes.length < 32 || bytes.length > 4_000_000) return undefined;
+  const mime = match[1] === "image/jpg" ? "image/jpeg" : match[1];
+  return {
+    bytes,
+    mime,
+    sha256: createHash("sha256").update(bytes).digest("hex"),
+  };
 }
 
 /** Moderation refusals are never retried and never billed; say so plainly. */

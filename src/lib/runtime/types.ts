@@ -9,7 +9,7 @@
  * module runs inside the Next.js route handler and inside a unit test.
  */
 
-import type { Campaign, Channel, Country } from "@/lib/types";
+import type { AgentId, Campaign, Channel, Country } from "@/lib/types";
 
 export const MAX_REVISION_ATTEMPTS = 3;
 
@@ -21,11 +21,13 @@ export const MAX_REVISION_ATTEMPTS = 3;
  */
 export const MAX_PUBLISH_RETRIES = 3;
 
-/** Who asked for the work. Agents are not equal before the policy guard. */
-export type Actor = "founder" | "trend" | "creative" | "compliance" | "media" | "intake";
+/** Steps where the run waits on the founder rather than another command. */
+export const FOUNDER_WAIT_STEPS: ReadonlySet<string> = new Set<RunStepId>(["founder.gate", "media.schedule"]);
 
-export const agentActors = ["trend", "creative", "compliance", "media"] as const;
-export type AgentActor = (typeof agentActors)[number];
+/** Who asked for the work. Agents are not equal before the policy guard. */
+export type Actor = AgentId;
+
+export type AgentActor = Exclude<Actor, "founder" | "intake">;
 
 /* ------------------------------------------------------------------ evidence */
 
@@ -37,7 +39,7 @@ export type SourceKind =
   | "founder_input" // the founder typed it
   | "brand_rule"; // the retailer's own approved/banned term list
 
-export type EvidenceStatus =
+type EvidenceStatus =
   | "verified" // the tool returned a record we can cite
   | "assumed" // a reasonable assumption, labelled as such
   | "conflicting" // sources disagree
@@ -141,7 +143,7 @@ export type PolicyDecision = {
 
 /* --------------------------------------------------------------- compliance */
 
-export type ComplianceIssueCategory =
+type ComplianceIssueCategory =
   | "misleading_claim"
   | "unsupported_claim"
   | "missing_condition"
@@ -194,7 +196,7 @@ export type ComplianceAttempt = {
 
 /* -------------------------------------------------------------- distribution */
 
-export type ChannelVersionStatus = "adapted" | "scheduled" | "published" | "failed";
+type ChannelVersionStatus = "adapted" | "scheduled" | "published" | "failed";
 
 export type ChannelVersion = {
   id: string;
@@ -236,7 +238,7 @@ export type ScheduleConflict = {
   resolved: boolean;
 };
 
-export type ScheduleItemStatus = "proposed" | "adapted" | "scheduled" | "published" | "failed";
+type ScheduleItemStatus = "proposed" | "adapted" | "scheduled" | "published" | "failed";
 
 export type RunScheduleItem = {
   id: string;
@@ -264,7 +266,7 @@ export type DeliveryOutcome =
   | "fail" // never confirms; the retry cap is spent → raised for the founder
   | "late"; // times out at the cap, then a late confirmation is reconciled by item id
 
-export type DeliveryItemStatus = "published" | "failed";
+type DeliveryItemStatus = "published" | "failed";
 
 /**
  * The record of one channel's simulated submission.
@@ -314,7 +316,7 @@ export type DistributionContext = {
  * nothing live. `partial` is the explicit "mixed run partially completed" marker
  * (SCRUM-69): some channels confirmed, at least one did not.
  */
-export type DeliveryOutcomeKind = "complete" | "partial" | "none";
+type DeliveryOutcomeKind = "complete" | "partial" | "none";
 
 /** The outcome of the founder's publish: what actually went live, per channel. */
 export type DeliveryReport = {
@@ -412,7 +414,7 @@ export type RecommendationDecision = {
 
 /* --------------------------------------------------------------- run + log */
 
-export type RunStatus = "idle" | "running" | "paused" | "awaiting_human" | "complete" | "halted";
+type RunStatus = "idle" | "running" | "paused" | "awaiting_human" | "complete" | "halted";
 
 export type ResearchToolUsage = {
   provider: 'firecrawl' | 'whichgrocer' | 'serpapi' | 'model_search';
@@ -449,7 +451,6 @@ export type RunStepId =
   | "creative.revise"
   | "compliance.receive"
   | "compliance.review"
-  | "compliance.decide"
   | "media.receive"
   | "media.adapt"
   | "media.schedule"
@@ -499,7 +500,7 @@ export type Command =
   | { type: "START"; actor: "founder"; note?: string }
   | { type: "PAUSE"; actor: "founder"; note?: string }
   /** Let the run work until it needs the founder or finishes. */
-  | { type: "ADVANCE"; actor: "founder" | "system"; maxSteps?: number }
+  | { type: "ADVANCE"; actor: "founder" | "system" }
   /** Founder decision at the approval gate. */
   | { type: "APPROVE"; actor: "founder"; note: string }
   | { type: "REQUEST_CHANGES"; actor: "founder"; note: string }

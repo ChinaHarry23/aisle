@@ -6,10 +6,9 @@
  * instead. The key stays on the server.
  */
 
-import { offersFromPayload, type ShelfOffer } from "./query";
+import { GROCERY_STORES, offersFromPayload, type ShelfOffer } from "./query";
 
 const API_ORIGIN = "https://api.whichgrocer.com";
-const GROCERY_STORES = new Set(["coles", "woolworths", "aldi", "iga"]);
 
 export class WhichGrocerApiError extends Error {
   readonly status: number;

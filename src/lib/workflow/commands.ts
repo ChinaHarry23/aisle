@@ -57,7 +57,7 @@ export function assertTransition(c: Campaign, command: Command) {
     PUBLISH: c.status === "scheduled" && c.founderDecision?.action === "approve" && !c.scheduleConflicts.some(x => !x.resolved),
     COLLECT_FEEDBACK: c.status === "published",
     DECIDE_RECOMMENDATION: c.status === "published" && !!c.performanceReport,
-    RESOLVE_CONFLICT: c.scheduleConflicts.some(x => x.id === (command as Extract<Command, {type: "RESOLVE_CONFLICT"}>).conflictId && !x.resolved),
+    RESOLVE_CONFLICT: command.type === "RESOLVE_CONFLICT" && c.scheduleConflicts.some(x => x.id === command.conflictId && !x.resolved),
     ATTEMPT_BLOCKED: true,
   };
   if (!allowed[command.type]) throw new WorkflowError(`${command.type} is not allowed while this campaign is ${c.status}.`, 409);

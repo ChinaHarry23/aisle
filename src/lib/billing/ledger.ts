@@ -20,7 +20,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { getDatabase, type Database } from "@/lib/db";
 import { freeCredits, freeGrantsPerDay, MILLI, milliForCost, PLAN } from "./plan";
 
-export type LedgerReason = "free_grant" | "monthly_reset" | "usage" | "dev_usage" | "adjust" | "expired";
+type LedgerReason = "free_grant" | "monthly_reset" | "usage" | "dev_usage" | "adjust" | "expired";
 
 export type LedgerEntry = {
   id: string;
@@ -47,7 +47,7 @@ type LedgerRow = {
 };
 
 /** A hold older than this belonged to a call whose process died; the sweeper returns it. Longer than any route's maxDuration. */
-export const HOLD_TTL_MS = 20 * 60_000;
+const HOLD_TTL_MS = 20 * 60_000;
 
 const now = () => new Date().toISOString();
 const num = (value: unknown) => (value == null ? null : Number(value));
@@ -154,7 +154,7 @@ async function grantFreeCredits(db: Database, userId: string) {
 }
 
 /** A signup whose grant was blocked (today's cap was reached) tries again for this long. */
-export const FREE_GRANT_RETRY_MS = 7 * 86_400_000;
+const FREE_GRANT_RETRY_MS = 7 * 86_400_000;
 
 /**
  * Create the account on first use, and grant the free credits if this person
@@ -163,7 +163,7 @@ export const FREE_GRANT_RETRY_MS = 7 * 86_400_000;
  * a real signup's trial away for good. The claim on the canonical email keeps
  * the retry to one grant per person.
  */
-export async function ensureCreditAccount(userId: string, nowMs = Date.now()): Promise<void> {
+async function ensureCreditAccount(userId: string): Promise<void> {
   const db = await getDatabase();
   const created = await db.query(
     `insert into credit_accounts (user_id, balance_milli, free_granted_at, updated_at)
@@ -179,7 +179,7 @@ export async function ensureCreditAccount(userId: string, nowMs = Date.now()): P
   const pending = await db.query<{ user_id: string }>(
     `select a.user_id from credit_accounts a join users u on u.id = a.user_id
      where a.user_id = $1 and a.free_granted_at is null and u.role <> 'dev' and u.created_at >= $2`,
-    [userId, new Date(nowMs - FREE_GRANT_RETRY_MS).toISOString()],
+    [userId, new Date(Date.now() - FREE_GRANT_RETRY_MS).toISOString()],
   );
   if (pending.length) await grantFreeCredits(db, userId);
 }
@@ -187,7 +187,7 @@ export async function ensureCreditAccount(userId: string, nowMs = Date.now()): P
 /* ---------- Holds ---------- */
 
 /** Closed hold rows are kept this long (for support questions), then pruned by the sweeper. */
-export const HOLD_KEEP_MS = 30 * 86_400_000;
+const HOLD_KEEP_MS = 30 * 86_400_000;
 const PRUNE_EVERY_MS = 3_600_000;
 const lastPrune = new Map<string, number>();
 
@@ -200,7 +200,8 @@ const lastPrune = new Map<string, number>();
  * the charge it recorded is applied instead. Closed rows older than
  * HOLD_KEEP_MS are pruned, at most once an hour per user and process.
  */
-export async function sweepStaleHolds(userId: string, nowMs = Date.now()): Promise<number> {
+export async function sweepStaleHolds(userId: string): Promise<number> {
+  const nowMs = Date.now();
   const db = await getDatabase();
   const parked = await db.query<{ ref: string; milli: number | string; epoch: number | string; charged_milli: number | string | null }>(
     "select ref, milli, epoch, charged_milli from credit_holds where user_id = $1 and status = 'pending_settle'",
@@ -276,7 +277,7 @@ export async function balanceMilli(userId: string): Promise<number> {
  * under `ref`. Returns the grant epoch the hold belongs to, or null when the
  * balance does not cover it.
  */
-export async function reserveCredits(userId: string, milli: number, ref: string = randomUUID()): Promise<number | null> {
+export async function reserveCredits(userId: string, milli: number, ref: string): Promise<number | null> {
   const amount = Math.max(0, Math.ceil(milli));
   await ensureCreditAccount(userId);
   await sweepStaleHolds(userId);
@@ -587,7 +588,7 @@ export async function creditMeter(userId: string, balance: number): Promise<{ sp
     since ? [userId, since] : [userId],
   );
   const spentMilli = Math.max(0, Number(rows[0]?.spent ?? 0));
-  return { spentMilli, allowanceMilli: Math.max(balance + spentMilli, balance) };
+  return { spentMilli, allowanceMilli: balance + spentMilli };
 }
 
 export async function recentLedger(userId: string, limit = 25): Promise<LedgerEntry[]> {
@@ -628,10 +629,8 @@ const ipKey = (ip: string) => createHash("sha256").update(`aisle-signup:${ip}`).
  * the slot back when the signup then fails (a duplicate email, say). Only a
  * hash of the address is kept, for a day.
  */
-export async function claimSignupSlot(
-  ip: string,
-  nowMs = Date.now(),
-): Promise<{ allowed: boolean; release: () => Promise<void> }> {
+export async function claimSignupSlot(ip: string): Promise<{ allowed: boolean; release: () => Promise<void> }> {
+  const nowMs = Date.now();
   const db = await getDatabase();
   const id = randomUUID();
   const key = ipKey(ip);

@@ -1,12 +1,4 @@
-/** Connection strings that switch the app to Postgres (mirrors db/index.ts without importing it). */
-const POSTGRES_VARS = [
-  "DATABASE_URL",
-  "POSTGRES_URL",
-  "POSTGRES_PRISMA_URL",
-  "AISLE_DATABASE_URL",
-  "NEON_DATABASE_URL",
-  "STORAGE_URL",
-];
+import { databaseUrl } from "@/lib/db/env";
 
 let warned = false;
 
@@ -20,14 +12,14 @@ let warned = false;
  * local SQLite file and stays a private install, so the team desks there are
  * not locked. Set AISLE_HOSTED=0 to force a local install.
  *
- * Kept free of imports so the auth layer (seeded desks) and the billing layer
- * (unlimited desks) can share it without an import cycle.
+ * Imports only the import-free db/env.ts, so the auth layer (seeded desks) and
+ * the billing layer (unlimited desks) can share it without an import cycle.
  */
 export function isHosted() {
   if (process.env.AISLE_HOSTED === "0") return false;
   if (process.env.VERCEL === "1" || process.env.AISLE_HOSTED === "1") return true;
   if (process.env.NODE_ENV !== "production") return false;
-  const postgres = POSTGRES_VARS.some((name) => /^postgres(ql)?:\/\//.test(process.env[name] ?? ""));
+  const postgres = databaseUrl() !== null;
   if (!postgres && !warned) {
     warned = true;
     console.warn("[aisle] production build on local SQLite: treating this as a private install. Set AISLE_HOSTED=1 if it is on the internet.");

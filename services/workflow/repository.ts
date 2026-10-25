@@ -6,14 +6,16 @@ import path from "node:path";
 import { randomUUID, createHash } from "node:crypto";
 import { blankCampaign } from "../../src/lib/seed";
 import { attachableRecommendation } from "../../src/lib/runtime/defaults";
+import { isArchived } from "../../src/lib/campaign-lifecycle";
 import { assertTransition, parseCommand, WorkflowError } from "../../src/lib/workflow/commands";
-import type { Campaign, CampaignInput } from "../../src/lib/types";
+import { founderCollectorOverrides, founderInput } from "../../src/lib/workflow/founder-input";
+import type { Campaign } from "../../src/lib/types";
 import type { Command, EngineResult } from "../../src/lib/runtime/types";
 import type { WorkflowJob, WorkflowSubmission } from "../../src/lib/workflow/types";
 import { applyStudioMedia, type StudioMediaUpdate } from "../../src/lib/media/persistence";
 
-type Row = { id: string; user_id: string; campaign_id: string; command: string; payload: string; next_command: string; status: WorkflowJob["status"]; created_at: string; updated_at: string; message: string; result: string | null; worker: string | null; pause_requested: number; revision: number };
-export type ClaimedJob = Row & { input: WorkflowSubmission; nextCommand: Command };
+type Row = { id: string; user_id: string; campaign_id: string; request_hash: string; command: string; payload: string; next_command: string; status: WorkflowJob["status"]; created_at: string; updated_at: string; message: string; result: string | null; worker: string | null; pause_requested: number; revision: number };
+type ClaimedJob = Row & { input: WorkflowSubmission; nextCommand: Command };
 
 /** A local, durable queue shared by the API and worker processes (WAL + atomic claims). */
 export class WorkflowRepository {
@@ -45,6 +47,9 @@ export class WorkflowRepository {
     if (!row) throw new WorkflowError("Workflow job not found.", 404);
     return row;
   }
+  private activeJob(user: string, campaignId: string) {
+    return this.db.prepare("select id from workflow_jobs where user_id=? and campaign_id=? and status in ('queued','running')").get(user, campaignId) as { id: string } | undefined;
+  }
   private public(row: Row): WorkflowJob {
     return { id: row.id, campaignId: row.campaign_id, command: row.command, status: row.status, createdAt: row.created_at, updatedAt: row.updated_at, message: row.message, result: row.result ? JSON.parse(row.result) : null };
   }
@@ -61,7 +66,7 @@ export class WorkflowRepository {
     return this.transaction(() => {
       const current = this.campaign(user, id);
       if (!current) throw new WorkflowError("Campaign not found.", 404);
-      const active = this.db.prepare("select id from workflow_jobs where user_id=? and campaign_id=? and status in ('queued','running')").get(user, id);
+      const active = this.activeJob(user, id);
       if (active) throw new WorkflowError("Wait for the active workflow before changing media.", 409);
       const next = applyStudioMedia(current, update);
       this.db.prepare("update workflow_campaigns set snapshot=?,revision=revision+1 where user_id=? and campaign_id=?").run(JSON.stringify(next), user, id);
@@ -76,11 +81,10 @@ export class WorkflowRepository {
     return this.transaction(() => {
       const duplicate = this.db.prepare("select * from workflow_jobs where user_id=? and request_key=?").get(user, key) as Row | undefined;
       if (duplicate) {
-        const recorded = this.db.prepare("select request_hash from workflow_jobs where id=?").get(duplicate.id);
-        if (recorded?.request_hash !== hash) throw new WorkflowError("Idempotency key was already used for another command.", 409);
+        if (duplicate.request_hash !== hash) throw new WorkflowError("Idempotency key was already used for another command.", 409);
         return this.public(duplicate);
       }
-      const active = this.db.prepare("select * from workflow_jobs where user_id=? and campaign_id=? and status in ('queued','running')").get(user, input.campaign.id) as Row | undefined;
+      const active = this.activeJob(user, input.campaign.id);
       if (active) {
         if (command.type === "PAUSE") {
           this.db.prepare("update workflow_jobs set pause_requested=1, message=? where id=?").run("Pause requested; waiting for the current agent step to finish.", active.id);
@@ -89,27 +93,17 @@ export class WorkflowRepository {
         throw new WorkflowError("This campaign already has an active job. Open Workflow operations to see its progress.", 409);
       }
       let current = this.campaign(user, input.campaign.id);
-      if (typeof current?.archivedAt === "string" && current.archivedAt && command.type !== "PAUSE") {
+      // The trash lives on the workspace document, which the API loads on the
+      // server and passes in as `campaigns`; the durable snapshot never has it.
+      const inWorkspace = input.campaigns.find((item) => item?.id === input.campaign.id);
+      if ((isArchived(current ?? {}) || isArchived(inWorkspace ?? {})) && command.type !== "PAUSE") {
         throw new WorkflowError("This campaign is in the trash. Restore it before the agents can continue.", 409);
       }
       if (!current || (current.status === "draft" && command.type === "START")) {
         if (command.type !== "START" || input.campaign.status !== "draft") throw new WorkflowError("Start a new draft to enter the durable workflow. Existing legacy results are not silently imported.", 409);
         // Only founder inputs cross the trust boundary. Never accept browser approvals, logs or results.
         const raw = input.campaign;
-        const fields: CampaignInput = {
-          name: raw.name,
-          product: raw.product,
-          category: raw.category,
-          targetAudience: raw.targetAudience,
-          objective: raw.objective,
-          budget: raw.budget,
-          channels: raw.channels,
-          startDate: raw.startDate,
-          endDate: raw.endDate,
-          country: raw.country,
-          notes: typeof raw.notes === "string" ? raw.notes : "",
-          spendCapUsd: raw.spendCapUsd,
-        };
+        const fields = founderInput(raw);
         const retail = raw.internalDataAuthorised === true && raw.retailUpload !== undefined ? retailUploadSchema.safeParse(raw.retailUpload) : null;
         if (retail && !retail.success) throw new WorkflowError("Invalid aggregate retail upload.");
         const prior = attachableRecommendation(this.campaigns(user));
@@ -135,10 +129,7 @@ export class WorkflowRepository {
         }
       }
       if (Number.isFinite(input.campaign.spendCapUsd) && input.campaign.spendCapUsd! > 0) current.spendCapUsd = input.campaign.spendCapUsd;
-      if (command.type === "COLLECT_FEEDBACK") {
-        const valid = ["ok", "no_data", "not_authorised", "late", "incomplete", "excluded"];
-        current.collectorOverrides = Object.fromEntries(Object.entries(input.campaign.collectorOverrides || {}).filter(([channel, status]) => current!.channels.includes(channel as Campaign["channels"][number]) && valid.includes(status)));
-      }
+      if (command.type === "COLLECT_FEEDBACK") current.collectorOverrides = founderCollectorOverrides(current, input.campaign.collectorOverrides);
       assertTransition(current, command);
       this.db.prepare("update workflow_campaigns set snapshot=? where user_id=? and campaign_id=?").run(JSON.stringify(current), user, current.id);
       const id = randomUUID(), at = new Date().toISOString();
@@ -148,7 +139,7 @@ export class WorkflowRepository {
       return this.get(user, id);
     });
   }
-  touchWorker(id: string) { this.db.prepare("insert into workflow_workers(id,seen) values(?,?) on conflict(id) do update set seen=excluded.seen").run(id, Date.now()); }
+  private touchWorker(id: string) { this.db.prepare("insert into workflow_workers(id,seen) values(?,?) on conflict(id) do update set seen=excluded.seen").run(id, Date.now()); }
   workerStatus() {
     const seen = Number(this.db.prepare("select max(seen) as seen from workflow_workers").get()?.seen || 0);
     return { online: Date.now() - seen < 30_000, lastSeen: seen ? new Date(seen).toISOString() : null };
@@ -193,7 +184,7 @@ export class WorkflowRepository {
       if (!["failed", "interrupted"].includes(row.status)) throw new WorkflowError("Only failed or interrupted jobs can be retried.", 409);
       const current = this.db.prepare("select revision from workflow_campaigns where user_id=? and campaign_id=?").get(user, row.campaign_id);
       if (current?.revision !== row.revision) throw new WorkflowError("The campaign changed after this job; submit a new command instead.", 409);
-      const active = this.db.prepare("select id from workflow_jobs where user_id=? and campaign_id=? and status in ('queued','running')").get(user, row.campaign_id);
+      const active = this.activeJob(user, row.campaign_id);
       if (active) throw new WorkflowError("This campaign already has an active job.", 409);
       this.db.prepare("update workflow_jobs set status='queued',worker=null,pause_requested=0,message='Explicit retry queued.',updated_at=? where id=?").run(new Date().toISOString(), id);
       return this.get(user, id);

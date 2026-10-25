@@ -7,8 +7,7 @@ import Link from "next/link";
 import { Empty, PageHeader, StatusBadge } from "@/components/ui";
 import { channelLabel } from "@/lib/status";
 import { formatDate } from "@/lib/ids";
-import { isArchived } from "@/lib/campaign-lifecycle";
-import { useAisle } from "@/lib/store";
+import { useActiveCampaigns, useAisle } from "@/lib/store";
 
 const SOCIALS: { name: string; icon: ComponentType<{ size?: number }>; tile: string }[] = [
   {
@@ -28,7 +27,7 @@ const WEBSITE_ACTIONS: { label: string; icon: ComponentType<{ size?: number; cla
 
 export default function SchedulePage() {
   const [notice, setNotice] = useState<string | null>(null);
-  const campaigns = useAisle((s) => s.campaigns).filter((campaign) => !isArchived(campaign));
+  const campaigns = useActiveCampaigns();
   const resolveConflict = useAisle((s) => s.resolveConflict);
   const items = campaigns
     .flatMap((c) => c.schedule.map((s) => ({ ...s, campaign: c.name, campaignId: c.id, cStatus: c.status })))

@@ -10,33 +10,14 @@
  */
 
 import assert from "node:assert/strict";
-import { existsSync, rmSync } from "node:fs";
-import { register } from "node:module";
+import "./service-loader.mjs";
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 const root = process.cwd();
-const loader = `
-import { pathToFileURL, fileURLToPath } from "node:url";
-import { existsSync } from "node:fs";
-import path from "node:path";
-const root = ${JSON.stringify(root)};
-function withTs(base) {
-  for (const c of [base + ".ts", base + ".tsx", path.join(base, "index.ts")]) if (existsSync(c)) return c;
-  return base;
-}
-export async function resolve(specifier, context, next) {
-  try { return await next(specifier, context); }
-  catch (error) {
-    if (specifier.startsWith("@/")) return next(pathToFileURL(withTs(path.join(root, "src", specifier.slice(2)))).href, context);
-    if (specifier.startsWith(".") && context.parentURL) {
-      const dir = path.dirname(fileURLToPath(context.parentURL));
-      return next(pathToFileURL(withTs(path.resolve(dir, specifier))).href, context);
-    }
-    throw error;
-  }
-}`;
-register(`data:text/javascript,${encodeURIComponent(loader)}`, pathToFileURL("./"));
 
 /* Use a throwaway database so running the suite is never destructive. */
 const dbFile = path.join(root, "data", "auth-suite.db");
@@ -57,6 +38,7 @@ const password = await load<typeof import("../src/lib/auth/password")>("lib/auth
 const seeds = await load<typeof import("../src/lib/auth/seed-accounts")>("lib/auth/seed-accounts.ts");
 const session = await load<typeof import("../src/lib/auth/session")>("lib/auth/session.ts");
 const storage = await load<typeof import("../src/lib/auth/storage-errors")>("lib/auth/storage-errors.ts");
+const nextPath = await load<typeof import("../src/lib/auth/next-path")>("lib/auth/next-path.ts");
 
 const results: { name: string; detail: string }[] = [];
 const pass = (name: string, detail: string) => results.push({ name, detail });
@@ -85,14 +67,36 @@ process.env.AUTH_SECRET = process.env.AUTH_SECRET || "suite-secret-not-for-produ
   assert.ok(alex, "the team desks must exist on a fresh database");
   assert.equal(alex.role, "dev");
   assert.ok(
-    await password.verifyPassword(seeds.SEED_PASSWORD, alex.passwordHash),
+    await password.verifyPassword(seeds.seedPassword()!, alex.passwordHash),
     "a seeded desk must accept the documented password",
   );
   assert.equal(await users.countUsers(), seeds.SEED_ACCOUNTS.length);
   pass(
     "seeded desks sign in with the published password",
-    `${seeds.SEED_ACCOUNTS.length} desks · password "${seeds.SEED_PASSWORD}"`,
+    `${seeds.SEED_ACCOUNTS.length} desks · password "${seeds.seedPassword()}"`,
   );
+}
+
+{
+  // A fresh hosted database: the demo password is published, so no desk may be
+  // created with it. A child process gets its own copy of the seed-once flag.
+  const seedCount = (env: Record<string, string>) => {
+    const dir = mkdtempSync(path.join(tmpdir(), "aisle-seed-"));
+    const script = `const u = await import(${JSON.stringify(pathToFileURL(path.join(root, "src/lib/auth/users.ts")).href)});
+      await u.findUserByEmail("alex@aisle.website"); console.log("COUNT=" + await u.countUsers());`;
+    const child = spawnSync(process.execPath, ["--import", "./scripts/service-loader.mjs", "--experimental-strip-types", "--no-warnings", "--input-type=module", "-e", script], {
+      cwd: root,
+      env: { ...process.env, AISLE_SEED_PASSWORD: "", ...env, AISLE_DB_FILE: path.join(dir, "seed.db") },
+      encoding: "utf8",
+    });
+    rmSync(dir, { recursive: true, force: true });
+    const match = /COUNT=(\d+)/.exec(child.stdout);
+    assert.ok(match, child.stderr || child.stdout);
+    return Number(match[1]);
+  };
+  assert.equal(seedCount({ VERCEL: "1" }), 0, "hosted without AISLE_SEED_PASSWORD seeds no desks");
+  assert.equal(seedCount({ VERCEL: "1", AISLE_SEED_PASSWORD: "owner-chosen-pass-1" }), seeds.SEED_ACCOUNTS.length);
+  pass("seeded desks — a hosted install seeds none without AISLE_SEED_PASSWORD", "fresh database in a child process");
 }
 
 /* -------------------------------------------------------------- signup ---- */
@@ -147,6 +151,37 @@ let createdId = "";
   const tampered = `${token.slice(0, -3)}abc`;
   assert.equal(await session.readSession(tampered), null, "a tampered token must not verify");
   pass("session — signed cookie round trip, tampering rejected", "HS256 via AUTH_SECRET");
+}
+
+{
+  // Login signs the cookie with users.session_version and getCurrentUser
+  // compares it with the row, so the row must carry the same number.
+  const handle = await db.getDatabase();
+  const user = await users.findUserByEmail(email);
+  assert.equal(user!.sessionVersion, 0);
+  await handle.execute("update users set session_version = 2 where id = $1", [user!.id]);
+  const bumped = await users.findUserById(user!.id);
+  assert.equal(bumped!.sessionVersion, 2, "the column is read into the account");
+  const token = await session.signSession({ ...users.publicUser(bumped!), sessionVersion: bumped!.sessionVersion });
+  assert.equal((await session.readSession(token))!.sessionVersion, bumped!.sessionVersion, "a fresh cookie matches the row");
+  await handle.execute("update users set session_version = 0 where id = $1", [user!.id]);
+  pass("session — version read from the row, so bumped accounts can still sign in", "users.session_version");
+}
+
+/* ------------------------------------------------------ sign-in redirect --- */
+
+{
+  // Browsers read a backslash, or a tab or newline after the first slash, as
+  // "//", which would send a fresh session to another site.
+  const refused = ["//evil.com", "/\\evil.com", "/\tevil.com", "/\t/evil.com", "/\n/evil.com", "https://evil.com", "javascript:alert(1)", "/.//evil.com", "/%2e//evil.com", "/a/..//evil.com", "/login", "/login?next=/x", "/signup", "", null];
+  for (const value of refused) assert.equal(nextPath.safeNextPath(value), "/", JSON.stringify(value));
+  assert.equal(nextPath.safeNextPath("/campaigns/7?tab=log#top"), "/campaigns/7?tab=log#top");
+  assert.equal(nextPath.safeNextPath("/a/../studio"), "/studio");
+  for (const value of [...refused, "/%2F%2Fevil.com", "/loginx"]) {
+    const out = nextPath.safeNextPath(value);
+    assert.equal(new URL(out, "https://aisle.website").origin, "https://aisle.website", JSON.stringify(value));
+  }
+  pass("sign-in redirect — only same-site paths survive ?next=", `${refused.length} unsafe or looping values fall back to /`);
 }
 
 /* ------------------------------------------------------------ documents --- */

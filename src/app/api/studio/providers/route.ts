@@ -1,7 +1,6 @@
 import { getCurrentUser } from "@/lib/auth/current";
 import { PROVIDERS } from "@/lib/media/catalog";
 import { providerAvailability } from "@/lib/media/providers";
-import type { ProviderId } from "@/lib/media/pr2-types";
 
 export const runtime = "nodejs";
 
@@ -15,12 +14,7 @@ export async function GET() {
   if (!user) return Response.json({ error: "Sign in first." }, { status: 401 });
   return Response.json(
     {
-      providers: await Promise.all(
-        PROVIDERS.map(async (p) => ({
-          ...providerAvailability(p.id as ProviderId),
-          name: p.name,
-        })),
-      ),
+      providers: PROVIDERS.map((p) => ({ ...providerAvailability(p.id), name: p.name })),
     },
     { headers: { "Cache-Control": "private, no-store" } },
   );

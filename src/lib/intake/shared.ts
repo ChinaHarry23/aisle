@@ -11,8 +11,8 @@ import type { ValidationProblem } from "@/lib/runtime/intake";
 import type { AgentEvent, Channel, Country } from "@/lib/types";
 
 /** Provenance for a brief field. Kept here so Cindy's CampaignInput stays unchanged. */
-export type FieldSource = "founder" | "assistant";
-export type IntakeFieldSources = Partial<
+type FieldSource = "founder" | "assistant";
+type IntakeFieldSources = Partial<
   Record<
     | "name"
     | "product"
@@ -61,7 +61,6 @@ export type IntakeTurnOutput = {
   problems: ValidationProblem[];
   missingField:
     | "product"
-    | "category"
     | "targetAudience"
     | "objective"
     | "budget"
