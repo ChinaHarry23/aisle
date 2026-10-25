@@ -1,3 +1,4 @@
+import type { SavedInsight } from "../insights";
 import type { BrandProfile, Campaign } from "../types";
 import type { WorkspaceSettings } from "../settings";
 import type { Command, EngineResult } from "../runtime/types";
@@ -19,4 +20,6 @@ export type WorkflowSubmission = {
   brand: BrandProfile;
   settings: WorkspaceSettings;
   command: Command;
+  /** Library the founder picks from. Absent means this brief carries no insight. */
+  savedInsights?: SavedInsight[];
 };

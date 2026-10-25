@@ -24,6 +24,7 @@ import { channelLabel } from "@/lib/status";
 import { isArchived } from "@/lib/campaign-lifecycle";
 import { campaignCanAdvance } from "@/lib/runtime/resume";
 import { TrendReport } from '@/components/trend/TrendReport';
+import { SaveInsightsPanel } from "@/components/insights/FeedbackInsights";
 import { useAisle } from "@/lib/store";
 
 const tabs = [
@@ -39,6 +40,15 @@ const tabs = [
 ] as const;
 
 type Tab = (typeof tabs)[number];
+
+function feedbackSource(campaigns: { id: string; name: string }[], from: string | null): string {
+  if (!from) return "";
+  const names = from
+    .split(",")
+    .map((id) => campaigns.find((item) => item.id === id.trim())?.name)
+    .filter((name): name is string => Boolean(name));
+  return names.length > 0 ? `From ${names.join(", ")}. ` : "";
+}
 
 /** Plain-language names; the ids stay stable so nothing else has to change. */
 const tabLabels: Record<Tab, string> = {
@@ -83,7 +93,8 @@ function CampaignWorkspace() {
   const searchParams = useSearchParams();
   const params = useParams<{ id: string }>();
   const id = params.id;
-  const campaign = useAisle((s) => s.campaigns.find((c) => c.id === id));
+  const campaigns = useAisle((s) => s.campaigns);
+  const campaign = campaigns.find((c) => c.id === id);
   const brand = useAisle((s) => s.brand);
   const launch = useAisle((s) => s.launch);
   const continueAgents = useAisle((s) => s.continueAgents);
@@ -353,8 +364,12 @@ function CampaignWorkspace() {
                 }
               />
               <Row
-                k="Prior performance"
-                v={campaign.sharedContext.previousPerformanceNote ?? "No previous cycle fed in."}
+                k="Chosen feedback"
+                v={
+                  campaign.sharedContext.previousPerformanceNote
+                    ? `${feedbackSource(campaigns, campaign.sharedContext.previousPerformanceFrom)}${campaign.sharedContext.previousPerformanceNote}`
+                    : "None. Insights are added only when you tick them on a new campaign."
+                }
               />
               <Row
                 k="Your notes"
@@ -775,8 +790,24 @@ function CampaignWorkspace() {
                     </p>
                     <p className="mt-1">
                       {campaign.recommendationDecision.action === "discarded"
-                        ? "Discarded — nothing will be attached to a later brief."
+                        ? "Discarded. This advice is not offered for a later campaign."
                         : (campaign.recommendationDecision.text ?? "")}
+                    </p>
+                    <SaveInsightsPanel campaignId={campaign.id} />
+                  </div>
+                ) : campaign.performanceReport.recommendationUnsupported ? (
+                  <div className="mt-4">
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void decideRecommendation(campaign.id, "discarded")}
+                      className="rounded-full border border-signal px-4 py-2 text-sm text-signal disabled:opacity-50"
+                    >
+                      Discard
+                    </button>
+                    <p className="mt-2 text-xs text-mute">
+                      This summary cannot be accepted or saved as advice for a later campaign.
+                      Discard it, or leave it as the record of what was collected.
                     </p>
                   </div>
                 ) : (
@@ -818,8 +849,8 @@ function CampaignWorkspace() {
                       </button>
                     </div>
                     <p className="mt-2 text-xs text-mute">
-                      An accepted or edited note is added to your next campaign. A discarded one
-                      never is.
+                      Accepting or editing keeps this advice so you can save it. It is not added to
+                      the next campaign unless you tick it when you start one. Discarding keeps it out.
                     </p>
                   </div>
                 )}

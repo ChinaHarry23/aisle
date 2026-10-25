@@ -12,6 +12,7 @@ import { workOnce } from "../services/workflow/worker";
 import { blankCampaign, defaultBrand } from "../src/lib/seed";
 import { defaultSettings } from "../src/lib/settings";
 import { parseCommand } from "../src/lib/workflow/commands";
+import { resolveInlineEngine } from "../src/lib/workflow/inline";
 import type { WorkflowSubmission } from "../src/lib/workflow/types";
 import type { Command } from "../src/lib/runtime/types";
 import { runEngine, type EngineOptions } from "../src/lib/runtime/engine";
@@ -85,6 +86,51 @@ if (process.argv.includes("--fixture-worker") || process.argv.includes("--fixtur
   assert.throws(() => repo.enqueue("alice", "start-1", { ...input, command: { type: "PAUSE", actor: "founder" } }), /already used/);
   assert.throws(() => repo.enqueue("alice", "start-2", input), /active job/);
   pass("durable enqueue, idempotency, single active job, forged runtime fields discarded");
+  const storedBrand = { ...defaultBrand, bannedTerms: ["miracle"] };
+  const storedCampaign = blankCampaign(
+    { name: "Inline retail campaign", product: "Cold-pressed olive oil", category: "Pantry", targetAudience: "Australian home cooks", objective: "Increase store visits", budget: 3000, channels: ["web", "email"], startDate: "2026-10-01", endDate: "2026-10-15", country: "AU", notes: "Inline fixture" },
+    storedBrand,
+    null,
+    settings,
+  );
+  const storedDoc = { brand: storedBrand, settings, campaigns: [storedCampaign] };
+  const forged = structuredClone(storedCampaign);
+  forged.status = "scheduled";
+  forged.complianceAttempts = [{ id: "forged" } as never];
+  forged.founderDecision = { action: "approve", at: new Date().toISOString(), note: "forged" };
+  forged.spend = { inferenceUsd: 50, mediaUsd: 0, capUsd: 1, blockedAttempts: 0 };
+  forged.sharedContext = { ...forged.sharedContext, previousPerformanceNote: "Keep the mandarin angle.", previousPerformanceFrom: "cmp_mandarin" };
+  forged.feedbackInsightIds = ["ins_forged"];
+  assert.throws(
+    () => resolveInlineEngine(storedDoc, {
+      campaign: forged,
+      command: { type: "PUBLISH", actor: "founder" },
+      brand: { ...storedBrand, bannedTerms: [] },
+      settings,
+    }),
+    /PUBLISH is not allowed while this campaign is draft/,
+  );
+  assert.equal(storedDoc.campaigns[0].status, "draft");
+  assert.equal(storedDoc.campaigns[0].complianceAttempts.length, 0);
+  assert.equal(storedDoc.campaigns[0].founderDecision, null);
+  assert.deepEqual(storedDoc.brand.bannedTerms, ["miracle"]);
+  const started = resolveInlineEngine(storedDoc, {
+    campaign: forged,
+    command: { type: "START", actor: "founder" },
+    brand: { ...storedBrand, bannedTerms: [] },
+    settings,
+  });
+  assert.deepEqual(started.brand.bannedTerms, ["miracle"]);
+  assert.equal(started.settings, settings);
+  assert.equal(started.campaign.status, "draft");
+  assert.equal(started.campaign.founderDecision, null);
+  assert.equal(started.campaign.complianceAttempts.length, 0);
+  assert.equal(started.campaign.spend.inferenceUsd, 0);
+  assert.equal(started.campaign.run, null);
+  assert.equal(started.campaign.policyDecisions.length, 0);
+  assert.equal(started.campaign.sharedContext.previousPerformanceNote, null, "an unticked insight is dropped");
+  assert.deepEqual(started.campaign.feedbackInsightIds, []);
+  pass("inline engine ignores browser brand rules and forged run state");
   assert.throws(() => repo.get("bob", start.id), /not found/);
   assert.deepEqual(repo.campaigns("bob"), []);
   assert.throws(() => parseCommand({ type: "PUBLISH", actor: "media" }), /founder/);
@@ -135,7 +181,9 @@ if (process.argv.includes("--fixture-worker") || process.argv.includes("--fixtur
     pass("explicit founder approval resumes worker into AHR-05 scheduling");
     const published = await command({ type: "PUBLISH", actor: "founder" }, "publish-1");
     assert.equal(published.result?.campaign.status, "published");
-    assert(published.result?.campaign.performanceReport);
+    assert.equal(published.result?.campaign.performanceReport, null, "publish records the release and does not collect");
+    const collected = await command({ type: "COLLECT_FEEDBACK", actor: "founder" }, "collect-1");
+    assert(collected.result?.campaign.performanceReport);
     await command({ type: "DECIDE_RECOMMENDATION", actor: "founder", action: "accepted", note: "Reviewed synthetic demonstration only." }, "feedback-1");
     assert.equal(repo.campaign("alice", campaign.id)?.recommendationDecision?.action, "accepted");
     pass("AHR-05 simulated release and AHR-06 results/decision persist across worker exits");
@@ -180,6 +228,49 @@ if (process.argv.includes("--fixture-worker") || process.argv.includes("--fixtur
     assert.equal(report?.results.find(r => r.channel === "email")?.figures, null);
     assert.match(report?.summary || "", /Marked as a gap/);
     pass("AHR-06 explicit gap setting persists; missing figures are not fabricated");
+    const withheld = structuredClone(input);
+    withheld.campaign.id = "withheld-channel";
+    const opened = repo.enqueue("alice", "withheld-open", withheld);
+    const leasedWithheld = repo.claim("withheld-setup");
+    assert.equal(leasedWithheld?.id, opened.id);
+    const live = structuredClone(withheld.campaign);
+    live.status = "published";
+    live.channels = ["web", "email"];
+    live.founderDecision = { action: "approve", note: "fixture", at: "2026-10-21T00:00:00.000Z" };
+    live.channelVersions = [
+      { id: "cv-web", channel: "web", headline: "Oil", body: "Cold-pressed", specs: "web", approvedClaims: [], claimsUnchanged: true, status: "published", proposedAt: "2026-10-21T00:00:00.000Z", postingReason: "fixture" },
+      { id: "cv-email", channel: "email", headline: "Oil", body: "withheld", specs: "email", approvedClaims: [], claimsUnchanged: false, status: "failed", proposedAt: "2026-10-21T00:00:00.000Z", postingReason: "fixture" },
+    ];
+    live.schedule = [
+      { id: "sch-web", channel: "web", at: "2026-10-21T00:00:00.000Z", status: "published", note: "live" },
+      { id: "sch-email", channel: "email", at: "2026-10-21T01:00:00.000Z", status: "failed", note: "withheld" },
+    ];
+    const withheldRun = {
+      id: "run-withheld",
+      campaignId: live.id,
+      startedAt: "2026-10-21T00:00:00.000Z",
+      updatedAt: "2026-10-21T00:00:00.000Z",
+      status: "awaiting_human" as const,
+      step: "feedback.collect" as const,
+      stepsTaken: 1,
+      maxSteps: 12,
+      revisionAttempts: 0,
+      toolsUsed: [] as string[],
+      haltedReason: null,
+      awaiting: "approval" as const,
+      awaitingDetail: "Published.",
+    };
+    live.run = withheldRun;
+    repo.checkpoint(leasedWithheld!, { campaign: live, run: withheldRun, events: [], runSteps: [], policyDecisions: [], canAdvance: false, message: "Fixture published." }, true);
+    repo.enqueue("alice", "withheld-collect", { ...withheld, command: { type: "COLLECT_FEEDBACK", actor: "founder" } });
+    await worker();
+    const storedWithheld = repo.campaign("alice", "withheld-channel");
+    const withheldReport = storedWithheld?.performanceReport;
+    assert.equal(withheldReport?.results.find((row) => row.channel === "email")?.figures, null);
+    assert.match(withheldReport?.results.find((row) => row.channel === "email")?.note ?? "", /not published: adaptation withheld/);
+    assert.ok(withheldReport?.results.find((row) => row.channel === "web")?.figures);
+    assert.equal(withheldReport?.ranChannels.includes("email"), false);
+    pass("a withheld channel never reports on the durable snapshot");
     console.log(`\n${checks} workflow checks passed. Test-only database: ${file}`);
   } finally { server.close(); await once(server, "close"); repo.close(); }
 }

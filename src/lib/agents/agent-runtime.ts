@@ -156,7 +156,7 @@ export async function runSeatAgent<T>(options: {
         modelName: spoken,
         status: "ok",
         path: "live_model",
-        note: `${spoken} ran the ${options.seat} agent over ${model.usage.calls} model call(s), ceiling ${MAX_MODEL_CALLS_PER_RUN}${
+        note: `${spoken} ran aisle_${options.seat} over ${model.usage.calls} model call(s), ceiling ${MAX_MODEL_CALLS_PER_RUN}${
           used.length ? `; tools: ${used.join(", ")}` : "; no tools needed"
         }. ${model.usage.lastNote}`.trim(),
         // The real total for the run, so the campaign's spend meter books what the

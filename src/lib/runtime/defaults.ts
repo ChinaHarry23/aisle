@@ -8,6 +8,7 @@
  */
 
 import { isArchived } from "@/lib/campaign-lifecycle";
+import { extractableInsights, insightNoteLine } from "@/lib/insights";
 import type { Campaign } from "@/lib/types";
 import { defaultSpendCap } from "./budget";
 import type { Evidence, PolicyDecision, RunStep, ToolCall } from "./types";
@@ -76,13 +77,12 @@ export function withRuntimeDefaults(campaign: Campaign): Campaign {
     },
   };
 }
-
 /**
- * The recommendation that a *new* brief may carry forward.
+ * The latest accepted or edited recommendation a published campaign can prove.
  *
- * UC-06 step 12 is strict: only an accepted or edited note is attached, and a
- * discarded one is never attached. The note also carries the campaign it came
- * from so the Trend Analyser can cite it.
+ * A new brief does not attach this on its own. The founder ticks a saved
+ * insight, and `verifiedPreviousAdvice` uses this to reject a note the
+ * platform record does not support.
  */
 export function attachableRecommendation(
   campaigns: Campaign[],
@@ -102,12 +102,57 @@ export function attachableRecommendation(
   return null;
 }
 
+/** A labelled insight line is kept only when that campaign can still prove the sentence. */
+function verifiedSelectedInsights(
+  campaign: Campaign,
+  campaigns: Campaign[],
+): NonNullable<Campaign["sharedContext"]["previousAdvice"]> | null {
+  const note = campaign.sharedContext.previousPerformanceNote;
+  const from = campaign.sharedContext.previousPerformanceFrom;
+  if (!note || !from) return null;
+  const ids = [...new Set(from.split(",").map((id) => id.trim()).filter(Boolean))];
+  const lines = note.split("\n").filter((line) => line.length > 0);
+  if (!ids.length || !lines.length) return null;
+  const byId = new Map(campaigns.filter((item) => item.id !== campaign.id).map((item) => [item.id, item]));
+  const allowed = new Map<string, Campaign>();
+  for (const id of ids) {
+    const source = byId.get(id);
+    const decision = source?.recommendationDecision;
+    const report = source?.performanceReport;
+    if (!source || !decision || !report || report.recommendationUnsupported) return null;
+    if ((decision.action !== "accepted" && decision.action !== "edited") || !decision.at || !decision.author) return null;
+    for (const insight of extractableInsights(source)) allowed.set(insightNoteLine(insight), source);
+  }
+  const matched: Campaign[] = [];
+  for (const line of lines) {
+    const source = allowed.get(line);
+    if (!source) return null;
+    matched.push(source);
+  }
+  const used = new Set(matched.map((source) => source.id));
+  if (ids.some((id) => !used.has(id))) return null;
+  const first = matched[0];
+  const decision = first.recommendationDecision;
+  const report = first.performanceReport;
+  if (!decision || !report || (decision.action !== "accepted" && decision.action !== "edited")) return null;
+  return {
+    sourceCampaignId: ids.join(","),
+    wording: lines.join("\n"),
+    action: decision.action,
+    decidedAt: decision.at,
+    author: decision.author,
+    reportId: report.id,
+  };
+}
+
 /** Trend consumer checks the platform record, rather than trusting an attached
  * browser/legacy note. Absence never blocks a first campaign. */
 export function verifiedPreviousAdvice(c:Campaign,campaigns:Campaign[]):NonNullable<Campaign['sharedContext']['previousAdvice']>|null{
- const source=campaigns.find(v=>v.id===c.sharedContext.previousPerformanceFrom&&v.id!==c.id);
- if(!source)return null;
- const eligible=attachableRecommendation([source]),decision=source.recommendationDecision,report=source.performanceReport;
- if(!eligible||!decision||!report||eligible.note!==c.sharedContext.previousPerformanceNote)return null;
- return {sourceCampaignId:source.id,wording:eligible.note,action:decision.action as 'accepted'|'edited',decidedAt:decision.at,author:decision.author,reportId:report.id};
+ const from=c.sharedContext.previousPerformanceFrom;
+ const source=from&&!from.includes(',')?campaigns.find(v=>v.id===from&&v.id!==c.id):undefined;
+ if(source){
+  const eligible=attachableRecommendation([source]),decision=source.recommendationDecision,report=source.performanceReport;
+  if(eligible&&decision&&report&&eligible.note===c.sharedContext.previousPerformanceNote)return {sourceCampaignId:source.id,wording:eligible.note,action:decision.action as 'accepted'|'edited',decidedAt:decision.at,author:decision.author,reportId:report.id};
+ }
+ return verifiedSelectedInsights(c,campaigns);
 }

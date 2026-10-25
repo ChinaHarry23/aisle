@@ -192,33 +192,49 @@ spend.
   `deterministicRecommendation`, which derives keep/change points from the
   collected CTR spread and the recorded gaps.
 - `DECIDE_RECOMMENDATION` stores `accepted` / `edited` / `discarded` with the
-  author and time. `attachableRecommendation()` is the *only* path that attaches a
-  note to a new brief, and it skips discarded ones — UC-06 ext 10.a.
+  author and time. Saving those points puts them in the insight library.
+  `applySelectedFeedback()` attaches a note only when the founder ticks its id
+  on the new brief, and a discarded recommendation cannot be saved — UC-06 ext 10.a.
 
 ## Runtime, storage and the human-in-the-loop boundary
 
 ```
 browser (Zustand)                server (Next.js route)
-  │  campaign + command +  ────►  runEngine(ctx, campaign, command, settings, brand)
-  │  workspace snapshot            │
+  │  command + brief fields ───►  resolveInlineEngine(stored workspace, body)
+  │                                │  brand + settings = stored copy only
+  │                                │  START  = founder brief + stored brand
+  │                                │  later  = stored campaign, then assertTransition
+  │                                ▼
+  │                              runEngine(stored campaigns, trusted campaign, command)
   │                                ├── guard.ts       allow / block, recorded
   │                                ├── tools.ts       real HTTP, recorded
   │                                ├── decide.ts      LLM decision or deterministic
   │                                └── steps.ts       one unit of agent work
   ◄──── updated campaign, events, run steps, policy decisions ────┘
   │
-  └── persisted through /api/workspace into SQL, plus localStorage
+  └── the result is written back to the signed-in workspace in SQL
 ```
+
+Inline `/api/engine` does not trust the browser for brand rules or run state.
+`body.brand` and `body.settings` are ignored. A `START` keeps only the founder's
+brief (`CampaignInput`) and the brand already saved for that account, so a posted
+`status`, `log`, `complianceAttempts`, `founderDecision`, `policyDecisions`,
+`spend`, or `run` is discarded. Every later command loads the stored campaign for
+that signed-in user and runs `assertTransition` first. A campaign the browser
+claims is `scheduled`, when the stored copy was never approved, is refused with
+the transition message and the stored document is left unchanged. This is the
+same cut the durable worker makes in `WorkflowRepository.enqueue`.
 
 The engine runs on the server, so the LLM keys, the outbound HTTP tools and the
 policy layer stay off the client, and a run can continue while the tab is closed.
 The client's `pump()` loop only decides *when* to ask for more work; each `ADVANCE`
 is bounded server-side, so the loop cannot spin.
 
-The engine is a pure function of `(workspace, campaign, command)`. That is what
-makes `npm run bench` possible: the same code path the browser exercises is
-driven directly in Node, with a stub model and a stub ad renderer, in about a
-second.
+The engine is a pure function of `(workspace, campaign, command)` once that
+campaign has been taken from the stored workspace. That is what makes `npm run bench`
+possible: the same step functions the browser exercises are driven directly in
+Node, with a stub model and a stub ad renderer, in about a second. The inline
+trust boundary itself is covered by `npm run test:workflow`.
 
 ### "Advanced technologies" (Stage 2 criterion 4)
 
@@ -230,7 +246,7 @@ second.
 | Deterministic fallback so the demo never depends on a key | every decision has a rule-based path, and the run trace records which was used |
 | Evidence ledger with provenance and freshness | `Evidence`, `TrendFinding.basis`, `TrendBriefGap` |
 | Server-side orchestration with a bounded, resumable state machine | `runEngine`, `AgentRun.step`, `setRun` |
-| Optimistic-free single-writer workspace document | whole-document round trip through `/api/engine` |
+| Server-owned brand rules and run state | `resolveInlineEngine` — inline `/api/engine` ignores browser brand, settings, and forged progress |
 
 ## Storage
 

@@ -499,8 +499,8 @@ export async function runIntakeTurn(input: IntakeTurnInput): Promise<IntakeTurnO
     `Retailer: ${input.brand.retailerName} (${draft.country}).`,
     `Banned terms (never use): ${input.brand.bannedTerms.join(", ")}.`,
     input.priorRecommendation
-      ? `Accepted recommendation from prior campaign (${input.priorRecommendation.fromCampaignName}): ${input.priorRecommendation.note}`
-      : "No prior campaign recommendation attached.",
+      ? `Founder-selected insights from earlier campaigns (${input.priorRecommendation.fromCampaignName}). Use one only if it still fits this product. Do not copy another product's angle, claims or results:\n${input.priorRecommendation.note}`
+      : "No earlier-campaign insights were selected for this brief.",
     "",
     "Current draft state (budget, channels, dates, and country come ONLY from the founder):",
     JSON.stringify({

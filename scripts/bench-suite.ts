@@ -400,9 +400,10 @@ else process.env.AISLE_COMPLIANCE_RULES_FILE = bundledRules;
   const published = await s.run({ type: "PUBLISH", actor: "founder" });
   assert.equal(s.campaign.status, "published", `publish failed: ${published.message}`);
   assert.equal(s.campaign.run?.step, "feedback.collect");
+  assert.equal(published.campaign.performanceReport, null, "publish does not collect");
 
   const collected = await s.run({ type: "COLLECT_FEEDBACK", actor: "founder" });
-  const report = s.campaign.performanceReport;
+  const report = collected.campaign.performanceReport;
   assert.ok(report, `collection failed: ${collected.message}`);
   assert.ok(report.results.length === s.campaign.channels.length, "each channel must be reported on");
   assert.ok(
@@ -433,6 +434,95 @@ else process.env.AISLE_COMPLIANCE_RULES_FILE = bundledRules;
     "AHR-05 → AHR-06 — published, collected, gaps marked, decision stored",
     `${report.results.filter((x) => x.figures).length}/${report.results.length} channels reported, ${report.gaps.length} gap(s)`,
   );
+}
+
+{
+  let recommendationCalls = 0;
+  const counting: LlmStub = {
+    request: async (req) => {
+      if (req.agent === "media" && /Recommend what to keep/.test(req.prompt)) recommendationCalls += 1;
+      return scriptedLlm().request(req);
+    },
+  };
+  const s = await startAndClear({ channels: ["instagram", "web"], budget: 8000 }, {}, { llm: counting });
+  await approveAndAdvance(s, "Go.");
+  recommendationCalls = 0;
+  await s.run({ type: "PUBLISH", actor: "founder" });
+  assert.equal(s.campaign.performanceReport, null, "publish does not collect");
+  assert.equal(recommendationCalls, 0, "publish makes no Media Manager recommendation call");
+  await s.run({ type: "COLLECT_FEEDBACK", actor: "founder" });
+  assert.equal(recommendationCalls, 1, "collect runs exactly one Media Manager decision");
+  assert.equal(s.campaign.runSteps.filter((step) => step.step === "feedback.collect").length, 1);
+  await s.run({ type: "COLLECT_FEEDBACK", actor: "founder" });
+  assert.equal(recommendationCalls, 2, "a second collection asks once more");
+  assert.equal(
+    s.campaign.runSteps.filter((step) => step.step === "feedback.collect").length,
+    1,
+    "collecting twice replaces the collect step",
+  );
+  pass("publish does not collect", "collect runs exactly one Media Manager decision");
+}
+
+{
+  const s = await startAndClear({ channels: ["instagram", "web", "email"], budget: 12000 });
+  await approveAndAdvance(s, "Go.");
+  await s.run({ type: "PUBLISH", actor: "founder" });
+  assert.equal(s.campaign.status, "published");
+  const email = s.campaign.channelVersions.find((version) => version.channel === "email");
+  assert.ok(email, "email must have a channel version");
+  email.status = "failed";
+  s.campaign.schedule = s.campaign.schedule.map((item) =>
+    item.channel === "email" ? { ...item, status: "failed" } : item,
+  );
+  await s.run({ type: "COLLECT_FEEDBACK", actor: "founder" });
+  const report = s.campaign.performanceReport;
+  assert.ok(report);
+  const withheld = report.results.find((row) => row.channel === "email");
+  assert.equal(withheld?.figures, null);
+  assert.match(withheld?.note ?? "", /not published: adaptation withheld/);
+  assert.equal(report.ranChannels.includes("email"), false);
+  assert.equal(report.summary.includes("Best CTR on email"), false);
+  assert.ok(report.results.some((row) => row.channel !== "email" && row.figures));
+  pass("a withheld channel never reports", "email excluded from totals and the best-CTR line");
+}
+
+{
+  const s = await startAndClear({ channels: ["instagram", "web"], budget: 9000 });
+  await approveAndAdvance(s, "Go.");
+  s.campaign.collectorOverrides = { instagram: "no_data", web: "late" };
+  await s.run({ type: "PUBLISH", actor: "founder" });
+  await s.run({ type: "COLLECT_FEEDBACK", actor: "founder" });
+  const report = s.campaign.performanceReport;
+  assert.ok(report);
+  assert.equal(report.totals, null);
+  assert.equal(report.recommendationUnsupported, true);
+  assert.equal(report.recommendationText, null);
+  const accepted = await s.run({
+    type: "DECIDE_RECOMMENDATION",
+    actor: "founder",
+    action: "accepted",
+    text: report.summary,
+  });
+  assert.equal(s.campaign.recommendationDecision, null);
+  assert.match(accepted.message, /cannot be accepted/);
+  s.campaign.performanceReport = report;
+  s.campaign.recommendationDecision = {
+    action: "accepted",
+    text: report.summary,
+    note: "",
+    at: new Date().toISOString(),
+    author: "Human Founder",
+    attachedToCampaignId: null,
+  };
+  const { attachableRecommendation } = (await import(
+    pathToFileURL(path.join(root, "src/lib/runtime/defaults.ts")).href
+  )) as typeof import("../src/lib/runtime/defaults");
+  const { extractableInsights } = (await import(
+    pathToFileURL(path.join(root, "src/lib/insights.ts")).href
+  )) as typeof import("../src/lib/insights");
+  assert.equal(attachableRecommendation([s.campaign]), null);
+  assert.equal(extractableInsights(s.campaign).length, 0);
+  pass("an unsupported recommendation is not attached", "accept refused; summary stays off the next brief");
 }
 
 /* ----------------------------------- UC-05 ext 6.a — publish retry/reconcile */
@@ -746,8 +836,8 @@ else process.env.AISLE_COMPLIANCE_RULES_FILE = bundledRules;
   // The outcomes are declared rather than left to a modelled edge case, so this
   // scenario tests the requirement instead of a random campaign id.
   const s = await startAndClear(
-    { channels: ["print", "digital_signage"], budget: 6000 },
-    { collectorOverrides: { print: "not_authorised", digital_signage: "late" } },
+    { channels: ["instagram", "web"], budget: 6000 },
+    { collectorOverrides: { instagram: "not_authorised", web: "late" } },
   );
   await approveAndAdvance(s, "Go.");
   if (s.campaign.status === "scheduled") {
@@ -778,12 +868,15 @@ else process.env.AISLE_COMPLIANCE_RULES_FILE = bundledRules;
 /* ---------------------------------------------- UC-06 step 12 — attachment -- */
 
 {
-  const { attachableRecommendation } = (await import(
-    pathToFileURL(path.join(root, "src/lib/runtime/defaults.ts")).href
-  )) as typeof import("../src/lib/runtime/defaults");
+  const { applySelectedFeedback, extractableInsights } = (await import(
+    pathToFileURL(path.join(root, "src/lib/insights.ts")).href
+  )) as typeof import("../src/lib/insights");
   const c = blankCampaign(baseInput, defaultBrand, null, settings);
   const withAccepted = {
     ...c,
+    id: "cmp_commute",
+    name: "Commuter parka",
+    product: "Parka",
     status: "published" as const,
     performanceReport: {
       id: "pr1",
@@ -794,7 +887,9 @@ else process.env.AISLE_COMPLIANCE_RULES_FILE = bundledRules;
       gaps: [],
       totals: null,
       summary: "",
-      recommendationPoints: [],
+      recommendationPoints: [
+        { id: "rp1", verdict: "keep" as const, area: "creative_angle" as const, text: "Keep the commuting angle.", evidenceIds: [] },
+      ],
       recommendationText: "Keep the commuting angle.",
       recommendationUnsupported: false,
     },
@@ -807,14 +902,28 @@ else process.env.AISLE_COMPLIANCE_RULES_FILE = bundledRules;
       attachedToCampaignId: null,
     },
   };
-  const attached = attachableRecommendation([withAccepted]);
-  assert.equal(attached?.note, "Keep the commuting angle.");
+  const saved = extractableInsights(withAccepted);
+  assert.equal(saved.length, 1);
+  assert.equal(saved[0]?.text, "Keep the commuting angle.");
+  assert.equal(extractableInsights({
+    ...withAccepted,
+    recommendationDecision: { ...withAccepted.recommendationDecision, action: "discarded" },
+  }).length, 0, "a discarded recommendation is not offered again");
 
-  const discarded = attachableRecommendation([
-    { ...withAccepted, recommendationDecision: { ...withAccepted.recommendationDecision, action: "discarded" } },
-  ]);
-  assert.equal(discarded, null, "a discarded recommendation must never be attached (UC-06 ext 10.a)");
-  pass("UC-06 step 12 / ext 10.a — only accepted or edited notes travel forward", "discard respected");
+  const library = saved.map((insight) => ({ ...insight, id: "ins_commute", savedAt: new Date().toISOString() }));
+  const next = blankCampaign(
+    { ...baseInput, product: "Chicken breast fillet", name: "Chicken week" },
+    defaultBrand,
+    null,
+    settings,
+  );
+  const untouched = applySelectedFeedback(next, library, [], [withAccepted]);
+  assert.equal(untouched.sharedContext.previousPerformanceNote, null, "a new brief carries nothing until the founder ticks an insight");
+  const chosen = applySelectedFeedback(next, library, ["ins_commute"], [withAccepted]);
+  assert.match(chosen.sharedContext.previousPerformanceNote ?? "", /Keep the commuting angle\./);
+  assert.match(chosen.sharedContext.previousPerformanceNote ?? "", /Parka/);
+  assert.equal(chosen.sharedContext.previousPerformanceFrom, "cmp_commute");
+  pass("UC-06 step 12 / ext 10.a — only a ticked, accepted insight travels forward", "discard respected; nothing is auto-attached");
 }
 
 /* ------------------------------------------------------------------ report -- */

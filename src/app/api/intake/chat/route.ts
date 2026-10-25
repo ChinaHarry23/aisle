@@ -8,7 +8,7 @@ import {
   type IntakeChatMessage,
   type IntakeDraftState,
 } from "@/lib/intake/assistant";
-import { attachableRecommendation } from "@/lib/runtime/defaults";
+import { composeSelectedFeedback, resolveInsights } from "@/lib/insights";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,6 +32,8 @@ function checkRateLimit(userId: string, now = Date.now()): boolean {
 type Body = {
   messages?: unknown;
   draft?: Partial<IntakeDraftState>;
+  /** Insight-library ids the founder ticked for this brief. */
+  insightIds?: unknown;
 };
 
 export async function POST(request: Request) {
@@ -72,7 +74,15 @@ export async function POST(request: Request) {
 
   const billing = await billingForSession(user);
 
-  const priorRecommendation = attachableRecommendation(stored.campaigns);
+  const chosen = resolveInsights(stored.savedInsights ?? [], body?.insightIds, stored.campaigns);
+  const feedback = composeSelectedFeedback(chosen);
+  const priorRecommendation = feedback.note
+    ? {
+        note: feedback.note,
+        fromCampaignId: feedback.from ?? "",
+        fromCampaignName: [...new Set(chosen.map((insight) => insight.sourceCampaignName))].join(", "),
+      }
+    : null;
   const draft = normaliseDraft(body?.draft);
 
   const output = await runIntakeTurn({

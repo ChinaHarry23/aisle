@@ -12,7 +12,8 @@ import {
   type WorkspaceSettings,
 } from "./settings";
 import { sendCommand, type EngineResponse } from "./runtime/client";
-import { attachableRecommendation, withRuntimeDefaults } from "./runtime/defaults";
+import { applySelectedFeedback, extractableInsights, normaliseInsightText, normaliseSavedInsights, type SavedInsight } from "./insights";
+import { withRuntimeDefaults } from "./runtime/defaults";
 import { isArchived } from "./campaign-lifecycle";
 import { campaignCanAdvance, mergeCampaignLists } from "./runtime/resume";
 import type {
@@ -29,6 +30,7 @@ type Store = {
   campaigns: Campaign[];
   /** Permanently deleted campaign ids. They are not re-seeded. */
   retiredCampaignIds: string[];
+  savedInsights: SavedInsight[];
   settings: WorkspaceSettings;
   /** Set when a command failed to reach the bench. Cleared by the next success. */
   engineError: string | null;
@@ -39,6 +41,7 @@ type Store = {
     campaigns: Campaign[];
     settings: WorkspaceSettings;
     retiredCampaignIds?: string[];
+    savedInsights?: SavedInsight[];
   }) => void;
   updateBrand: (partial: Partial<BrandProfile>) => void;
   updateSettings: (partial: Partial<WorkspaceSettings>) => void;
@@ -48,7 +51,10 @@ type Store = {
   ) => number;
   toggleTrendSource: (id: string) => void;
   removeTrendSource: (id: string) => void;
-  createCampaign: (input: CampaignInput) => string;
+  createCampaign: (input: CampaignInput, insightIds?: string[]) => string;
+  /** Keep an accepted or edited recommendation's points for a later brief. */
+  saveInsights: (campaignId: string) => void;
+  removeInsight: (id: string) => void;
   /** Move a campaign off the board. Agents stop. It can be restored from the trash. */
   archiveCampaign: (id: string) => Promise<void>;
   restoreCampaign: (id: string) => Promise<void>;
@@ -223,6 +229,7 @@ export const useAisle = create<Store>()(
         brand: defaultBrand,
         campaigns: seedCampaigns(defaultBrand),
         retiredCampaignIds: [],
+        savedInsights: [],
         settings: defaultSettings(),
         engineError: null,
         busy: {},
@@ -240,6 +247,7 @@ export const useAisle = create<Store>()(
               .filter((campaign) => !retired.includes(campaign.id))
               .map(withRuntimeDefaults),
             retiredCampaignIds: retired,
+            savedInsights: normaliseSavedInsights(data.savedInsights),
             settings: withSettingsDefaults(data.settings),
             hydrated: true,
           });
@@ -303,21 +311,34 @@ export const useAisle = create<Store>()(
             },
           })),
 
-        createCampaign: (input) => {
+        createCampaign: (input, insightIds = []) => {
           const state = get();
-          // UC-06 step 12: only an accepted or edited recommendation travels
-          // forward, and it is attached without being rewritten.
-          const attachable = attachableRecommendation(state.campaigns);
-          const campaign = blankCampaign(
-            input,
-            state.brand,
-            attachable?.note ?? null,
-            state.settings,
-            attachable?.fromCampaignId ?? null,
+          const campaign = applySelectedFeedback(
+            blankCampaign(input, state.brand, null, state.settings, null),
+            state.savedInsights,
+            insightIds,
+            state.campaigns,
           );
           set((s) => ({ campaigns: [campaign, ...s.campaigns] }));
           return campaign.id;
         },
+        saveInsights: (campaignId) => {
+          const campaign = get().campaigns.find((item) => item.id === campaignId);
+          if (!campaign) return;
+          const existing = get().savedInsights;
+          const known = new Set(
+            existing
+              .filter((insight) => insight.sourceCampaignId === campaignId)
+              .map((insight) => normaliseInsightText(insight.text)),
+          );
+          const savedAt = new Date().toISOString();
+          const fresh = extractableInsights(campaign)
+            .filter((insight) => !known.has(normaliseInsightText(insight.text)))
+            .map((insight) => ({ ...insight, id: uid("ins"), savedAt }));
+          if (fresh.length === 0) return;
+          set({ savedInsights: [...existing, ...fresh] });
+        },
+        removeInsight: (id) => set((s) => ({ savedInsights: s.savedInsights.filter((insight) => insight.id !== id) })),
 
         archiveCampaign: async (id) => {
           const current = get().campaigns.find((campaign) => campaign.id === id);
@@ -454,6 +475,7 @@ export const useAisle = create<Store>()(
         brand: s.brand,
         campaigns: s.campaigns,
         retiredCampaignIds: s.retiredCampaignIds,
+        savedInsights: s.savedInsights,
         settings: s.settings,
       }),
       merge: (persisted, current) => {
@@ -472,6 +494,7 @@ export const useAisle = create<Store>()(
           })(),
           campaigns: (p.campaigns ?? current.campaigns).map(withRuntimeDefaults),
           retiredCampaignIds: p.retiredCampaignIds ?? current.retiredCampaignIds,
+          savedInsights: normaliseSavedInsights(p.savedInsights),
           settings: withSettingsDefaults(
             p.settings ??
               (p.brand?.imageModelId || p.brand?.videoModelId

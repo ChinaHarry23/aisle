@@ -81,6 +81,12 @@ const forge = (campaign: Campaign): Campaign => ({
   assert.equal(restored.archivedAt, null, "and restore it");
 
   const fresh = forge(blankCampaign(brief, defaultBrand, null, settings));
+  fresh.sharedContext = {
+    ...fresh.sharedContext,
+    previousPerformanceNote: "Keep the mandarin angle.",
+    previousPerformanceFrom: "cmp_mandarin",
+  };
+  fresh.feedbackInsightIds = ["ins_forged"];
   const [draft] = acceptWorkspaceCampaigns(doc, [fresh]);
   assert.equal(draft.id, fresh.id);
   assert.equal(draft.status, "draft", "a campaign the server never stored is a draft");
@@ -88,6 +94,7 @@ const forge = (campaign: Campaign): Campaign => ({
   assert.deepEqual(draft.creatives, []);
   assert.equal(draft.running, false);
   assert.equal(draft.unitCostAud, 6.5, "the founder's brief is kept");
+  assert.equal(draft.sharedContext.previousPerformanceNote, null, "an unticked insight is not carried onto the new brief");
 
   assert.equal(acceptWorkspaceCampaigns(doc, [stored, stored, null, { id: "" }]).length, 1, "duplicates and junk are dropped");
   assert.equal(acceptWorkspaceCampaigns(doc, []).length, 0, "leaving a campaign out still deletes it");

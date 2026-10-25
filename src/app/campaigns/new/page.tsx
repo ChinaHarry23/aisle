@@ -7,7 +7,8 @@ import { Check, ChevronDown } from "lucide-react";
 import { IntakeChatbot } from "@/components/intake/IntakeChatbot";
 import { parseMoneyInput } from "@/lib/retail/whichgrocer/clearance";
 import { validateIntake } from "@/lib/runtime/intake";
-import { attachableRecommendation } from "@/lib/runtime/defaults";
+import { InsightPicker } from "@/components/insights/FeedbackInsights";
+import { composeSelectedFeedback, resolveInsights } from "@/lib/insights";
 import type { CampaignInput, Channel, Country } from "@/lib/types";
 import { channelLabel } from "@/lib/status";
 import { PageHeader } from "@/components/ui";
@@ -107,6 +108,8 @@ export default function NewCampaignPage() {
   const launch = useAisle((s) => s.launch);
   const brand = useAisle((s) => s.brand);
   const campaigns = useAisle((s) => s.campaigns);
+  const savedInsights = useAisle((s) => s.savedInsights);
+  const [selectedInsightIds, setSelectedInsightIds] = useState<string[]>([]);
   const [form, setForm] = useState<CampaignInput>(emptyBrief);
   const [costText, setCostText] = useState("");
   const [priceText, setPriceText] = useState("");
@@ -115,10 +118,16 @@ export default function NewCampaignPage() {
   const [attempted, setAttempted] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [mode, setMode] = useState<"form" | "chat">("form");
-  const priorRecommendation = useMemo(
-    () => attachableRecommendation(campaigns),
-    [campaigns],
-  );
+  const priorRecommendation = useMemo(() => {
+    const chosen = resolveInsights(savedInsights, selectedInsightIds, campaigns);
+    const feedback = composeSelectedFeedback(chosen);
+    if (!feedback.note) return null;
+    return {
+      note: feedback.note,
+      fromCampaignId: feedback.from ?? "",
+      fromCampaignName: [...new Set(chosen.map((insight) => insight.sourceCampaignName))].join(", "),
+    };
+  }, [campaigns, savedInsights, selectedInsightIds]);
 
   function update<K extends keyof CampaignInput>(key: K, value: CampaignInput[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -195,7 +204,7 @@ export default function NewCampaignPage() {
       );
       return;
     }
-    const id = createCampaign(brief);
+    const id = createCampaign(brief, selectedInsightIds);
     router.push(`/campaigns/${id}`);
     if (run) await launch(id);
   }
@@ -237,6 +246,8 @@ export default function NewCampaignPage() {
           Describe with AI assistant
         </button>
       </div>
+
+      <InsightPicker selectedIds={selectedInsightIds} onChange={setSelectedInsightIds} />
 
       <div
         className="hairline p-4"
@@ -292,6 +303,7 @@ export default function NewCampaignPage() {
           brand={brand}
           form={form}
           priorRecommendation={priorRecommendation}
+          insightIds={selectedInsightIds}
           onApplyDraft={(next) => setForm(next)}
           onSwitchToForm={() => setMode("form")}
         />

@@ -1,4 +1,5 @@
 import { retainCampaignLifecycle } from "@/lib/campaign-lifecycle";
+import { normaliseSavedInsights, type SavedInsight } from "@/lib/insights";
 import { defaultBrand, migrateLegacyBrand, seedCampaigns } from "@/lib/seed";
 import { defaultSettings, withSettingsDefaults, type WorkspaceSettings } from "@/lib/settings";
 import type { BrandProfile, Campaign } from "@/lib/types";
@@ -11,6 +12,8 @@ export type WorkspaceSnapshot = {
   settings: WorkspaceSettings;
   /** Campaigns the founder permanently deleted. Sample campaigns are not put back. */
   retiredCampaignIds?: string[];
+  /** Advice the founder saved from finished campaigns and may tick on a later brief. */
+  savedInsights?: SavedInsight[];
 };
 
 function workspaceKey(userId: string) {
@@ -29,6 +32,7 @@ function emptyWorkspace(): WorkspaceSnapshot {
     campaigns: seedCampaigns(defaultBrand),
     settings: defaultSettings(),
     retiredCampaignIds: [],
+    savedInsights: [],
   };
 }
 
@@ -38,6 +42,7 @@ export function demoWorkspace(): WorkspaceSnapshot {
     campaigns: seedCampaigns(defaultBrand),
     settings: defaultSettings(),
     retiredCampaignIds: [],
+    savedInsights: [],
   };
 }
 
@@ -74,6 +79,7 @@ function normalizeWorkspace(raw: Partial<WorkspaceSnapshot> | null): WorkspaceSn
     campaigns: withSampleCampaigns(raw?.campaigns ?? fallback.campaigns, retired),
     settings: withSettingsDefaults(raw?.settings),
     retiredCampaignIds: retired,
+    savedInsights: normaliseSavedInsights(raw?.savedInsights),
   };
 }
 

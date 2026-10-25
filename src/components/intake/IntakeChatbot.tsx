@@ -54,6 +54,7 @@ type Props = {
   brand: BrandProfile;
   form: CampaignInput;
   priorRecommendation?: { note: string; fromCampaignId: string; fromCampaignName: string } | null;
+  insightIds?: string[];
   onApplyDraft: (next: CampaignInput) => void;
   onSwitchToForm: () => void;
 };
@@ -65,6 +66,7 @@ export function IntakeChatbot({
   brand,
   form,
   priorRecommendation,
+  insightIds = [],
   onApplyDraft,
   onSwitchToForm,
 }: Props) {
@@ -201,6 +203,7 @@ export function IntakeChatbot({
         body: JSON.stringify({
           messages: nextMessages,
           draft,
+          insightIds,
         }),
       });
       window.dispatchEvent(new Event(BILLING_CHANGED));
@@ -279,7 +282,7 @@ export function IntakeChatbot({
           {priorRecommendation ? (
             <div className="mt-3 border-l-2 border-signal bg-paper/60 px-3 py-2 text-xs text-ink-soft">
               <span className="font-medium text-ink">
-                Attached AHR-06 recommendation ({priorRecommendation.fromCampaignName}):{" "}
+                Chosen insights ({priorRecommendation.fromCampaignName}):{" "}
               </span>
               {priorRecommendation.note}
             </div>

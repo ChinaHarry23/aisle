@@ -6,6 +6,7 @@ import { formatNumber } from "@/lib/ids";
 import { channelLabel } from "@/lib/status";
 import type { ChannelResultStatus } from "@/lib/runtime/types";
 import { useActiveCampaigns, useAisle } from "@/lib/store";
+import { SaveInsightsPanel } from "@/components/insights/FeedbackInsights";
 import { Empty, PageHeader, ResultStatusChip, SectionTitle, Stat } from "@/components/ui";
 import Link from "next/link";
 
@@ -208,8 +209,24 @@ export default function PerformancePage() {
                   </span>
                   <p className="mt-1">
                     {decision.action === "discarded"
-                      ? "Discarded — this note will not be attached to the next brief."
+                      ? "Discarded. This advice is not offered for a later campaign."
                       : (decision.text ?? "")}
+                  </p>
+                  <SaveInsightsPanel campaignId={c.id} />
+                </div>
+              ) : report.recommendationUnsupported ? (
+                <div className="mt-4">
+                  <button
+                    type="button"
+                    disabled={busy[c.id]}
+                    onClick={() => void decideRecommendation(c.id, "discarded")}
+                    className="rounded-full border border-signal px-4 py-2 text-sm text-signal disabled:opacity-50"
+                  >
+                    Discard
+                  </button>
+                  <p className="mt-2 text-xs text-mute">
+                    This summary cannot be accepted or saved as advice for a later campaign.
+                    Discard it, or leave it as the record of what was collected.
                   </p>
                 </div>
               ) : (
@@ -247,8 +264,8 @@ export default function PerformancePage() {
                     </button>
                   </div>
                   <p className="mt-2 text-xs text-mute">
-                    Accepting or editing attaches the note to the next brief; discarding keeps it
-                    out of the pipeline for good (UC-06 step 12).
+                    Accepting or editing keeps this advice so you can save it. It is not added to
+                    the next campaign unless you tick it when you start one. Discarding keeps it out.
                   </p>
                 </div>
               )}

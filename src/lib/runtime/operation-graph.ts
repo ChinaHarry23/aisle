@@ -463,8 +463,14 @@ export async function decideNode(state: OpState): Promise<Partial<OpState>> {
   const c = w.campaign;
   const report = c.performanceReport;
   if (!report) return { canAdvance: false, message: "No performance report to decide on." };
+  if (report.recommendationUnsupported && state.command.action !== "discarded") {
+    return {
+      canAdvance: false,
+      message: "Collected evidence cannot support advice, so it cannot be accepted or saved. Discard it, or leave the summary as it is.",
+    };
+  }
   const text =
-    state.command.action === "discarded" ? null : (state.command.text ?? report.recommendationText ?? report.summary);
+    state.command.action === "discarded" ? null : (state.command.text ?? report.recommendationText);
   c.recommendationDecision = {
     action: state.command.action,
     text,

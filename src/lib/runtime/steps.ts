@@ -451,16 +451,16 @@ export async function runTrendResearch(
   );
   addStep(w, "trend.receive", "trend", "ok", "Context received", "Shared context loaded from intake.");
 
-  // The founder's prior-campaign note is attached, never rewritten (AHR-01).
+  // Only insights the founder ticked for this brief. The sentences stay verbatim.
   if (c.sharedContext.previousPerformanceNote) {
     addEvent(
       w,
       "trend",
       "feedback",
-      "Prior accepted recommendation folded in",
+      "Founder-selected insights attached",
       `${c.sharedContext.previousPerformanceNote}${
         c.sharedContext.previousPerformanceFrom
-          ? ` (accepted from campaign ${c.sharedContext.previousPerformanceFrom})`
+          ? ` (from campaign ${c.sharedContext.previousPerformanceFrom})`
           : ""
       }`,
     );
@@ -755,12 +755,15 @@ export async function runTrendResearch(
       (e) => e.sourceKind === "founder_input" && e.usedFor !== "Clearance price",
     );
     pushFinding(
-      "Previous campaign feedback",
+      "Founder-selected insight",
       priorNote,
       priorEvidence ? [priorEvidence.id] : [],
-      90,
-      92,
-      { themeSuggestion: "Carry the accepted angle forward." },
+      70,
+      60,
+      {
+        themeSuggestion:
+          "The founder chose this note from an earlier campaign. Do not treat another product's angle, claims or results as facts about this one.",
+      },
     );
   }
 
@@ -1826,13 +1829,39 @@ export function runSchedule(w: Work, allCampaigns: Campaign[]): {
  * not authorised, report late, or return incomplete figures are marked as such
  * instead of being filled in with invented numbers.
  */
+/** Channels that actually went live. A selected channel that never published is not a reporter. */
+function publishedChannels(c: Campaign): Set<Channel> {
+  const published = new Set<Channel>();
+  for (const version of c.channelVersions) {
+    if (version.status === "published") published.add(version.channel);
+  }
+  for (const item of c.schedule) {
+    if (item.status === "published") published.add(item.channel);
+  }
+  return published;
+}
+
 function collectChannelResults(c: Campaign, now: string): ChannelResult[] {
-  const publishedAt = c.schedule[0]?.at ?? c.updatedAt;
+  const publishedAt = c.schedule.find((item) => item.status === "published")?.at ?? c.updatedAt;
   const periodFrom = publishedAt.slice(0, 10);
   const periodTo = now.slice(0, 10);
   const base = c.budget;
+  const live = publishedChannels(c);
 
   return c.channels.map((channel: Channel) => {
+    const sourceName = `${channel === "print" ? "Print response panel" : channel === "digital_signage" ? "Store footfall counter" : `${channel} channel API`}`;
+    if (!live.has(channel)) {
+      return {
+        channel,
+        status: "excluded" as const,
+        sourceName,
+        collectedAt: now,
+        periodFrom,
+        periodTo,
+        figures: null,
+        note: "not published: adaptation withheld",
+      };
+    }
     const seed = stableHash(`${c.id}:${channel}`);
     // Declared CPM per channel, so the figures scale like a real media buy
     // instead of inflating with budget alone.
@@ -1844,8 +1873,6 @@ function collectChannelResults(c: Campaign, now: string): ChannelResult[] {
       digital_signage: 12 + (seed % 6),
     };
     const cpmForChannel = cpm[channel];
-    const sourceName = `${channel === "print" ? "Print response panel" : channel === "digital_signage" ? "Store footfall counter" : `${channel} channel API`}`;
-
     // An explicit declaration wins: this is how a gap is demonstrated on demand
     // rather than only when a campaign id happens to land on one.
     const declared = c.collectorOverrides?.[channel];
@@ -1898,7 +1925,7 @@ function collectChannelResults(c: Campaign, now: string): ChannelResult[] {
 
 function buildPerformanceReport(c: Campaign, now: string): PerformanceReport {
   const results = collectChannelResults(c, now);
-  const ran = c.schedule.filter((s) => s.status === "published").map((s) => s.channel);
+  const ran = [...publishedChannels(c)];
   const figures = results.filter((r) => r.figures);
   const gaps = results
     .filter((r) => r.status !== "ok")
@@ -1933,13 +1960,13 @@ function buildPerformanceReport(c: Campaign, now: string): PerformanceReport {
   const summary =
     totals === null
       ? `No selected channel returned usable data for ${c.name}, so no result summary is presented as confirmed. Gaps recorded: ${gaps.join(" ")}`
-      : `${c.name} ran on ${ran.join(", ") || c.channels.join(", ")} with the approved line “${hero?.headline ?? "—"}”. ${figures.length} of ${c.channels.length} channel(s) reported: ${totals.impressions.toLocaleString("en-AU")} impressions, ${totals.ctr}% CTR, ${totals.conversions.toLocaleString("en-AU")} conversions.${best ? ` Best CTR on ${best.channel} (${best.figures?.ctr}%).` : ""}${gaps.length ? ` Gaps: ${gaps.join(" ")}` : ""}`;
+      : `${c.name} ran on ${ran.join(", ") || "no confirmed channel"} with the approved line “${hero?.headline ?? "—"}”. ${figures.length} of ${c.channels.length} channel(s) reported: ${totals.impressions.toLocaleString("en-AU")} impressions, ${totals.ctr}% CTR, ${totals.conversions.toLocaleString("en-AU")} conversions.${best ? ` Best CTR on ${best.channel} (${best.figures?.ctr}%).` : ""}${gaps.length ? ` Gaps: ${gaps.join(" ")}` : ""}`;
 
   return {
     id: uid("pr"),
     at: now,
     publishedAt: c.schedule[0]?.at ?? c.updatedAt,
-    ranChannels: ran.length > 0 ? ran : c.channels,
+    ranChannels: ran,
     results,
     gaps,
     totals,
@@ -2271,6 +2298,15 @@ export async function runFeedbackCollection(
     if (escalated) {
       return { message: "Channel delivery incomplete; founder required.", blocked: true };
     }
+    // The release is recorded here. The report and the Media Manager recommendation
+    // wait for an explicit COLLECT_FEEDBACK, so publish makes no model call.
+    setRun(w, {
+      status: "awaiting_human",
+      awaiting: "approval",
+      awaitingDetail: "Published. Collect results when you are ready.",
+      step: "feedback.collect",
+    });
+    return { message: "Published. Collect results when you are ready.", blocked: false };
   }
 
   if (c.status !== "published") {
@@ -2286,6 +2322,12 @@ export async function runFeedbackCollection(
   }
 
   const report = buildPerformanceReport(c, w.now);
+  // A second collection replaces the report and its two media steps. It does not
+  // append another feedback.collect beside the first.
+  const replaced = (step: { agent: string; step: string }) =>
+    step.agent === "media" && (step.step === "feedback.collect" || step.step === "feedback.summarise");
+  w.steps = w.steps.filter((step) => !replaced(step));
+  w.campaign.runSteps = w.campaign.runSteps.filter((step) => !replaced(step));
   const { points, text, trace } = await decideRecommendation({
     campaign: c,
     settings: env.settings,

@@ -236,8 +236,12 @@ export type SharedContext = {
   country: Country;
   brandTone: string;
   approvedClaims: string[];
+  /**
+   * Insights the founder ticked for this brief, verbatim and labelled with the
+   * campaign they came from. Null when none were chosen.
+   */
   previousPerformanceNote: string | null;
-  /** Campaign the attached note came from, for traceability (UC-06 step 12). */
+  /** Campaign ids those insights came from, comma-separated. */
   previousPerformanceFrom: string | null;
   founderNotes: string[];
   /** Intake agent turned the founder's words into the context trend researches. */
@@ -323,6 +327,8 @@ export type Campaign = CampaignInput & {
   /** AHR-06 structured collection, gaps and sourced recommendation. */
   performanceReport: PerformanceReport | null;
   recommendationDecision: RecommendationDecision | null;
+  /** Insight-library ids the founder chose for this brief. Absent or empty means none. */
+  feedbackInsightIds?: string[];
   /** Declared per-channel report outcomes. See `ChannelResultStatus`. */
   collectorOverrides: Partial<Record<Channel, ChannelResultStatus>>;
   /**

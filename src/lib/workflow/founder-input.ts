@@ -10,7 +10,7 @@
  */
 
 import { isArchived } from "@/lib/campaign-lifecycle";
-import { attachableRecommendation } from "@/lib/runtime/defaults";
+import { applySelectedFeedback, type SavedInsight } from "@/lib/insights";
 import type { ChannelResultStatus } from "@/lib/runtime/types";
 import { blankCampaign } from "@/lib/seed";
 import type { WorkspaceSettings } from "@/lib/settings";
@@ -22,6 +22,7 @@ type StoredWorkspace = {
   brand: BrandProfile;
   settings: WorkspaceSettings;
   campaigns: Campaign[];
+  savedInsights?: readonly SavedInsight[];
 };
 
 /** The brief fields a founder writes when creating a campaign. */
@@ -76,17 +77,14 @@ function isoOrNull(value: unknown): string | null {
 
 /**
  * A campaign the server has never stored: a blank draft built from the brief
- * alone. Brand, settings and any carried-forward recommendation come from the
- * stored workspace, the same as a fresh START.
+ * alone. Feedback is only the insight-library ids the founder ticked.
  */
 function draftFromFounder(raw: Campaign, stored: StoredWorkspace): Campaign {
-  const recommendation = attachableRecommendation(stored.campaigns);
-  const draft = blankCampaign(
-    founderInput(raw),
-    stored.brand,
-    recommendation?.note ?? null,
-    stored.settings,
-    recommendation?.fromCampaignId ?? null,
+  const draft = applySelectedFeedback(
+    blankCampaign(founderInput(raw), stored.brand, null, stored.settings, null),
+    stored.savedInsights ?? [],
+    raw.feedbackInsightIds,
+    stored.campaigns,
   );
   const createdAt = isoOrNull(raw.createdAt) ?? draft.createdAt;
   const archivedAt = isoOrNull(raw.archivedAt);

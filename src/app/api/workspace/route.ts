@@ -5,6 +5,7 @@ import { loadWorkspace, updateWorkspace, type WorkspaceSnapshot } from "@/lib/au
 import { isArchived, retainCampaignLifecycle } from "@/lib/campaign-lifecycle";
 import type { Campaign } from "@/lib/types";
 import { WorkflowError } from "@/lib/workflow/commands";
+import { acceptSavedInsights } from "@/lib/insights";
 import { acceptWorkspaceCampaigns } from "@/lib/workflow/founder-input";
 import { workflowEnabled, mergeWorkflowCampaigns, submitWorkflow } from "@/lib/workflow/gateway";
 
@@ -48,7 +49,11 @@ async function handlePut(request: Request) {
   let saved: boolean;
   try {
     saved = await updateWorkspace(user.id, user.role, async (stored) => {
-      const accepted = acceptWorkspaceCampaigns({ brand, settings, campaigns: stored.campaigns }, submitted);
+      const savedInsights = acceptSavedInsights(stored.campaigns, stored.savedInsights ?? [], body.savedInsights);
+      const accepted = acceptWorkspaceCampaigns(
+        { brand, settings, campaigns: stored.campaigns, savedInsights },
+        submitted,
+      );
       let campaigns = accepted;
       if (workflowEnabled()) campaigns = (await mergeWorkflowCampaigns(user.id, campaigns)).campaigns;
       else {
@@ -62,7 +67,7 @@ async function handlePut(request: Request) {
       const wasTrashed = new Set(stored.campaigns.filter(isArchived).map((c) => c.id));
       trashed = accepted.filter((c) => isArchived(c) && !wasTrashed.has(c.id));
       storedCampaigns = stored.campaigns;
-      return { brand, campaigns, settings, retiredCampaignIds: body.retiredCampaignIds };
+      return { brand, campaigns, settings, retiredCampaignIds: body.retiredCampaignIds, savedInsights };
     });
   } catch (error) {
     const message = workflowEnabled() && error instanceof WorkflowError

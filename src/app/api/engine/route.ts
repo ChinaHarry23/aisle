@@ -17,6 +17,7 @@ import type { Campaign } from "@/lib/types";
 import { workflowEnabled, submitWorkflow } from "@/lib/workflow/gateway";
 import { parseCommand, WorkflowError } from "@/lib/workflow/commands";
 import { campaignForCommand } from "@/lib/workflow/command-campaign";
+import { resolveInlineEngine } from "@/lib/workflow/inline";
 import { createServerResearchRuntime } from "@/lib/agents/trend-server";
 import { billingForSession } from "@/lib/billing/meter";
 
@@ -35,12 +36,11 @@ const MAX_STEPS_PER_REQUEST = 12;
 /**
  * Read the stored workspace without letting storage take the bench down.
  *
- * The client already sends its own workspace with every command, so the stored
- * document is only a fallback for brand rules. Model settings always come from
- * the store: they decide which paid provider runs on the owner's keys. If the
+ * Brand rules and model settings always come from this document. The browser
+ * may name a command and a brief; it does not get to replace either. If the
  * store is unreachable — a revoked blob token, a cold deployment — the demo
- * workspace (all local) stands in, because the alternative is a campaign that
- * cannot advance at all.
+ * workspace stands in, because the alternative is a campaign that cannot
+ * advance at all.
  */
 async function loadWorkspaceStrict(
   userId: string,
@@ -56,10 +56,11 @@ async function loadWorkspaceStrict(
 type Body = {
   campaign?: Campaign;
   command?: Command;
-  /** Workspace context so the engine can check brand rules and other campaigns. */
+  /** Ignored. Other campaigns come from the signed-in workspace. */
   campaigns?: Campaign[];
+  /** Ignored. Brand rules come from the signed-in workspace. */
   brand?: unknown;
-  /** Ignored: settings pick paid models, so only the stored copy is trusted. */
+  /** Ignored. Model settings come from the signed-in workspace. */
   settings?: unknown;
   maxSteps?: number;
   requestId?: string;
@@ -68,7 +69,7 @@ type Body = {
 /**
  * One transition of the agent bench.
  *
- * The client holds the workspace document; this route runs the engine on the
+ * The signed-in workspace is the record. This route runs the engine on the
  * server, where the LLM keys, the outbound HTTP tools and the deterministic
  * adapters live, and hands back the updated campaign plus the lines the command
  * produced. Inline mode still depends on browser ADVANCE requests. Service mode
@@ -101,7 +102,8 @@ async function handlePost(request: Request) {
 
   if (workflowEnabled()) {
     try {
-      // Authentication owns the tenant; browser approvals and runtime output are not trusted.
+      // Authentication owns the tenant. The worker rebuilds a START from the brief
+      // and applies only insight ids that exist in the stored library.
       const stored = await loadWorkspace(user.id, user.role);
       const kept = stored.campaigns.find((item) => item.id === body.campaign!.id);
       if (isArchived(kept ?? {}) || isArchived(body.campaign)) {
@@ -111,6 +113,7 @@ async function handlePost(request: Request) {
       const job = await submitWorkflow(user.id, {
         campaign: submitted, command, campaigns: stored.campaigns,
         brand: stored.brand, settings: stored.settings,
+        savedInsights: stored.savedInsights ?? [],
       }, body.requestId || "");
       return NextResponse.json({ job }, { status: 202 });
     } catch (error) {
@@ -120,33 +123,22 @@ async function handlePost(request: Request) {
 
   const loaded = await loadWorkspaceStrict(user.id, user.role);
   const stored = loaded.snapshot;
-  const brand = stored.brand;
-  const settings = stored.settings;
-  // Prior advice and neighbouring campaigns come from platform storage, never
-  // a browser-supplied acceptance or report record.
-  const campaigns = stored.campaigns.map(withRuntimeDefaults);
-  const existing = stored.campaigns.find((item) => item.id === body.campaign!.id);
-  let target: Campaign;
+  let resolved: ReturnType<typeof resolveInlineEngine>;
   try {
-    target = campaignForCommand(existing, body.campaign, command);
-  } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Invalid command." },
-      { status: error instanceof WorkflowError ? error.status : 409 },
-    );
-  }
-  if (isArchived(existing ?? {}) || isArchived(target)) {
-    const campaign = { ...(existing ?? target), archivedAt: existing?.archivedAt ?? target.archivedAt, running: false };
-    return NextResponse.json({
-      campaign,
-      run: campaign.run,
-      events: [],
-      runSteps: [],
-      policyDecisions: campaign.policyDecisions ?? [],
-      canAdvance: false,
-      message: "This campaign is in the trash. Restore it before the agents can continue.",
+    resolved = resolveInlineEngine(stored, {
+      campaign: body.campaign,
+      command,
+      brand: body.brand,
+      settings: body.settings,
     });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "That command is not allowed.";
+    return NextResponse.json({ error: message }, { status: error instanceof WorkflowError ? error.status : 400 });
   }
+  const brand = resolved.brand;
+  const settings = resolved.settings;
+  const target = withRuntimeDefaults(resolved.campaign);
+  const campaigns = resolved.campaigns.map(withRuntimeDefaults);
 
   const maxSteps =
     typeof body.maxSteps === "number" && Number.isFinite(body.maxSteps)
@@ -175,7 +167,7 @@ async function handlePost(request: Request) {
           campaignId: target.id,
           userId: user.id,
           maxSteps,
-          command,
+          command: resolved.command,
         });
         const latest = await loadWorkspace(user.id, user.role);
         const saved = latest.campaigns.find((item) => item.id === target.id);
@@ -195,12 +187,12 @@ async function handlePost(request: Request) {
         });
       }
     }
-    if (command.type === "START" || command.type === "RESOLVE_TREND") resumeInlineResearch(user.id, target.id);
+    if (resolved.command.type === "START" || resolved.command.type === "RESOLVE_TREND") resumeInlineResearch(user.id, target.id);
     const llm = createServerResearchRuntime(billing);
     const result = await runEngine(
       { campaigns, now: new Date().toISOString() },
       target,
-      command,
+      resolved.command,
       settings,
       brand,
       {

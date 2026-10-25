@@ -5,7 +5,7 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { randomUUID, createHash } from "node:crypto";
 import { blankCampaign } from "../../src/lib/seed";
-import { attachableRecommendation } from "../../src/lib/runtime/defaults";
+import { applySelectedFeedback } from "../../src/lib/insights";
 import { isArchived } from "../../src/lib/campaign-lifecycle";
 import { assertTransition, parseCommand, WorkflowError } from "../../src/lib/workflow/commands";
 import { founderCollectorOverrides, founderInput } from "../../src/lib/workflow/founder-input";
@@ -106,10 +106,18 @@ export class WorkflowRepository {
         const fields = founderInput(raw);
         const retail = raw.internalDataAuthorised === true && raw.retailUpload !== undefined ? retailUploadSchema.safeParse(raw.retailUpload) : null;
         if (retail && !retail.success) throw new WorkflowError("Invalid aggregate retail upload.");
-        const prior = attachableRecommendation(this.campaigns(user));
-        const fresh = { ...blankCampaign(fields, input.brand, prior?.note ?? null, input.settings, prior?.fromCampaignId ?? null), id: raw.id, internalDataAuthorised: raw.internalDataAuthorised === true,
-          ...(retail?.success ? {retailUpload:retail.data} : {}),
-          ...(raw.dataAccessPolicy === undefined ? {} : { dataAccessPolicy: { externalSources: Array.isArray(raw.dataAccessPolicy?.externalSources) ? raw.dataAccessPolicy.externalSources.filter((name: unknown): name is string => typeof name === "string") : [] } }) };
+        const fresh = {
+          ...applySelectedFeedback(
+            blankCampaign(fields, input.brand, null, input.settings, null),
+            input.savedInsights ?? [],
+            raw.feedbackInsightIds,
+            input.campaigns,
+          ),
+          id: raw.id,
+          internalDataAuthorised: raw.internalDataAuthorised === true,
+          ...(retail?.success ? { retailUpload: retail.data } : {}),
+          ...(raw.dataAccessPolicy === undefined ? {} : { dataAccessPolicy: { externalSources: Array.isArray(raw.dataAccessPolicy?.externalSources) ? raw.dataAccessPolicy.externalSources.filter((name: unknown): name is string => typeof name === "string") : [] } }),
+        };
         if (current) { fresh.log = current.log; fresh.createdAt = current.createdAt; }
         current = fresh;
         this.db.prepare("insert into workflow_campaigns(user_id,campaign_id,snapshot) values(?,?,?) on conflict(user_id,campaign_id) do update set snapshot=excluded.snapshot").run(user, current.id, JSON.stringify(current));

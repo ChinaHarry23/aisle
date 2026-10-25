@@ -28,7 +28,7 @@ export function WorkspaceSync({
         if (!res.ok) throw new Error("workspace");
         const data = (await res.json()) as Pick<
           ReturnType<typeof useAisle.getState>,
-          "brand" | "campaigns" | "settings" | "retiredCampaignIds"
+          "brand" | "campaigns" | "settings" | "retiredCampaignIds" | "savedInsights"
         > & { workflow?: boolean };
         if (cancelled) return;
         serviceMode = data.workflow === true;
@@ -72,6 +72,7 @@ export function WorkspaceSync({
         state.brand === prev.brand &&
         state.campaigns === prev.campaigns &&
         state.retiredCampaignIds === prev.retiredCampaignIds &&
+        state.savedInsights === prev.savedInsights &&
         state.settings === prev.settings
       ) {
         return;
@@ -86,6 +87,7 @@ export function WorkspaceSync({
             brand: snap.brand,
             campaigns: snap.campaigns,
             retiredCampaignIds: snap.retiredCampaignIds,
+            savedInsights: snap.savedInsights,
             settings: snap.settings,
           }),
         });
