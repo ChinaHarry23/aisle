@@ -55,6 +55,9 @@ import type { Command } from "../src/lib/runtime/types";
 import type { CompleteRequest, CompleteResult } from "../src/lib/llm/types";
 
 const settings = defaultSettings();
+// Synthetic category reference for downstream scenarios; source failure/pausing is
+// covered by trend-evidence-suite. No live retrieval is implied by this fixture.
+globalThis.fetch = async () => Response.json({ title: "Synthetic fixture", extract: "Synthetic category context; not measured market research." });
 
 function usageStub() {
   return {
@@ -280,7 +283,7 @@ async function startAndClear(...args: Parameters<typeof startAndAdvance>) {
 /* --------------------------------------------------- AHR-02 evidence + gaps */
 
 {
-  const s = await startAndAdvance({ channels: ["instagram", "web", "email", "print"] });
+  const s = await startAndAdvance({ channels: ["instagram", "web", "email", "print"] }, { internalDataAuthorised: true });
   const c = s.campaign;
   assert.ok(c.evidence.length > 0, "the trend step must record evidence");
   assert.ok(
@@ -289,8 +292,8 @@ async function startAndClear(...args: Parameters<typeof startAndAdvance>) {
   );
   assert.ok(c.trendGaps.length > 0, "limitations must be recorded");
   assert.ok(
-    c.evidence.every((e) => e.sourceName && e.observedAt),
-    "every evidence row needs a source and a date",
+    c.evidence.every((e) => e.sourceName && e.fetchedAt && (e.observedAt === null || typeof e.observedAt === "string")),
+    "every evidence row needs provenance, retrieval time and an explicit known or unknown information date",
   );
   assert.ok(c.toolCalls.length > 0, "tool calls must be recorded");
   assert.ok(c.evidence.some((e) => e.sourceName === "Woolworths POS"), "authorised POS must cite the uploaded Woolworths file");
@@ -374,6 +377,7 @@ async function startAndClear(...args: Parameters<typeof startAndAdvance>) {
 
 {
   const s = await startAndAdvance({ channels: ["instagram", "print"] });
+  const blockedBefore = s.campaign.spend.blockedAttempts;
   const blocked: Record<string, string> = {};
   for (const action of [
     "PUBLISH_CONTENT",
@@ -388,7 +392,7 @@ async function startAndClear(...args: Parameters<typeof startAndAdvance>) {
     assert.ok(decision?.clause.length, `${action} must cite its requirement clause`);
     blocked[action] = decision!.rule;
   }
-  assert.equal(s.campaign.spend.blockedAttempts, 5, "each refusal must be counted");
+  assert.equal(s.campaign.spend.blockedAttempts - blockedBefore, 5, "each refusal must be counted");
   assert.ok(
     s.campaign.log.some((e) => e.kind === "policy"),
     "a refusal must reach the campaign log (ext 13.a)",

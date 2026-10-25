@@ -39,9 +39,18 @@
     "test:intake": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/intake-suite.ts",
     "test:compliance": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/compliance-suite.ts",
     "test:compliance-rules": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/compliance-rules-suite.ts",
+    "test:trend-quality": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/trend-quality-suite.ts",
+    "test:trend-evidence": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/trend-evidence-suite.ts",
+    "demo:trend-evidence": "node --env-file-if-exists=.env.local --import ./scripts/service-loader.mjs --experimental-strip-types scripts/trend-evidence-example.ts",
+    "test:trend-research": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/trend-research-suite.ts",
+    "demo:trend-research:public": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/trend-research-live.ts",
+    "test:trend-provider-search": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/trend-provider-search-suite.ts",
     "test:compliance-report": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/compliance-report-suite.ts",
     "compliance:kb": "node --env-file-if-exists=.env.local --import ./scripts/service-loader.mjs --experimental-strip-types scripts/compliance-knowledge.ts",
-    "test:compliance-knowledge": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/compliance-knowledge-suite.ts"
+    "test:compliance-knowledge": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/compliance-knowledge-suite.ts",
+    "test:trend-brief": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/trend-brief-suite.ts",
+    "test:research-reliability": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/scrum124-suite.ts",
+    "verify:research-trace": "node --env-file-if-exists=.env.local --import ./scripts/service-loader.mjs --experimental-strip-types scripts/scrum124-trace.ts"
   },
   "dependencies": {
     "@langchain/core": "1.2.17",

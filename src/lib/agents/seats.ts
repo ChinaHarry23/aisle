@@ -32,6 +32,13 @@ import { MAX_MODEL_CALLS_PER_RUN, MeteredChatModel, type MeteredModelConfig } fr
 /* --------------------------------------------------------------- schemas --- */
 
 export const trendBriefSchema = z.object({
+  researchAnalysis: z.array(z.object({
+    category: z.enum(['current_market','historical_market','customer_interest','purchase_preference','seasonal','cultural','channel','competitor']),
+    channel: z.string().optional(),
+    summary: z.string().max(1600),
+    evidenceIds: z.array(z.string()).max(20),
+    limitation: z.string().max(1000),
+  })).max(32).optional().describe('One analysis per required research category, and per selected channel. Cite only returned evidence IDs; disclose missing support.'),
   priorities: z
     .array(
       z.object({

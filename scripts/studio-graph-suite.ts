@@ -100,7 +100,10 @@ for (const node of ["intake", "trend", "creative", "revise", "compliance", "medi
 assert.match(mermaid, /\bhydrate\b/, "studio graph loads the campaign before the bench");
 console.log("PASS studio operation graph draws the bench, plus hydrate");
 
+const originalFetch = globalThis.fetch;
+globalThis.fetch = async () => Response.json({ title: "Synthetic fixture", extract: "Synthetic category context; not measured market research." });
 const started = await studio.invoke({ command: { type: "START", actor: "founder" } });
+globalThis.fetch = originalFetch;
 assert.equal(started.work?.campaign.status, "analysing");
 assert.notEqual(started.work?.campaign.run?.step, "intake.validate");
 assert.equal(started.canAdvance, true);

@@ -24,8 +24,8 @@ import {
   requestChangesNode,
   resolveNode,
   COMMAND_DESTINATIONS,
-  intakeDestinations,
   reviseDestinations,
+  trendDecisionNode,
   routeCommand,
   stageDestinations,
   stageFor,
@@ -52,6 +52,8 @@ const CommandInput = z.object({
       "DECIDE_RECOMMENDATION",
       "ATTEMPT_BLOCKED",
       "RESOLVE_CONFLICT",
+      "RESOLVE_TREND",
+      "CANCEL_TREND",
     ])
     .describe("Founder command. START launches the bench. ADVANCE runs the next stage."),
   actor: z
@@ -59,9 +61,14 @@ const CommandInput = z.object({
     .optional()
     .describe("founder, system, or media. ATTEMPT_BLOCKED uses a guard action such as PUBLISH_CONTENT."),
   note: z.string().optional().describe("Founder note for approve, reject, changes, or publish."),
-  action: z.enum(["accepted", "edited", "discarded"]).optional().describe("Required for DECIDE_RECOMMENDATION."),
+  action: z.string().optional().describe("Recommendation decision, or a research resolution action."),
   text: z.string().optional(),
   conflictId: z.string().optional().describe("Required for RESOLVE_CONFLICT."),
+  requestId: z.string().optional(),
+  reviewVersion: z.number().optional(),
+  contextVersion: z.string().optional(),
+  context: z.record(z.string(), z.unknown()).optional(),
+  sources: z.array(z.record(z.string(), z.unknown())).optional(),
 });
 
 const Input = z.object({
@@ -142,6 +149,10 @@ function asCommand(raw: CommandInput | undefined): Command {
     case "RESOLVE_CONFLICT":
       if (!command.conflictId) throw new Error("RESOLVE_CONFLICT needs conflictId.");
       return { type: "RESOLVE_CONFLICT", actor: "founder", conflictId: command.conflictId, note: command.note ?? "" };
+    case "CANCEL_TREND":
+      return { type: "CANCEL_TREND", actor: "founder", note: command.note ?? "" };
+    case "RESOLVE_TREND":
+      return command as Command;
     default:
       return { type: "START", actor: "founder" };
   }
@@ -220,6 +231,7 @@ export const graph = new StateGraph({ stateSchema: State, input: Input })
   .addNode("decide_recommendation", step(decideNode))
   .addNode("resolve_conflict", step(resolveNode))
   .addNode("boundary_check", step(boundaryNode))
+  .addNode("trend_decision", step(trendDecisionNode))
   .addNode("trend", step(stageNode))
   .addNode("creative", step(stageNode))
   .addNode("revise", step(stageNode))
@@ -229,7 +241,8 @@ export const graph = new StateGraph({ stateSchema: State, input: Input })
   .addEdge(START, "hydrate")
   .addEdge("hydrate", "route")
   .addConditionalEdges("route", edge(routeCommand), [...COMMAND_DESTINATIONS])
-  .addConditionalEdges("intake", (state) => (state.stop ? END : "trend"), intakeDestinations)
+  .addEdge("trend_decision", END)
+  .addConditionalEdges("intake", edge((state) => (state.stop ? END : stageFor(state))), stageDestinations)
   .addConditionalEdges("advance", edge((state) => (state.stop ? END : stageFor(state))), stageDestinations)
   .addEdge("approve", "media")
   .addConditionalEdges("request_changes", (state) => (state.stop ? END : "revise"), reviseDestinations)

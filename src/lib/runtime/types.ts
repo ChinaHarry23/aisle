@@ -53,13 +53,19 @@ export type Evidence = {
   sourceRef: string;
   sourceKind: SourceKind;
   /** ISO date the underlying information describes (not when we fetched it). */
-  observedAt: string;
+  observedAt: string | null;
+  /** Meaning of observedAt; null means the source supplied no information date. */
+  dateBasis?: "revision" | "source_record" | "unknown";
+  /** Forecast validity is separate from its publication date. */
+  coverage?: { start: string; end: string; location: string };
   fetchedAt: string;
   status: EvidenceStatus;
   confidence: number;
   /** Which agent raised it. */
   raisedBy: Actor;
   usedFor: string;
+  research?: { category: import('@/lib/trend/contracts').ResearchCategory; channel?: string; geography: string;
+    queryScope: string; permission: 'allowed'; quality: 'snippet' | 'unassessed'; transformation?: string };
 };
 
 export type TrendFinding = {
@@ -408,6 +414,15 @@ export type RecommendationDecision = {
 
 export type RunStatus = "idle" | "running" | "paused" | "awaiting_human" | "complete" | "halted";
 
+export type ResearchToolUsage = {
+  provider: 'firecrawl' | 'whichgrocer' | 'serpapi' | 'model_search';
+  cache: 'miss' | 'hit' | 'same_run';
+  credits: number | null;
+  creditsBasis: 'reported' | 'unknown' | 'cache';
+  originalCredits?: number | null;
+  originalFetchedAt?: string;
+  estimatedCostUsd?: number;
+};
 export type ToolCall = {
   id: string;
   at: string;
@@ -419,11 +434,14 @@ export type ToolCall = {
   latencyMs: number;
   /** Evidence raised by this call, if any. */
   evidenceIds: string[];
+  usage?: ResearchToolUsage;
 };
 
 export type RunStepId =
   | "intake.validate"
   | "trend.receive"
+  | "trend.quality"
+  | "trend.handoff"
   | "trend.research"
   | "trend.brief"
   | "creative.receive"
@@ -475,6 +493,8 @@ export type AgentRun = {
 /* ------------------------------------------------------------------ commands */
 
 export type Command =
+  | import("@/lib/trend/quality-contracts").TrendResolution
+  | {type:"CANCEL_TREND";actor:"founder";note:string}
   /** Validate the brief, write the shared context, hand to the Trend Analyser. */
   | { type: "START"; actor: "founder"; note?: string }
   | { type: "PAUSE"; actor: "founder"; note?: string }

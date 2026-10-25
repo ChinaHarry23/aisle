@@ -66,6 +66,8 @@ type Store = {
   resumeRunning: () => Promise<void>;
   /** Ask the bench to continue one campaign. */
   continueAgents: (id: string) => Promise<void>;
+  resolveTrend: (id:string, resolution:import("@/lib/trend/quality-contracts").TrendResolution)=>Promise<void>;
+  cancelTrend: (id:string,note:string)=>Promise<void>;
   pause: (id: string) => Promise<void>;
   approve: (id: string, note: string) => Promise<void>;
   reject: (id: string, note: string) => Promise<void>;
@@ -91,6 +93,7 @@ type Store = {
   /** Show the founder what the policy layer does with an out-of-bounds attempt. */
   attemptBlocked: (id: string, action: GuardedAction, note?: string) => Promise<string>;
   resetDemo: () => void;
+  attachRetailUpload: (id: string, upload: NonNullable<Campaign['retailUpload']>) => void;
   setStudio: (id: string, patch: Partial<Pick<Campaign, "videoDurationSec" | "spendCapUsd">>) => void;
   generatePosters: (id: string) => Promise<void>;
   /** Edit the posters already generated, using the founder's description of the mistake. */
@@ -364,6 +367,8 @@ export const useAisle = create<Store>()(
         launch: async (id) => {
           await command(id, { type: "START", actor: "founder" });
         },
+        resolveTrend:async(id,resolution)=>{await command(id,resolution);},
+        cancelTrend:async(id,note)=>{await command(id,{type:'CANCEL_TREND',actor:'founder',note},{pumpAfter:false});},
         pause: async (id) => {
           await command(id, { type: "PAUSE", actor: "founder" }, { pumpAfter: false });
         },
@@ -427,6 +432,7 @@ export const useAisle = create<Store>()(
             engineError: null,
           }),
 
+        attachRetailUpload: (id, upload) => set(s => ({campaigns:s.campaigns.map(c => c.id === id && !c.running ? {...c,retailUpload:upload,internalDataAuthorised:true,updatedAt:new Date().toISOString()} : c)})),
         setStudio: (id, patch) =>
           set((s) => ({
             campaigns: s.campaigns.map((c) =>

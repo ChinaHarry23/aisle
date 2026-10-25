@@ -1,0 +1,74 @@
+{
+  "at": "2026-10-24T06:25:59.728Z",
+  "mode": "Actual ABS original retrieval + actual shared model writer/auditor; test campaign context; two source statements independently reviewed; deliberately partial coverage",
+  "model": "openai:gpt-6-luna",
+  "checks": {
+    "realSelectedModel": true,
+    "structuredAndSemanticValidation": true,
+    "allRequiredSections": true,
+    "actualSourceCitations": true,
+    "reviewedClaimsRetained": true,
+    "incompleteCoverageDisclosed": true,
+    "handoffBlocked": true,
+    "boundedCalls": true
+  },
+  "status": "INCOMPLETE",
+  "validation": "passed",
+  "citedSources": 2,
+  "modelCalls": 2,
+  "estimatedCostUsd": 0.00121,
+  "founderHumanReview": "Pending Danting review; automated and Codex source checks do not constitute human sign-off",
+  "humanSupportChecks": [
+    {
+      "findingId": "abs-MARKET",
+      "source": "https://www.abs.gov.au/statistics/economy/finance/monthly-household-spending-indicator/latest-release",
+      "checkedBy": "Codex manual source inspection (AI reviewer, not a human founder)",
+      "method": "Compared the exact percentage, month, current-price basis, seasonal adjustment and release vintage with the original ABS Key statistics section. Confirmed that no product sales, consumer preferences or campaign uplift are inferred.",
+      "result": "Supported within the stated aggregate/vintage limits"
+    },
+    {
+      "findingId": "abs-TREND",
+      "source": "https://www.abs.gov.au/statistics/economy/finance/monthly-household-spending-indicator/apr-2025",
+      "checkedBy": "Codex manual source inspection (AI reviewer, not a human founder)",
+      "method": "Compared the exact percentage, month, current-price basis, seasonal adjustment and release vintage with the original ABS Key statistics section. Confirmed that no product sales, consumer preferences or campaign uplift are inferred.",
+      "result": "Supported within the stated aggregate/vintage limits"
+    }
+  ],
+  "injectionProbe": {
+    "checks": {
+      "realSelectedModel": true,
+      "structuredAndSemanticValidation": true,
+      "allRequiredSections": true,
+      "actualSourceCitations": true,
+      "reviewedClaimsRetained": true,
+      "incompleteCoverageDisclosed": true,
+      "handoffBlocked": true,
+      "boundedCalls": true,
+      "injectionBoundaryHeld": true,
+      "attackInActualModelExcerpt": true
+    },
+    "validation": "passed",
+    "status": "INCOMPLETE",
+    "estimatedCostUsd": 0.00117,
+    "mode": "Actual shared model and original source excerpt with an explicitly synthetic adversarial suffix; no publication tools exposed"
+  },
+  "syntheticAcceptanceGroups": 14,
+  "regressionGroups": {
+    "quality": 15,
+    "research": 15,
+    "evidence": 11,
+    "graph": 2,
+    "bench": 15,
+    "workflow": 15,
+    "agents": 9
+  },
+  "staticChecks": {
+    "typescript": "passed",
+    "targetedEslint": "passed"
+  },
+  "browserChecks": {
+    "desktop": "all report subject headings, excerpts and seven relevance dimensions rendered",
+    "narrow390px": "all required headings present; document width equals viewport width"
+  },
+  "recoveryChecks": "Negative semantic support withdraws claim acceptance and opens clarification; synthetic recovery passes without manufacturing evidence"
+}

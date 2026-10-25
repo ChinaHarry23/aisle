@@ -23,6 +23,8 @@ import { type StepEnv, type Work } from "./steps";
 import { type AgentRun, type Command, type EngineContext, type EngineResult } from "./types";
 
 export type EngineOptions = {
+  /** Server/test supplied tracing configuration, never sourced from client state. */
+  traceConfig?: import('@langchain/core/runnables').RunnableConfig;
   llm?: LlmRuntime;
   /** Bounded work per ADVANCE so one HTTP call cannot run away. */
   maxSteps?: number;
@@ -30,6 +32,8 @@ export type EngineOptions = {
   ownerUserId?: string;
   /** Who pays for a live LangGraph seat. Tests omit it, so they stay on the rule path. */
   billing?: BillingContext;
+  /** Checked before and after research calls, and before handoff. */
+  researchAllowed?: () => boolean | Promise<boolean>;
   /** Ad renderer. Defaults to the studio route; tests pass a stub. */
   renderPoster?: (input: {
     campaign: Campaign;
@@ -83,7 +87,7 @@ function blankWork(campaign: Campaign, now: string): Work {
       toolCalls: campaign.toolCalls ?? [],
       performanceReport: campaign.performanceReport ?? null,
       recommendationDecision: campaign.recommendationDecision ?? null,
-      internalDataAuthorised: campaign.internalDataAuthorised !== false,
+      internalDataAuthorised: campaign.internalDataAuthorised === true,
       spend: campaign.spend ?? {
         inferenceUsd: 0,
         mediaUsd: 0,
@@ -112,6 +116,7 @@ function envFor(
   renderPoster: NonNullable<EngineOptions["renderPoster"]>,
   ownerUserId?: string,
   billing?: BillingContext,
+  researchAllowed?: EngineOptions["researchAllowed"],
 ): StepEnv {
   return {
     now: ctx.now,
@@ -121,6 +126,7 @@ function envFor(
       ? { ...llm, meta: { label: llm.meta?.label ?? "server", live: llm.meta?.live ?? true, billing } }
       : llm,
     ownerUserId,
+    researchAllowed,
     allCampaigns: ctx.campaigns.map((c) => (c.id === campaign.id ? campaign : c)),
     renderPoster,
   };
@@ -148,7 +154,7 @@ export function prepareEngineInvocation(
 ): { work: Work; env: StepEnv } {
   const llm = options.llm ?? makeLlmRuntime(options.billing);
   const w = blankWork(campaign, ctx.now);
-  const env = envFor(ctx, w.campaign, settings, brand, llm, options.renderPoster ?? defaultRenderPoster, options.ownerUserId, options.billing);
+  const env = envFor(ctx, w.campaign, settings, brand, llm, options.renderPoster ?? defaultRenderPoster, options.ownerUserId, options.billing, options.researchAllowed);
   if (!w.run || !activeRun(w.run)) {
     w.run = newRun(campaign.id, ctx.now);
     w.campaign.run = w.run;
@@ -170,7 +176,7 @@ export function openStepEnv(
   options: EngineOptions = {},
 ): StepEnv {
   const llm = options.llm ?? makeLlmRuntime(options.billing);
-  return envFor(ctx, campaign, settings, brand, llm, options.renderPoster ?? defaultRenderPoster, options.ownerUserId, options.billing);
+  return envFor(ctx, campaign, settings, brand, llm, options.renderPoster ?? defaultRenderPoster, options.ownerUserId, options.billing, options.researchAllowed);
 }
 
 export async function runEngine(
@@ -195,7 +201,7 @@ export async function runEngine(
   }
   const maxSteps = options.maxSteps ?? DEFAULT_MAX_STEPS;
   const { work: w, env } = prepareEngineInvocation(ctx, campaign, settings, brand, options);
-  const operation = await runOperation({ work: w, env, command, maxSteps });
+  const operation = await runOperation({ work: w, env, command, maxSteps }, options.traceConfig);
   return finish(w, operation.canAdvance, operation.message);
 }
 

@@ -1,0 +1,264 @@
+{
+  "mode": "SYNTHETIC mocked HTTP/model; no live provider or hosted LangSmith claim",
+  "checks": 16,
+  "matrix": [
+    {
+      "tool": "web.search",
+      "cases": [
+        "success",
+        "missing-key/direct-public-alternative",
+        "http",
+        "timeout",
+        "malformed",
+        "empty",
+        "permission"
+      ]
+    },
+    {
+      "tool": "web.scrape_page",
+      "cases": [
+        "success",
+        "missing-key/direct-public-alternative",
+        "http",
+        "timeout",
+        "malformed",
+        "empty",
+        "permission"
+      ]
+    },
+    {
+      "tool": "web.search_trends",
+      "cases": [
+        "success",
+        "missing-key/direct-public-alternative",
+        "http",
+        "timeout",
+        "malformed",
+        "empty",
+        "permission"
+      ]
+    },
+    {
+      "tool": "calendar.public_holidays",
+      "cases": [
+        "success",
+        "http",
+        "timeout",
+        "malformed",
+        "empty",
+        "permission"
+      ]
+    },
+    {
+      "tool": "web.historical_weather",
+      "cases": [
+        "success",
+        "http",
+        "timeout",
+        "malformed",
+        "empty",
+        "permission"
+      ]
+    },
+    {
+      "tool": "stats.abs_spending",
+      "cases": [
+        "success",
+        "http",
+        "timeout",
+        "malformed",
+        "empty",
+        "permission"
+      ]
+    },
+    {
+      "tool": "retail.specials",
+      "cases": [
+        "success",
+        "missing-key/direct-public-alternative",
+        "http",
+        "timeout",
+        "malformed",
+        "empty",
+        "permission"
+      ]
+    },
+    {
+      "tool": "retail.price_stats",
+      "cases": [
+        "success",
+        "missing-key/direct-public-alternative",
+        "http",
+        "timeout",
+        "malformed",
+        "empty",
+        "permission"
+      ]
+    },
+    {
+      "tool": "web.shelf_prices",
+      "cases": [
+        "success",
+        "missing-key/direct-public-alternative",
+        "http",
+        "timeout",
+        "malformed",
+        "empty",
+        "permission"
+      ]
+    },
+    {
+      "tool": "web.season_weather",
+      "cases": [
+        "success",
+        "http",
+        "timeout",
+        "malformed",
+        "empty",
+        "permission"
+      ]
+    }
+  ],
+  "localTrace": [
+    {
+      "name": "aisle.operation.START.intake.validate",
+      "id": "01a17041-6c53-769d-84ca-c0424bb37e9f"
+    },
+    {
+      "name": "__start__",
+      "id": "01a17041-6c56-706d-9361-aef524b880df",
+      "parent": "01a17041-6c53-769d-84ca-c0424bb37e9f"
+    },
+    {
+      "name": "route",
+      "id": "01a17041-6c5a-7408-8228-11c1e37710d1",
+      "parent": "01a17041-6c53-769d-84ca-c0424bb37e9f"
+    },
+    {
+      "name": "RunnableLambda",
+      "id": "01a17041-6c5c-732f-9ac5-d56d22e4feb1",
+      "parent": "01a17041-6c5a-7408-8228-11c1e37710d1"
+    },
+    {
+      "name": "intake",
+      "id": "01a17041-6c5e-768c-b425-83fa5d11d4af",
+      "parent": "01a17041-6c53-769d-84ca-c0424bb37e9f"
+    },
+    {
+      "name": "RunnableLambda",
+      "id": "01a17041-6c63-7228-a714-1279ba9d574e",
+      "parent": "01a17041-6c5e-768c-b425-83fa5d11d4af"
+    },
+    {
+      "name": "trend",
+      "id": "01a17041-6c66-76fd-8e60-3c714cd7ca2a",
+      "parent": "01a17041-6c53-769d-84ca-c0424bb37e9f"
+    },
+    {
+      "name": "aisle_trend",
+      "id": "01a17041-6c6d-7345-a550-ed2719792d19",
+      "parent": "01a17041-6c66-76fd-8e60-3c714cd7ca2a"
+    },
+    {
+      "name": "__start__",
+      "id": "01a17041-6c6e-744a-b2c6-82ac9fe7c8b9",
+      "parent": "01a17041-6c6d-7345-a550-ed2719792d19"
+    },
+    {
+      "name": "ModelCallLimitMiddleware.before_model",
+      "id": "01a17041-6c71-70dd-afed-1d51e3df8f74",
+      "parent": "01a17041-6c6d-7345-a550-ed2719792d19"
+    },
+    {
+      "name": "RunnableLambda",
+      "id": "01a17041-6c73-77a8-bdf2-599f9fbfebda",
+      "parent": "01a17041-6c71-70dd-afed-1d51e3df8f74"
+    },
+    {
+      "name": "model_request",
+      "id": "01a17041-6c75-701d-adf1-93fae9db67f3",
+      "parent": "01a17041-6c6d-7345-a550-ed2719792d19"
+    },
+    {
+      "name": "ToolCallLimitMiddleware.after_model",
+      "id": "01a17041-6c7b-7069-9ec4-30789df38336",
+      "parent": "01a17041-6c6d-7345-a550-ed2719792d19"
+    },
+    {
+      "name": "RunnableLambda",
+      "id": "01a17041-6c7f-703d-bbb6-763743e4d13c",
+      "parent": "01a17041-6c7b-7069-9ec4-30789df38336"
+    },
+    {
+      "name": "ModelCallLimitMiddleware.after_model",
+      "id": "01a17041-6c81-70dd-bd9b-0c0b313af59e",
+      "parent": "01a17041-6c6d-7345-a550-ed2719792d19"
+    },
+    {
+      "name": "RunnableLambda",
+      "id": "01a17041-6c83-722e-9c54-d804fb29327e",
+      "parent": "01a17041-6c81-70dd-bd9b-0c0b313af59e"
+    },
+    {
+      "name": "tools",
+      "id": "01a17041-6c86-779c-b9b7-276d1ae52de6",
+      "parent": "01a17041-6c6d-7345-a550-ed2719792d19"
+    },
+    {
+      "name": "tools",
+      "id": "01a17041-6c86-779c-b9b7-2b1ac423e174",
+      "parent": "01a17041-6c6d-7345-a550-ed2719792d19"
+    },
+    {
+      "name": "ModelCallLimitMiddleware.before_model",
+      "id": "01a17041-6c92-708a-9188-a759d429ef25",
+      "parent": "01a17041-6c6d-7345-a550-ed2719792d19"
+    },
+    {
+      "name": "RunnableLambda",
+      "id": "01a17041-6c94-72b2-831e-05131f1e35ef",
+      "parent": "01a17041-6c92-708a-9188-a759d429ef25"
+    },
+    {
+      "name": "model_request",
+      "id": "01a17041-6c95-764c-baea-269d0365f92e",
+      "parent": "01a17041-6c6d-7345-a550-ed2719792d19"
+    },
+    {
+      "name": "ToolCallLimitMiddleware.after_model",
+      "id": "01a17041-6c9a-7132-a36d-64b0cc6c6878",
+      "parent": "01a17041-6c6d-7345-a550-ed2719792d19"
+    },
+    {
+      "name": "RunnableLambda",
+      "id": "01a17041-6c9d-77a6-81ca-c7f09dbde28b",
+      "parent": "01a17041-6c9a-7132-a36d-64b0cc6c6878"
+    },
+    {
+      "name": "ModelCallLimitMiddleware.after_model",
+      "id": "01a17041-6c9f-7043-a258-1205f95f64ff",
+      "parent": "01a17041-6c6d-7345-a550-ed2719792d19"
+    },
+    {
+      "name": "RunnableLambda",
+      "id": "01a17041-6ca2-7465-9639-19e93553507f",
+      "parent": "01a17041-6c9f-7043-a258-1205f95f64ff"
+    },
+    {
+      "name": "ToolCallLimitMiddleware.after_agent",
+      "id": "01a17041-6ca4-722b-ad11-1e1794a97d95",
+      "parent": "01a17041-6c6d-7345-a550-ed2719792d19"
+    },
+    {
+      "name": "ModelCallLimitMiddleware.after_agent",
+      "id": "01a17041-6ca6-7068-ac6e-6893999021b5",
+      "parent": "01a17041-6c6d-7345-a550-ed2719792d19"
+    },
+    {
+      "name": "RunnableLambda",
+      "id": "01a17041-6cae-77dc-b3d0-76f99a49d509",
+      "parent": "01a17041-6c66-76fd-8e60-3c714cd7ca2a"
+    }
+  ],
+  "hostedTrace": "PENDING existing LangSmith configuration"
+}

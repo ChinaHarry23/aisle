@@ -226,6 +226,9 @@ export type AgentEvent = {
 };
 
 export type SharedContext = {
+  structuredTrendBrief?: import('@/lib/trend/brief-contracts').StructuredTrendBrief;
+  previousAdvice?:{sourceCampaignId:string;wording:string;action:'accepted'|'edited';decidedAt:string;author:string;reportId:string}|null;
+  trendBrief?:{version:number;contextVersion:string;status:'INCOMPLETE'|'COMPLETE';evidenceIds:string[];findings:import('@/lib/trend/quality-contracts').FindingReview[];limitations:string[]};
   retailer: string;
   product: string;
   audience: string;
@@ -284,15 +287,31 @@ export type Campaign = CampaignInput & {
   /* ---- agent runtime (AHR-01 … AHR-06) ---- */
   /**
    * UC-02 ext 4.b: internal retail data (POS, catalogue history) is only read
-   * when the retailer has authorised it. Defaults to true for the demo tenant.
+   * when the retailer has authorised it. Defaults to false; permission must be explicit.
    */
   internalDataAuthorised: boolean;
+  retailUpload?: import('@/lib/trend/internal-retail').RetailUpload;
+  /** Optional campaign override of the fixed public-source policy. Empty denies all external research. */
+  dataAccessPolicy?: { externalSources: string[] };
   /** Every factual claim the bench used, with its source and date. */
   evidence: Evidence[];
   /** AHR-02 findings, each linked to evidence. */
   trendFindings: TrendFinding[];
   /** What the analysis could not establish, and whether a human is needed. */
   trendGaps: TrendBriefGap[];
+  researchAttempts?: import('@/lib/trend/contracts').ResearchAttempt[];
+  researchModelTurns?: import('@/lib/trend/contracts').ResearchModelTurn[];
+  trendQualityHistory?: import('@/lib/trend/quality-contracts').TrendQuality[];
+  structuredTrendBrief?: import('@/lib/trend/brief-contracts').StructuredTrendBrief;
+  trendBriefHistory?: import('@/lib/trend/brief-contracts').StructuredTrendBrief[];
+  trendBriefBudget?: import('@/lib/trend/brief-contracts').BriefBudget;
+  trendBriefRequired?:boolean;
+  trendRequestBudget?: import('@/lib/trend/brief-contracts').BriefBudget;
+  trendQuality?: import('@/lib/trend/quality-contracts').TrendQuality;
+  trendRequests?: import('@/lib/trend/quality-contracts').ReviewRequest[];
+  trendSupplementarySources?: {url:string;category:import('@/lib/trend/contracts').ResearchCategory;channel?:string}[];
+  researchCoverage?: import('@/lib/trend/contracts').ResearchCoverage[];
+  researchMode?: 'agent' | 'legacy';
   /** Every version submitted to AHR-04, kept for audit. */
   complianceAttempts: ComplianceAttempt[];
   complianceReviewRuns?: ComplianceReviewRun[];

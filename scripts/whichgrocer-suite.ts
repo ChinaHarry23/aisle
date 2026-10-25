@@ -102,8 +102,9 @@ const described = describeShelf("apple juice", compared, "2026-10-17T00:00:00.00
 assert.match(described.claim, /ALDI \$2\.49/);
 assert.match(described.claim, /Woolworths \$3\.20/);
 assert.match(described.claim, /Coles \$3\.50/);
-assert.match(described.detail, /on special/);
-assert.equal(described.observedAt, "2026-10-16");
+assert.match(described.detail, /12% below the 30-day average/);
+assert.match(described.detail, /not a verified promotion/);
+assert.equal(described.observedAt, null, "mixed/missing dates cannot be presented as one common observation date");
 assert.equal(described.sourceRef, "https://www.woolworths.com.au/shop/productdetails/8");
 pass("catalogue rows become one grocery price per retailer, cheapest first");
 

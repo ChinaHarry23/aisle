@@ -30,6 +30,9 @@ import type { BrandProfile, Campaign, Creative, PriceRecommendation } from "@/li
 import type { ChannelResult, ComplianceIssue, ComplianceOutcome, RecommendationPoint } from "./types";
 
 export type LlmRuntime = {
+  brief?: import('@/lib/trend/brief-contracts').BriefRunner;
+  quality?: import("@/lib/trend/quality-contracts").QualityRunner;
+  research?: import("@/lib/trend/contracts").ResearchRunner;
   request: (req: CompleteRequest) => Promise<CompleteResult>;
   /** Identifies the transport so the run trace can say what decision path was used. */
   meta?: { label: string; live: boolean; billing?: BillingContext };
@@ -149,6 +152,7 @@ function traceFromSeat(agent: AgentSlot, answer: AgentAnswer<unknown>): Decision
 /* -------------------------------------------------------------- trend brief -- */
 
 export type TrendDecision = {
+  researchAnalysis?: import('@/lib/trend/contracts').ResearchAnalysis[];
   priorities: { topic: string; relevance: number; confidence: number; theme?: string; visual?: string }[];
   angle: string;
   keyMessage: string;

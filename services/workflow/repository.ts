@@ -1,3 +1,5 @@
+import {recordStoredTrend} from '../../src/lib/trend/quality';
+import { retailUploadSchema } from "../../src/lib/trend/internal-retail";
 import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
@@ -108,13 +110,30 @@ export class WorkflowRepository {
           notes: typeof raw.notes === "string" ? raw.notes : "",
           spendCapUsd: raw.spendCapUsd,
         };
+        const retail = raw.internalDataAuthorised === true && raw.retailUpload !== undefined ? retailUploadSchema.safeParse(raw.retailUpload) : null;
+        if (retail && !retail.success) throw new WorkflowError("Invalid aggregate retail upload.");
         const prior = attachableRecommendation(this.campaigns(user));
-        const fresh = { ...blankCampaign(fields, input.brand, prior?.note ?? null, input.settings, prior?.fromCampaignId ?? null), id: raw.id, internalDataAuthorised: raw.internalDataAuthorised === true };
+        const fresh = { ...blankCampaign(fields, input.brand, prior?.note ?? null, input.settings, prior?.fromCampaignId ?? null), id: raw.id, internalDataAuthorised: raw.internalDataAuthorised === true,
+          ...(retail?.success ? {retailUpload:retail.data} : {}),
+          ...(raw.dataAccessPolicy === undefined ? {} : { dataAccessPolicy: { externalSources: Array.isArray(raw.dataAccessPolicy?.externalSources) ? raw.dataAccessPolicy.externalSources.filter((name: unknown): name is string => typeof name === "string") : [] } }) };
         if (current) { fresh.log = current.log; fresh.createdAt = current.createdAt; }
         current = fresh;
         this.db.prepare("insert into workflow_campaigns(user_id,campaign_id,snapshot) values(?,?,?) on conflict(user_id,campaign_id) do update set snapshot=excluded.snapshot").run(user, current.id, JSON.stringify(current));
       }
       // These are explicit founder-controlled settings, never generated results or approvals.
+      // A paused research job can receive a new aggregate export on explicit
+      // START. Preserve the durable scope/results; import only validated inputs.
+      if ((command.type === 'START' || command.type === 'RESOLVE_TREND' && command.action === 'provide_data') && current.status === 'paused') {
+        if (input.campaign.internalDataAuthorised === true && input.campaign.retailUpload !== undefined) {
+          const retail=retailUploadSchema.safeParse(input.campaign.retailUpload);
+          if(!retail.success)throw new WorkflowError('Invalid aggregate retail upload.');
+          current.retailUpload=retail.data;
+          current.internalDataAuthorised=true;
+        } else if (input.campaign.internalDataAuthorised === false) {
+          current.internalDataAuthorised=false;
+          current.retailUpload=undefined;
+        }
+      }
       if (Number.isFinite(input.campaign.spendCapUsd) && input.campaign.spendCapUsd! > 0) current.spendCapUsd = input.campaign.spendCapUsd;
       if (command.type === "COLLECT_FEEDBACK") {
         const valid = ["ok", "no_data", "not_authorised", "late", "incomplete", "excluded"];
@@ -158,6 +177,7 @@ export class WorkflowRepository {
     this.transaction(() => {
       const row = this.raw(job.user_id, job.id);
       if (row.worker !== job.worker || row.status !== "running") throw new WorkflowError("Worker lease was lost; result was not committed.", 409);
+      recordStoredTrend(result.campaign);
       const revision = row.revision + 1;
       this.db.prepare("update workflow_campaigns set snapshot=?,revision=? where user_id=? and campaign_id=?").run(JSON.stringify(result.campaign), revision, job.user_id, job.campaign_id);
       this.db.prepare("update workflow_jobs set result=?,next_command=?,status=?,message=?,updated_at=?,revision=? where id=?")

@@ -120,6 +120,8 @@ export async function runSeatAgent<T>(options: {
    * the campaign's meter never showed.
    */
   onFailedUsage?: (costUsd: number) => void;
+  /** Test transport or a server-side bounded wrapper around the shared metered funnel. */
+  complete?: ConstructorParameters<typeof MeteredChatModel>[0]["complete"];
 }): Promise<AgentAnswer<T> | null> {
   // Each tool call is announced, so the run trace can show what the agent chose.
   const used: string[] = [];
@@ -141,7 +143,7 @@ export async function runSeatAgent<T>(options: {
     localBaseUrl: options.localBaseUrl,
     localModel: options.localModel,
     maxOutputTokens: options.maxOutputTokens,
-    complete: runComplete,
+    complete: options.complete ?? runComplete,
   });
 
   const agent = buildAgent<T>({

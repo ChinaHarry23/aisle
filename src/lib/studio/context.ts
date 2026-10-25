@@ -11,9 +11,8 @@ import { billingFor, type BillingContext } from "@/lib/billing/meter";
 import { findUserByEmail, findUserById, listUsers, ensureSeedAccounts } from "@/lib/auth/users";
 import type { AuthUser } from "@/lib/auth/types";
 import { loadWorkspace, saveWorkspace, type WorkspaceSnapshot } from "@/lib/auth/workspace";
-import { createServerTrendRuntime } from "@/lib/agents/trend-server";
+import { createServerResearchRuntime } from "@/lib/agents/trend-server";
 import { renderCampaignPoster } from "@/lib/media/campaign-poster";
-import { makeLlmRuntime } from "@/lib/runtime/decide";
 import { isArchived } from "@/lib/campaign-lifecycle";
 import { withRuntimeDefaults } from "@/lib/runtime/defaults";
 import {
@@ -113,7 +112,7 @@ function engineOptions(userId: string, billing: BillingContext): EngineOptions {
   return {
     ownerUserId: userId,
     billing,
-    llm: createServerTrendRuntime(billing) ?? makeLlmRuntime(billing),
+    llm: createServerResearchRuntime(billing),
     renderPoster: (input) =>
       renderCampaignPoster({
         campaign: input.campaign,
