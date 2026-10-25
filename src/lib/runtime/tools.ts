@@ -16,8 +16,8 @@
  */
 
 import { internalRetailOutcome } from '@/lib/trend/internal-retail';
-import { researchTools, RESEARCH_TOOL_IDS } from "@/lib/trend/source-tools";
-import type { z } from "zod";
+import { researchTools, RESEARCH_TOOL_IDS, definePublicResearchTool } from "@/lib/trend/source-tools";
+import { z } from "zod";
 import { describeShelf, type ShelfOffer } from "@/lib/retail/whichgrocer/query";
 import { uid } from "@/lib/ids";
 import type { BrandProfile, Campaign, Channel, Country } from "@/lib/types";
@@ -32,6 +32,7 @@ export type ToolOutcome = {
   evidence: Evidence[];
   /** Tool-specific payload the calling agent consumes. */
   data: unknown;
+  usage?: import('./types').ResearchToolUsage;
   /** Something the analysis could not establish, surfaced as a brief gap. */
   gap?: { kind: "missing_source" | "outdated" | "conflict" | "unauthorised" | "low_confidence"; detail: string; effect: string };
 };
@@ -44,6 +45,7 @@ export type ToolDefinition = {
   /** Shown in the runtime view so the founder can audit what an agent may call. */
   args: string[];
   schema?: z.ZodType;
+  cached?: (input: ToolInput) => Promise<ToolOutcome | null>;
   run: (input: ToolInput) => Promise<ToolOutcome>;
 };
 
@@ -134,6 +136,7 @@ export function toToolCall(input: {
     summary: input.outcome.summary,
     latencyMs: input.latencyMs,
     evidenceIds: input.outcome.evidence.map((e) => e.id),
+    usage: input.outcome.usage,
   };
 }
 
@@ -449,6 +452,7 @@ type ShelfLookupResult =
       observedAt: string | null;
       summary: string;
       offers: ShelfOffer[];
+      usage?: import("./types").ResearchToolUsage;
     }
   | { ok: false; kind: string; reason: string };
 
@@ -471,14 +475,9 @@ export function setShelfPriceLookup(lookup: ShelfLookup) {
   shelfLookup = lookup;
 }
 
-export const shelfPriceTool: ToolDefinition = {
-  name: "web.shelf_prices",
-  label: "Shelf prices (WhichGrocer)",
-  agent: "trend",
-  description:
-    "Reads live Australian catalogue prices for the product from the WhichGrocer API (Coles, Woolworths, ALDI and other retailers). Cites each price with the retailer page and the date WhichGrocer last saw it. Uses the server WHICHGROCER_API_KEY.",
-  args: ["query"],
-  async run({ campaign, at, args, ownerUserId }) {
+export const shelfPriceTool = definePublicResearchTool('web.shelf_prices', 'Shelf prices (WhichGrocer)',
+  z.object({query:z.string().min(2).max(100).describe('Approved public product query; defaults to the campaign product. Australian catalogue only.').optional()}).strict(),
+  async ({ campaign, at, args, ownerUserId }) => {
     const permission = denied(campaign, "web.shelf_prices");
     if (permission) return permission;
     const lookup =
@@ -531,16 +530,21 @@ export const shelfPriceTool: ToolDefinition = {
     }
     return {
       summary: lookup.summary,
+      usage: lookup.usage,
       status: "ok",
-      data: { query: lookup.query, offers: lookup.offers },
+      data: { query: lookup.query, offers: lookup.offers.filter(offer=>{
+        const age=offer.observedAt?(Date.parse(at.slice(0,10))-Date.parse(offer.observedAt))/86400000:Infinity;
+        return !offer.archived&&!offer.stale&&age>=0&&age<=7&&offer.currency==='AUD'&&Number.isFinite(offer.price)&&offer.price>0;
+      }) },
       evidence: lookup.offers.map(offer => {
         const item = describeShelf(lookup.query, [offer], at);
-        return evidence({ ...item, sourceName: "WhichGrocer", sourceKind: "external_public", at,
+        const age=offer.observedAt?(Date.parse(at.slice(0,10))-Date.parse(offer.observedAt))/86400000:Infinity;
+        const stale=offer.archived||offer.stale||age<0||age>7;
+        return evidence({ ...item, status:stale?'stale':'verified', sourceName: "WhichGrocer", sourceKind: "external_public", at,
           confidence: 74, raisedBy: "trend", usedFor: "Shelf price snapshot; not historical demand" });
       }),
     };
-  },
-};
+  });
 
 /* ---------------------------------------------------------- shared registry -- */
 

@@ -176,6 +176,7 @@ export type ShelfLookup =
       ok: true;
       query: string;
       offers: ShelfOffer[];
+      usage?: import("@/lib/runtime/types").ResearchToolUsage;
       claim: string;
       detail: string;
       sourceRef: string;
@@ -214,9 +215,10 @@ export async function lookupShelfPrices(
     return { ok: false, kind: "not_connected", reason: "WhichGrocer API key is not set." };
   }
 
+  const reportedCredits: (number|null)[]=[];
   let found: ShelfOffer[];
   try {
-    found = await loadCatalogue(query, fetchImpl);
+    found = await loadCatalogue(query, fetchImpl, value=>reportedCredits.push(value));
   } catch (error) {
     const reason = error instanceof WhichGrocerApiError ? `WhichGrocer request failed (HTTP ${error.status}).` : "WhichGrocer network or response error.";
     const rejected = error instanceof WhichGrocerApiError && (error.status === 401 || error.status === 403);
@@ -240,6 +242,7 @@ export async function lookupShelfPrices(
     ok: true,
     query,
     offers,
+    usage:{provider:'whichgrocer',cache:'miss',credits:reportedCredits.length&&reportedCredits.every(v=>v!==null)?reportedCredits.reduce<number>((sum,v)=>sum+(v??0),0):null,creditsBasis:reportedCredits.length&&reportedCredits.every(v=>v!==null)?'reported':'unknown'},
     ...described,
     summary: described.claim,
   };

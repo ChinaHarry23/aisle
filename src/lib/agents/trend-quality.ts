@@ -50,13 +50,14 @@ export function createTrendQuality(billing?:BillingContext,test?:{mode:'mock';co
     const definition=toolByName(name);
     if(!await permitted()||toolCalls>=QUALITY_RULES.replacementCallLimit||!definition||!['web.search','web.scrape_page'].includes(name)||!toolSchema(definition).safeParse(args).success||!sourcePermitted(c,name,DEFAULT_EXTERNAL_SOURCES))return unavailable('Quality replacement paused, invalid, unauthorised or at its call limit.','skipped');
     toolCalls++;
-    const fallback=name==='web.search'&&!process.env.FIRECRAWL_API_KEY;
-    const paid=name==='web.search'||Boolean(process.env.FIRECRAWL_API_KEY);
+    const cached=await definition.cached?.({campaign:c,brand:input.brand,at:input.at,args});
+    const fallback=!cached&&name==='web.search'&&!process.env.FIRECRAWL_API_KEY;
+    const paid=!cached&&(name==='web.search'||Boolean(process.env.FIRECRAWL_API_KEY));
     const price=test?0:paid?Number(process.env[fallback?'TREND_PROVIDER_SEARCH_MAX_USD':name==='web.search'?'TREND_FIRECRAWL_SEARCH_MAX_USD':'TREND_FIRECRAWL_SCRAPE_MAX_USD']):0;
     const max=Number(process.env.TREND_RESEARCH_MAX_USD??'0.25');
     if(!test&&paid&&(!Number.isFinite(price)||price<=0||price>remaining()||toolSpend+price>max))return unavailable('Configure or restore the research credit envelope before replacement.','skipped');
     toolSpend+=price;
-    let override:ToolOutcome|undefined;
+    let override:ToolOutcome|undefined=cached??undefined;
     if(fallback&&!test){
       const found=await searchWithModel(input.settings.agents.trend.modelId,queryFor({campaign:c,brand:input.brand,at:input.at,args},args.category as ResearchCategory,args.channel)+' original dated source '+input.at.slice(0,4),billing,price,sourceHosts);
       input.onFailedUsage(found.costUsd);

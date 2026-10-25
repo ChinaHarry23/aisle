@@ -46,7 +46,9 @@
     "test:compliance-report": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/compliance-report-suite.ts",
     "compliance:kb": "node --env-file-if-exists=.env.local --import ./scripts/service-loader.mjs --experimental-strip-types scripts/compliance-knowledge.ts",
     "test:compliance-knowledge": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/compliance-knowledge-suite.ts",
-    "test:trend-brief": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/trend-brief-suite.ts"
+    "test:trend-brief": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/trend-brief-suite.ts",
+    "test:research-reliability": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/scrum124-suite.ts",
+    "verify:research-trace": "node --env-file-if-exists=.env.local --import ./scripts/service-loader.mjs --experimental-strip-types scripts/scrum124-trace.ts"
   },
   "dependencies": {
     "@langchain/core": "1.2.17",

@@ -30,7 +30,7 @@ export function researchModelResult(outcome: ToolOutcome) {
       quality:e.research?.quality,excerpt:e.detail.slice(0,600)})),
     omittedEvidence:Math.max(0,outcome.evidence.length-3), gap:outcome.gap};
 }
-export function createTrendResearch(billing?: BillingContext, test?: { mode:'mock'; complete:MeteredModelConfig['complete'] }): ResearchRunner {
+export function createTrendResearch(billing?: BillingContext, test?: { mode:'mock'; complete:MeteredModelConfig['complete']; toolCallLimit?:number }): ResearchRunner {
  return async input => {
   const assignment=input.settings.agents.trend;
   const started=Date.now();let calls=0, tokens=0, toolSpend=0, modelCalls=0;
@@ -49,10 +49,14 @@ export function createTrendResearch(billing?: BillingContext, test?: { mode:'moc
       if(!toolSchema(definition).safeParse(args).success)return fail('Invalid arguments.','error');
       if(name==='retail.internal_signals' ? !input.campaign.internalDataAuthorised : !sourcePermitted(input.campaign,name,DEFAULT_EXTERNAL_SOURCES))return fail('Source excluded by campaign permission.');
       const key=name+JSON.stringify(Object.entries(args).sort(([a],[b])=>a.localeCompare(b)));
-      const previous=cache.get(key);if(previous)return input.execute(name,args,{...previous,evidence:[],summary:'Same-run cache hit: '+previous.summary});
-      if(++calls>MAX_TOOLS)return fail('Research tool-call cap reached.');
+      const previous=cache.get(key);if(previous)return input.execute(name,args,{...previous,evidence:[],usage:previous.usage?{...previous.usage,cache:'same_run',credits:0,creditsBasis:'cache',originalCredits:previous.usage.credits,estimatedCostUsd:0}:undefined,summary:'Same-run cache hit: '+previous.summary});
+      if(++calls>Math.min(MAX_TOOLS, test?.toolCallLimit??MAX_TOOLS))return fail('Research tool-call cap reached.');
+      const sharedHit=await definition.cached?.({campaign:input.campaign,brand:input.brand,at:input.at,args});
+      if(sharedHit){cache.set(key,sharedHit);return input.execute(name,args,sharedHit);}
       const providerSearch = name === 'web.search' && !process.env.FIRECRAWL_API_KEY && !test;
       const paid=name==='web.search'||(name==='web.scrape_page'&&Boolean(process.env.FIRECRAWL_API_KEY))||name==='web.search_trends'||name==='web.shelf_prices'||name==='retail.specials'||name==='retail.price_stats';
+      const requiredKey=name==='web.search_trends'?'SERPAPI_API_KEY':['web.shelf_prices','retail.specials','retail.price_stats'].includes(name)?'WHICHGROCER_API_KEY':null;
+      if(!test&&requiredKey&&!process.env[requiredKey])return fail(`${requiredKey} is not configured; no provider call or charge.`);
       let price=0;
       if(paid && !test){
         const variable=providerSearch?'TREND_PROVIDER_SEARCH_MAX_USD':name==='web.search'?'TREND_FIRECRAWL_SEARCH_MAX_USD':name==='web.scrape_page'?'TREND_FIRECRAWL_SCRAPE_MAX_USD':name==='web.search_trends'?'TREND_SERPAPI_MAX_USD':'TREND_WHICHGROCER_MAX_USD';
@@ -65,12 +69,13 @@ export function createTrendResearch(billing?: BillingContext, test?: { mode:'moc
         toolSpend+=result.costUsd;input.onFailedUsage(result.costUsd);
         const evidence=result.citations.flatMap(citation=>{const url=publicSourceUrl(citation.url);return url&&(citation.snippet||citation.title) ? [{id:uid('ev'),claim:'Provider search citation candidate',detail:redact(citation.snippet || `Source title only: ${citation.title}`),sourceName:result.modelName+' web search',sourceRef:url,sourceKind:'external_public' as const,observedAt:null,fetchedAt:input.at,status:'verified' as const,confidence:0,raisedBy:'trend' as const,usedFor:args.category,research:{category:args.category as ResearchCategory,channel:args.channel,geography:input.campaign.country,queryScope:args.category,permission:'allowed' as const,quality:'snippet' as const,transformation:'Provider citation snippet only; generated search answer excluded from evidence.'}}]:[];});
         const outcome:ToolOutcome=evidence.length?{status:'ok',summary:'Existing model-provider search returned citation snippets; original-source assessment required.',data:{sources:evidence},evidence}:unavailable(result.status==='ok'?'Provider search returned no allowlisted source excerpts.':result.summary,result.status==='ok'?'empty':result.status);
+        outcome.usage={provider:'model_search',cache:'miss',credits:null,creditsBasis:'unknown',estimatedCostUsd:result.costUsd};
         cache.set(key,outcome);return input.execute(name,args,outcome);
       }
       const hold=price?await holdCredits(billing,price):null;
       if(price&&!hold)return fail('Research billing identity or credits unavailable.');
       toolSpend+=price;
-      try { const outcome=await input.execute(name,args);cache.set(key,outcome);return outcome; }
+      try { const outcome=await input.execute(name,args);if(outcome.usage)outcome.usage.estimatedCostUsd=outcome.usage.cache==='hit'?0:price;cache.set(key,outcome);return outcome; }
       finally {if(hold){await settleHold(hold,price,{modelId:`research:${name}`,note:'Configured conservative per-call estimate; provider invoice is authoritative.'});input.onFailedUsage(price);}}
     };
     const result=queue.then(perform);queue=result.catch(()=>undefined);return result;

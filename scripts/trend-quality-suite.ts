@@ -1,3 +1,4 @@
+process.env.TREND_PUBLIC_CACHE_TTL_MS='0';
 import assert from 'node:assert/strict';
 import {mkdtempSync} from 'node:fs';
 import {tmpdir} from 'node:os';

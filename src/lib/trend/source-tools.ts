@@ -1,5 +1,6 @@
 /** Bounded public retrieval. Search results are evidence candidates, never instructions. */
 import { z } from 'zod';
+import { getPublicResearchCache, putPublicResearchCache, publicCacheKey } from './public-cache';
 import { uid } from '@/lib/ids';
 import type { Evidence } from '@/lib/runtime/types';
 import type { ToolDefinition, ToolInput, ToolOutcome } from '@/lib/runtime/tools';
@@ -40,21 +41,74 @@ function item(input: ToolInput, category: ResearchCategory, name: string, url: s
   return {id:uid('ev'), claim:`Retrieved ${category.replaceAll('_',' ')} material`, detail:redact(excerpt).slice(0,2400),sourceName:name,sourceRef:url,sourceKind:'external_public',observedAt,dateBasis:observedAt?'source_record':'unknown',fetchedAt:input.at,status:'verified',confidence:0,raisedBy:'trend',usedFor:'Source material only; not a validated conclusion.',research:{category,geography:input.campaign.country,queryScope:queryFor(input,category,input.args.channel),permission:'allowed',quality:'unassessed',...extra}};
 }
 function result(evidence: Evidence[], data: unknown, summary: string): ToolOutcome { return evidence.length ? {status:'ok',summary,evidence,data} : unavailable('No usable scoped records returned.'); }
-function define(name: string,label: string,schema: z.ZodType,run: (i: ToolInput)=>Promise<ToolOutcome>): ToolDefinition {
-  return {name,label,agent:'trend',description:label+'. Returns bounded source material and provenance; never establishes claim support by itself.',args:Object.keys(schema instanceof z.ZodObject ? schema.shape : {}),schema,async run(input){
-    if (!sourcePermitted(input.campaign,name,RESEARCH_TOOL_IDS))return unavailable(`${name} excluded by DataAccessPolicy.`,'skipped');
-    const parsed=schema.safeParse(input.args);if(!parsed.success)return unavailable('Invalid tool arguments.','error');
-    if(input.args.channel && !input.campaign.channels.includes(input.args.channel as never))return unavailable('Channel is outside the approved campaign.','skipped');
-    try{return await run(input);}catch(error){return unavailable(error instanceof Error && /^HTTP \d+$/.test(error.message)?`${name}: ${error.message}`:`${name}: unavailable, timed out or malformed response.`);}
+/** Runtime telemetry is separate from source evidence and model conclusions. */
+function providerUsage(provider: 'firecrawl'|'whichgrocer'|'serpapi', response: Record<string,unknown>): NonNullable<ToolOutcome['usage']> {
+  const candidate = provider === 'whichgrocer' ? record(response.meta).credits_charged
+    : provider === 'firecrawl' ? response.creditsUsed ?? record(response.data).creditsUsed ?? record(record(response.data).metadata).creditsUsed : undefined;
+  const credits = typeof candidate === 'number' && Number.isFinite(candidate) && candidate >= 0 ? candidate : null;
+  return {provider, cache:'miss', credits, creditsBasis:credits === null ? 'unknown' : 'reported'};
+}
+function providerFor(name:string) {
+  if(name==='web.search'||name==='web.scrape_page')return process.env.FIRECRAWL_API_KEY ? {name:'firecrawl',credential:process.env.FIRECRAWL_API_KEY}:null;
+  if(name==='web.search_trends')return process.env.SERPAPI_API_KEY ? {name:'serpapi',credential:process.env.SERPAPI_API_KEY}:null;
+  if(name==='web.shelf_prices'||name==='retail.specials'||name==='retail.price_stats')return process.env.WHICHGROCER_API_KEY ? {name:'whichgrocer',credential:process.env.WHICHGROCER_API_KEY}:null;
+  return null;
+}
+function eligible(name:string,schema:z.ZodType,input:ToolInput): ToolOutcome|null {
+  if(!sourcePermitted(input.campaign,name,[...RESEARCH_TOOL_IDS,'web.shelf_prices']))return unavailable(`${name} excluded by DataAccessPolicy.`,'skipped');
+  if(!schema.safeParse(input.args).success)return unavailable('Invalid tool arguments.','error');
+  if(input.args.channel && !input.campaign.channels.includes(input.args.channel as never))return unavailable('Channel is outside the approved campaign.','skipped');
+  if(name==='web.scrape_page'&&!publicSourceUrl(input.args.url))return unavailable('URL is outside the public source allowlist.','skipped');
+  if(name.startsWith('retail.')&&input.campaign.country!=='AU')return unavailable('WhichGrocer covers Australia only.','skipped');
+  if(name==='retail.price_stats'&&!input.campaign.evidence.some(e=>e.sourceName==='WhichGrocer'&&e.research?.category==='competitor'&&e.detail.includes(`"id":"${input.args.productId}"`)))return unavailable('Select a product ID from this campaign’s retrieved WhichGrocer evidence first.','skipped');
+  return null;
+}
+async function cacheKey(name:string,input:ToolInput) {
+  const provider=providerFor(name);if(!provider)return null;
+  // Only public query scope is cached. Credential digest isolates provider accounts.
+  const c=input.campaign;
+  return publicCacheKey({version:1,provider:provider.name,name,args:Object.entries(input.args).sort(),product:safePublicTerm(c.product),category:safePublicTerm(c.category),country:c.country,start:c.startDate,end:c.endDate,channels:c.channels,hosts:process.env.TREND_SOURCE_DOMAINS??''},provider.credential);
+}
+function refreshCached(outcome:ToolOutcome,input:ToolInput) {
+  for(const e of outcome.evidence){
+    if(e.sourceName==='WhichGrocer'){
+      const age=e.observedAt?(Date.parse(input.at.slice(0,10))-Date.parse(e.observedAt))/86400000:Infinity;
+      if(age<0||age>7){e.status='stale';e.detail=e.detail.replace('Recent catalogue record','Historical/stale; not current');}
+    }
+  }
+  if(Array.isArray((outcome.data as {offers?:unknown[]})?.offers)){
+    const data=outcome.data as {offers:{observedAt?:string;archived?:boolean;stale?:boolean}[]};
+    data.offers=data.offers.filter(o=>{const age=o.observedAt?(Date.parse(input.at.slice(0,10))-Date.parse(o.observedAt))/86400000:Infinity;return !o.archived&&!o.stale&&age>=0&&age<=7;});
+  }
+  return outcome;
+}
+export function definePublicResearchTool(name: string,label: string,schema: z.ZodType,run: (i: ToolInput)=>Promise<ToolOutcome>): ToolDefinition {
+  const cached=async(input:ToolInput)=>{
+    if(eligible(name,schema,input))return null;
+    const key=await cacheKey(name,input);if(!key)return null;
+    const hit=getPublicResearchCache(key);return hit?refreshCached(hit,input):null;
+  };
+  return {name,label,agent:'trend',description:label+'. Returns bounded source material and provenance; never establishes claim support by itself.',args:Object.keys(schema instanceof z.ZodObject ? schema.shape : {}),schema,cached,async run(input){
+    const rejected=eligible(name,schema,input);if(rejected)return rejected;
+    const hit=await cached(input);if(hit)return hit;
+    try{
+      const outcome=await run(input);
+      const provider=providerFor(name);
+      if(provider&&!outcome.usage)outcome.usage={provider:provider.name as 'firecrawl'|'whichgrocer'|'serpapi',cache:'miss',credits:null,creditsBasis:'unknown'};
+      const key=await cacheKey(name,input);if(key&&outcome.usage)putPublicResearchCache(key,outcome);
+      return outcome;
+    }catch(error){const outcome=unavailable(error instanceof Error && /^HTTP \d+$/.test(error.message)?`${name}: ${error.message}`:`${name}: unavailable, timed out or malformed response.`);const provider=providerFor(name);if(provider)outcome.usage={provider:provider.name as 'firecrawl'|'whichgrocer'|'serpapi',cache:'miss',credits:null,creditsBasis:'unknown'};return outcome;}
   }};
 }
+const define=definePublicResearchTool;
+
 const searchTool=define('web.search','Scoped public search: Firecrawl or existing model-provider web search when configured',querySchema,async input=>{
   if(!process.env.FIRECRAWL_API_KEY)return unavailable('Firecrawl key is not configured.');
   const category=input.args.category as ResearchCategory;
   const response=record(await json('https://api.firecrawl.dev/v2/search',{method:'POST',headers:{Authorization:`Bearer ${process.env.FIRECRAWL_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({query:queryFor(input,category,input.args.channel),limit:3,sources:['web'],country:input.campaign.country==='UK'?'GB':input.campaign.country,timeout:10000})}));
   const data=record(response.data); const rows=Array.isArray(data.web)?data.web:[];
   const evidence=rows.slice(0,3).flatMap(row=>{const r=record(row);const url=publicSourceUrl(String(r.url??''));const excerpt=typeof r.description==='string'?r.description:'';return url&&excerpt?[item(input,category,'Firecrawl Search',url,excerpt,null,{channel:input.args.channel,quality:'snippet'})]:[];});
-  return result(evidence,{sources:evidence.map(e=>({id:e.id,url:e.sourceRef,excerpt:e.detail})),next:'Read original sources with web.scrape_page. Search snippets alone cannot satisfy coverage.'},'Public search results retrieved; snippets require original-source review.');
+  return {...result(evidence,{sources:evidence.map(e=>({id:e.id,url:e.sourceRef,excerpt:e.detail})),next:'Read original sources with web.scrape_page. Search snippets alone cannot satisfy coverage.'},'Public search results retrieved; snippets require original-source review.'),usage:providerUsage('firecrawl',response)};
 });
 const scrapeTool=define('web.scrape_page','Firecrawl read an allowlisted original public source',z.object({url:z.string().max(1200),category:categorySchema,channel:z.string().max(40).optional()}).strict(),async input=>{
   const url=publicSourceUrl(input.args.url);if(!url)return unavailable('URL is outside the public source allowlist (no credentials, query strings, IPs or private hosts).','skipped');
@@ -78,7 +132,7 @@ const scrapeTool=define('web.scrape_page','Firecrawl read an allowlisted origina
   const content=typeof data.markdown==='string'?data.markdown:'';if(!content)return unavailable('Source has no readable content.');
   if(/incapsula incident id|request unsuccessful|access denied|verify (?:that )?you are (?:a )?human|enable javascript and cookies to continue/i.test(content.slice(0,1200)))return unavailable('Extractor returned an access challenge, not research content.');
   const evidence=[item(input,input.args.category as ResearchCategory,'Firecrawl Scrape',finalUrl,content,date(metadata.publishedTime??metadata['article:published_time']),{channel:input.args.channel,transformation:'First 2400 characters; not the full report. Assess sampling and methodology.'})];
-  return result(evidence,{sources:evidence},'Original public text retrieved; publication date remains unknown when absent.');
+  return {...result(evidence,{sources:evidence},'Original public text retrieved; publication date remains unknown when absent.'),usage:providerUsage('firecrawl',response)};
 });
 const trendsTool=define('web.search_trends','Google Trends relative search interest; never sales volume',z.object({kind:z.enum(['TIMESERIES','RELATED_QUERIES'])}).strict(),async input=>{
   if(!process.env.SERPAPI_API_KEY)return unavailable('SerpApi key is not configured.');
@@ -92,7 +146,7 @@ const trendsTool=define('web.search_trends','Google Trends relative search inter
   const category=input.args.kind==='TIMESERIES'?'historical_market':'customer_interest';
   const ref=`https://trends.google.com/trends/explore?geo=${input.campaign.country==='UK'?'GB':input.campaign.country}&q=${encodeURIComponent(q)}&date=today%2012-m`;
   const excerpt=JSON.stringify(data);
-  return result([item(input,category,'SerpApi Google Trends',ref,excerpt,null,{transformation:'Relative interest over trailing 12 months, not sales; partial periods may be incomplete.'})],{records:data},'Relative search interest retrieved. Search interest is not purchase preference.');
+  return {...result([item(input,category,'SerpApi Google Trends',ref,excerpt,null,{transformation:'Relative interest over trailing 12 months, not sales; partial periods may be incomplete.'})],{records:data},'Relative search interest retrieved. Search interest is not purchase preference.'),usage:providerUsage('serpapi',response)};
 });
 const holidaysTool=define('calendar.public_holidays','Nager.Date public holidays in the campaign year and country',z.object({year:z.string().regex(/^\d{4}$/)}).strict(),async input=>{
   const {campaign:c}=input;if(![c.startDate.slice(0,4),c.endDate.slice(0,4)].includes(input.args.year))return unavailable('Year is outside the campaign.','skipped');
@@ -156,13 +210,15 @@ async function groceryRecords(input:ToolInput, stats:boolean):Promise<ToolOutcom
  const response=record(await json(url,{headers:{Authorization:`Bearer ${process.env.WHICHGROCER_API_KEY}`,Accept:'application/json'}}));
  const rows=stats?[response.data]:Array.isArray(response.data)?response.data.slice(0,5):[];
  const evidence=rows.flatMap(raw=>{const parsed=productSchema.safeParse(raw);if(!parsed.success)return [];const r=parsed.data;
-  const observed=date(r.last_seen_at??r.updated_at);const age=observed?(Date.parse(input.at)-Date.parse(observed))/86400000:Infinity;
-  const archived=Boolean(r.last_seen_at),stale=archived||r.is_stale===true||age>14||age<0;
+  const observed=date(r.last_seen_at??r.updated_at);const age=observed?(Date.parse(input.at.slice(0,10))-Date.parse(observed))/86400000:Infinity;
+  const archived=Boolean(r.last_seen_at),stale=archived||r.is_stale===true||age>7||age<0;
   const detail=JSON.stringify({...r,scope:'Australian national catalogue; not store stock or a binding offer',offerWindow:'Unknown: provider supplies no retailer offer start/end',freshness:stale?'Historical/stale; not current':'Recent catalogue record',statistics:'Trailing 30-day summary, not a full historical series'});
   const ev=item(input,'competitor','WhichGrocer',r.url&&publicSourceUrl(r.url)?r.url:url,detail,observed,{transformation:'Product data by WhichGrocer. Preserve pack/unit measures; compare like units only. is_special means below 30-day average, not a retailer promotion flag.'});
-  if(stale)ev.status='stale';return [ev];
+  if(stale)ev.status='stale';
+  if(r.price===null||r.price<=0||!r.name||!r.store){ev.status='unavailable';}
+  return [ev];
  });
- return result(evidence,{products:evidence.map(e=>({id:e.id,excerpt:e.detail})),attribution:'Product data by WhichGrocer',provider:'https://www.whichgrocer.com/'},'WhichGrocer catalogue and 30-day statistics retrieved; offer window unknown. Stale/archive rows cannot substantiate current prices.');
+ return {...result(evidence,{products:evidence.map(e=>({id:e.id,excerpt:e.detail})),attribution:'Product data by WhichGrocer',provider:'https://www.whichgrocer.com/'},'WhichGrocer catalogue and 30-day statistics retrieved; offer window unknown. Only records observed within 7 days may support recent catalogue comparisons; no binding promotion inferred.'),usage:providerUsage('whichgrocer',response)};
 }
 const specialsTool=define('retail.specials','WhichGrocer specials matching the approved campaign product',z.object({}).strict(),input=>groceryRecords(input,false));
 const priceStatsTool=define('retail.price_stats','WhichGrocer product detail including trailing 30-day price statistics',z.object({productId:z.string().regex(/^[A-Za-z0-9_-]{1,100}$/)}).strict(),input=>groceryRecords(input,true));

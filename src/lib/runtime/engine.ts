@@ -21,6 +21,8 @@ import { type StepEnv, type Work } from "./steps";
 import { type AgentRun, type Command, type EngineContext, type EngineResult } from "./types";
 
 export type EngineOptions = {
+  /** Server/test supplied tracing configuration, never sourced from client state. */
+  traceConfig?: import('@langchain/core/runnables').RunnableConfig;
   llm?: LlmRuntime;
   /** Bounded work per ADVANCE so one HTTP call cannot run away. */
   maxSteps?: number;
@@ -147,7 +149,7 @@ export async function runEngine(
     w.campaign.run = w.run;
   }
 
-  const operation = await runOperation({ work: w, env, command, maxSteps });
+  const operation = await runOperation({ work: w, env, command, maxSteps }, options.traceConfig);
   canAdvance = operation.canAdvance;
   return finish(w, canAdvance, operation.message);
 }

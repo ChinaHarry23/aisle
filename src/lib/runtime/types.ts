@@ -394,6 +394,15 @@ export type RecommendationDecision = {
 
 export type RunStatus = "idle" | "running" | "paused" | "awaiting_human" | "complete" | "halted";
 
+export type ResearchToolUsage = {
+  provider: 'firecrawl' | 'whichgrocer' | 'serpapi' | 'model_search';
+  cache: 'miss' | 'hit' | 'same_run';
+  credits: number | null;
+  creditsBasis: 'reported' | 'unknown' | 'cache';
+  originalCredits?: number | null;
+  originalFetchedAt?: string;
+  estimatedCostUsd?: number;
+};
 export type ToolCall = {
   id: string;
   at: string;
@@ -405,6 +414,7 @@ export type ToolCall = {
   latencyMs: number;
   /** Evidence raised by this call, if any. */
   evidenceIds: string[];
+  usage?: ResearchToolUsage;
 };
 
 export type RunStepId =

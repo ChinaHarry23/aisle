@@ -1,3 +1,4 @@
+process.env.TREND_PUBLIC_CACHE_TTL_MS='0';
 import assert from 'node:assert/strict';
 import { importRetailCsv, internalRetailOutcome } from '../src/lib/trend/internal-retail';
 import { blankCampaign, defaultBrand } from '../src/lib/seed';

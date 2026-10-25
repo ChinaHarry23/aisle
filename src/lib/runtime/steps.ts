@@ -506,13 +506,8 @@ export async function runTrendResearch(
   );
   toolResults.push(shelf);
 
-  const competitor = await callTool(
-    w,
-    "trend",
-    "web.competitor_scan",
-    { query: `${c.category} ${c.country} retail promotion` },
-    env,
-  );
+  // The compatibility path must not reinstate the retired instant-answer scan.
+  const competitor = unavailable('Legacy competitor scan retired; use the guarded research agent for original public sources.', 'skipped');
   toolResults.push(competitor);
 
   retail = await callTool(
