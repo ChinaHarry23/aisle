@@ -1,6 +1,7 @@
+import { DEFAULT_LOCAL_BASE_URL } from "../settings";
 import type { CompleteRequest, LlmModel } from "./types";
 
-export class LlmAdapterNotWiredError extends Error {
+class LlmAdapterNotWiredError extends Error {
   constructor(provider: string) {
     super(`${provider} LLM adapter is not wired yet. Add the fetch in src/lib/llm/adapters.ts`);
     this.name = "LlmAdapterNotWiredError";
@@ -59,11 +60,8 @@ export function buildLlmBody(model: LlmModel, req: CompleteRequest): Record<stri
   };
 }
 
-function localBase(req: CompleteRequest) {
-  return (req.localBaseUrl || process.env.LOCAL_LLM_BASE_URL || "http://127.0.0.1:11434/v1").replace(
-    /\/$/,
-    "",
-  );
+export function localBase(req: CompleteRequest) {
+  return (req.localBaseUrl || process.env.LOCAL_LLM_BASE_URL || DEFAULT_LOCAL_BASE_URL).replace(/\/$/, "");
 }
 
 export async function callLlm(
@@ -92,7 +90,5 @@ export async function callLlm(
     };
   }
 
-  const body = buildLlmBody(model, req);
-  void body;
   throw new LlmAdapterNotWiredError(model.provider);
 }

@@ -1,5 +1,3 @@
-import type { ComplianceRule } from "../compliance/rules";
-import { comparisonPrompt, validateComparison } from "../compliance/document-review";
 /**
  * The LLM decision layer.
  *
@@ -7,12 +5,18 @@ import { comparisonPrompt, validateComparison } from "../compliance/document-rev
  * is used *as a decision* — which findings to prioritise, which claims to write,
  * which flags are confirmed breaches, what to keep or change next cycle.
  *
- * When no backend is configured (the default for a fresh clone) every decision
- * falls back to the deterministic rule set below, and the run records which path
- * it took. A live model therefore improves the output but is never required for
- * the prototype to work or to be demonstrable.
+ * When no live model answers, the trend-brief, copy and recommendation decisions
+ * return the fallback their caller built (steps.ts) and record path
+ * deterministic_fallback. Channel captions come back empty, so the caller's
+ * template captions stand, and rewriteImagePrompts returns no prompts and no trace.
+ * Compliance has no rule-based pass. An unanswered review returns outcome null
+ * (manual_review when uploaded-document findings exist), which
+ * resolveReviewOutcome turns into manual review.
  */
 
+import type { ComplianceRule } from "../compliance/rules";
+import { comparisonPrompt, validateComparison } from "../compliance/document-review";
+import { uid } from "@/lib/ids";
 import { runComplete } from "@/lib/llm/metered-complete";
 import { getLlmOrDefault } from "@/lib/llm/catalog";
 import { copySchema, trendBriefSchema } from "@/lib/llm/response-schemas";
@@ -21,24 +25,25 @@ import type { AgentSlot } from "@/lib/llm/types";
 import type { CompleteRequest } from "@/lib/llm/types";
 import { guidelinesPrompt } from "@/lib/guidelines";
 import { posterPrompt, productScene } from "@/lib/media/prompts";
-import { runSeatAgent, type AgentAnswer } from "@/lib/agents/agent-runtime";
+import type { BriefCopy } from "@/lib/media/brief-copy";
+import { ruleTrace, runSeatAgent, type AgentAnswer } from "@/lib/agents/agent-runtime";
 import { imageRevisionSchema, instructionsFor, type AgentSeat } from "@/lib/agents/seats";
 import type { ZodType } from "zod";
 import type { BillingContext } from "@/lib/billing/meter";
 import type { WorkspaceSettings } from "@/lib/settings";
 import type { BrandProfile, Campaign, Creative, PriceRecommendation } from "@/lib/types";
-import type { ChannelResult, ComplianceIssue, ComplianceOutcome, RecommendationPoint } from "./types";
+import { MAX_REVISION_ATTEMPTS, type ChannelResult, type ComplianceIssue, type ComplianceOutcome, type RecommendationPoint } from "./types";
 
 export type LlmRuntime = {
   request: (req: CompleteRequest) => Promise<CompleteResult>;
-  /** Identifies the transport so the run trace can say what decision path was used. */
-  meta?: { label: string; live: boolean; billing?: BillingContext };
+  /** live: lets the code paths that bypass `request` run: the LangGraph seat agents (askSeat), rewriteImagePrompts, and the optional intake-formatting call in operation-graph.ts. One-shot `request` calls run either way. billing: the metered identity passed to seat-agent runs. When it is set, decideCompliance sends both of its requests through runComplete(req, billing) instead of `request`. */
+  meta?: { live: boolean; billing?: BillingContext };
 };
 
 export function makeLlmRuntime(billing?: BillingContext): LlmRuntime {
   return {
     request: (req) => runComplete(req, billing),
-    meta: { label: "server", live: true, billing },
+    meta: { live: true, billing },
   };
 }
 
@@ -93,11 +98,6 @@ function traceFor(  agent: AgentSlot,
       : `Deterministic rules used — ${result.note}`,
     usage: result.usage,
   };
-}
-
-function assignmentFor(campaign: Campaign, settings: WorkspaceSettings, agent: AgentSlot) {
-  void campaign;
-  return settings.agents[agent];
 }
 
 /**
@@ -195,10 +195,10 @@ function normalizeTrendReply(raw: unknown): TrendDecision | null {
     priorities,
     angle: angle.slice(0, 240),
     keyMessage: keyMessage.slice(0, 160),
-    claimsAllowed: stringList(source.claimsAllowed, [], 6, true),
-    claimsAvoid: stringList(source.claimsAvoid, [], 6, true),
+    claimsAllowed: stringList(source.claimsAllowed, [], 6),
+    claimsAvoid: stringList(source.claimsAvoid, [], 6),
     visualDirection: textOf(source.visualDirection, top?.visual).slice(0, 240),
-    limitations: stringList(source.limitations, [], 5, true),
+    limitations: stringList(source.limitations, [], 5),
   };
 }
 
@@ -212,7 +212,7 @@ export async function decideTrendBrief(input: {
   /** Arithmetic clearance discount. The model may explain it and must not replace the percentage. */
   clearance?: PriceRecommendation | null;
 }): Promise<{ decision: TrendDecision; trace: DecisionTrace }> {
-  const assignment = assignmentFor(input.campaign, input.settings, "trend");
+  const assignment = input.settings.agents.trend;
   const clearance = input.clearance;
   const search = getLlmOrDefault(assignment.modelId).toolApi === "responses";
   const prompt = [
@@ -278,10 +278,10 @@ export async function decideTrendBrief(input: {
           : input.fallback.priorities,
         angle: String(answer.angle).slice(0, 240),
         keyMessage: String(answer.keyMessage ?? input.fallback.keyMessage).slice(0, 160),
-        claimsAllowed: stringList(answer.claimsAllowed, input.fallback.claimsAllowed, 6, true),
-        claimsAvoid: stringList(answer.claimsAvoid, input.fallback.claimsAvoid, 6, true),
+        claimsAllowed: stringList(answer.claimsAllowed, input.fallback.claimsAllowed, 6),
+        claimsAvoid: stringList(answer.claimsAvoid, input.fallback.claimsAvoid, 6),
         visualDirection: String(answer.visualDirection ?? input.fallback.visualDirection).slice(0, 240),
-        limitations: stringList(answer.limitations, input.fallback.limitations, 5, true),
+        limitations: stringList(answer.limitations, input.fallback.limitations, 5),
       },
       trace: traceFromSeat("trend", seatedTrend),
     };
@@ -318,15 +318,19 @@ export async function decideTrendBrief(input: {
 
 /* ------------------------------------------------------------------- copy --- */
 
-export type CopyVariant = {
-  variant: "A" | "B";
-  kicker: string;
-  headline: string;
-  subhead: string;
-  cta: string;
-  caption: string;
-  prompt: string;
-};
+export type CopyVariant = BriefCopy;
+
+function cleanVariants(list: Partial<CopyVariant>[], fallback: CopyVariant[]): CopyVariant[] {
+  return list.slice(0, 2).map((v, i) => ({
+    variant: i === 0 ? "A" : "B",
+    kicker: str(v.kicker, fallback[i]?.kicker ?? ""),
+    headline: str(v.headline, fallback[i]?.headline ?? ""),
+    subhead: str(v.subhead, fallback[i]?.subhead ?? ""),
+    cta: str(v.cta, fallback[i]?.cta ?? ""),
+    caption: str(v.caption, fallback[i]?.caption ?? ""),
+    prompt: str(v.prompt, fallback[i]?.prompt ?? ""),
+  }));
+}
 
 export async function decideCopy(input: {
   campaign: Campaign;
@@ -337,7 +341,7 @@ export async function decideCopy(input: {
   complianceNotes: string[];
   fallback: CopyVariant[];
 }): Promise<{ variants: CopyVariant[]; trace: DecisionTrace }> {
-  const assignment = assignmentFor(input.campaign, input.settings, "creative");
+  const assignment = input.settings.agents.creative;
   const brief = input.campaign.brief;
   const findings = (input.campaign.trendFindings ?? [])
     .filter((finding) => finding.basis === "supported")
@@ -379,15 +383,7 @@ export async function decideCopy(input: {
     task: prompt,
   });
   if (seatedCopy?.answer.variants && seatedCopy.answer.variants.length >= 2) {
-    const cleaned = seatedCopy.answer.variants.slice(0, 2).map((v, i) => ({
-      variant: (i === 0 ? "A" : "B") as "A" | "B",
-      kicker: str(v.kicker, input.fallback[i]?.kicker ?? ""),
-      headline: str(v.headline, input.fallback[i]?.headline ?? ""),
-      subhead: str(v.subhead, input.fallback[i]?.subhead ?? ""),
-      cta: str(v.cta, input.fallback[i]?.cta ?? ""),
-      caption: str(v.caption, input.fallback[i]?.caption ?? ""),
-      prompt: str(v.prompt, input.fallback[i]?.prompt ?? ""),
-    }));
+    const cleaned = cleanVariants(seatedCopy.answer.variants, input.fallback);
     return { variants: cleaned, trace: traceFromSeat("creative", seatedCopy) };
   }
 
@@ -402,15 +398,7 @@ export async function decideCopy(input: {
   const parsed = extractJson<{ variants?: CopyVariant[] }>(result.text);
   const variants = parsed?.variants?.filter((v) => v && typeof v.headline === "string");
   if (result.status === "ok" && variants && variants.length >= 2) {
-    const cleaned = variants.slice(0, 2).map((v, i) => ({
-      variant: (i === 0 ? "A" : "B") as "A" | "B",
-      kicker: str(v.kicker, input.fallback[i]?.kicker ?? ""),
-      headline: str(v.headline, input.fallback[i]?.headline ?? ""),
-      subhead: str(v.subhead, input.fallback[i]?.subhead ?? ""),
-      cta: str(v.cta, input.fallback[i]?.cta ?? ""),
-      caption: str(v.caption, input.fallback[i]?.caption ?? ""),
-      prompt: str(v.prompt, input.fallback[i]?.prompt ?? ""),
-    }));
+    const cleaned = cleanVariants(variants, input.fallback);
     return { variants: cleaned, trace: traceFor("creative", assignment, result, true) };
   }
   return { variants: input.fallback, trace: traceFor("creative", assignment, result, false) };
@@ -425,12 +413,11 @@ export async function rewriteImagePrompts(input: {
   brand: BrandProfile;
   settings: WorkspaceSettings;
   llm: LlmRuntime;
-  billing?: BillingContext;
   note: string;
   creatives: Creative[];
 }): Promise<{ prompts: Map<string, string>; trace: DecisionTrace | null }> {
   if (input.llm.meta?.live !== true) return { prompts: new Map(), trace: null };
-  const assignment = assignmentFor(input.campaign, input.settings, "creative");
+  const assignment = input.settings.agents.creative;
   const originals = input.creatives.map((creative) => ({
     id: creative.id,
     variant: creative.variant,
@@ -450,15 +437,13 @@ export async function rewriteImagePrompts(input: {
     `Founder note: ${JSON.stringify(input.note)}`,
     `Posters: ${JSON.stringify(originals)}`,
   ].join("\n");
-  const seated = await runSeatAgent<{ prompts?: { id?: string; prompt?: string }[] }>({
+  const seated = await askSeat<{ prompts?: { id?: string; prompt?: string }[] }>({
+    llm: input.llm,
     seat: "creative",
-    toolAgent: "creative",
     modelId: assignment.modelId,
-    billing: input.billing ?? input.llm.meta?.billing,
     localBaseUrl: input.settings.localBaseUrl,
     localModel: input.settings.localModel,
     task,
-    bindTools: false,
     instructions: `${instructionsFor("creative")}
 
 This turn is not a new campaign. Revise only the image prompts you already wrote.
@@ -482,7 +467,7 @@ Return one prompt per poster id. Leave the words on the poster unchanged.`,
 
 /* -------------------------------------------------------------- compliance -- */
 
-export type ComplianceDecision = {
+type ComplianceDecision = {
   issues: ComplianceIssue[];
   summary: string;
   /** Null when the agent did not return a review. That is not a pass. */
@@ -502,10 +487,11 @@ export async function decideCompliance(input: {
   passages?: string;
   fallback: { summary: string };
   rules?: ComplianceRule[];
-  referenceRules?: ComplianceRule[];
   ownerId?: string;
 }): Promise<{ decision: ComplianceDecision; trace: DecisionTrace }> {
-  const assignment = assignmentFor(input.campaign, input.settings, "compliance");
+  const assignment = input.settings.agents.compliance;
+  const complete = (req: CompleteRequest) =>
+    input.llm.meta?.billing ? runComplete(req, input.llm.meta.billing) : input.llm.request(req);
   const uploaded = input.brand.guidelines ?? [];
   let documentIssues: ComplianceIssue[] = [];
   let documentSummary = "";
@@ -521,9 +507,7 @@ export async function decideCompliance(input: {
       localModel: input.settings.localModel,
     };
     const modelResult = sources.reduce((n, d) => n + d.text.length, 0) <= 60000
-      ? input.llm.meta?.billing
-        ? await runComplete(documentRequest, input.llm.meta.billing)
-        : await input.llm.request(documentRequest)
+      ? await complete(documentRequest)
       : null;
     let reviewed;
     try {
@@ -560,9 +544,14 @@ export async function decideCompliance(input: {
     }
     documentSummary = reviewed?.summary ?? limitations.join(" ");
   }
+  const withDocuments = (d: ComplianceDecision) => {
+    if (documentIssues.length) d.issues = [...d.issues, ...documentIssues];
+    if (documentSummary) d.summary = [d.summary, documentSummary].filter(Boolean).join(" ");
+    return d;
+  };
   const documents = input.passages !== undefined ? input.passages : guidelinesPrompt(input.brand);
   const prompt = [
-    `You are the Compliance Checker for ${input.brand.retailerName}. Country: ${input.campaign.country}. Attempt ${input.attempt} of 3.`,
+    `You are the Compliance Checker for ${input.brand.retailerName}. Country: ${input.campaign.country}. Attempt ${input.attempt} of ${MAX_REVISION_ATTEMPTS}.`,
     "Read the words printed on the poster. Compare those words with the retrieved passages below.",
     "Flag a word or phrase only when a retrieved passage gives a reason it may be a legal problem. Quote the visible words in excerpt and name the document and page in rule.",
     "Do not use an approved-word list or a banned-word list. Do not answer with a bare yes or no.",
@@ -596,9 +585,7 @@ export async function decideCompliance(input: {
   if (seatedCompliance) {
     const decision = complianceFromAgent(seatedCompliance.answer, input);
     if (decision) {
-      if (documentIssues.length) decision.issues = [...decision.issues, ...documentIssues];
-      if (documentSummary) decision.summary = [decision.summary, documentSummary].filter(Boolean).join(" ");
-      return { decision, trace: traceFromSeat("compliance", seatedCompliance) };
+      return { decision: withDocuments(decision), trace: traceFromSeat("compliance", seatedCompliance) };
     }
   }
 
@@ -614,16 +601,12 @@ export async function decideCompliance(input: {
     localBaseUrl: input.settings.localBaseUrl,
     localModel: input.settings.localModel,
   };
-  const result = input.llm.meta?.billing
-    ? await runComplete(request, input.llm.meta.billing)
-    : await input.llm.request(request);
+  const result = await complete(request);
   const parsed = extractJson<{ issues?: Partial<ComplianceIssue>[]; summary?: string; outcome?: string }>(result.text);
   if (result.status === "ok" && parsed) {
     const decision = complianceFromAgent(parsed, input);
     if (decision) {
-      if (documentIssues.length) decision.issues = [...decision.issues, ...documentIssues];
-      if (documentSummary) decision.summary = [decision.summary, documentSummary].filter(Boolean).join(" ");
-      return { decision, trace: traceFor("compliance", assignment, result, true) };
+      return { decision: withDocuments(decision), trace: traceFor("compliance", assignment, result, true) };
     }
   }
   return {
@@ -642,7 +625,7 @@ function complianceFromAgent(
 ): ComplianceDecision | null {
   if (!Array.isArray(raw.issues)) return null;
   const issues: ComplianceIssue[] = raw.issues.map((issue) => ({
-    id: `ci_${Math.random().toString(36).slice(2, 9)}`,
+    id: uid("ci"),
     category: category(issue.category),
     basis: issue.basis === "confirmed_breach" ? "confirmed_breach" : "human_judgement",
     severity: severity(issue.severity),
@@ -683,11 +666,11 @@ export async function decideChannelCaptions(input: {
   brand: BrandProfile;
   settings: WorkspaceSettings;
   llm: LlmRuntime;
-  hero: { headline: string; subhead: string; caption: string };
+  hero: { headline: string; subhead: string };
   channels: { channel: string; spec: string }[];
   approvedClaims: string[];
 }): Promise<{ captions: Record<string, string>; trace: DecisionTrace }> {
-  const assignment = assignmentFor(input.campaign, input.settings, "media");
+  const assignment = input.settings.agents.media;
   const prompt = [
     `You are the Media Manager for ${input.brand.retailerName}, ${input.campaign.country}.`,
     `Rewrite one approved advertisement into a platform-native caption for each channel.`,
@@ -722,6 +705,20 @@ export async function decideChannelCaptions(input: {
 
 /* -------------------------------------------------------------- performance -- */
 
+function toPoints(raw: { verdict?: string; area?: string; text?: string; evidence?: string }[]): RecommendationPoint[] {
+  return raw.slice(0, 5).map((p) => ({
+    id: uid("rp"),
+    verdict: p.verdict === "keep" || p.verdict === "drop" ? p.verdict : "change",
+    area: area(p.area),
+    text: `${str(p.text, "—")} (basis: ${str(p.evidence, "collected channel figures")})`,
+    evidenceIds: [],
+  }));
+}
+
+function pointsText(points: RecommendationPoint[]) {
+  return points.map((p) => `${p.verdict.toUpperCase()} ${p.area}: ${p.text}`).join("\n");
+}
+
 export async function decideRecommendation(input: {
   campaign: Campaign;
   settings: WorkspaceSettings;
@@ -730,29 +727,13 @@ export async function decideRecommendation(input: {
   summary: string;
   fallback: RecommendationPoint[];
 }): Promise<{ points: RecommendationPoint[]; text: string | null; trace: DecisionTrace }> {
-  const assignment = assignmentFor(input.campaign, input.settings, "media");
+  const assignment = input.settings.agents.media;
   const reported = input.results.filter((r) => r.figures);
   if (reported.length === 0) {
     return {
       points: [],
       text: null,
-      trace: {
-        agent: "media",
-        modelId: getLlmOrDefault(assignment.modelId).id,
-        modelName: getLlmOrDefault(assignment.modelId).name,
-        status: "stubbed",
-        path: "deterministic_fallback",
-        note: "No channel returned usable data, so no sourced recommendation was produced (UC-06 ext 8.a).",
-        usage: {
-          inputTokens: 0,
-          outputTokens: 0,
-          totalTokens: 0,
-          costUsd: 0,
-          billedAs: "not called",
-          estimate: true,
-          latencyMs: 0,
-        },
-      },
+      trace: { agent: "media", ...ruleTrace("media", assignment.modelId, "No channel returned usable data, so no sourced recommendation was produced (UC-06 ext 8.a).") },
     };
   }
 
@@ -784,16 +765,10 @@ export async function decideRecommendation(input: {
     task: prompt,
   });
   if (seatedMedia?.answer.points?.length) {
-    const points: RecommendationPoint[] = seatedMedia.answer.points.slice(0, 5).map((p, i) => ({
-      id: `rp_${i}_${Math.random().toString(36).slice(2, 7)}`,
-      verdict: p.verdict === "keep" || p.verdict === "drop" ? p.verdict : "change",
-      area: area(p.area),
-      text: `${str(p.text, "—")} (basis: ${str(p.evidence, "collected channel figures")})`,
-      evidenceIds: [],
-    }));
+    const points = toPoints(seatedMedia.answer.points);
     return {
       points,
-      text: points.map((p) => `${p.verdict.toUpperCase()} ${p.area}: ${p.text}`).join("\n"),
+      text: pointsText(points),
       trace: traceFromSeat("media", seatedMedia),
     };
   }
@@ -809,22 +784,16 @@ export async function decideRecommendation(input: {
     points?: { verdict?: string; area?: string; text?: string; evidence?: string }[];
   }>(result.text);
   if (result.status === "ok" && parsed?.points?.length) {
-    const points: RecommendationPoint[] = parsed.points.slice(0, 5).map((p, i) => ({
-      id: `rp_${i}_${Math.random().toString(36).slice(2, 7)}`,
-      verdict: p.verdict === "keep" || p.verdict === "drop" ? p.verdict : "change",
-      area: area(p.area),
-      text: `${str(p.text, "—")} (basis: ${str(p.evidence, "collected channel figures")})`,
-      evidenceIds: [],
-    }));
+    const points = toPoints(parsed.points);
     return {
       points,
-      text: points.map((p) => `${p.verdict.toUpperCase()} ${p.area}: ${p.text}`).join("\n"),
+      text: pointsText(points),
       trace: traceFor("media", assignment, result, true),
     };
   }
   return {
     points: input.fallback,
-    text: input.fallback.map((p) => `${p.verdict.toUpperCase()} ${p.area}: ${p.text}`).join("\n"),
+    text: pointsText(input.fallback),
     trace: traceFor("media", assignment, result, false),
   };
 }
@@ -840,9 +809,9 @@ function str(v: unknown, fallback: string) {
   return typeof v === "string" && v.trim() ? v.trim().slice(0, 600) : fallback;
 }
 
-function stringList(v: unknown, fallback: string[], max: number, allowEmpty = false) {
+function stringList(v: unknown, fallback: string[], max: number) {
   if (!Array.isArray(v)) return fallback;
-  if (allowEmpty && v.length === 0) return [];
+  if (v.length === 0) return [];
   const list = v.filter((x): x is string => typeof x === "string" && x.trim().length > 0);
   return list.length ? list.slice(0, max).map((s) => s.slice(0, 120)) : fallback;
 }

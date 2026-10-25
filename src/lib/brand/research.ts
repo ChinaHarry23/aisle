@@ -1,7 +1,7 @@
 import type { BrandProfile } from "@/lib/types";
 import type { CompleteRequest, CompleteResult } from "@/lib/llm/types";
 
-export type BrandResearch = {
+type BrandResearch = {
   about: string;
   tagline: string;
   logoUrl: string;
@@ -19,6 +19,10 @@ const EMPTY_COLORS: BrandProfile["colors"] = {
   accent: "#e5e5e5",
   deep: "#111111",
 };
+
+function hex6<T extends string | undefined>(value: unknown, fallback: T): string | T {
+  return /^#[0-9a-fA-F]{6}$/.test(String(value ?? "")) ? (value as string) : fallback;
+}
 
 function assertPublicSite(raw: string): URL {
   let url: URL;
@@ -106,8 +110,8 @@ function scraped(name: string, site: URL, html: string) {
       signal: swatches[0] ?? EMPTY_COLORS.signal,
       accent: swatches[1] ?? swatches[0] ?? EMPTY_COLORS.accent,
       deep: swatches[2] ?? swatches[0] ?? EMPTY_COLORS.deep,
-      ink: "#1c1917",
-      paper: "#ffffff",
+      ink: EMPTY_COLORS.ink,
+      paper: EMPTY_COLORS.paper,
     } satisfies BrandProfile["colors"],
     pageText: textOf(html),
   };
@@ -147,7 +151,7 @@ export async function researchBrand(input: {
     colors: found.colors,
     sourceNote: `Read ${finalUrl.hostname}. The model did not return a tone or a visual style, so those fields were left as they were.`,
   };
-  let result: CompleteResult | null = null;
+  let result: CompleteResult;
   try {
     result = await input.complete({
     agent: "trend",
@@ -172,8 +176,8 @@ export async function researchBrand(input: {
   } catch (error) {
     return { ...draft, sourceNote: `Read ${finalUrl.hostname}. ${error instanceof Error ? error.message : "The model did not answer."}` };
   }
-  const suggestion = result?.status === "ok" ? parseSuggestion(result.text) : null;
-  if (!suggestion) return { ...draft, sourceNote: `Read ${finalUrl.hostname}. ${result?.note || draft.sourceNote}` };
+  const suggestion = result.status === "ok" ? parseSuggestion(result.text) : null;
+  if (!suggestion) return { ...draft, sourceNote: `Read ${finalUrl.hostname}. ${result.note || draft.sourceNote}` };
   const colors = suggestion.colors;
   return {
     about: typeof suggestion.about === "string" && suggestion.about.trim() ? suggestion.about.trim().slice(0, 1200) : draft.about,
@@ -182,11 +186,11 @@ export async function researchBrand(input: {
     tone: typeof suggestion.tone === "string" ? suggestion.tone.trim().slice(0, 800) : "",
     visualStyle: typeof suggestion.visualStyle === "string" ? suggestion.visualStyle.trim().slice(0, 800) : "",
     colors: {
-      signal: /^#[0-9a-fA-F]{6}$/.test(colors?.signal ?? "") ? colors!.signal : draft.colors.signal,
-      accent: /^#[0-9a-fA-F]{6}$/.test(colors?.accent ?? "") ? colors!.accent : draft.colors.accent,
-      deep: /^#[0-9a-fA-F]{6}$/.test(colors?.deep ?? "") ? colors!.deep : draft.colors.deep,
-      ink: "#1c1917",
-      paper: "#ffffff",
+      signal: hex6(colors?.signal, draft.colors.signal),
+      accent: hex6(colors?.accent, draft.colors.accent),
+      deep: hex6(colors?.deep, draft.colors.deep),
+      ink: EMPTY_COLORS.ink,
+      paper: EMPTY_COLORS.paper,
     },
     sourceNote: `Suggested from ${finalUrl.hostname}. Edit any line you disagree with.`,
   };

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/current";
 import { demoWorkspace, loadWorkspace } from "@/lib/auth/workspace";
-import { billingForSession, type BillingContext } from "@/lib/billing/meter";
+import { billingForSession } from "@/lib/billing/meter";
 import {
   normaliseDraft,
   runIntakeTurn,
@@ -68,19 +68,9 @@ export async function POST(request: Request) {
     }));
 
   // Brand rules and model settings always come from the server's stored workspace, never the browser body.
-  let stored = demoWorkspace();
-  try {
-    stored = await loadWorkspace(user.id, user.role);
-  } catch {
-    stored = demoWorkspace();
-  }
+  const stored = await loadWorkspace(user.id, user.role).catch(() => demoWorkspace());
 
-  let billing: BillingContext | undefined;
-  try {
-    billing = await billingForSession(user);
-  } catch (err) {
-    console.error("[credits] intake account lookup failed", err);
-  }
+  const billing = await billingForSession(user);
 
   const priorRecommendation = attachableRecommendation(stored.campaigns);
   const draft = normaliseDraft(body?.draft);

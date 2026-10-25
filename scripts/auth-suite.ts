@@ -10,33 +10,12 @@
  */
 
 import assert from "node:assert/strict";
+import "./service-loader.mjs";
 import { existsSync, rmSync } from "node:fs";
-import { register } from "node:module";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 const root = process.cwd();
-const loader = `
-import { pathToFileURL, fileURLToPath } from "node:url";
-import { existsSync } from "node:fs";
-import path from "node:path";
-const root = ${JSON.stringify(root)};
-function withTs(base) {
-  for (const c of [base + ".ts", base + ".tsx", path.join(base, "index.ts")]) if (existsSync(c)) return c;
-  return base;
-}
-export async function resolve(specifier, context, next) {
-  try { return await next(specifier, context); }
-  catch (error) {
-    if (specifier.startsWith("@/")) return next(pathToFileURL(withTs(path.join(root, "src", specifier.slice(2)))).href, context);
-    if (specifier.startsWith(".") && context.parentURL) {
-      const dir = path.dirname(fileURLToPath(context.parentURL));
-      return next(pathToFileURL(withTs(path.resolve(dir, specifier))).href, context);
-    }
-    throw error;
-  }
-}`;
-register(`data:text/javascript,${encodeURIComponent(loader)}`, pathToFileURL("./"));
 
 /* Use a throwaway database so running the suite is never destructive. */
 const dbFile = path.join(root, "data", "auth-suite.db");

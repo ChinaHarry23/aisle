@@ -72,6 +72,7 @@ export function ensureProgressMonitor() {
   socket.onclose = () => { monitor.connected = false; monitor.socket = undefined; monitor.reconnectAt = Date.now() + 3000; };
   return monitor;
 }
+export function closeProgressMonitor() { globals.aisleRenderMonitor?.socket?.close(); }
 
 type BackendJob = { status: string; execution_error?: { exception_message?: string }; outputs?: Record<string, unknown> };
 export async function reconcileRenderJob(job: RenderProgress, campaign: Campaign, fetchJob: (id: string) => Promise<BackendJob>) {

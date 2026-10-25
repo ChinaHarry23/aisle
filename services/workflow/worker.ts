@@ -33,8 +33,7 @@ export async function workOnce(repo: WorkflowRepository, workerId: string, optio
       // Recheck the owner's current role instead of trusting a saved/browser role.
       const owner = await findUserById(job.user_id);
       const billing = owner ? billingFor(owner) : undefined;
-      let llm = options.llm;
-      if (!llm) llm = createServerTrendRuntime(billing);
+      const llm = options.llm ?? createServerTrendRuntime(billing);
       const result = await runEngine({ campaigns: context, now: new Date().toISOString() }, campaign, command, job.input.settings, job.input.brand, {
         ...options,
         billing,

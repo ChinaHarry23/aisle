@@ -1,15 +1,13 @@
 /** Offline metadata/UI tests. No model calls or account mutations. */
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
-import { createRequire } from "node:module";
-import ts from "typescript";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { formatClipDuration, formatGenerationDate, formatGenerationDuration, generationTiming } from "../src/lib/media/timing";
 import type { MediaGeneration } from "../src/lib/media/pr2-types";
+import { compileComponent } from "./fixtures";
 
 const generation: MediaGeneration = {
   kind: "video", modelId: "comfy:minimax-h3", provider: "ComfyUI", modelName: "MiniMax H3",
@@ -39,14 +37,7 @@ assert.match(completed, /00:35:54/);
 console.log("PASS only successful attached assets show timing; completion uses explicit Sydney timezone");
 
 const dir = mkdtempSync(path.join(os.tmpdir(), "aisle-timing-test-"));
-const require = createRequire(import.meta.url);
-const source = readFileSync("src/components/studio/GenerationInfo.tsx", "utf8");
-let compiled = ts.transpileModule(source, { compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
-compiled = compiled.replaceAll('from "react/jsx-runtime"', `from "${pathToFileURL(require.resolve("react/jsx-runtime")).href}"`);
-compiled = compiled.replaceAll('from "@/lib/media/timing"', `from "${pathToFileURL(path.resolve("src/lib/media/timing.ts")).href}"`);
-const moduleFile = path.join(dir, "GenerationInfo.mjs");
-writeFileSync(moduleFile, compiled);
-const { GenerationInfo } = await import(pathToFileURL(moduleFile).href);
+const { GenerationInfo } = await compileComponent("src/components/studio/GenerationInfo.tsx", dir, { modules: ["react/jsx-runtime"], files: { "@/lib/media/timing": "src/lib/media/timing.ts" } });
 const render = (props: { generation?: MediaGeneration; clipDurationSec?: number }) => renderToStaticMarkup(createElement(GenerationInfo, props));
 const video = render({ generation, clipDurationSec: 5.166667 });
 assert.match(video, /aria-label="Generation information"/);

@@ -1,3 +1,21 @@
+/**
+ * Agent step handlers and the helpers they share.
+ *
+ * The run* handlers and receiveComplianceSubmission each advance one unit of work
+ * on the Work. All of them except runPublish return a `{ message, blocked }` result
+ * for the run trace; runPublish returns `{ escalated }`. setRun, addEvent, addStep,
+ * addEvidence, addTrace, recordPolicy and callTool record onto the Work. The rest
+ * are pure builders: creatives, schedule conflicts, channel results, reports and
+ * recommendations.
+ *
+ * The module is framework-free. operation-graph.ts calls the handlers, and
+ * runFeedbackCollection calls runPublish. Both are reached through runEngine from
+ * /api/engine and services/workflow/worker.ts, and through the LangSmith Studio
+ * graph (src/lib/studio/operation.ts), which runs the same operation-graph nodes
+ * without runEngine. agents.ts and the Studio seats (src/lib/studio/seats.ts) also
+ * call into this module directly.
+ */
+
 import { buildReport } from "../compliance/report";
 import { loadRules } from "../compliance/rules";
 import { checkSubmission } from "../compliance/checks";
@@ -5,14 +23,6 @@ import { resolveReviewOutcome } from "../compliance/outcome";
 import { posterImages } from "../compliance/posters";
 import { formatLawPassages, marketLaw, retrieveAdvertisingLaw } from "../advertising-law/index";
 import { beginReview, submissionFor, assertReviewPermission, ComplianceSubmissionError } from "../compliance/service";
-/**
- * Agent step handlers.
- *
- * Each export advances exactly one unit of work and returns a message for the run
- * trace. They are deliberately framework-free: the Next.js route handler, the
- * client store and any future worker all call the same `runEngine`.
- */
-
 import { uid } from "@/lib/ids";
 import { copyFromBrief } from "@/lib/media/brief-copy";
 import { getModelOrDefault } from "@/lib/media/catalog";
@@ -44,7 +54,7 @@ import {
   type LlmRuntime,
   type TrendDecision,
 } from "./decide";
-import { selectGateway } from "./gateways";
+import { selectGateway, stableHash } from "./gateways";
 import { evaluateGuard } from "./guard";
 import { digestHash, inputDigest } from "./intake";
 import { isClearStock, recommendClearance } from "@/lib/retail/whichgrocer/clearance";
@@ -131,7 +141,7 @@ export function addEvent(
   detail: string,
   extra: Partial<Campaign["log"][number]> = {},
 ) {
-  const event = makeLog(agent as Parameters<typeof makeLog>[0], kind, title, detail, w.now);
+  const event = makeLog(agent, kind, title, detail, w.now);
   const line = { ...event, ...extra };
   w.events.push(line);
   w.campaign.log = [...w.campaign.log, line];
@@ -162,12 +172,12 @@ export function addStep(
   return line;
 }
 
-export function addEvidence(w: Work, list: Evidence[]) {
+function addEvidence(w: Work, list: Evidence[]) {
   if (list.length === 0) return;
   w.campaign.evidence = [...w.campaign.evidence, ...list];
 }
 
-export function recordPolicy(w: Work, decision: PolicyDecision) {
+function recordPolicy(w: Work, decision: PolicyDecision) {
   w.policy.push(decision);
   w.campaign.policyDecisions = [...w.campaign.policyDecisions, decision];
   if (decision.verdict === "block") {
@@ -205,7 +215,6 @@ export async function callTool(
     brand: env.brand,
     at: w.now,
     args,
-    ownerUserId: env.ownerUserId,
   });
   const call = toToolCall({
     agent,
@@ -221,7 +230,7 @@ export async function callTool(
   return outcome;
 }
 
-export function addTrace(w: Work, trace: DecisionTrace, agent: Actor, purpose: string) {
+function addTrace(w: Work, trace: DecisionTrace, agent: Actor, purpose: string) {
   addEvent(
     w,
     agent,
@@ -239,7 +248,7 @@ export function addTrace(w: Work, trace: DecisionTrace, agent: Actor, purpose: s
 
 type Motif = Creative["motif"];
 
-export function motifPack(campaign: Campaign): Motif {
+function motifPack(campaign: Campaign): Motif {
   const t = `${campaign.product} ${campaign.name} ${campaign.category} ${campaign.targetAudience}`.toLowerCase();
   if (/jacket|parka|coat|outerwear|hoodie|knit/.test(t)) return "campus";
   if (/fruit|yoghurt|yogurt|grocery|produce|catalogue|peach|plum|veg|milk/.test(t)) return "produce";
@@ -247,7 +256,7 @@ export function motifPack(campaign: Campaign): Motif {
   return "editorial";
 }
 
-export function palettesFor(motif: Motif): Record<"A" | "B", Palette> {
+function palettesFor(motif: Motif): Record<"A" | "B", Palette> {
   if (motif === "campus") {
     return {
       A: { bg: "#1b2430", fg: "#f4efe6", accent: "#c4342a", muted: "#8b9aab" },
@@ -270,19 +279,6 @@ export function palettesFor(motif: Motif): Record<"A" | "B", Palette> {
     A: { bg: "#1c1917", fg: "#f3eee5", accent: "#c4342a", muted: "#a39e96" },
     B: { bg: "#f3eee5", fg: "#1c1917", accent: "#c4342a", muted: "#6b645b" },
   };
-}
-
-/**
- * Copy used when the creative model is unavailable, and the floor under a live answer.
- * Both variants are written from this campaign's trend brief. Nothing here is a
- * shared breakfast, campus, or category slogan.
- */
-export function deterministicCopy(
-  campaign: Campaign,
-  notes: string[] = [],
-  banned: string[] = [],
-): Record<"A" | "B", CopyVariant> {
-  return copyFromBrief(campaign, banned, notes);
 }
 
 export function buildCreatives(
@@ -439,8 +435,6 @@ export async function runTrendResearch(
     );
   }
 
-  const target = `${c.product} (${c.category})`;
-  void target;
   const toolResults: ToolOutcome[] = [];
 
   const market = await callTool(
@@ -821,7 +815,7 @@ export async function runCreativeGeneration(
         : "Removing unsupported claims, keeping the angle.",
   );
 
-  const fallbackMap = deterministicCopy(c, notes, env.brand.bannedTerms);
+  const fallbackMap = copyFromBrief(c, env.brand.bannedTerms, notes);
   const { variants, trace } = await decideCopy({
     campaign: c,
     brand: env.brand,
@@ -989,7 +983,6 @@ export async function runComplianceReview(
     passages,
     fallback: { summary: "The compliance agent did not return a usable review." },
     rules: selection.rules,
-    referenceRules: selection.referenceRules,
   });
   addTrace(w, trace, "compliance", "Policy review");
 
@@ -1016,9 +1009,6 @@ export async function runComplianceReview(
   const structuredReport = buildReport(reviewRun, decision.issues, checked.limitations, uid("cp"), w.now);
   structuredReport.status =
     verdict.outcome === "pass" ? "PASSED" : verdict.outcome === "changes_required" ? "CHANGES_REQUIRED" : "MANUAL_REVIEW_REQUIRED";
-  if (structuredReport.status === "CHANGES_REQUIRED" && attemptNo >= MAX_REVISION_ATTEMPTS) {
-    structuredReport.status = "MANUAL_REVIEW_REQUIRED";
-  }
   reviewRun.report = structuredReport;
   const digest = inputDigest(c);
   const attempt: ComplianceAttempt = {
@@ -1070,7 +1060,7 @@ export async function runComplianceReview(
   c.complianceReports = [...c.complianceReports, report];
   c.creatives = c.creatives.map((cr) => ({
     ...cr,
-    status: verdict.outcome === "pass" ? (verdict.risk === "low" ? "draft" : "flagged") : "flagged",
+    status: verdict.outcome === "pass" ? "draft" : "flagged",
   }));
   c.updatedAt = stamp();
 
@@ -1261,6 +1251,9 @@ function claimsSurvive(approved: string[], body: string) {
   return covered.length >= Math.ceil(approved.length * 0.6);
 }
 
+const CLAIM_TERMS =
+  /(water[- ]?resistant|packable|packs into|guarantee\w*|warrant\w*|clinically|proven|award[- ]winning|number one|#1|best in|healthiest|miracle|risk[- ]free|free delivery|money back|new and improved|australian[- ]made|certified|organic)/gi;
+
 /**
  * Product claims a channel body asserts that AHR-04 never cleared.
  *
@@ -1269,9 +1262,6 @@ function claimsSurvive(approved: string[], body: string) {
  * what AHR-05 forbids. Only sentences shaped like a claim are considered, so
  * ordinary connective copy does not raise a false flag.
  */
-const CLAIM_SHAPED =
-  /(water[- ]?resistant|packable|packs into|guarantee|warrant|clinically|proven|award[- ]winning|number one|#1|best in|healthiest|miracle|risk[- ]free|free delivery|money back|new and improved|australian[- ]made|certified|organic)/i;
-
 function introducedClaims(c: Campaign, body: string): string[] {
   const clearedBlob = (
     (c.sharedContext.approvedClaims ?? []).join(" ") +
@@ -1282,13 +1272,11 @@ function introducedClaims(c: Campaign, body: string): string[] {
   return body
     .split(/(?<=[.!?])\s+|\s+·\s+/)
     .map((sentence) => sentence.trim())
-    .filter((sentence) => sentence.length > 12 && CLAIM_SHAPED.test(sentence))
+    .filter((sentence) => sentence.length > 12)
     .filter((sentence) => {
       // Every claim-shaped term in the sentence must already be cleared wording;
       // one that is not means the channel version asserts something new.
-      const hits = sentence.match(
-        /(water[- ]?resistant|packable|packs into|guarantee\w*|warrant\w*|clinically|proven|award[- ]winning|number one|#1|best in|healthiest|miracle|risk[- ]free|free delivery|money back|new and improved|australian[- ]made|certified|organic)/gi,
-      );
+      const hits = sentence.match(CLAIM_TERMS);
       if (!hits) return false;
       return hits.some((term) => !clearedBlob.includes(term.toLowerCase().replace(/\s+/g, " ")));
     })
@@ -1304,7 +1292,7 @@ function introducedClaims(c: Campaign, body: string): string[] {
  * it into the approved copy are not part of that contract, so they are dropped
  * here rather than being demanded back later in a channel feed.
  */
-export function deriveClearedClaims(c: Campaign): string[] {
+function deriveClearedClaims(c: Campaign): string[] {
   const hero = c.creatives.find((x) => x.variant === "A") ?? c.creatives[0];
   const candidates = c.sharedContext.approvedClaims ?? [];
   if (!hero) return candidates;
@@ -1348,7 +1336,7 @@ export async function runMediaAdaptation(
     brand: env.brand,
     settings: env.settings,
     llm: env.llm,
-    hero: { headline: hero.headline, subhead: hero.subhead, caption: hero.caption },
+    hero: { headline: hero.headline, subhead: hero.subhead },
     channels: c.channels.map((ch) => ({ channel: ch, spec: CHANNEL_SPECS[ch] })),
     approvedClaims,
   });
@@ -1454,7 +1442,7 @@ export async function runMediaAdaptation(
     });
     adaptations.push({
       channel,
-      headline: channel === "email" ? hero.subhead : hero.headline,
+      headline: versionHeadline,
       body,
       specs: CHANNEL_SPECS[channel],
       postingTime: post.time,
@@ -1502,7 +1490,7 @@ export async function runMediaAdaptation(
 }
 
 /** AHR-05: flag conflicts for the founder rather than resolving them silently. */
-export function detectScheduleConflicts(
+function detectScheduleConflicts(
   c: Campaign,
   all: Campaign[],
 ): { conflicts: ScheduleConflict[]; items: RunScheduleItem[] } {
@@ -1554,11 +1542,6 @@ export function detectScheduleConflicts(
           conflictIds.push(id);
         }
       }
-    }
-
-    for (const id of conflictIds) {
-      const conflict = conflicts.find((x) => x.id === id);
-      if (conflict) conflict.resolved = false;
     }
 
     items.push({
@@ -1645,12 +1628,6 @@ export function runSchedule(w: Work, allCampaigns: Campaign[]): {
 
 /* ---------------------------------------------------------------- feedback -- */
 
-function hashOf(text: string) {
-  let h = 0;
-  for (let i = 0; i < text.length; i += 1) h = (h * 31 + text.charCodeAt(i)) % 100_000;
-  return h;
-}
-
 /**
  * AHR-06 collection.
  *
@@ -1659,14 +1636,14 @@ function hashOf(text: string) {
  * not authorised, report late, or return incomplete figures are marked as such
  * instead of being filled in with invented numbers.
  */
-export function collectChannelResults(c: Campaign, now: string): ChannelResult[] {
+function collectChannelResults(c: Campaign, now: string): ChannelResult[] {
   const publishedAt = c.schedule[0]?.at ?? c.updatedAt;
   const periodFrom = publishedAt.slice(0, 10);
   const periodTo = now.slice(0, 10);
   const base = c.budget;
 
   return c.channels.map((channel: Channel) => {
-    const seed = hashOf(`${c.id}:${channel}`);
+    const seed = stableHash(`${c.id}:${channel}`);
     // Declared CPM per channel, so the figures scale like a real media buy
     // instead of inflating with budget alone.
     const cpm: Record<Channel, number> = {
@@ -1689,7 +1666,6 @@ export function collectChannelResults(c: Campaign, now: string): ChannelResult[]
         incomplete: `${channel} returned partial figures. The missing part is marked, not estimated (UC-06 ext 6.a).`,
         excluded: `${channel} returned figures that did not match this campaign, so they were excluded (UC-06 ext 5.a).`,
         no_data: `${channel} reported no activity for this window.`,
-        ok: "",
       };
       return {
         channel,
@@ -1730,7 +1706,7 @@ export function collectChannelResults(c: Campaign, now: string): ChannelResult[]
   });
 }
 
-export function buildPerformanceReport(c: Campaign, now: string): PerformanceReport {
+function buildPerformanceReport(c: Campaign, now: string): PerformanceReport {
   const results = collectChannelResults(c, now);
   const ran = c.schedule.filter((s) => s.status === "published").map((s) => s.channel);
   const figures = results.filter((r) => r.figures);
@@ -1785,7 +1761,7 @@ export function buildPerformanceReport(c: Campaign, now: string): PerformanceRep
 }
 
 /** Advice must rest on collected evidence — UC-06 ext 8.a. */
-export function deterministicRecommendation(
+function deterministicRecommendation(
   c: Campaign,
   report: PerformanceReport,
 ): RecommendationPoint[] {
@@ -2070,7 +2046,6 @@ export async function runFeedbackCollection(
     return { message: "Not published; no results to collect.", blocked: true };
   }
 
-  c.status = "published";
   const report = buildPerformanceReport(c, w.now);
   const { points, text, trace } = await decideRecommendation({
     campaign: c,

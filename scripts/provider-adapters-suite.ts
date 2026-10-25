@@ -6,13 +6,12 @@
  * one end-to-end billing check. No real provider is called.
  */
 import assert from "node:assert/strict";
-import { once } from "node:events";
 import { mkdtempSync } from "node:fs";
-import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import os from "node:os";
 import path from "node:path";
 import type { ProviderContext } from "../src/lib/media/providers/types";
 import type { GenerateRequest, MediaModel } from "../src/lib/media/pr2-types";
+import { json, mp4, serve, type Seen } from "./fixtures";
 
 const dir = mkdtempSync(path.join(os.tmpdir(), "aisle-provider-adapters-test-"));
 for (const name of ["DATABASE_URL", "POSTGRES_URL", "POSTGRES_PRISMA_URL", "AISLE_DATABASE_URL", "NEON_DATABASE_URL", "STORAGE_URL", "AISLE_MEDIA_PROVIDERS", "AISLE_MEDIA_DRIVER", "VERCEL", "OPENAI_API_KEY", "GOOGLE_AI_API_KEY", "GEMINI_API_KEY"]) delete process.env[name];
@@ -30,8 +29,8 @@ Object.assign(process.env, {
 const { MEDIA_ADAPTERS, usableProvider, providerAvailability } = await import("../src/lib/media/providers");
 const { ProviderError, pollJson, transientError, downloadFile } = await import("../src/lib/media/providers/http");
 const { imageSize, nearestAspect, frameAspect } = await import("../src/lib/media/providers/frame");
-const { MEDIA_MODELS } = await import("../src/lib/media/catalog");
-const { resolveModelId, getModel, runGeneration, holdEstimateUsd } = await import("../src/lib/pr2-shims");
+const { MEDIA_MODELS, getModelOrDefault } = await import("../src/lib/media/catalog");
+const { getModel, runGeneration } = await import("../src/lib/pr2-shims");
 const { sha256Hex } = await import("../src/lib/media/store");
 const { billingFor } = await import("../src/lib/billing/meter");
 const { adjustCredits, balanceMilli } = await import("../src/lib/billing/ledger");
@@ -56,36 +55,11 @@ function webp(width: number, height: number) {
   b.writeUIntLE(width - 1, 24, 3); b.writeUIntLE(height - 1, 27, 3);
   return b;
 }
-function mp4(seconds: number) {
-  const ftyp = Buffer.concat([Buffer.from([0, 0, 0, 16]), Buffer.from("ftypisom"), Buffer.from([0, 0, 2, 0])]);
-  const mvhd = Buffer.alloc(108);
-  mvhd.writeUInt32BE(108, 0); mvhd.write("mvhd", 4, "latin1");
-  mvhd.writeUInt32BE(1000, 20); mvhd.writeUInt32BE(Math.round(seconds * 1000), 24);
-  const moov = Buffer.alloc(8); moov.writeUInt32BE(116, 0); moov.write("moov", 4, "latin1");
-  return Buffer.concat([ftyp, moov, mvhd]);
-}
 const SEEDREAM_JPEG = jpeg(1440, 1800);
 const POSTER_PNG = png(1024, 1280);
 const CLIP_8 = mp4(8), CLIP_5 = mp4(5), CLIP_6 = mp4(6.04);
 
 // ---- Fake servers ---------------------------------------------------------
-type Seen = { method: string; url: string; headers: IncomingMessage["headers"]; body: string };
-async function serve(handler: (req: Seen, res: ServerResponse) => unknown) {
-  const seen: Seen[] = [];
-  const server: Server = createServer(async (req, res) => {
-    const chunks: Buffer[] = [];
-    for await (const chunk of req) chunks.push(chunk as Buffer);
-    const entry = { method: req.method ?? "GET", url: req.url ?? "/", headers: req.headers, body: Buffer.concat(chunks).toString("utf8") };
-    seen.push(entry);
-    try { await handler(entry, res); } catch (error) { res.writeHead(500).end(String(error)); }
-  });
-  server.listen(0, "127.0.0.1");
-  await once(server, "listening");
-  const address = server.address();
-  assert(address && typeof address !== "string");
-  return { server, seen, origin: `http://127.0.0.1:${address.port}` };
-}
-const json = (res: ServerResponse, status: number, body: unknown) => res.writeHead(status, { "Content-Type": "application/json" }).end(JSON.stringify(body));
 const bodyOf = (s: Seen) => JSON.parse(s.body);
 
 /** Pre-signed storage (TOS / COS / OSS stand-in): a different origin from every API. */
@@ -217,7 +191,7 @@ const ADAPTER_MODELS: Record<string, MediaModel> = {
   "bytedance:seedream-5-lite": fixture("bytedance:seedream-5-lite", "bytedance", "image", "seedream-5-0-lite-260128", { mode: "per_image", usd: 0.035, estOutTokens: 1000 }),
   "bytedance:seedream-4.5": fixture("bytedance:seedream-4.5", "bytedance", "image", "seedream-4-5-251128", { mode: "per_image", usd: 0.04, estOutTokens: 1200 }),
   "bytedance:seedance-2.5": fixture("bytedance:seedance-2.5", "bytedance", "video", "dreamina-seedance-2-5-260628", { mode: "per_second", usdPerSec: 0.121, estTokensPerSec: 21600 }, { durations: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30] }),
-  "bytedance:seedance-2-mini": fixture("bytedance:seedance-2-mini", "bytedance", "video", "dreamina-seedance-2-0-mini-260615", { mode: "per_second", usdPerSec: 0.0756, estTokensPerSec: 21600 }, { durations: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], usageBilled: true }),
+  "bytedance:seedance-2-mini": fixture("bytedance:seedance-2-mini", "bytedance", "video", "dreamina-seedance-2-0-mini-260615", { mode: "per_second", usdPerSec: 0.0756, estTokensPerSec: 21600 }, { durations: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] }),
   "bytedance:seedance-2-fast": fixture("bytedance:seedance-2-fast", "bytedance", "video", "dreamina-seedance-2-0-fast-260128", { mode: "per_second", usdPerSec: 0.121, estTokensPerSec: 21600 }, { durations: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] }),
   "tencent:hy-image-3.5": fixture("tencent:hy-image-3.5", "tencent", "image", "hy-image-v3.5-preview", { mode: "per_image", usd: 0.024, estOutTokens: 1000 }),
   "tencent:hy-image-3": fixture("tencent:hy-image-3", "tencent", "image", "hy-image-v3", { mode: "per_image", usd: 0.032, estOutTokens: 1000 }),
@@ -269,7 +243,7 @@ try {
   assert.equal(getModel("bytedance:seedance-2-fast").apiModel, "seedance-2.0-fast");
   assert.equal(getModel("alibaba:qwen-image-3").apiModel, "qwen-image-3");
   assert.equal(getModel("alibaba:wan-2.6").apiModel, "wan2.6-t2v");
-  assert.equal(resolveModelId("alibaba:qwen-image-3"), "alibaba:qwen-image-3");
+  assert.equal(getModelOrDefault("alibaba:qwen-image-3", "image").id, "alibaba:qwen-image-3");
   pass("adapters registered; Cindy catalog keeps ByteDance/Alibaba; Tencent is adapter-only");
 
   // ---- Frame helper -------------------------------------------------------
@@ -413,7 +387,6 @@ try {
   const poster = await runGeneration({ kind: "image", modelId: "bytedance:seedream-4.5", prompt: "Apple juice poster", aspectRatio: "4:5", ownerId: "alice" }, undefined, alice, { strict: true });
   assert.equal(poster.status, "stubbed", poster.note);
   assert.equal(await balanceMilli("alice"), before, "Cindy's generate does not charge through PR #2 adapters");
-  assert.equal(holdEstimateUsd(getModel("bytedance:seedance-2-fast"), { kind: "video", durationSec: 8 }), 0);
   pass("Cindy's Studio generate stubs even for ByteDance catalog ids; adapter HTTP is asserted via call()");
 
   // ---- Transient errors, retries and who pays -------------------------------
@@ -484,8 +457,6 @@ try {
   await assert.rejects(downloadFile("Test", `${storage.origin}/oss/wan.mp4`, { keyOrigin: "https://api.example.com", headers: {}, max: 1_000_000, timeoutMs: 5_000 }), /insecure download link/);
   assert.deepEqual(await downloadFile("Test", `${storage.origin}/oss/wan.mp4`, { keyOrigin: dash.origin, headers: {}, max: 1_000_000, timeoutMs: 5_000 }), CLIP_5);
   pass("a real provider's result link must be https; loopback http is accepted only when the provider base is loopback");
-
-  pass("Cindy's generate path is not the PR #2 billed adapter pipeline; billable adapter failures are covered by call()");
 
   // ---- No key in any URL --------------------------------------------------
   for (const s of [...ark.seen, ...hub.seen, ...dash.seen, ...storage.seen]) {

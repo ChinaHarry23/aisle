@@ -7,32 +7,16 @@
  * reference, and stores the bytes. The campaign keeps a short id, not the
  * picture, so the engine response can finish and the image step is saved.
  */
-import { createHash } from "node:crypto";
 import type { Campaign, Creative } from "@/lib/types";
 import { getModel } from "./catalog";
 import { runGeneration } from "./generate";
 import { posterPrompt, posterRequest } from "./prompts";
 import { MEDIA_ADAPTERS, providerKeysSet } from "./providers";
-import type { GenerateRequest, MediaModel as ProviderModel, ProviderId } from "./pr2-types";
+import { referenceImage } from "./providers/frame";
 import { rememberAsset } from "./library";
 import { putMedia } from "./store";
 import { stubGenerate } from "./stub";
 import type { MediaGeneration } from "./types";
-
-function referenceImage(images: string[] | undefined) {
-  const raw = images?.find((item) => item.startsWith("data:image/"));
-  if (!raw) return undefined;
-  const match = /^data:(image\/(?:jpeg|jpg|png|webp));base64,([A-Za-z0-9+/=\s]+)$/.exec(raw);
-  if (!match) return undefined;
-  const bytes = Buffer.from(match[2].replace(/\s/g, ""), "base64");
-  if (bytes.length < 32 || bytes.length > 4_000_000) return undefined;
-  const mime = match[1] === "image/jpg" ? "image/jpeg" : match[1];
-  return {
-    bytes,
-    mime,
-    sha256: createHash("sha256").update(bytes).digest("hex"),
-  };
-}
 
 export async function renderCampaignPoster(input: {
   campaign: Campaign;
@@ -65,14 +49,14 @@ export async function renderCampaignPoster(input: {
   } catch (error) {
     return stubGenerate(req, error instanceof Error ? error.message : "Unknown media model.");
   }
-  const adapter = MEDIA_ADAPTERS[model.providerId as ProviderId];
+  const adapter = MEDIA_ADAPTERS[model.providerId];
   const key = input.userKey?.trim() || undefined;
   if (!adapter || (!key && !providerKeysSet(adapter))) {
     return runGeneration(req, key);
   }
   try {
-    const rendered = await adapter.generate(req as GenerateRequest, {
-      model: model as ProviderModel,
+    const rendered = await adapter.generate(req, {
+      model,
       startImage: input.editFrom ?? referenceImage(req.contextImages),
       apiKey: key,
     });

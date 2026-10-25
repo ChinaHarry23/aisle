@@ -14,7 +14,7 @@ import { sessionCookieOptions, signSession, SESSION_COOKIE } from "./session";
 import { signInWithProvider } from "./oauth-users";
 import type { SessionUser } from "./types";
 
-export type OAuthProvider = "google" | "apple";
+type OAuthProvider = "google" | "apple";
 
 const STATE_COOKIE = "aisle_oauth";
 const STATE_MAX_AGE = 60 * 10;
@@ -30,14 +30,14 @@ type PendingOAuth = {
   next: string;
 };
 
-export function providerConfigured(provider: OAuthProvider) {
+function providerConfigured(provider: OAuthProvider) {
   if (provider === "google") {
     return Boolean(process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET);
   }
   return Boolean(process.env.AUTH_APPLE_ID);
 }
 
-export function safeNext(value: string | null) {
+function safeNext(value: string | null) {
   if (!value || !value.startsWith("/") || value.startsWith("//") || value.startsWith("/login")) {
     return "/";
   }

@@ -7,7 +7,6 @@ import { DEFAULT_VIDEO_MODEL, getModel } from "../src/lib/media/catalog";
 import { ART_DIRECTOR_SYSTEM, ART_DIRECTOR_VERSION } from "../src/lib/media/art-director-system";
 import { decideCopy } from "../src/lib/runtime/decide";
 import { runCreativeGeneration, type Work } from "../src/lib/runtime/steps";
-import { fallbackBrief } from "../src/lib/media/prompts";
 import { artDirectionRequest, directMedia, parseArtDirection, type DirectionInput } from "../src/lib/media/art-direction";
 import { applyStudioMedia } from "../src/lib/media/persistence";
 import { storyLayout } from "../src/lib/media/storyboard";
@@ -83,7 +82,7 @@ for (const id of ["local:custom", "openai:gpt-6-luna", "anthropic:claude-sonnet-
     assert.equal(body.system, cindySystem);
     assert.equal(body.max_tokens, 1600);
   } else {
-    assert.equal((body.messages as { role: string; content: string }[])[0].content, cindySystem);
+    assert.equal((body.messages as { role: string; content: string }[])[0].content, req.system, "OpenAI-compatible bodies carry the caller's system prompt");
     if (model.reasoning) assert.equal(body.reasoning_effort, model.effort ?? "low");
     else assert.equal(body.temperature, 0.4);
   }
@@ -91,7 +90,7 @@ for (const id of ["local:custom", "openai:gpt-6-luna", "anthropic:claude-sonnet-
 assert.equal(estimateLlmUsage(getLlmOrDefault("local:custom"), { agent: "creative", prompt: "1234".repeat(100) }).inputTokens, 100);
 assert.throws(() => outputCap(getLlmOrDefault("local:custom"), { maxOutputTokens: 8001 }), /Invalid/);
 assert.equal(existsSync("src/app/api/agents/complete/route.ts"), false, "Cindy deleted the public completion route");
-console.log("PASS Cindy adapter system messages; public completion route stays deleted");
+console.log("PASS adapter system messages (caller system for OpenAI-compatible, seat system for Anthropic); public completion route stays deleted");
 
 let calls = 0;
 const complete = async (request: CompleteRequest) => { calls++; assert.equal(request.system, ART_DIRECTOR_SYSTEM); return author(); };
@@ -152,7 +151,7 @@ await assert.rejects(directMedia({ ...input, campaign: { ...campaign, spendCapUs
 assert.equal(repairBudgetCalls, 1, "recheck the budget including already-spent inference before any repair call");
 console.log("PASS bounded model-authored validation repair, preserved attempts, cumulative metering and no blocked-decision override");
 
-const posterCampaign = { ...campaign, brief: fallbackBrief(campaign) };
+const posterCampaign = { ...campaign, brief: { product: campaign.product, angle: campaign.objective, audience: campaign.targetAudience, channels: campaign.channels, keyMessage: campaign.product, claimsAllowed: campaign.sharedContext.approvedClaims, claimsAvoid: [], visualDirection: campaign.sharedContext.brandTone } };
 const copyFixture = ["A", "B"].map(variant => ({ variant: variant as "A" | "B", kicker: "Offline", headline: "Offline fixture", subhead: "Test", cta: "Explore", caption: "Test", prompt: `Distinct offline artwork ${variant}: a clear glass and product on a surface.` }));
 let posterRequest: CompleteRequest | undefined;
 const posterInput = { campaign: posterCampaign, brand, settings, version: 1, complianceNotes: [], fallback: copyFixture };
@@ -172,7 +171,7 @@ const generated = await runCreativeGeneration(work, {
   settings,
   brand,
   allCampaigns: [],
-  llm: { meta: { label: "offline live-path test", live: true }, request: async () => ({ ...author(), status: "unconfigured" }) },
+  llm: { meta: { live: true }, request: async () => ({ ...author(), status: "unconfigured" }) },
   renderPoster: async () => {
     posterCalls++;
     return {

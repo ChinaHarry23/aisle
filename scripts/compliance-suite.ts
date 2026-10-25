@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { beginReview, submissionFor, parseSubmission, ComplianceSubmissionError } from "../src/lib/compliance/service";
 import { blankCampaign, defaultBrand } from "../src/lib/seed";
 import { defaultSettings } from "../src/lib/settings";
-import { makeCreatives } from "../src/lib/creatives";
+import { copyFromBrief } from "../src/lib/media/brief-copy";
+import { buildCreatives } from "../src/lib/runtime/steps";
 import { runEngine } from "../src/lib/runtime/engine";
 import type { Campaign } from "../src/lib/types";
 import type { LlmRuntime } from "../src/lib/runtime/decide";
@@ -13,7 +14,7 @@ function fixture(): Campaign {
   c.id = "campaign-example"; c.createdAt = now;
   const brief = { product: c.product, angle: "Everyday wear", audience: c.targetAudience, channels: c.channels, keyMessage: "Cotton shirt", claimsAllowed: [], claimsAvoid: [], visualDirection: "Simple product shot" };
   c.brief = brief;
-  c.creatives = makeCreatives(c, brief, 1).map((cr, i) => ({ ...cr, id: `creative-${i}`, createdAt: now }));
+  c.creatives = buildCreatives(c, Object.values(copyFromBrief(c)), 1).map((cr, i) => ({ ...cr, id: `creative-${i}`, createdAt: now }));
   c.status = "generating";
   c.run = { id: "pipeline-example", campaignId: c.id, status: "running", step: "compliance.receive", startedAt: now, updatedAt: now, stepsTaken: 0, maxSteps: 40, toolsUsed: [], revisionAttempts: 0, awaiting: null, awaitingDetail: null, haltedReason: null };
   return c;

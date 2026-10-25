@@ -2,7 +2,7 @@ import { getLlmOrDefault } from "./catalog";
 import type { CompleteRequest, CompleteResult, LlmUsage } from "./types";
 
 /** A call that never reached a model: nothing was spent, so nothing is booked. */
-export function unspentUsage(label: string): LlmUsage {
+function unspentUsage(label: string): LlmUsage {
   return {
     inputTokens: 0,
     outputTokens: 0,

@@ -6,10 +6,10 @@ import type { UserRole } from "@/lib/auth/types";
 import { getDatabase } from "@/lib/db";
 import { balanceMilli, creditMeter, recentLedger, type LedgerEntry } from "./ledger";
 import { billingFor, isUnlimited } from "./meter";
-import { currentPlan, type Plan } from "./plan";
+import { currentPlan, LIVE_STATUSES, type Plan } from "./plan";
 import { createCheckoutSession, openPortal, rowFromOtherMode, stripeReady, type BillingUser } from "./stripe";
 
-export type SubscriptionSummary = {
+type SubscriptionSummary = {
   status: string;
   /** Cancels at the end of the period (classic `cancel_at_period_end` or flexible `cancel_at`). */
   cancelPending: boolean;
@@ -53,9 +53,6 @@ export async function subscriptionFor(userId: string): Promise<SubscriptionSumma
     currentPeriodEnd: row.current_period_end,
   };
 }
-
-/** Statuses of a subscription that is billing or about to (keep BillingView's copy in step). */
-export const LIVE_STATUSES = ["active", "trialing", "past_due", "unpaid", "incomplete"];
 
 /**
  * A subscription that is still billing, or whose first payment is in flight:

@@ -4,7 +4,7 @@ import { z } from "zod";
 import bundledRegistry from "./policies/official-rules.json" with { type: "json" };
 import type { ComplianceSubmission } from "./service";
 const nonempty = z.string().trim().min(1);
-export const ruleSchema = z.object({
+const ruleSchema = z.object({
   id: nonempty, source: nonempty, version: nonempty,
   type: z.enum(["advertising_law", "consumer_protection", "copyright", "ethics", "platform", "brand"]),
   jurisdiction: nonempty, effectiveDate: z.iso.date(), expiresAt: z.iso.date(),
@@ -23,7 +23,7 @@ export type RuleSelection = {
   problems: string[];
   checkedAt: string;
 };
-export const registrySchema = z.object({ authorisedSources: z.array(nonempty), rules: z.array(ruleSchema) });
+const registrySchema = z.object({ authorisedSources: z.array(nonempty), rules: z.array(ruleSchema) });
 export function selectRules(raw: unknown, s: ComplianceSubmission, now: string): RuleSelection {
   const parsed = registrySchema.safeParse(raw);
   if (!parsed.success) return { rules: [], referenceRules: [], problems: ["Policy registry is missing or invalid; an authorised maintainer must configure it."], checkedAt: now };

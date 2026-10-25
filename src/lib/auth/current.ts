@@ -5,9 +5,8 @@ import { findUserById, publicUser } from "./users";
 
 /**
  * The signed-in account, as the database has it now. The cookie lasts 30 days,
- * so it only names the account: a deleted account, a replaced password or an
- * email claimed by Google/Apple (a newer session version) ends it, and the
- * role comes from the row, not from whatever it was at sign-in.
+ * so it only names the account: a deleted account ends it, and the role comes
+ * from the row, not from whatever it was at sign-in.
  */
 export async function getCurrentUser(): Promise<SessionUser | null> {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;

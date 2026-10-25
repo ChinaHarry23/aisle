@@ -1,11 +1,9 @@
 /**
  * Storage adapter contract.
  *
- * Aisle only needs three things from a database: one table of accounts, one
- * key/value table for per-user documents, and a way to run a query. Keeping the
- * surface that small is what lets the same code run on the SQLite file used in
- * development and a Postgres database in production without a query builder or an
- * ORM in between.
+ * Aisle only needs a way to run a query and a statement. Keeping the surface that
+ * small is what lets the same SQL run on SQLite in development and Postgres in
+ * production without a query builder or ORM.
  *
  * Every method is async even where the underlying driver is synchronous, so the
  * two adapters are interchangeable.

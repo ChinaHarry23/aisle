@@ -18,21 +18,14 @@ export type LlmModel = {
   blurb: string;
   bestFor: string;
   envKeys: string[];
-  endpoint: string;
   estimateLabel: string;
   billing: {
     inputPerM: number;
     outputPerM: number;
   };
-  notes?: string;
-  /**
-   * Output ceiling sent with every cloud call. It bounds what one call can
-   * cost, so it is also what the credit hold reserves for output.
-   */
-  maxOutputTokens?: number;
   /** OpenAI reasoning model: takes `reasoning_effort` and rejects `temperature`. */
   reasoning?: boolean;
-  /** Thinking effort: `reasoning_effort` on OpenAI, `output_config.effort` on Claude 5.x. */
+  /** Thinking effort: `reasoning_effort` (Chat Completions) or `reasoning.effort` (Responses API) on OpenAI. */
   effort?: "none" | "low" | "medium" | "high";
   /**
    * How this model accepts function calls.
@@ -40,8 +33,6 @@ export type LlmModel = {
    * `responses` is the Responses API, required for GPT-6 Astra and GPT-6.1 Sol.
    */
   toolApi?: "chat" | "responses";
-  /** Provider shutdown date (YYYY-MM-DD), shown in pickers. */
-  sunset?: string;
 };
 
 export type LlmUsage = {
@@ -58,8 +49,9 @@ export type LlmUsage = {
  * A function the model may ask us to run.
  *
  * The schema is plain JSON Schema rather than a provider-specific shape, because
- * the same declaration is translated to OpenAI's `tools` array and to Anthropic's
- * `tools` array in `adapters.ts`. LangChain produces these from Zod schemas.
+ * the same declaration is translated to OpenAI's Chat Completions and Responses
+ * `tools` shapes (and the local OpenAI-compatible server's) in `metered-complete.ts`.
+ * LangChain produces these from Zod schemas.
  */
 export type ToolSpec = {
   name: string;
@@ -88,7 +80,7 @@ export type ToolCall = {
  * A tool-using agent is inherently multi-turn: the model asks for a tool, we run
  * it, and the result goes back into the same conversation. Assistant turns carry
  * the calls they made so the provider can match results to requests. The shape is
- * deliberately provider-neutral — `adapters.ts` translates it — so the engine and
+ * deliberately provider-neutral — `metered-complete.ts` translates it — so the engine and
  * the tests never deal in OpenAI or Anthropic wire formats.
  */
 export type ChatTurn =
@@ -123,7 +115,9 @@ export type CompleteRequest = {
   toolCallId?: string;
   /**
    * Send this OpenAI request through the live client instead of the unwired
-   * text adapter. Set by the campaign runtime for intake, trend, copy and compliance.
+   * text adapter. Set by the server runtime (trend-server.ts) on OpenAI trend,
+   * creative (copy and intake), compliance and media requests, and directly by
+   * compliance document comparison, compliance vision review and brand research.
    */
   direct?: boolean;
   /** Responses-API hosted web search. OpenAI runs it; we do not. */

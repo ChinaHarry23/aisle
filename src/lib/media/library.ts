@@ -278,7 +278,7 @@ function toAsset(row: AssetRow, review: AssetReview, reasons: string[]): Library
 function issuesFor(attempt: ComplianceAttempt, creativeId: string | null): ComplianceIssue[] {
   if (!creativeId) return attempt.issues;
   const specific = attempt.issues.filter(
-    (issue) => issue.excerpt === creativeId || issue.excerpt.startsWith(`${creativeId}:`) || issue.excerpt.startsWith(creativeId),
+    (issue) => issue.excerpt.startsWith(creativeId),
   );
   return specific.length > 0 ? specific : attempt.issues;
 }

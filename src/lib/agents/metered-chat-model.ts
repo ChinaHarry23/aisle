@@ -25,7 +25,7 @@ import { langsmithUsage } from "@/lib/llm/estimate";
 import type { ChatTurn, CompleteRequest, CompleteResult, MeteredAgentId, ToolCall, ToolSpec } from "@/lib/llm/types";
 
 /** Running total of everything one agent run has spent. */
-export type UsageMeter = {
+type UsageMeter = {
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
@@ -52,31 +52,8 @@ export type MeteredModelConfig = {
    * so a caller can supply the same funnel the rest of the app uses.
    */
   complete: (req: CompleteRequest, billing: BillingContext | undefined) => Promise<CompleteResult>;
-  /**
-   * Called before each model turn with the shape of the conversation.
-   *
-   * An agent's turns are otherwise invisible: the funnel logs one call at a time
-   * and the framework holds the message history, so nothing else can say how many
-   * turns a decision took or whether the tool results were carried forward.
-   */
-  onTurn?: (turn: {
-    index: number;
-    messages: number;
-    history: number;
-    tools: number;
-    types: string[];
-  }) => void;
 };
 
-/**
- * Flatten LangChain messages into the provider-neutral turns the adapters speak.
- *
- * Two details matter for tool calling to work at all. The first message is the
- * system prompt, which is part of the request rather than the history, because
- * every provider carries it in its own field. And a `ToolMessage` has to keep the
- * `tool_call_id` of the request it answers: without that pairing, OpenAI and
- * Anthropic both reject the turn.
- */
 /**
  * The system prompt, the conversation before the current turn, and the current turn.
  *
@@ -84,7 +61,7 @@ export type MeteredModelConfig = {
  * message or a tool result, because both are legal final turns in a tool-calling
  * loop and the adapters place it accordingly.
  */
-export type FramedConversation = {
+type FramedConversation = {
   system: string;
   turns: ChatTurn[];
   prompt: string;
@@ -114,6 +91,15 @@ function messageText(message: BaseMessage): string {
     .join("");
 }
 
+/**
+ * Flatten LangChain messages into the provider-neutral turns the adapters speak.
+ *
+ * Two details matter for tool calling to work at all. The first message is the
+ * system prompt, which is part of the request rather than the history, because
+ * every provider carries it in its own field. And a `ToolMessage` has to keep the
+ * `tool_call_id` of the request it answers: without that pairing, OpenAI and
+ * Anthropic both reject the turn.
+ */
 export function toTurns(messages: BaseMessage[]): FramedConversation {
   const system = messages
     .filter((message) => message.getType() === "system")
@@ -158,7 +144,7 @@ export function toTurns(messages: BaseMessage[]): FramedConversation {
 
 /** The same conversion, used for the turns that precede the current one. */
 function toTurnsForHistory(messages: BaseMessage[]): ChatTurn[] {
-  const { turns } = { turns: [] as ChatTurn[] };
+  const turns: ChatTurn[] = [];
   for (const message of messages) {
     const text = messageText(message);
     if (message.getType() === "system") continue;
@@ -236,7 +222,7 @@ export class MeteredChatModel extends BaseChatModel {
    * LangSmith prices and groups a chat run by these fields. `_llmType()` alone
    * is reported as model "Other", which is why the project total stayed at $0.
    */
-  override getLsParams(_options: this["ParsedCallOptions"]): LangSmithParams {
+  override getLsParams(): LangSmithParams {
     const model = getLlmOrDefault(this.config.modelId);
     return {
       ls_provider: model.providerId,
@@ -269,14 +255,6 @@ export class MeteredChatModel extends BaseChatModel {
         ? { maxOutputTokens: this.config.maxOutputTokens }
         : {}),
     };
-
-    this.config.onTurn?.({
-      index: this.usage.calls + 1,
-      messages: messages.length,
-      history: turns.length,
-      tools: this.boundTools.length,
-      types: messages.map((m) => m.getType()),
-    });
 
     const result = await this.config.complete(request, this.config.billing);
 
@@ -374,13 +352,6 @@ function toToolSpec(candidate: unknown): ToolSpec | null {
 }
 
 /**
- * A schema a provider will accept.
- *
- * Zod's JSON Schema output carries `$schema`, which OpenAI and Anthropic both
- * reject inside a function's parameters. Everything else passes through, so a
- * schema's `required` list and nested objects survive intact.
- */
-/**
  * LangChain copies `usage_metadata` onto the LangSmith run through a merger that
  * keeps token counts and drops `total_cost`. Put the cost back before the run is
  * posted, or the project total stays $0 for a model LangSmith cannot price.
@@ -405,10 +376,16 @@ if (!tracerWithCost.__aisleCost) {
   tracerWithCost.__aisleCost = true;
 }
 
+/**
+ * A schema a provider will accept.
+ *
+ * Zod's JSON Schema output carries `$schema`, which OpenAI and Anthropic both
+ * reject inside a function's parameters. Everything else passes through, so a
+ * schema's `required` list and nested objects survive intact.
+ */
 function jsonSchemaForProvider(schema: unknown): Record<string, unknown> {
   if (!schema || typeof schema !== "object") return { type: "object", properties: {} };
   const rest = { ...(schema as Record<string, unknown>) };
-  // OpenAI and Anthropic both reject `$schema` inside a function's parameters.
   delete rest.$schema;
   return { type: "object", ...rest };
 }

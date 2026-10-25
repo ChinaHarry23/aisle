@@ -21,7 +21,6 @@
   --aside-active-fg: #0b5c56;
   --aside-rule: #ebebf2;
   --bar-bg: rgb(255 255 255 / 0.85);
-  --bar-fg: #7a7a8c;
   --r-btn: 10px;
   --r-card: 16px;
   --r-chip: 999px;
@@ -81,21 +80,6 @@ body {
 
 .scrollbar-thin::-webkit-scrollbar {
   width: 8px;
-}
-
-.studio-ken {
-  animation: studioKen 8s ease-in-out infinite;
-}
-@keyframes studioKen {
-  0% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.12) translate(-2%, 1%);
-  }
-  100% {
-    transform: scale(1);
-  }
 }
 
 .rounded-full {
@@ -358,9 +342,6 @@ select {
 .hairline-hover:hover {
   box-shadow: var(--shadow-lift), inset 0 0 0 1px color-mix(in srgb, var(--signal) 45%, var(--line));
   transform: translateY(-1px);
-}
-.hairline-accent {
-  box-shadow: var(--shadow-card), inset 0 0 0 1px color-mix(in srgb, var(--signal) 55%, var(--line));
 }
 
 /* ——— Polish ——— */

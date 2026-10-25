@@ -42,7 +42,7 @@ If port 3000 is busy Next.js picks the next one; use the URL it prints. Run only
 
 ## Environment
 
-`.env.example` lists every variable. Only `AUTH_SECRET` is required.
+`.env.example` lists the common variables. A few optional ones are read only from the environment, for example `AUTH_URL`, `OPENAI_API_BASE`, `FREE_CREDITS`, `FREE_GRANTS_PER_DAY` and `AISLE_MEDIA_DIR`. Only `AUTH_SECRET` is required.
 
 | Variable | When you need it |
 |---|---|
@@ -53,7 +53,7 @@ If port 3000 is busy Next.js picks the next one; use the URL it prints. Run only
 | `AISLE_SEED_PASSWORD` | Password for the seeded team desks. |
 | `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` | Server-wide keys for the agents. Each user can instead paste their own under Settings → Connections. |
 | `LOCAL_LLM_BASE_URL` | Ollama or any OpenAI-compatible endpoint (default `http://127.0.0.1:11434/v1`). |
-| `GOOGLE_AI_API_KEY`, `BFL_API_KEY`, `ARK_API_KEY` | Image providers. Not wired yet, see [Models](#models). |
+| `GOOGLE_AI_API_KEY` (or `GEMINI_API_KEY`), `ARK_API_KEY`, `TOKENHUB_API_KEY`, `DASHSCOPE_API_KEY` | Image providers for campaign posters, see [Models](#models). `BFL_API_KEY` is not wired yet. |
 | `RUNWAYML_API_SECRET`, `KLING_*`, `MINIMAX_API_KEY`, `PIKA_API_KEY` | Video providers. Not wired yet. |
 
 Never commit `.env.local`.
@@ -99,7 +99,7 @@ The sidebar groups the pages:
 | Publish & Track | `/approvals` | Founder approval queue (human-in-the-loop) |
 | | `/schedule` | Channel posting times |
 | | `/performance` | Results and next-campaign recommendation (AHR-06) |
-| Setup | `/brand` | Tone, approved/banned terms, country law, **brand guideline documents** |
+| Setup | `/brand` | Tone, approved/banned terms, country law |
 | | `/settings` | Tabs: **Models**, **Connections**, **Profile** |
 | | `/login`, `/signup` | Accounts |
 
@@ -107,7 +107,7 @@ Each campaign has a **Runtime** tab: the run trace, every policy decision (inclu
 
 ### Brand guidelines
 
-Upload up to 8 brand documents (PDF, `.docx`, `.txt`, `.md`, `.csv`, `.json`; 5 MB each) on **Brand** or **Approvals**. `POST /api/guidelines/extract` pulls the text out (`unpdf` for PDF, `mammoth` for Word). The text is stored with the brand profile and added to the Creative and Compliance prompts, so breaches are flagged as brand-guideline issues. Scanned PDFs need OCR first.
+Guideline text already stored with the brand profile is added to the Creative and Compliance prompts, so breaches are flagged as brand-guideline issues. The app has no upload for new guideline documents.
 
 ### Trends
 
@@ -152,9 +152,9 @@ accepted note attaches to the next brief
 
 ### Models
 
-Agents are **simulated** by default: every decision has a deterministic fallback, and the run trace says whether a decision came from a live model or the rules. Settings can point an agent at **Local, OpenAI or Claude**. The Local (Ollama / OpenAI-compatible) path is the only live LLM call that is actually made; cloud LLM calls are not yet wired.
+Agents are **simulated** by default: every decision has a deterministic fallback, and the run trace says whether a decision came from a live model or the rules. Settings can point an agent at **Local, OpenAI or Claude**. Local (Ollama / OpenAI-compatible) calls go out live. OpenAI calls go out live through the metered completion funnel (`src/lib/llm/metered-complete.ts`) when the request is marked direct (trend, copy and compliance) or carries tools, history, images or web search. Any other OpenAI request, and every Claude request, is not wired yet (`src/lib/llm/adapters.ts`). No call is made and the run uses its fallback.
 
-**Image and video generation is not wired to any provider yet.** The catalog lists many models, but `callProvider` in `src/lib/media/adapters.ts` always throws "not wired", and Studio falls back to a placeholder with a note. Wiring a provider means writing its adapter there and adding its key. A key pasted in Connections is tested against the provider (OpenAI, Anthropic and Local can be tested) but does not yet produce real media.
+**Image generation is partly wired; video is not.** Campaign posters (`src/lib/media/campaign-poster.ts`, used by the campaign run, Studio context and poster revision) call the OpenAI, Google, ByteDance, Tencent and Alibaba adapters in `src/lib/media/providers/` directly when that provider's key is set or a key is pasted in Connections, using the product photo as the reference when one is supplied. Studio's own generate path goes through `callProvider` in `src/lib/media/adapters.ts`. That function renders OpenAI and Google image-to-image when a product photo is supplied and throws "not wired" for everything else, and Studio then falls back to a placeholder with a note. Wiring another provider means writing its adapter and adding its key. Connections can test OpenAI, Anthropic and Local keys.
 
 The Trend Analyser calls **real public sources** with no key: Open-Meteo (campaign-window forecast), Wikipedia's REST API (category context) and DuckDuckGo's instant-answer API (competitor language). If the network is unavailable the tool records that and the brief carries it as a limitation.
 
@@ -167,7 +167,7 @@ See `docs/STAGE2-IMPLEMENTATION.md` for the Stage 1 → code → test traceabili
 - **Zustand** for client state
 - **SQL** via `node:sqlite` locally and `pg` in production
 - `bcryptjs` and `jose` for passwords and sessions
-- `unpdf` and `mammoth` for guideline extraction
+- `unpdf` for the compliance law index
 - Optional **Ollama** as a local LLM
 
 ## Demo walkthrough

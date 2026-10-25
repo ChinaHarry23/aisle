@@ -3,18 +3,13 @@
 import Link from "next/link";
 import { CreativeStudio } from "@/components/studio/CreativeStudio";
 import { PageHeader } from "@/components/ui";
-import { isArchived } from "@/lib/campaign-lifecycle";
-import { useAisle } from "@/lib/store";
-import { useMemo, useState } from "react";
+import { useActiveCampaigns } from "@/lib/store";
+import { useState } from "react";
 
 export default function StudioPage() {
-  const campaigns = useAisle((s) => s.campaigns).filter((campaign) => !isArchived(campaign));
-  const initial = campaigns[0]?.id ?? "";
-  const [id, setId] = useState(initial);
-  const selected = useMemo(
-    () => campaigns.find((c) => c.id === id) ?? campaigns[0],
-    [campaigns, id],
-  );
+  const campaigns = useActiveCampaigns();
+  const [id, setId] = useState(campaigns[0]?.id ?? "");
+  const selected = campaigns.find((c) => c.id === id) ?? campaigns[0];
 
   return (
     <div className="flex flex-col gap-8">
@@ -26,7 +21,7 @@ export default function StudioPage() {
           <label className="text-xs text-mute">
             Campaign
             <select
-              value={selected?.id}
+              value={selected.id}
               onChange={(e) => setId(e.target.value)}
               className="mt-1 block min-w-[240px] border border-line bg-surface px-3 py-2 text-sm text-ink"
             >

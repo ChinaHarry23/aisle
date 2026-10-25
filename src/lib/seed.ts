@@ -78,14 +78,14 @@ export function makeLog(
   };
 }
 
-export function makeContext(
+function makeContext(
   input: Pick<
     CampaignInput,
     "product" | "targetAudience" | "objective" | "country" | "notes"
   >,
   brand: BrandProfile,
   previousPerformanceNote: string | null,
-  previousPerformanceFrom: string | null = null,
+  previousPerformanceFrom: string | null,
 ): SharedContext {
   return {
     retailer: brand.retailerName,
@@ -469,9 +469,9 @@ export function seedCampaigns(brand: BrandProfile): Campaign[] {
       makeLog("media", "schedule", "Instagram version ready", "Feed post adapted and a posting time proposed. Waiting for founder approval.", "2026-10-13T04:05:00.000Z"),
     ],
     founderDecision: null,
-  };
+  } satisfies Partial<Campaign>;
 
   return [
-    withRuntimeDefaults(produce as unknown as Campaign),
+    withRuntimeDefaults(produce as Partial<Campaign> as Campaign),
   ];
 }

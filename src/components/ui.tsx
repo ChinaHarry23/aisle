@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import { pipelineIndex, statusLabel, statusTone } from "@/lib/status";
+import type { ChannelResultStatus } from "@/lib/runtime/types";
 import type { CampaignStatus, RiskLevel } from "@/lib/types";
 
 export function StatusBadge({ status }: { status: CampaignStatus }) {
@@ -10,6 +11,19 @@ export function StatusBadge({ status }: { status: CampaignStatus }) {
 export function RiskBadge({ risk }: { risk: RiskLevel }) {
   const tone = risk === "high" ? "risk-high" : risk === "medium" ? "risk-mid" : "risk-low";
   return <span className={cn("status-chip capitalize", tone)}>{risk} risk</span>;
+}
+
+export function ResultStatusChip({ status }: { status: ChannelResultStatus }) {
+  return (
+    <span
+      className={cn(
+        "status-chip",
+        status === "ok" ? "risk-low" : status === "incomplete" ? "risk-mid" : "risk-high",
+      )}
+    >
+      {status.replace(/_/g, " ")}
+    </span>
+  );
 }
 
 export function Confidence({ value, label }: { value: number; label?: string }) {

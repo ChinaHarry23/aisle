@@ -10,11 +10,7 @@ export type PublicUser = {
 export type AuthUser = PublicUser & {
   passwordHash: string;
   createdAt: string;
-  /** False when the account was created by Google or Apple and has no password. */
-  passwordLogin?: boolean;
-  googleSub?: string | null;
-  appleSub?: string | null;
-  /** Sessions signed with an older version are no longer accepted. */
+  /** Not mapped by toAuthUser (the session_version column is read via userExtras), so getCurrentUser sees 0; nothing bumps the column, so it revokes no sessions. */
   sessionVersion?: number;
 };
 

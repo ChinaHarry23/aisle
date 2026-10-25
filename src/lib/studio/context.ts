@@ -13,7 +13,6 @@ import type { AuthUser } from "@/lib/auth/types";
 import { loadWorkspace, saveWorkspace, type WorkspaceSnapshot } from "@/lib/auth/workspace";
 import { createServerTrendRuntime } from "@/lib/agents/trend-server";
 import { renderCampaignPoster } from "@/lib/media/campaign-poster";
-import { makeLlmRuntime } from "@/lib/runtime/decide";
 import { isArchived } from "@/lib/campaign-lifecycle";
 import { withRuntimeDefaults } from "@/lib/runtime/defaults";
 import {
@@ -75,7 +74,7 @@ async function resolveUser(requested: string): Promise<AuthUser> {
   return user;
 }
 
-export async function resolveStudioSubject(hint: { userId?: string; campaignId?: string }): Promise<{
+async function resolveStudioSubject(hint: { userId?: string; campaignId?: string }): Promise<{
   user: AuthUser;
   billing: BillingContext;
   snapshot: WorkspaceSnapshot;
@@ -113,7 +112,7 @@ function engineOptions(userId: string, billing: BillingContext): EngineOptions {
   return {
     ownerUserId: userId,
     billing,
-    llm: createServerTrendRuntime(billing) ?? makeLlmRuntime(billing),
+    llm: createServerTrendRuntime(billing),
     renderPoster: (input) =>
       renderCampaignPoster({
         campaign: input.campaign,

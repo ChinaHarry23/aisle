@@ -4,7 +4,7 @@ import { getByoKey, setByoKey } from "@/lib/media/byo-key";
 import type { ProviderId } from "@/lib/media/types";
 import { useState, type ReactNode } from "react";
 
-export function ConnectionBadge({ state }: { state: ConnectionState }) {
+function ConnectionBadge({ state }: { state: ConnectionState }) {
   if (state === "workspace") return <span className="status-chip status-run">Workspace key</span>;
   if (state === "device") return <span className="status-chip status-run">Your key</span>;
   if (state === "endpoint") return <span className="status-chip status-run">Endpoint set</span>;
@@ -117,7 +117,7 @@ export type TestControl = {
   result: ConnectionTestResult | null;
 };
 
-export function TestButton({ test, label }: { test: TestControl; label: string }) {
+function TestButton({ test, label }: { test: TestControl; label: string }) {
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
       <button

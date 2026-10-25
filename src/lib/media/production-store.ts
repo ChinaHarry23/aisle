@@ -15,7 +15,7 @@ export type ProductionInput = {
   expectedUrl: string | null; sourceSnapshot: string; workflowManaged: boolean;
   request: GenerateRequest; plan: StoryAdPlan; artDirection?: ArtDirection;
 };
-export type ProductionJob = {
+type ProductionJob = {
   id: string; renderId: string; input: ProductionInput;
   status: "queued" | "running" | "complete" | "failed";
   workerId?: string; leaseUntil?: number; createdAt: string;

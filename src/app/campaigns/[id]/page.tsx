@@ -14,6 +14,7 @@ import {
   AgentPipeline,
   Confidence,
   Empty,
+  ResultStatusChip,
   SectionTitle,
   Stat,
   StatusBadge,
@@ -911,18 +912,7 @@ export default function CampaignWorkspace() {
                           <ChannelIcon channel={r.channel} className="text-signal" />
                           {channelLabel[r.channel]}
                         </span>
-                        <span
-                          className={cn(
-                            "status-chip",
-                            r.status === "ok"
-                              ? "risk-low"
-                              : r.status === "incomplete"
-                                ? "risk-mid"
-                                : "risk-high",
-                          )}
-                        >
-                          {r.status.replace(/_/g, " ")}
-                        </span>
+                        <ResultStatusChip status={r.status} />
                         <span className="text-xs text-mute">
                           {r.sourceName} · {r.periodFrom} → {r.periodTo}
                         </span>

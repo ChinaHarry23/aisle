@@ -1,7 +1,8 @@
 /**
  * The contract every cloud media provider implements. An adapter turns one
- * GenerateRequest into verified bytes plus what the call really cost; storing,
- * metering and provenance are `runGeneration`'s job, not the adapter's.
+ * GenerateRequest into verified bytes plus what the call really cost; storing
+ * and provenance are the caller's job (`renderCampaignPoster` in
+ * campaign-poster.ts), not the adapter's.
  */
 import type { AspectRatio, GenerateRequest, MediaModel, ProviderId } from "../pr2-types";
 

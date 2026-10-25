@@ -10,30 +10,22 @@
 import { createMiddleware, dynamicSystemPromptMiddleware, tool } from "langchain";
 import { z } from "zod";
 import { agentTools } from "@/lib/agents/agent-tools";
-import {
-  compileSeatAgent,
-  complianceSchema,
-  copySchema,
-  instructionsFor,
-  intakeTurnSchema,
-  recommendationSchema,
-  trendBriefSchema,
-  type AgentSeat,
-} from "@/lib/agents/seats";
+import { compileSeatAgent, instructionsFor, SEAT_SCHEMAS, type AgentSeat } from "@/lib/agents/seats";
 import { MeteredChatModel } from "@/lib/agents/metered-chat-model";
+import { DEFAULT_LLM } from "@/lib/llm/catalog";
 import { runComplete } from "@/lib/llm/metered-complete";
 import type { CompleteRequest, CompleteResult } from "@/lib/llm/types";
 import { nextMissingField } from "@/lib/intake/assistant";
 import type { IntakeDraftState } from "@/lib/intake/shared";
-import { COUNTRIES, validateIntake } from "@/lib/runtime/intake";
+import { isCountry, validateIntake } from "@/lib/runtime/intake";
 import { addEvent, callTool, type StepEnv, type Work } from "@/lib/runtime/steps";
 import type { ToolAgent } from "@/lib/runtime/tools";
 import type { BillingContext } from "@/lib/billing/meter";
 import type { WorkspaceSettings } from "@/lib/settings";
-import type { BrandProfile, Campaign, Country } from "@/lib/types";
+import type { BrandProfile, Campaign } from "@/lib/types";
 import { loadStudioSeat, readStudioContext, saveStudioCampaign, type StudioContext } from "./context";
 
-export const studioContextSchema = z.object({
+const studioContextSchema = z.object({
   campaignId: z
     .string()
     .default("")
@@ -44,14 +36,6 @@ export const studioContextSchema = z.object({
     .describe("Workspace owner id or email. Blank uses AISLE_STUDIO_USER_ID, then the dev-alex desk."),
   modelId: z.string().default("").describe("Override the workspace model, for example openai:gpt-6-luna."),
 });
-
-const SCHEMAS = {
-  trend: trendBriefSchema,
-  creative: copySchema,
-  compliance: complianceSchema,
-  media: recommendationSchema,
-  intake: intakeTurnSchema,
-} as const;
 
 const INTAKE_PATCH = ["name", "product", "category", "targetAudience", "objective", "notes"] as const;
 
@@ -103,8 +87,7 @@ function intakeTools(current: () => StudioSeatSession) {
     tool(
       async (args: { country?: string }) => {
         const session = current();
-        const country =
-          args.country && (COUNTRIES as string[]).includes(args.country) ? (args.country as Country) : session.work.campaign.country;
+        const country = isCountry(args.country) ? args.country : session.work.campaign.country;
         return JSON.stringify({
           retailerName: session.brand.retailerName,
           tone: session.brand.tone,
@@ -144,14 +127,10 @@ function intakeTools(current: () => StudioSeatSession) {
 }
 
 function registryTools(seat: ToolAgent, current: () => StudioSeatSession, onCall: () => void) {
-  const session = current;
-  // `agentTools` only calls `execute`. The campaign is read then, after beforeAgent has loaded it.
+  // The campaign is read when a tool runs, after beforeAgent has loaded it.
   return agentTools(seat, {
-    campaign: undefined as unknown as Campaign,
-    brand: undefined as unknown as BrandProfile,
-    at: "",
     execute: async (name, args) => {
-      const live = session();
+      const live = current();
       onCall();
       return callTool(live.work, seat, name, args, live.env);
     },
@@ -201,7 +180,7 @@ function buildStudioSeat(seat: AgentSeat, options: SeatBuild) {
   };
   const live = {
     agent: seat,
-    modelId: options.session ? assignedModel(seat, options.session) : "openai:gpt-6-luna",
+    modelId: options.session ? assignedModel(seat, options.session) : DEFAULT_LLM,
     billing: options.session?.billing,
     localBaseUrl: options.session?.settings.localBaseUrl,
     localModel: options.session?.settings.localModel,
@@ -217,7 +196,7 @@ function buildStudioSeat(seat: AgentSeat, options: SeatBuild) {
     seat,
     chat,
     tools,
-    schema: SCHEMAS[seat] as z.ZodType,
+    schema: SEAT_SCHEMAS[seat] as z.ZodType,
     contextSchema: studioContextSchema,
     stateSchema: studioContextSchema,
     instructions: instructionsFor(seat),

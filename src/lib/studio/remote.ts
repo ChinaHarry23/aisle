@@ -31,7 +31,7 @@ export function operationThreadId(campaignId: string): string {
 }
 
 /** Where Studio draws the server named by `graphServerUrl`. */
-export function studioOrigin(): string {
+function studioOrigin(): string {
   const explicit = process.env.LANGSMITH_STUDIO_URL?.trim();
   if (explicit) return explicit.replace(/\/$/, "");
   const endpoint = process.env.LANGSMITH_ENDPOINT ?? "";
@@ -106,7 +106,7 @@ export function readGraphFailure(values: unknown): string | null {
 
 let probe: { url: string; ok: boolean; at: number } | null = null;
 
-export function forgetOperationGraph() {
+function forgetOperationGraph() {
   probe = null;
 }
 
@@ -155,7 +155,7 @@ export async function invokeOperationGraph(input: {
   userId: string;
   maxSteps: number;
   command: Command;
-}): Promise<{ canAdvance: boolean; message: string; threadId: string }> {
+}): Promise<{ canAdvance: boolean; message: string }> {
   const threadId = operationThreadId(input.campaignId);
   const url = input.url.replace(/\/$/, "");
   let response: Response;
@@ -201,6 +201,5 @@ export async function invokeOperationGraph(input: {
   }
   const failure = readGraphFailure(values);
   if (failure) throw new GraphRequestError(failure, false);
-  const outcome = readGraphOutcome(values);
-  return { ...outcome, threadId };
+  return readGraphOutcome(values);
 }

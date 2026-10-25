@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/current";
 import { publicOrigin } from "@/lib/auth/oauth";
-import { findUserById } from "@/lib/auth/users";
 import { billingFor, isUnlimited } from "@/lib/billing/meter";
 import { StripeApiError, StripeNotConfiguredError, checkoutConfigured } from "@/lib/billing/stripe";
 import { checkoutOrPortal } from "@/lib/billing/summary";
@@ -13,10 +12,8 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   const session = await getCurrentUser();
   if (!session) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
-  const user = await findUserById(session.id);
-  if (!user) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
   // Only desks that really are unlimited here; a hosted desk not on AISLE_UNLIMITED_USERS pays like anyone.
-  if (isUnlimited(billingFor(user))) {
+  if (isUnlimited(billingFor(session))) {
     return NextResponse.json({ error: "Team desks are unlimited; there is nothing to subscribe to." }, { status: 400 });
   }
   if (!checkoutConfigured()) {
@@ -27,7 +24,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const next = await checkoutOrPortal({ id: user.id, email: user.email, name: user.name }, publicOrigin(request));
+    const next = await checkoutOrPortal({ id: session.id, email: session.email, name: session.name }, publicOrigin(request));
     return NextResponse.json(next);
   } catch (error) {
     if (error instanceof StripeNotConfiguredError) {

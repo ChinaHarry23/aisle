@@ -4,11 +4,11 @@ import type { Country } from "@/lib/types";
 
 const ROOT = path.join(process.cwd(), "services/knowledge/law");
 
-const MARKETS: Record<Country, { label: string }> = {
-  AU: { label: "Australia" },
-  NZ: { label: "New Zealand" },
-  UK: { label: "United Kingdom" },
-  US: { label: "United States" },
+const MARKETS: Record<Country, string> = {
+  AU: "Australia",
+  NZ: "New Zealand",
+  UK: "United Kingdom",
+  US: "United States",
 };
 
 /** Australia is the only market with a built index. The others stay empty until their own documents are added. */
@@ -41,7 +41,7 @@ const STOP = new Set(
   "a an the of and or to in for on with by from at as is be are was were this that these those which into it its their his her you your we our not no".split(" "),
 );
 
-export type LawPassage = {
+type LawPassage = {
   title: string;
   url: string;
   page: number;
@@ -98,12 +98,10 @@ function documentsFor(country: Country) {
 }
 
 /** The market's own law index. Australia is built. Other markets are not, and are not filled with Australian law. */
-export function marketLaw(country: Country): { country: Country; label: string; ready: boolean } {
-  const label = MARKETS[country].label;
+export function marketLaw(country: Country): { label: string; ready: boolean } {
   const docs = documentsFor(country);
   return {
-    country,
-    label,
+    label: MARKETS[country],
     ready: docs.length > 0 && docs.every((doc) => existsSync(doc.path)),
   };
 }

@@ -45,8 +45,10 @@ export async function POST(request: Request) {
   if (!(await verifyPassword(password, user.passwordHash))) {
     return NextResponse.json({ error: "Email or password is wrong." }, { status: 401 });
   }
-  // Backstop for a desk the lock check has not reached yet: the published demo
-  // password never opens a team desk on a hosted install.
+  // Hosted installs still seed the desks with the demo password unless AISLE_SEED_PASSWORD
+  // is set, and nothing else locks them: this check is what keeps the published demo
+  // password from opening a team desk on a hosted install (unless the owner deliberately
+  // set AISLE_SEED_PASSWORD to it).
   if (
     isHosted() &&
     password === DEMO_SEED_PASSWORD &&

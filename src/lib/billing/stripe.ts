@@ -13,7 +13,7 @@
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { getDatabase } from "@/lib/db";
 
-export const DEFAULT_STRIPE_API_VERSION = "2026-08-26.dahlia";
+const DEFAULT_STRIPE_API_VERSION = "2026-08-26.dahlia";
 export const PRICE_LOOKUP_KEY = "aisle_monthly_1000";
 
 /** Read at call time so tests and scripts can point it at a fake server. */
@@ -70,10 +70,10 @@ export class StripeApiError extends Error {
   }
 }
 
-export type FormValue = string | number | boolean | null | undefined | FormValue[] | { [key: string]: FormValue };
+type FormValue = string | number | boolean | null | undefined | FormValue[] | { [key: string]: FormValue };
 
 /** `{ line_items: [{ price: "p" }] }` → `line_items[0][price]=p`. Null and undefined are left out. */
-export function encodeForm(params: Record<string, FormValue>): URLSearchParams {
+function encodeForm(params: Record<string, FormValue>): URLSearchParams {
   const out = new URLSearchParams();
   const walk = (key: string, value: FormValue) => {
     if (value === null || value === undefined) return;
@@ -235,13 +235,13 @@ export async function customerIdFor(userId: string): Promise<string | null> {
  * Drop a link whose customer Stripe no longer knows (deleted in the Dashboard,
  * or from the other mode). The row only mirrors Stripe; credits live in the ledger.
  */
-export async function forgetCustomer(userId: string, customerId: string): Promise<void> {
+async function forgetCustomer(userId: string, customerId: string): Promise<void> {
   const db = await getDatabase();
   await db.execute("delete from billing_customers where user_id = $1 and stripe_customer_id = $2", [userId, customerId]);
 }
 
 /** Stripe answered "No such customer". */
-export function isMissingCustomer(error: unknown): boolean {
+function isMissingCustomer(error: unknown): boolean {
   return (
     error instanceof StripeApiError &&
     error.code === "resource_missing" &&
@@ -255,7 +255,7 @@ export function isMissingCustomer(error: unknown): boolean {
  * the row is only inserted when missing. `fresh` replaces a customer Stripe no
  * longer has, with a new key so Stripe cannot replay the deleted one.
  */
-export async function ensureCustomer(user: BillingUser, options: { fresh?: boolean } = {}): Promise<string> {
+async function ensureCustomer(user: BillingUser, options: { fresh?: boolean } = {}): Promise<string> {
   const row = await customerRow(user.id);
   if (row && !options.fresh && !rowFromOtherMode(row.stripe_livemode)) return row.stripe_customer_id;
   if (row) await forgetCustomer(user.id, row.stripe_customer_id);
@@ -333,7 +333,7 @@ export async function openPortal(userId: string, origin: string): Promise<{ url:
   }
 }
 
-export async function createPortalSession(customerId: string, origin: string): Promise<{ url: string }> {
+async function createPortalSession(customerId: string, origin: string): Promise<{ url: string }> {
   const env = stripeEnv();
   const session = await stripeRequest<{ url: string }>(
     "POST",

@@ -20,7 +20,6 @@ export const LLM_MODELS: LlmModel[] = [
     blurb: "Strong general local default. Run via Ollama.",
     bestFor: "Offline Trend + Media drafts",
     envKeys: ["LOCAL_LLM_BASE_URL"],
-    endpoint: "/chat/completions",
     estimateLabel: "$0 / call",
     billing: { inputPerM: 0, outputPerM: 0 },
   },
@@ -33,7 +32,6 @@ export const LLM_MODELS: LlmModel[] = [
     blurb: "Good JSON and bilingual copy.",
     bestFor: "Structured briefs",
     envKeys: ["LOCAL_LLM_BASE_URL"],
-    endpoint: "/chat/completions",
     estimateLabel: "$0 / call",
     billing: { inputPerM: 0, outputPerM: 0 },
   },
@@ -46,7 +44,6 @@ export const LLM_MODELS: LlmModel[] = [
     blurb: "Small enough for a laptop, sharp enough for compliance flags.",
     bestFor: "Light Compliance passes",
     envKeys: ["LOCAL_LLM_BASE_URL"],
-    endpoint: "/chat/completions",
     estimateLabel: "$0 / call",
     billing: { inputPerM: 0, outputPerM: 0 },
   },
@@ -59,7 +56,6 @@ export const LLM_MODELS: LlmModel[] = [
     blurb: "Fast local instruct model.",
     bestFor: "Volume iteration",
     envKeys: ["LOCAL_LLM_BASE_URL"],
-    endpoint: "/chat/completions",
     estimateLabel: "$0 / call",
     billing: { inputPerM: 0, outputPerM: 0 },
   },
@@ -72,10 +68,8 @@ export const LLM_MODELS: LlmModel[] = [
     blurb: "Whatever tag your server exposes. Set it in Local runtime.",
     bestFor: "Your fine-tune",
     envKeys: ["LOCAL_LLM_BASE_URL"],
-    endpoint: "/chat/completions",
     estimateLabel: "$0 / call",
     billing: { inputPerM: 0, outputPerM: 0 },
-    notes: "Uses the model name field on Settings",
   },
   {
     id: "openai:gpt-6-astra",
@@ -86,7 +80,6 @@ export const LLM_MODELS: LlmModel[] = [
     blurb: "Most capable GPT-6 model. Tool calls go through the Responses API.",
     bestFor: "Hard compliance and hero campaigns",
     envKeys: ["OPENAI_API_KEY"],
-    endpoint: "https://api.openai.com/v1/responses",
     estimateLabel: "~$0.11 / call",
     billing: { inputPerM: 10, outputPerM: 50 },
     reasoning: true,
@@ -102,7 +95,6 @@ export const LLM_MODELS: LlmModel[] = [
     blurb: "Near-Astra quality at a lower price. Tool calls go through the Responses API.",
     bestFor: "Balanced company brain",
     envKeys: ["OPENAI_API_KEY"],
-    endpoint: "https://api.openai.com/v1/responses",
     estimateLabel: "~$0.022 / call",
     billing: { inputPerM: 2, outputPerM: 10 },
     reasoning: true,
@@ -118,7 +110,6 @@ export const LLM_MODELS: LlmModel[] = [
     blurb: "Efficient GPT-6 for high-volume drafts. Chat tools run with reasoning off.",
     bestFor: "Intake, trend, and copy volume",
     envKeys: ["OPENAI_API_KEY"],
-    endpoint: "https://api.openai.com/v1/chat/completions",
     estimateLabel: "~$0.001 / call",
     billing: { inputPerM: 0.1, outputPerM: 0.5 },
     reasoning: true,
@@ -134,7 +125,6 @@ export const LLM_MODELS: LlmModel[] = [
     blurb: "Highest-judgment Claude. Expensive, careful.",
     bestFor: "Compliance, founder-grade copy",
     envKeys: ["ANTHROPIC_API_KEY"],
-    endpoint: "https://api.anthropic.com/v1/messages",
     estimateLabel: "~$0.048 / call",
     billing: { inputPerM: 15, outputPerM: 75 },
   },
@@ -147,7 +137,6 @@ export const LLM_MODELS: LlmModel[] = [
     blurb: "Everyday Claude. Strong at policy language.",
     bestFor: "Compliance + Trend",
     envKeys: ["ANTHROPIC_API_KEY"],
-    endpoint: "https://api.anthropic.com/v1/messages",
     estimateLabel: "~$0.010 / call",
     billing: { inputPerM: 3, outputPerM: 15 },
   },
@@ -160,7 +149,6 @@ export const LLM_MODELS: LlmModel[] = [
     blurb: "Fast Claude for volume passes.",
     bestFor: "Media Manager rewrites",
     envKeys: ["ANTHROPIC_API_KEY"],
-    endpoint: "https://api.anthropic.com/v1/messages",
     estimateLabel: "~$0.003 / call",
     billing: { inputPerM: 0.8, outputPerM: 4 },
   },
@@ -173,10 +161,8 @@ export const LLM_MODELS: LlmModel[] = [
     blurb: "Cursor’s coding/planning model, used here as a company brain.",
     bestFor: "Structured agent JSON",
     envKeys: ["CURSOR_API_KEY"],
-    endpoint: "https://api.cursor.com/v1/chat/completions",
     estimateLabel: "~$0.004 / call",
     billing: { inputPerM: 1.25, outputPerM: 6 },
-    notes: "Wire the Cursor gateway in llm/adapters.ts",
   },
   {
     id: "cursor:auto",
@@ -187,7 +173,6 @@ export const LLM_MODELS: LlmModel[] = [
     blurb: "Lets Cursor pick the underlying model.",
     bestFor: "Default Cursor backend",
     envKeys: ["CURSOR_API_KEY"],
-    endpoint: "https://api.cursor.com/v1/chat/completions",
     estimateLabel: "~$0.006 / call",
     billing: { inputPerM: 2, outputPerM: 8 },
   },
@@ -200,7 +185,6 @@ export const LLM_MODELS: LlmModel[] = [
     blurb: "OpenAI through Cursor usage, not a separate OpenAI key.",
     bestFor: "When you already pay Cursor",
     envKeys: ["CURSOR_API_KEY"],
-    endpoint: "https://api.cursor.com/v1/chat/completions",
     estimateLabel: "~$0.008 / call",
     billing: { inputPerM: 1.4, outputPerM: 11 },
   },
@@ -213,7 +197,6 @@ export const LLM_MODELS: LlmModel[] = [
     blurb: "Claude through Cursor usage.",
     bestFor: "Compliance without a separate Anthropic key",
     envKeys: ["CURSOR_API_KEY"],
-    endpoint: "https://api.cursor.com/v1/chat/completions",
     estimateLabel: "~$0.011 / call",
     billing: { inputPerM: 3.3, outputPerM: 16.5 },
   },
@@ -265,8 +248,7 @@ export function getLlmOrDefault(id: string | undefined): LlmModel {
   return LLM_MODELS.find((m) => m.id === id) ?? getLlmModel(DEFAULT_LLM);
 }
 
-export function llmsByProvider(providerId: LlmProviderId | "all") {
-  if (providerId === "all") return LLM_MODELS;
+function llmsByProvider(providerId: LlmProviderId) {
   return LLM_MODELS.filter((m) => m.providerId === providerId);
 }
 

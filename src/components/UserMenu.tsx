@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { ChevronDown, LogOut, Receipt, SlidersHorizontal } from "lucide-react";
+import { useDismiss } from "@/components/useDismiss";
 import type { PublicUser } from "@/lib/auth/types";
 
 export function UserMenu({
@@ -16,21 +17,7 @@ export function UserMenu({
   const [pending, setPending] = useState(false);
   const root = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    function onPointer(e: MouseEvent) {
-      if (!root.current?.contains(e.target as Node)) setOpen(false);
-    }
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
-    }
-    document.addEventListener("mousedown", onPointer);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onPointer);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
+  useDismiss(root, open, setOpen);
 
   const initial = (user.name.trim()[0] ?? "?").toUpperCase();
 

@@ -100,9 +100,6 @@ function blankWork(campaign: Campaign, now: string): Work {
   };
 }
 
-/** Founder-set ceiling for automated spend (UC-01 ext 13.a). */
-export { defaultSpendCap } from "./budget";
-
 function envFor(
   ctx: EngineContext,
   campaign: Campaign,
@@ -118,7 +115,7 @@ function envFor(
     settings,
     brand,
     llm: billing
-      ? { ...llm, meta: { label: llm.meta?.label ?? "server", live: llm.meta?.live ?? true, billing } }
+      ? { ...llm, meta: { live: llm.meta?.live ?? true, billing } }
       : llm,
     ownerUserId,
     allCampaigns: ctx.campaigns.map((c) => (c.id === campaign.id ? campaign : c)),
@@ -146,9 +143,8 @@ export function prepareEngineInvocation(
   brand: StepEnv["brand"],
   options: EngineOptions = {},
 ): { work: Work; env: StepEnv } {
-  const llm = options.llm ?? makeLlmRuntime(options.billing);
   const w = blankWork(campaign, ctx.now);
-  const env = envFor(ctx, w.campaign, settings, brand, llm, options.renderPoster ?? defaultRenderPoster, options.ownerUserId, options.billing);
+  const env = openStepEnv(ctx, w.campaign, settings, brand, options);
   if (!w.run || !activeRun(w.run)) {
     w.run = newRun(campaign.id, ctx.now);
     w.campaign.run = w.run;

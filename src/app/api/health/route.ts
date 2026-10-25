@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/current";
-import { countUsers, ensureSeedAccounts, findUserById, listUsers } from "@/lib/auth/users";
+import { SEED_ACCOUNTS } from "@/lib/auth/seed-accounts";
+import { countUsers, ensureSeedAccounts, listUsers } from "@/lib/auth/users";
 import { billingFor, isUnlimited } from "@/lib/billing/meter";
 import { getDatabase, isDatabaseUnavailable } from "@/lib/db";
 
@@ -27,7 +28,7 @@ export async function GET() {
       ok: true,
       database: { kind: db.kind, label: db.label },
       accounts: users,
-      seededAccounts: seeded.seeded || users >= 5,
+      seededAccounts: seeded.seeded || users >= SEED_ACCOUNTS.length,
     });
   } catch (error) {
     if (isDatabaseUnavailable(error)) {
@@ -62,8 +63,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Send { reveal: true }." }, { status: 400 });
   }
   try {
-    const user = await findUserById(session.id);
-    if (!user || !isUnlimited(billingFor(user))) {
+    if (!isUnlimited(billingFor(session))) {
       return NextResponse.json({ error: "Only the team's desks can list accounts." }, { status: 403 });
     }
     return NextResponse.json({ users: await listUsers() });

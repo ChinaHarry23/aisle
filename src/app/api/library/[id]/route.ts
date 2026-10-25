@@ -1,21 +1,12 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/current";
-import { loadWorkspace } from "@/lib/auth/workspace";
 import { mediaResponse } from "@/lib/media/assets";
 import { readAsset, removeAsset } from "@/lib/media/library";
 import { MediaNotFoundError, readMedia } from "@/lib/media/store";
-import { retainCampaignLifecycle } from "@/lib/campaign-lifecycle";
-import { mergeWorkflowCampaigns, workflowEnabled } from "@/lib/workflow/gateway";
+import { accountCampaigns } from "@/lib/workflow/gateway";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-async function campaignsFor(userId: string, role: Parameters<typeof loadWorkspace>[1]) {
-  const workspace = await loadWorkspace(userId, role);
-  if (!workflowEnabled()) return workspace.campaigns;
-  const merged = await mergeWorkflowCampaigns(userId, workspace.campaigns);
-  return retainCampaignLifecycle(workspace.campaigns, workspace.retiredCampaignIds ?? [], merged.campaigns);
-}
 
 /** The file itself. The id is this account's catalogue row, not a campaign creative. */
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
@@ -39,7 +30,7 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
   if (!user) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
   const { id } = await context.params;
   try {
-    const campaigns = await campaignsFor(user.id, user.role);
+    const campaigns = await accountCampaigns(user.id, user.role);
     const removed = await removeAsset(user.id, id, campaigns);
     if (!removed) return NextResponse.json({ error: "Not found." }, { status: 404 });
     return NextResponse.json({ ok: true });

@@ -28,8 +28,8 @@ export function retainCampaignLifecycle(
       kept.push({ ...campaign, archivedAt: null });
       continue;
     }
-    if (isArchived(prior ?? {})) {
-      kept.push({ ...campaign, archivedAt: prior!.archivedAt, running: false });
+    if (prior && isArchived(prior)) {
+      kept.push({ ...campaign, archivedAt: prior.archivedAt, running: false });
       continue;
     }
     kept.push(campaign);

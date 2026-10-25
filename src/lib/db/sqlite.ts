@@ -13,7 +13,7 @@
 
 import { mkdirSync } from "node:fs";
 import path from "node:path";
-import { DatabaseSync } from "node:sqlite";
+import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 import type { Database, Row } from "./types";
 import { DatabaseUnavailableError } from "./types";
 
@@ -27,15 +27,15 @@ function toPositional(text: string): string {
 }
 
 /** Node 23 treats numbered SQLite parameters as named, not anonymous slots. */
-function bindings(text: string, params: unknown[]): unknown[] {
+function bindings(text: string, params: unknown[]): Record<string, SQLInputValue> | SQLInputValue[] {
   const indexes = [...text.matchAll(/\$(\d+)/g)].map(match => Number(match[1]));
-  if (!indexes.length) return params;
-  const named: Record<string, unknown> = {};
+  if (!indexes.length) return params as SQLInputValue[];
+  const named: Record<string, SQLInputValue> = {};
   for (const index of indexes) {
     if (index < 1 || index > params.length) throw new Error(`Missing value for SQL parameter $${index}.`);
-    named[`?${index}`] = params[index - 1] ?? null;
+    named[`?${index}`] = (params[index - 1] ?? null) as SQLInputValue;
   }
-  return [named];
+  return named;
 }
 
 export function createSqliteDatabase(file: string): Database {
@@ -70,11 +70,14 @@ export function createSqliteDatabase(file: string): Database {
     label: file === ":memory:" ? "sqlite (in-memory)" : `sqlite file ${file}`,
     async query<T extends Row = Row>(text: string, params: unknown[] = []): Promise<T[]> {
       const statement = handle.prepare(toPositional(text));
-      return statement.all(...(bindings(text, params) as never[])) as T[];
+      const args = bindings(text, params);
+      return (Array.isArray(args) ? statement.all(...args) : statement.all(args)) as T[];
     },
     async execute(text: string, params: unknown[] = []): Promise<void> {
       const statement = handle.prepare(toPositional(text));
-      statement.run(...(bindings(text, params) as never[]));
+      const args = bindings(text, params);
+      if (Array.isArray(args)) statement.run(...args);
+      else statement.run(args);
     },
   };
 }

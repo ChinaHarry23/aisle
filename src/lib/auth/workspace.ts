@@ -2,7 +2,7 @@ import { retainCampaignLifecycle } from "@/lib/campaign-lifecycle";
 import { defaultBrand, migrateLegacyBrand, seedCampaigns } from "@/lib/seed";
 import { defaultSettings, withSettingsDefaults, type WorkspaceSettings } from "@/lib/settings";
 import type { BrandProfile, Campaign } from "@/lib/types";
-import { kvGet, kvSet } from "./kv";
+import { kvGet, kvSet } from "@/lib/db/kv";
 import type { UserRole } from "./types";
 
 export type WorkspaceSnapshot = {
@@ -17,15 +17,15 @@ function workspaceKey(userId: string) {
   return `workspace/${userId}`;
 }
 
-export function emptyWorkspace(): WorkspaceSnapshot {
+function emptyWorkspace(): WorkspaceSnapshot {
   return {
     brand: {
       ...defaultBrand,
       retailerName: "Your shop",
       tagline: "Set this on Brand to make it yours.",
     },
-    // Every new account starts with the two sample campaigns so the flow is
-    // visible straight away: one finished, one waiting for approval.
+    // Every new account starts with the sample campaign so the flow is
+    // visible straight away: it is waiting for approval.
     campaigns: seedCampaigns(defaultBrand),
     settings: defaultSettings(),
     retiredCampaignIds: [],
@@ -66,7 +66,7 @@ function withSampleCampaigns(all: Campaign[], retired: readonly string[]): Campa
   return missing.length ? [...missing, ...campaigns] : campaigns;
 }
 
-export function normalizeWorkspace(raw: Partial<WorkspaceSnapshot> | null): WorkspaceSnapshot {
+function normalizeWorkspace(raw: Partial<WorkspaceSnapshot> | null): WorkspaceSnapshot {
   const fallback = emptyWorkspace();
   const retired = [...new Set(raw?.retiredCampaignIds ?? [])];
   return {
@@ -78,7 +78,6 @@ export function normalizeWorkspace(raw: Partial<WorkspaceSnapshot> | null): Work
 }
 
 function clearArchive(campaign: Campaign): Campaign {
-  if (campaign.archivedAt !== null) return campaign;
   const next = { ...campaign };
   delete next.archivedAt;
   return next;

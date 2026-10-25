@@ -5,13 +5,12 @@ import { cn } from "@/lib/cn";
 import { formatNumber } from "@/lib/ids";
 import { channelLabel } from "@/lib/status";
 import type { ChannelResultStatus } from "@/lib/runtime/types";
-import { isArchived } from "@/lib/campaign-lifecycle";
-import { useAisle } from "@/lib/store";
-import { Empty, PageHeader, SectionTitle, Stat } from "@/components/ui";
+import { useActiveCampaigns, useAisle } from "@/lib/store";
+import { Empty, PageHeader, ResultStatusChip, SectionTitle, Stat } from "@/components/ui";
 import Link from "next/link";
 
 export default function PerformancePage() {
-  const campaigns = useAisle((s) => s.campaigns).filter((campaign) => !isArchived(campaign));
+  const campaigns = useActiveCampaigns();
   const collectFeedback = useAisle((s) => s.collectFeedback);
   const setCollectorOverrides = useAisle((s) => s.setCollectorOverrides);
   const decideRecommendation = useAisle((s) => s.decideRecommendation);
@@ -20,24 +19,23 @@ export default function PerformancePage() {
 
   /* Campaigns with a collected report, plus published campaigns that still have
      results to collect — the queue is what the founder actually works. */
-  const analysed = campaigns.filter((c) => c.performanceReport);
+  const analysed = campaigns.flatMap((c) => (c.performanceReport ? [{ c, report: c.performanceReport }] : []));
   const awaitingCollection = campaigns.filter(
     (c) => c.status === "published" && !c.performanceReport,
   );
   const legacy = campaigns.filter((c) => !c.performanceReport && c.performance);
 
   const totals = analysed.reduce(
-    (acc, c) => {
-      const t = c.performanceReport?.totals;
+    (acc, { report }) => {
+      const t = report.totals;
       if (!t) return acc;
       acc.impressions += t.impressions;
-      acc.clicks += t.clicks;
       acc.conversions += t.conversions;
       return acc;
     },
-    { impressions: 0, clicks: 0, conversions: 0 },
+    { impressions: 0, conversions: 0 },
   );
-  const gaps = analysed.reduce((n, c) => n + (c.performanceReport?.gaps.length ?? 0), 0);
+  const gaps = analysed.reduce((n, { report }) => n + report.gaps.length, 0);
 
   return (
     <div className="flex flex-col gap-8">
@@ -83,8 +81,7 @@ export default function PerformancePage() {
         </section>
       ) : null}
 
-      {analysed.map((c) => {
-        const report = c.performanceReport!;
+      {analysed.map(({ c, report }) => {
         const maxImp = Math.max(...report.results.map((r) => r.figures?.impressions ?? 0), 1);
         const decision = c.recommendationDecision;
         const draft = drafts[c.id] ?? report.recommendationText ?? report.summary;
@@ -130,7 +127,7 @@ export default function PerformancePage() {
                       key={status}
                       type="button"
                       onClick={() =>
-                        void setCollectorOverrides(
+                        setCollectorOverrides(
                           c.id,
                           status === "ok" ? {} : { [firstChannel]: status },
                         )
@@ -150,18 +147,7 @@ export default function PerformancePage() {
                   <div className="mb-1 flex flex-wrap justify-between gap-2 text-xs">
                     <span className="flex items-center gap-2">
                       {channelLabel[r.channel]}
-                      <span
-                        className={cn(
-                          "status-chip",
-                          r.status === "ok"
-                            ? "risk-low"
-                            : r.status === "incomplete"
-                              ? "risk-mid"
-                              : "risk-high",
-                        )}
-                      >
-                        {r.status.replace(/_/g, " ")}
-                      </span>
+                      <ResultStatusChip status={r.status} />
                     </span>
                     <span className="tabular-nums text-mute">
                       {r.figures

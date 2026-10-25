@@ -33,10 +33,10 @@ export function applyStudioMedia(campaign: Campaign, update: StudioMediaUpdate):
   if (!Number.isFinite(planningCost) || planningCost < 0) throw new WorkflowError("Invalid art-direction usage.");
   const next: Campaign = { ...campaign, updatedAt: at, studioBusy: null, spend: { ...campaign.spend, inferenceUsd: campaign.spend.inferenceUsd + planningCost, mediaUsd: campaign.spend.mediaUsd + generation.usage.costUsd } };
   if (update.kind === "image") {
-    next.creatives = campaign.creatives.map(c => c.id === source.id ? { ...c, generation: generation as typeof c.generation, prompt: generation.artDirection?.prompt ?? c.prompt, status: "flagged" } : c);
+    next.creatives = campaign.creatives.map(c => c.id === source.id ? { ...c, generation, prompt: generation.artDirection?.prompt ?? c.prompt, status: "flagged" } : c);
   } else {
     if (campaign.videos.some(v => v.id === update.video.id)) throw new WorkflowError("Video already attached.", 409);
-    next.videos = [{ ...update.video, status: "ready", generation: update.video.generation as typeof update.video.generation }, ...campaign.videos];
+    next.videos = [{ ...update.video, status: "ready" }, ...campaign.videos];
   }
   next.studioHistory = [...(campaign.studioHistory || []), { id: `studio_${crypto.randomUUID()}`, at, kind: update.kind, modelId: generation.modelId, label: update.kind === "image" ? "Saved campaign image — review required" : textVideo ? "Text-to-video — review required" : "Image-to-video — review required", costUsd: generation.usage.costUsd, totalTokens: generation.usage.totalTokens }];
   next.log = [...campaign.log, makeLog("creative", "output", `Studio ${update.kind} saved`, `${generation.modelName}; persisted to campaign. ${textVideo ? `Text-to-video render: ${generation.promptId}. ` : update.kind === "video" ? `Input SHA-256: ${generation.inputImageSha256}. ` : ""}Not approved or published.`)];

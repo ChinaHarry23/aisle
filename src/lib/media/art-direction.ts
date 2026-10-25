@@ -37,13 +37,16 @@ function text(value: unknown, field: string, max = 1000): string {
   if (typeof value !== "string" || !value.trim() || value.length > max) throw new WorkflowError(`Art director omitted or exceeded ${field}; no render started.`, 422);
   return value.trim();
 }
+function illustrativeOnly(input: DirectionInput): boolean {
+  const r = [input.campaign.notes, ...input.campaign.sharedContext.founderNotes, input.campaign.brief?.visualDirection, input.brand.visualStyle].filter(Boolean).join(" ");
+  return /no bottle|no fabricated|never a fabricated|avoid showing[^.]*bottle/i.test(r);
+}
 
 export function artDirectionRequest(input: DirectionInput): CompleteRequest {
   const { campaign: c, creative, model, settings } = input;
   const assignment = settings.agents.creative;
   const layout = input.edited ? storyLayout(model.videoInput === "text") : [];
-  const restrictions = [c.notes, ...c.sharedContext.founderNotes, c.brief?.visualDirection, input.brand.visualStyle].filter(Boolean).join(" ");
-  const prohibitedRenderTerms = [...input.brand.bannedTerms, ...(c.brief?.claimsAvoid ?? []), ...(/no bottle|no fabricated|never a fabricated|avoid showing[^.]*bottle/i.test(restrictions) ? ["bottle", "bottles"] : [])];
+  const prohibitedRenderTerms = [...input.brand.bannedTerms, ...(c.brief?.claimsAvoid ?? []), ...(illustrativeOnly(input) ? ["bottle", "bottles"] : [])];
   return {
     agent: "creative", modelId: assignment.modelId, system: ART_DIRECTOR_SYSTEM,
     // Six self-contained shots plus their continuity bible need more than a short copy decision.
@@ -96,8 +99,7 @@ export function parseArtDirection(input: DirectionInput, author: CompleteResult)
   const rendered = [direction.prompt, ...shots.map(s => s.prompt), direction.closing.headline, direction.closing.cta].join("\n").toLowerCase();
   const banned = [...input.brand.bannedTerms, ...(input.campaign.brief?.claimsAvoid ?? [])].map(v => v.trim().toLowerCase()).filter(Boolean);
   if (banned.some(term => rendered.includes(term))) throw new WorkflowError("The generated visual/copy plan includes a prohibited claim or brand term; no render started.", 422);
-  const restrictions = [input.campaign.notes, ...input.campaign.sharedContext.founderNotes, input.campaign.brief?.visualDirection, input.brand.visualStyle].filter(Boolean).join(" ");
-  if (/no bottle|no fabricated|never a fabricated|avoid showing[^.]*bottle/i.test(restrictions) && /\bbottles?\b/i.test(rendered)) throw new WorkflowError("The plan invents a bottle despite the illustrative-only restriction; no render started.", 422);
+  if (illustrativeOnly(input) && /\bbottles?\b/i.test(rendered)) throw new WorkflowError("The plan invents a bottle despite the illustrative-only restriction; no render started.", 422);
   return direction;
 }
 
@@ -127,7 +129,7 @@ export async function directMedia(input: DirectionInput, billing: BillingContext
       const total = (key: keyof Pick<CompleteResult["usage"], "inputTokens" | "outputTokens" | "totalTokens" | "costUsd" | "latencyMs">) => attempts.reduce((sum, value) => sum + value.usage[key], 0);
       direction.author = { ...direction.author, note: `${direction.author.note} Total planning usage includes ${attempts.length} calls, including one validation repair.`, usage: { ...direction.author.usage, inputTokens: total("inputTokens"), outputTokens: total("outputTokens"), totalTokens: total("totalTokens"), costUsd: total("costUsd"), latencyMs: total("latencyMs"), billedAs: `Art direction · ${attempts.length} calls` } };
     }
-    return { direction, plan: input.edited ? storyAdPlan(input.campaign, input.creative, input.model.videoInput === "text", { title: direction.title, scenes: direction.shots, closing: direction.closing }) : undefined };
+    return { direction, plan: input.edited ? storyAdPlan(input.campaign, input.model.videoInput === "text", { title: direction.title, scenes: direction.shots, closing: direction.closing }) : undefined };
   }
   throw new WorkflowError("Art direction did not produce a valid plan; no render started.", 422);
 }

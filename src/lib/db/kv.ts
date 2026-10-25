@@ -6,7 +6,7 @@
  * in SQL keeps that shape while removing a network dependency (and a credential)
  * from every page save.
  *
- * `setJson` is an upsert, so a key can be written before it has ever been read.
+ * `kvSet` is an upsert, so a key can be written before it has ever been read.
  */
 
 import { getDatabase } from "./index";
@@ -33,11 +33,6 @@ export async function kvSet(key: string, value: unknown): Promise<void> {
      on conflict (key) do update set value = excluded.value, updated_at = excluded.updated_at`,
     [key, JSON.stringify(value), new Date().toISOString()],
   );
-}
-
-export async function kvDelete(key: string): Promise<void> {
-  const db = await getDatabase();
-  await db.execute("delete from kv where key = $1", [key]);
 }
 
 export async function kvKeys(prefix: string): Promise<string[]> {

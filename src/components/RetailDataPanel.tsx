@@ -72,11 +72,7 @@ export function RetailDataPanel() {
             key={file.id}
             type="button"
             disabled={loading != null}
-            onClick={() => {
-              setLoading(file.fileName);
-              take(file.fileName, bundledRetail[file.id]);
-              setLoading(null);
-            }}
+            onClick={() => take(file.fileName, bundledRetail[file.id])}
             className="rounded-full border border-line px-4 py-2 text-sm font-medium text-ink hover:bg-paper-2 disabled:opacity-50"
           >
             Use {file.name} file

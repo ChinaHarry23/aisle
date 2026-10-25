@@ -2,7 +2,7 @@ import type { BrandProfile, Campaign } from "../types";
 import type { WorkspaceSettings } from "../settings";
 import type { Command, EngineResult } from "../runtime/types";
 
-export type JobStatus = "queued" | "running" | "completed" | "failed" | "interrupted";
+type JobStatus = "queued" | "running" | "completed" | "failed" | "interrupted";
 export type WorkflowJob = {
   id: string;
   campaignId: string;

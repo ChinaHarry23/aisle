@@ -16,14 +16,13 @@ import { mkdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promis
 import os from "node:os";
 import path from "node:path";
 import { getDatabase, type Database } from "@/lib/db";
-import { assertComfyAssetUrl, cachedComfyAsset } from "./assets";
+import { assertComfyAssetUrl, cachedComfyAsset, MEDIA_MAX_BYTES } from "./assets";
 import type { MediaKind } from "./pr2-types";
 
-export type MediaMime = "image/png" | "image/jpeg" | "image/webp" | "video/mp4";
+type MediaMime = "image/png" | "image/jpeg" | "image/webp" | "video/mp4";
 
 export const STORED_PREFIX = "aisle-media:";
-/** Same caps as the ComfyUI cache. */
-export const MEDIA_MAX_BYTES: Record<MediaKind, number> = { image: 25_000_000, video: 150_000_000 };
+export { MEDIA_MAX_BYTES };
 
 export class MediaNotFoundError extends Error {
   constructor() {
@@ -44,7 +43,7 @@ export function sniffMime(bytes: Uint8Array): MediaMime | null {
   return null;
 }
 
-export function mimeKind(mime: string): MediaKind | null {
+function mimeKind(mime: string): MediaKind | null {
   return mime === "video/mp4" ? "video" : ["image/png", "image/jpeg", "image/webp"].includes(mime) ? "image" : null;
 }
 

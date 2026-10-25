@@ -1,42 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { cloudRender, renderActive, type RenderProgress as RenderJob, type RenderStage } from "@/lib/media/progress-types";
-import { useAisle } from "@/lib/store";
-import type { Campaign } from "@/lib/types";
 
 const labels: Record<RenderStage, string> = { preparing: "Preparing input", queued: "Queued", loading: "Loading model / preparing frames", sampling: "Rendering", encoding: "Encoding frames and audio", saving: "Saving to campaign", complete: "Ready to review", failed: "Render needs attention" };
-
-export function useRenderProgress(campaignId: string) {
-  const [state, setState] = useState<{ campaignId: string; jobs: RenderJob[]; unavailable: boolean; liveConnected: boolean }>({ campaignId, jobs: [], unavailable: false, liveConnected: false });
-  useEffect(() => {
-    const controller = new AbortController();
-    let timeout: ReturnType<typeof setTimeout>;
-    const applied = new Set<string>();
-    async function refresh() {
-      try {
-        const response = await fetch(`/api/studio/progress/${encodeURIComponent(campaignId)}`, { cache: "no-store", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(8000)]) });
-        if (!response.ok) throw new Error("Progress unavailable");
-        const data = await response.json() as { jobs: RenderJob[]; liveConnected: boolean; campaign?: Campaign };
-        if (!controller.signal.aborted) {
-          setState({ campaignId, jobs: data.jobs, liveConnected: data.liveConnected, unavailable: false });
-          const completed = data.jobs.find(job => job.sequence && job.stage === "complete" && !applied.has(job.id));
-          if (completed && data.campaign?.id === campaignId) {
-            applied.add(completed.id);
-            useAisle.setState(s => ({ campaigns: s.campaigns.map(c => c.id === campaignId ? data.campaign! : c) }));
-          }
-        }
-      } catch {
-        if (!controller.signal.aborted) setState(previous => ({ ...previous, unavailable: true }));
-      } finally {
-        if (!controller.signal.aborted) timeout = setTimeout(refresh, 2500);
-      }
-    }
-    void refresh();
-    return () => { controller.abort(); clearTimeout(timeout); };
-  }, [campaignId]);
-  return state.campaignId === campaignId ? state : { campaignId, jobs: [], unavailable: false, liveConnected: false };
-}
 
 function elapsed(start: string) {
   const seconds = Math.max(0, Math.floor((Date.now() - Date.parse(start)) / 1000));

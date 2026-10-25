@@ -12,6 +12,11 @@ import type { Campaign } from "@/lib/types";
 import { defaultSpendCap } from "./budget";
 import type { Evidence, PolicyDecision, RunStep, ToolCall } from "./types";
 
+type Decided = Campaign & {
+  performanceReport: NonNullable<Campaign["performanceReport"]>;
+  recommendationDecision: NonNullable<Campaign["recommendationDecision"]>;
+};
+
 export function withRuntimeDefaults(campaign: Campaign): Campaign {
   const internalDataAuthorised = campaign.internalDataAuthorised !== false;
   const capUsd =
@@ -83,13 +88,13 @@ export function attachableRecommendation(
   campaigns: Campaign[],
 ): { note: string; fromCampaignId: string; fromCampaignName: string } | null {
   const published = campaigns
-    .filter((c) => !isArchived(c) && c.status === "published" && c.performanceReport && c.recommendationDecision)
-    .sort((a, b) => (a.performanceReport!.at < b.performanceReport!.at ? 1 : -1));
+    .filter((c): c is Decided => !isArchived(c) && c.status === "published" && !!c.performanceReport && !!c.recommendationDecision)
+    .sort((a, b) => (a.performanceReport.at < b.performanceReport.at ? 1 : -1));
 
   for (const c of published) {
-    const decision = c.recommendationDecision!;
+    const decision = c.recommendationDecision;
     if (decision.action === "discarded") continue;
-    const text = decision.text ?? c.performanceReport?.recommendationText;
+    const text = decision.text ?? c.performanceReport.recommendationText;
     if (!text) continue;
     return { note: text, fromCampaignId: c.id, fromCampaignName: c.name };
   }

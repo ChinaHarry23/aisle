@@ -311,9 +311,6 @@ try {
   /* ---------------------------------------------------------- seat isolation --- */
 
   const context = {
-    campaign: { id: "cmp_test", channels: [], sharedContext: {} } as never,
-    brand: { retailerName: "Lane & Co." } as never,
-    at: new Date().toISOString(),
     execute: async () => ({ summary: "not run", status: "ok" as const, evidence: [], data: null }),
   };
   const trendNames = agentTools("trend", context).map((t) => t.name);
@@ -355,7 +352,7 @@ try {
   assert.equal(reported.usage_metadata?.output_tokens, 1052);
   assert.equal(reported.usage_metadata?.total_tokens, 4596);
   assert.equal((reported.usage_metadata as { total_cost?: number } | undefined)?.total_cost, 0.01761);
-  const ls = traced.getLsParams({});
+  const ls = traced.getLsParams();
   assert.equal(ls.ls_model_name, "gpt-6.1-sol");
   assert.equal(ls.ls_provider, "openai");
   const run = { outputs: { generations: [[{ message: reported }]] }, extra: {} as { metadata?: { usage_metadata?: { input_tokens?: number; total_cost?: number } } } };

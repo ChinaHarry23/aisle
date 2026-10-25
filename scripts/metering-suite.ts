@@ -1,8 +1,7 @@
 /**
- * Offline checks for agent LLM metering: fake OpenAI, Anthropic and local
- * servers (via OPENAI_API_BASE / ANTHROPIC_API_BASE), a throwaway SQLite
- * accounts file, and no outbound network. No real provider, key or account
- * database is touched.
+ * Offline checks for agent LLM metering: fake OpenAI and local servers (via
+ * OPENAI_API_BASE), a throwaway SQLite accounts file, and no outbound network.
+ * No real provider, key or account database is touched.
  *
  *   node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/metering-suite.ts
  */
@@ -19,7 +18,7 @@ process.env.AISLE_DB_FILE = path.join(dir, "accounts.db");
 for (const name of ["DATABASE_URL", "POSTGRES_URL", "POSTGRES_PRISMA_URL", "AISLE_DATABASE_URL", "NEON_DATABASE_URL", "STORAGE_URL"]) delete process.env[name];
 process.env.OPENAI_API_KEY = "test-openai-key";
 process.env.ANTHROPIC_API_KEY = "test-anthropic-key";
-for (const name of ["LOCAL_LLM_BASE_URL", "GOOGLE_AI_API_KEY", "GEMINI_API_KEY", "AISLE_MEDIA_PROVIDERS", "AISLE_DEFAULT_BACKEND"]) delete process.env[name];
+for (const name of ["LOCAL_LLM_BASE_URL", "GOOGLE_AI_API_KEY", "GEMINI_API_KEY", "AISLE_MEDIA_PROVIDERS"]) delete process.env[name];
 // No loopback probing: a real MTPLX/Ollama on this Mac must not answer for the tests.
 process.env.LOCAL_LLM_PROBE_URLS = "";
 
@@ -58,22 +57,14 @@ async function fakeServer(handle: (req: Seen, res: ServerResponse) => Promise<vo
   return { seen, base: `http://127.0.0.1:${address.port}`, server };
 }
 
-/** Cloud behaviour the next calls get. */
-let mode: "ok" | "refusal" | "5xx" | "slow" | "hang" = "ok";
 /** A valid synthetic artist response, so live-path tests do not rely on canned fallback art. */
 function offlineDecision(body: Record<string, unknown>) {
   const prompt = JSON.stringify(body.messages ?? []);
   return prompt.includes('\\"variants\\"') ? JSON.stringify({ variants: ["A", "B"].map(variant => ({ variant, kicker: "Fixture", headline: "Offline product fixture", subhead: "Test only", cta: "Explore", caption: "Test only", prompt: `Offline artist composition ${variant}, product on a plain surface in window light.` })) }) : "{\"ok\":true}";
 }
 const cloud = await fakeServer(async (req, res) => {
-  if (mode === "slow") await new Promise((resolve) => setTimeout(resolve, 150));
-  if (mode === "hang") await new Promise((resolve) => setTimeout(resolve, 1200));
-  if (mode === "5xx") {
-    res.statusCode = 529;
-    return void res.end(JSON.stringify({ error: { type: "overloaded_error" } }));
-  }
   if (req.path === "/v1/chat/completions") {
-    const message = mode === "refusal" ? { content: null, refusal: "I can't help with that." } : { content: offlineDecision(req.body) };
+    const message = { content: offlineDecision(req.body) };
     return void res.end(JSON.stringify({ choices: [{ message, finish_reason: "stop" }], usage: { prompt_tokens: 1000, completion_tokens: 500 } }));
   }
   if (req.path === "/v1/responses") {
@@ -81,12 +72,6 @@ const cloud = await fakeServer(async (req, res) => {
       output_text: "{\"outcome\":\"manual_review\",\"issues\":[],\"summary\":\"Poster read.\"}",
       usage: { input_tokens: 900, output_tokens: 80 },
     }));
-  }
-  if (req.path === "/v1/messages") {
-    if (mode === "refusal") {
-      return void res.end(JSON.stringify({ content: [], stop_reason: "refusal", stop_details: { category: "cyber" }, usage: { input_tokens: 1200, output_tokens: 3 } }));
-    }
-    return void res.end(JSON.stringify({ content: [{ type: "text", text: offlineDecision(req.body) }], stop_reason: "end_turn", usage: { input_tokens: 1200, output_tokens: 800 } }));
   }
   res.statusCode = 404;
   res.end("{}");
@@ -100,7 +85,6 @@ const local = await fakeServer((req, res) => {
   res.end("{}");
 });
 process.env.OPENAI_API_BASE = `${cloud.base}/v1`;
-process.env.ANTHROPIC_API_BASE = `${cloud.base}/v1/`;
 
 const { runComplete, OUT_OF_CREDITS } = await import("../src/lib/llm/metered-complete");
 const { allowedLocalBase } = await import("../src/lib/pr2-shims");
@@ -150,7 +134,7 @@ try {
   pass("Cindy's OpenAI/Anthropic adapters stay unwired: cloud complete errors, holds release, nothing is charged");
 
   assert.equal(getLlmModel("anthropic:claude-haiku-5.5").id, "anthropic:claude-haiku-5.5");
-  pass("Claude default is Haiku 5.5; the OpenAI default is GPT-6 Luna");
+  pass("Claude Haiku 5.5 is in the catalog; the OpenAI default is GPT-6 Luna");
 
   /* ----------------------------------------------- dev is free but still unwired */
   const devResult = await runComplete(ask("openai:gpt-6-luna"), { kind: "user", userId: "dev-1", role: "dev" });
@@ -315,7 +299,6 @@ try {
   const prompt = "Burst decision.";
   const hold = milliForCost(worstCaseUsd(getLlmModel("openai:gpt-6-luna"), { prompt }));
   await setBalance("burst-1", hold * 3 + Math.floor(hold / 2));
-  mode = "slow";
   const calls = cloudCalls();
   let lowest = Infinity;
   let watching = true;
@@ -328,7 +311,6 @@ try {
   const burst = await Promise.all(Array.from({ length: 8 }, () => runComplete(ask("openai:gpt-6-luna", prompt), beta("burst-1"))));
   watching = false;
   await watch;
-  mode = "ok";
   const errored = burst.filter((r) => r.status === "error").length;
   assert.equal(errored, 3, "only as many calls as the balance can hold are attempted");
   assert.equal(burst.filter((r) => r.status === "no_credits").length, 5);

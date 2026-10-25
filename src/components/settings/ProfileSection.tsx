@@ -3,6 +3,7 @@
 import { Check, Copy, LogOut, Pencil } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { PublicUser, UserRole } from "@/lib/auth/types";
+import { signOutAndReload } from "@/lib/auth/client";
 
 /** Only roles worth showing get a label; beta accounts show none. */
 const ROLE_LABEL: Partial<Record<UserRole, string>> = { dev: "Admin" };
@@ -12,7 +13,7 @@ type Load = { status: "loading" } | { status: "error" } | { status: "ready"; use
 function initialsOf(name: string, email: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-  return (parts[0]?.slice(0, 2) ?? email.slice(0, 1) ?? "?").toUpperCase();
+  return (parts[0]?.slice(0, 2) ?? email.slice(0, 1)).toUpperCase();
 }
 
 function CopyButton({ value, label }: { value: string; label: string }) {
@@ -179,14 +180,7 @@ export function ProfileSection() {
 
   async function signOut() {
     setSigningOut(true);
-    try {
-      await fetch("/api/auth/logout", { method: "POST" });
-    } catch {
-      /* offline: fall through and let the proxy decide */
-    }
-    // A full navigation drops the in-memory workspace so the next account never sees it.
-    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-    window.location.href = "/login";
+    await signOutAndReload();
   }
 
   return (

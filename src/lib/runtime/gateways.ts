@@ -13,14 +13,14 @@
 import type { Channel } from "@/lib/types";
 import { MAX_PUBLISH_RETRIES, type DeliveryAttempt, type DeliveryOutcome } from "./types";
 
-export type ChannelType = "digital" | "physical";
+type ChannelType = "digital" | "physical";
 
 /** Creative format families a gateway can carry. */
-export type ChannelFormat = "image" | "html" | "text" | "print" | "signage";
+type ChannelFormat = "image" | "html" | "text" | "print" | "signage";
 
-export type PublishItem = { id: string; channel: Channel };
+type PublishItem = { id: string; channel: Channel };
 
-export interface DistributionChannelGateway {
+interface DistributionChannelGateway {
   readonly name: string;
   /** "digital" (social/web/email) or "physical" (print/in-store signage). */
   getChannelType(channel: Channel): ChannelType;
@@ -32,7 +32,8 @@ export interface DistributionChannelGateway {
   publish(item: PublishItem, outcome: DeliveryOutcome, now: string): DeliveryAttempt;
 }
 
-function hash(text: string) {
+/** Deterministic 0–99,999 string hash. Used for simulated gateway refs here and for channel-metric seeds in steps.ts collectChannelResults. */
+export function stableHash(text: string) {
   let h = 0;
   for (let i = 0; i < text.length; i += 1) h = (h * 31 + text.charCodeAt(i)) % 100_000;
   return h;
@@ -49,7 +50,7 @@ function simulate(
   now: string,
   via: string,
 ): DeliveryAttempt {
-  const ref = `${item.channel}-${hash(item.id).toString(36)}`;
+  const ref = `${item.channel}-${stableHash(item.id).toString(36)}`;
   const base = { itemId: item.id, channel: item.channel, at: now };
   const cappedAttempts = 1 + MAX_PUBLISH_RETRIES;
   switch (outcome) {
@@ -98,7 +99,7 @@ function simulate(
 }
 
 /** Social, web and email. */
-export const digitalGateway: DistributionChannelGateway = {
+const digitalGateway: DistributionChannelGateway = {
   name: "Digital (social, web, email) — simulated",
   getChannelType: () => "digital",
   supportsFormat: (_channel, format) =>
@@ -108,7 +109,7 @@ export const digitalGateway: DistributionChannelGateway = {
 };
 
 /** Print and in-store digital signage. */
-export const physicalGateway: DistributionChannelGateway = {
+const physicalGateway: DistributionChannelGateway = {
   name: "Physical (print, in-store signage) — simulated",
   getChannelType: () => "physical",
   supportsFormat: (_channel, format) =>

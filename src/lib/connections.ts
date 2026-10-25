@@ -1,4 +1,3 @@
-import type { LlmProviderId } from "./llm/types";
 import { getByoKey } from "./media/byo-key";
 import type { ProviderId } from "./media/types";
 
@@ -28,7 +27,7 @@ export function rowId(kind: ConnectionKind, providerId: string) {
 
 export function connectionState(
   kind: ConnectionKind,
-  providerId: LlmProviderId | ProviderId,
+  providerId: string,
   status: ServerStatus | null,
   deviceKeys: Record<string, boolean>,
 ): ConnectionState {

@@ -1,7 +1,5 @@
 import { BillingView } from "@/components/billing/BillingView";
 
-export const dynamic = "force-dynamic";
-
 /** Stripe sends people back here with ?checkout=success or ?checkout=cancel. */
 export default async function BillingPage({
   searchParams,

@@ -22,7 +22,7 @@ export async function proxy(request: NextRequest) {
   if (!user && !publicPath) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
-    if (pathname !== "/") url.searchParams.set("next", pathname);
+    url.searchParams.set("next", pathname);
     return NextResponse.redirect(url);
   }
 

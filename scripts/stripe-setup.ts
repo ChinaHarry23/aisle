@@ -18,7 +18,7 @@
 
 import "./service-loader.mjs";
 
-const { PRICE_LOOKUP_KEY, stripeEnv, stripeRequest } = await import("../src/lib/billing/stripe");
+const { PRICE_LOOKUP_KEY, stripeEnv, stripeLiveMode, stripeRequest } = await import("../src/lib/billing/stripe");
 const { PLAN } = await import("../src/lib/billing/plan");
 
 const WEBHOOK_EVENTS = [
@@ -117,7 +117,7 @@ async function main() {
     process.exitCode = 1;
     return;
   }
-  const live = /^(sk|rk)_live_/.test(env.secretKey);
+  const live = stripeLiveMode();
   const mode = live ? "LIVE" : /^(sk|rk)_test_/.test(env.secretKey) ? "sandbox" : "unknown-mode";
   console.log(`Stripe ${mode} key found (not shown). API version ${env.apiVersion}.`);
 

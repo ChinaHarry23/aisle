@@ -22,6 +22,5 @@ export function studioSpend(campaign: Campaign) {
     (n, v) => n + (v.generation.usage.costUsd ?? 0),
     0,
   );
-  const history = (campaign.studioHistory ?? []).reduce((n, r) => n + r.costUsd, 0);
-  return { poster, video, history, total: poster + video };
+  return { poster, video, total: poster + video };
 }

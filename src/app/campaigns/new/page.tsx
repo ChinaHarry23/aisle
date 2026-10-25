@@ -156,9 +156,9 @@ export default function NewCampaignPage() {
     }));
   }
 
-  /** The name is optional: it falls back to the product, so most people never type it. */
   const costParsed = parseMoneyInput(costText);
   const priceParsed = parseMoneyInput(priceText);
+  /** The name is optional: it falls back to the product, so most people never type it. */
   const brief: CampaignInput = {
     ...form,
     name: form.name.trim() || (form.product.trim() ? `${form.product.trim()} campaign` : ""),

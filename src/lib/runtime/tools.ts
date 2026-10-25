@@ -17,10 +17,11 @@
 
 import { uid } from "@/lib/ids";
 import { aud, matchRetailData } from "@/lib/retail-data";
+import type { ShelfLookup as ShelfLookupResult } from "@/lib/retail/whichgrocer/connection";
 import type { BrandProfile, Campaign, Channel, Country } from "@/lib/types";
-import type { Evidence, SourceKind, ToolCall } from "./types";
+import type { AgentActor, Evidence, SourceKind, ToolCall, TrendBriefGap } from "./types";
 
-export type ToolAgent = "trend" | "creative" | "compliance" | "media";
+export type ToolAgent = AgentActor;
 
 export type ToolOutcome = {
   /** Short human summary written to the campaign log / run trace. */
@@ -30,7 +31,7 @@ export type ToolOutcome = {
   /** Tool-specific payload the calling agent consumes. */
   data: unknown;
   /** Something the analysis could not establish, surfaced as a brief gap. */
-  gap?: { kind: "missing_source" | "outdated" | "conflict" | "unauthorised" | "low_confidence"; detail: string; effect: string };
+  gap?: { kind: TrendBriefGap["kind"]; detail: string; effect: string };
 };
 
 export type ToolDefinition = {
@@ -43,14 +44,12 @@ export type ToolDefinition = {
   run: (input: ToolInput) => Promise<ToolOutcome>;
 };
 
-export type ToolInput = {
+type ToolInput = {
   campaign: Campaign;
   brand: BrandProfile;
   at: string;
   /** Agent-provided arguments, already coerced to strings. */
   args: Record<string, string>;
-  /** Signed-in founder, when the run has one. Shelf prices use their WhichGrocer sign-in. */
-  ownerUserId?: string;
 };
 
 const FETCH_TIMEOUT_MS = 6_000;
@@ -60,7 +59,7 @@ async function getJson<T>(url: string): Promise<{ ok: true; json: T } | { ok: fa
     const res = await fetch(url, {
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       headers: {
-        // Wikimedia asks for a descriptive UA; DuckDuckGo's HTML endpoint blocks empty UAs.
+        // Wikimedia asks for a descriptive UA; DuckDuckGo and Open-Meteo get the same one.
         "User-Agent": "AisleAgentBench/0.2 (ELEC5620 prototype; contact: team@aisle.website)",
         Accept: "application/json, text/html;q=0.9",
       },
@@ -132,7 +131,7 @@ function signedPct(value: number) {
   return `${value > 0 ? "+" : ""}${value}%`;
 }
 
-export const internalRetailTool: ToolDefinition = {
+const internalRetailTool: ToolDefinition = {
   name: "retail.internal_signals",
   label: "Internal retail signals",
   agent: "trend",
@@ -273,7 +272,7 @@ type WikipediaSummary = {
   title?: string;
 };
 
-export const marketContextTool: ToolDefinition = {
+const marketContextTool: ToolDefinition = {
   name: "web.market_context",
   label: "Public market context (Wikipedia)",
   agent: "trend",
@@ -350,7 +349,7 @@ export const marketContextTool: ToolDefinition = {
   },
 };
 
-export const competitorScanTool: ToolDefinition = {
+const competitorScanTool: ToolDefinition = {
   name: "web.competitor_scan",
   label: "Public competitor scan (DuckDuckGo)",
   agent: "trend",
@@ -450,7 +449,7 @@ const COUNTRY_CENTROID: Record<Country, { lat: number; lon: number; label: strin
 };
 
 /** Open-Meteo needs no key and answers with the campaign window's real forecast. */
-export const seasonWeatherTool: ToolDefinition = {
+const seasonWeatherTool: ToolDefinition = {
   name: "web.season_weather",
   label: "Season and weather window (Open-Meteo)",
   agent: "trend",
@@ -538,21 +537,7 @@ export const seasonWeatherTool: ToolDefinition = {
 
 /* --------------------------------------------------------------- shelf price -- */
 
-type ShelfLookupResult =
-  | {
-      ok: true;
-      query: string;
-      claim: string;
-      detail: string;
-      sourceRef: string;
-      observedAt: string;
-      summary: string;
-      offers: unknown[];
-    }
-  | { ok: false; kind: string; reason: string };
-
 type ShelfLookup = (input: {
-  userId?: string;
   product: string;
   category: string;
   country: string;
@@ -577,7 +562,7 @@ export const shelfPriceTool: ToolDefinition = {
   description:
     "Reads live Australian catalogue prices for the product from the WhichGrocer API (Coles, Woolworths, ALDI and other retailers). Cites each price with the retailer page and the date WhichGrocer last saw it. Uses the server WHICHGROCER_API_KEY.",
   args: ["query"],
-  async run({ campaign, at, args, ownerUserId }) {
+  async run({ campaign, at, args }) {
     const lookup =
       campaign.country !== "AU"
         ? {
@@ -587,7 +572,6 @@ export const shelfPriceTool: ToolDefinition = {
           }
         : shelfLookup
           ? await shelfLookup({
-              userId: ownerUserId,
               product: campaign.product,
               category: campaign.category,
               country: campaign.country,

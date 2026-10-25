@@ -16,7 +16,6 @@ import {
   type ShelfOffer,
 } from "../src/lib/retail/whichgrocer/query";
 import { lookupShelfPrices } from "../src/lib/retail/whichgrocer/connection";
-import { equivalentArguments, searchArguments } from "../src/lib/retail/whichgrocer/mcp";
 import { runEngine } from "../src/lib/runtime/engine";
 import { shelfPriceTool } from "../src/lib/runtime/tools";
 import { blankCampaign, defaultBrand } from "../src/lib/seed";
@@ -107,17 +106,6 @@ assert.equal(described.observedAt, "2026-10-16");
 assert.equal(described.sourceRef, "https://www.woolworths.com.au/shop/productdetails/8");
 pass("catalogue rows become one grocery price per retailer, cheapest first");
 
-assert.deepEqual(searchArguments(undefined, "apple juice"), { q: "apple juice" });
-assert.deepEqual(
-  searchArguments({ properties: { query: { type: "string" }, page_size: { type: "integer" } } }, "milk"),
-  { query: "milk", page_size: 15 },
-);
-assert.deepEqual(equivalentArguments({ properties: { product_id: { type: "string" }, stores: { type: "string" } } }, "coles_9"), {
-  product_id: "coles_9",
-  stores: "coles,woolworths,aldi",
-});
-pass("MCP arguments follow the tool schema");
-
 const campaign = { product: "I want to sell apple juice", category: "Grocery", country: "AU" } as Campaign;
 const disconnected = await shelfPriceTool.run({
   campaign,
@@ -185,23 +173,31 @@ const poster = async () => ({
   at: "2026-10-17T00:00:00.000Z",
 });
 const now = "2026-10-17T00:00:00.000Z";
-const launched = await runEngine(
-  { campaigns: [drafted], now },
-  drafted,
-  { type: "START", actor: "founder" },
-  settings,
-  defaultBrand,
-  { llm: offline, maxSteps: 1, renderPoster: poster },
-);
-const shelfCall = launched.campaign.toolCalls.find((call) => call.tool === "web.shelf_prices");
-assert.ok(shelfCall, "trend research must call WhichGrocer");
-assert.equal(shelfCall.args.query, "apple juice");
-assert.equal(shelfCall.status, "empty");
-assert.ok(
-  launched.campaign.evidence.some((row) => row.sourceName === "WhichGrocer" && row.status === "unavailable"),
-  "the ledger records that WhichGrocer was not connected",
-);
-pass("trend research asks WhichGrocer for apple juice and records the gap");
+const realFetch = globalThis.fetch;
+globalThis.fetch = async () => {
+  throw new Error("Offline suite. No external research.");
+};
+try {
+  const launched = await runEngine(
+    { campaigns: [drafted], now },
+    drafted,
+    { type: "START", actor: "founder" },
+    settings,
+    defaultBrand,
+    { llm: offline, maxSteps: 1, renderPoster: poster },
+  );
+  const shelfCall = launched.campaign.toolCalls.find((call) => call.tool === "web.shelf_prices");
+  assert.ok(shelfCall, "trend research must call WhichGrocer");
+  assert.equal(shelfCall.args.query, "apple juice");
+  assert.equal(shelfCall.status, "empty");
+  assert.ok(
+    launched.campaign.evidence.some((row) => row.sourceName === "WhichGrocer" && row.status === "unavailable"),
+    "the ledger records that WhichGrocer was not connected",
+  );
+  pass("trend research asks WhichGrocer for apple juice and records the gap");
+} finally {
+  globalThis.fetch = realFetch;
+}
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {

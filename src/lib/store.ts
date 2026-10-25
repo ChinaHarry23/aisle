@@ -2,13 +2,9 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { makeCreatives } from "./creatives";
 import { uid } from "./ids";
-import { getByoKey } from "./media/byo-key";
-import { getModel } from "./media/catalog";
-import { requestGenerate } from "./media/client";
-import { fallbackBrief, posterRequest, videoPrompt } from "./media/prompts";
-import { blankCampaign, defaultBrand, makeLog, migrateLegacyBrand, seedCampaigns } from "./seed";
+import { jsonHeadersWithKey } from "./media/byo-key";
+import { blankCampaign, defaultBrand, migrateLegacyBrand, seedCampaigns } from "./seed";
 import {
   defaultSettings,
   withSettingsDefaults,
@@ -34,8 +30,6 @@ type Store = {
   /** Permanently deleted campaign ids. They are not re-seeded. */
   retiredCampaignIds: string[];
   settings: WorkspaceSettings;
-  /** Last message the engine returned, surfaced on the desk. */
-  engineMessage: string | null;
   /** Set when a command failed to reach the bench. Cleared by the next success. */
   engineError: string | null;
   busy: Record<string, boolean>;
@@ -90,13 +84,26 @@ type Store = {
   ) => void;
   /** Show the founder what the policy layer does with an out-of-bounds attempt. */
   attemptBlocked: (id: string, action: GuardedAction, note?: string) => Promise<string>;
-  resetDemo: () => void;
-  setStudio: (id: string, patch: Partial<Pick<Campaign, "videoDurationSec" | "spendCapUsd">>) => void;
-  generatePosters: (id: string) => Promise<void>;
   /** Edit the posters already generated, using the founder's description of the mistake. */
   revisePosters: (id: string, note: string) => Promise<{ ok: true; message: string } | { ok: false; error: string }>;
-  generateAdVideo: (id: string) => Promise<void>;
 };
+
+async function putWorkspace(snap: Pick<Store, "brand" | "campaigns" | "retiredCampaignIds" | "settings">) {
+  try {
+    await fetch("/api/workspace", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        brand: snap.brand,
+        campaigns: snap.campaigns,
+        retiredCampaignIds: snap.retiredCampaignIds,
+        settings: snap.settings,
+      }),
+    });
+  } catch {
+    // WorkspaceSync re-sends the latest snapshot on the next store change while the tab stays open.
+  }
+}
 
 /**
  * Apply an engine response to a single campaign.
@@ -107,7 +114,7 @@ type Store = {
 function applyResult(s: Store, result: EngineResponse): Partial<Store> {
   const next = result.campaign;
   if (s.retiredCampaignIds.includes(next.id)) {
-    return { engineMessage: result.message, engineError: result.error ?? null };
+    return { engineError: result.error ?? null };
   }
   const previous = s.campaigns.find((c) => c.id === next.id);
   const campaign =
@@ -117,7 +124,6 @@ function applyResult(s: Store, result: EngineResponse): Partial<Store> {
   const exists = Boolean(previous);
   return {
     campaigns: exists ? s.campaigns.map((c) => (c.id === campaign.id ? campaign : c)) : [campaign, ...s.campaigns],
-    engineMessage: result.message,
     engineError: result.error ?? null,
   };
 }
@@ -194,7 +200,7 @@ export const useAisle = create<Store>()(
       async function command(
         id: string,
         cmd: Command,
-        options: { pumpAfter?: boolean; maxSteps?: number } = {},
+        options: { pumpAfter?: boolean } = {},
       ) {
         const state = get();
         const campaign = state.campaigns.find((c) => c.id === id);
@@ -204,28 +210,9 @@ export const useAisle = create<Store>()(
           { campaigns: state.campaigns, brand: state.brand, settings: state.settings },
           campaign,
           cmd,
-          options.maxSteps,
         );
         set((s) => ({ ...applyResult(s, result), busy: { ...s.busy, [id]: false } }));
         if (options.pumpAfter !== false && result.canAdvance) await pump(id);
-      }
-
-      async function saveDesk() {
-        const snap = get();
-        try {
-          await fetch("/api/workspace", {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              brand: snap.brand,
-              campaigns: snap.campaigns,
-              retiredCampaignIds: snap.retiredCampaignIds,
-              settings: snap.settings,
-            }),
-          });
-        } catch {
-          // The workspace sync retries this snapshot while the tab stays open.
-        }
       }
 
       return {
@@ -234,7 +221,6 @@ export const useAisle = create<Store>()(
         campaigns: seedCampaigns(defaultBrand),
         retiredCampaignIds: [],
         settings: defaultSettings(),
-        engineMessage: null,
         engineError: null,
         busy: {},
         setHydrated: () => set({ hydrated: true }),
@@ -342,7 +328,7 @@ export const useAisle = create<Store>()(
               campaign.id === id ? { ...campaign, archivedAt, running: false, updatedAt: archivedAt } : campaign,
             ),
           }));
-          await saveDesk();
+          await putWorkspace(get());
         },
         restoreCampaign: async (id) => {
           const updatedAt = new Date().toISOString();
@@ -351,14 +337,14 @@ export const useAisle = create<Store>()(
               campaign.id === id ? { ...campaign, archivedAt: null, updatedAt } : campaign,
             ),
           }));
-          await saveDesk();
+          await putWorkspace(get());
         },
         deleteCampaign: async (id) => {
           set((s) => ({
             campaigns: s.campaigns.filter((campaign) => campaign.id !== id),
             retiredCampaignIds: s.retiredCampaignIds.includes(id) ? s.retiredCampaignIds : [...s.retiredCampaignIds, id],
           }));
-          await saveDesk();
+          await putWorkspace(get());
         },
 
         launch: async (id) => {
@@ -416,85 +402,6 @@ export const useAisle = create<Store>()(
           return result.message;
         },
 
-        resetDemo: () =>
-          set({
-            brand: defaultBrand,
-            campaigns: seedCampaigns(defaultBrand),
-            retiredCampaignIds: [],
-            settings: defaultSettings(),
-            busy: {},
-            engineMessage: null,
-            engineError: null,
-          }),
-
-        setStudio: (id, patch) =>
-          set((s) => ({
-            campaigns: s.campaigns.map((c) =>
-              c.id === id ? { ...c, ...patch, updatedAt: new Date().toISOString() } : c,
-            ),
-          })),
-
-        generatePosters: async (id) => {
-          const campaign = get().campaigns.find((c) => c.id === id);
-          if (!campaign) return;
-          set((s) => ({
-            campaigns: s.campaigns.map((c) => (c.id === id ? { ...c, studioBusy: "posters" } : c)),
-          }));
-          try {
-            const modelId = get().settings.imageModelId;
-            const brief = campaign.brief ?? fallbackBrief(campaign);
-            const base =
-              campaign.creatives.length > 0
-                ? campaign.creatives
-                : makeCreatives({ ...campaign, brief }, brief, 1);
-            const next: Campaign["creatives"] = [];
-            for (const cr of base) {
-              const generation = await requestGenerate(posterRequest(campaign, cr, modelId));
-              next.push({ ...cr, generation });
-            }
-            const cost = next.reduce((n, cr) => n + (cr.generation?.usage.costUsd ?? 0), 0);
-            const tokens = next.reduce((n, cr) => n + (cr.generation?.usage.totalTokens ?? 0), 0);
-            set((s) => ({
-              campaigns: s.campaigns.map((c) =>
-                c.id === id
-                  ? {
-                      ...c,
-                      imageModelId: modelId,
-                      creatives: next,
-                      spend: { ...c.spend, mediaUsd: c.spend.mediaUsd + cost },
-                      studioHistory: [
-                        ...(c.studioHistory ?? []),
-                        {
-                          id: uid("run"),
-                          at: new Date().toISOString(),
-                          kind: "image" as const,
-                          modelId,
-                          label: "Studio ads",
-                          costUsd: cost,
-                          totalTokens: tokens,
-                        },
-                      ],
-                      log: [
-                        ...c.log,
-                        makeLog(
-                          "creative",
-                          "output",
-                          `Ads on ${modelId}`,
-                          `est. $${cost.toFixed(3)} · ${tokens} tokens`,
-                        ),
-                      ],
-                      updatedAt: new Date().toISOString(),
-                    }
-                  : c,
-              ),
-            }));
-          } finally {
-            set((s) => ({
-              campaigns: s.campaigns.map((c) => (c.id === id ? { ...c, studioBusy: null } : c)),
-            }));
-          }
-        },
-
         revisePosters: async (id, note) => {
           const campaign = get().campaigns.find((c) => c.id === id);
           if (!campaign) return { ok: false, error: "Campaign not found." };
@@ -502,13 +409,7 @@ export const useAisle = create<Store>()(
             campaigns: s.campaigns.map((c) => (c.id === id ? { ...c, studioBusy: "posters" } : c)),
           }));
           try {
-            const headers: Record<string, string> = { "Content-Type": "application/json" };
-            try {
-              const key = getByoKey(getModel(campaign.imageModelId || get().settings.imageModelId).providerId);
-              if (key) headers["x-provider-key"] = key;
-            } catch {
-              // A missing catalogue entry still lets the server use its own key.
-            }
+            const headers = jsonHeadersWithKey(campaign.imageModelId || get().settings.imageModelId);
             const res = await fetch("/api/studio/revise", {
               method: "POST",
               headers,
@@ -534,74 +435,6 @@ export const useAisle = create<Store>()(
               campaigns: s.campaigns.map((c) =>
                 c.id === id && c.studioBusy === "posters" ? { ...c, studioBusy: null } : c,
               ),
-            }));
-          }
-        },
-
-        generateAdVideo: async (id) => {
-          const campaign = get().campaigns.find((c) => c.id === id);
-          if (!campaign) return;
-          set((s) => ({
-            campaigns: s.campaigns.map((c) => (c.id === id ? { ...c, studioBusy: "video" } : c)),
-          }));
-          try {
-            const modelId = get().settings.videoModelId;
-            const durationSec = campaign.videoDurationSec ?? get().settings.videoDurationSec;
-            const prompt = videoPrompt(campaign, durationSec);
-            const generation = await requestGenerate({
-              kind: "video",
-              modelId,
-              prompt,
-              durationSec,
-              aspectRatio: "9:16",
-            });
-            const video = {
-              id: uid("vid"),
-              version: (campaign.videos?.length ?? 0) + 1,
-              title: `${campaign.product} — ${durationSec}s`,
-              prompt,
-              durationSec,
-              aspect: "9:16" as const,
-              status: "ready" as const,
-              generation,
-            };
-            set((s) => ({
-              campaigns: s.campaigns.map((c) =>
-                c.id === id
-                  ? {
-                      ...c,
-                      videoModelId: modelId,
-                      videos: [video, ...(c.videos ?? [])],
-                      spend: { ...c.spend, mediaUsd: c.spend.mediaUsd + generation.usage.costUsd },
-                      studioHistory: [
-                        ...(c.studioHistory ?? []),
-                        {
-                          id: uid("run"),
-                          at: new Date().toISOString(),
-                          kind: "video" as const,
-                          modelId,
-                          label: `${durationSec}s ad`,
-                          costUsd: generation.usage.costUsd,
-                          totalTokens: generation.usage.totalTokens,
-                        },
-                      ],
-                      log: [
-                        ...c.log,
-                        makeLog(
-                          "creative",
-                          "output",
-                          `Ad video on ${modelId}`,
-                          `${durationSec}s · est. $${generation.usage.costUsd.toFixed(3)} · ${generation.usage.totalTokens} tokens`,
-                        ),
-                      ],
-                      updatedAt: new Date().toISOString(),
-                    }
-                  : c,
-              ),
-            }));
-          } finally {
-            set((s) => ({
-              campaigns: s.campaigns.map((c) => (c.id === id ? { ...c, studioBusy: null } : c)),
             }));
           }
         },
@@ -646,3 +479,9 @@ export const useAisle = create<Store>()(
     },
   ),
 );
+
+/** Campaigns not in the trash. Filters outside the selector so zustand never sees a new array from its selector. */
+export function useActiveCampaigns(): Campaign[] {
+  const all = useAisle((s) => s.campaigns);
+  return all.filter((c) => !isArchived(c));
+}

@@ -11,34 +11,13 @@
  */
 
 import assert from "node:assert/strict";
+/* The app's modules import each other as "@/…"; register the resolver before loading them. */
+import "./service-loader.mjs";
 import { readFileSync } from "node:fs";
-import { register } from "node:module";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-/* The app uses the `@/` alias, so a small resolver hook stands in for the bundler. */
 const root = process.cwd();
-const loader = `
-import { pathToFileURL, fileURLToPath } from "node:url";
-import { existsSync } from "node:fs";
-import path from "node:path";
-const root = ${JSON.stringify(root)};
-function withTs(base) {
-  for (const c of [base + ".ts", base + ".tsx", path.join(base, "index.ts")]) if (existsSync(c)) return c;
-  return base;
-}
-export async function resolve(specifier, context, next) {
-  try { return await next(specifier, context); }
-  catch (error) {
-    if (specifier.startsWith("@/")) return next(pathToFileURL(withTs(path.join(root, "src", specifier.slice(2)))).href, context);
-    if (specifier.startsWith(".") && context.parentURL) {
-      const dir = path.dirname(fileURLToPath(context.parentURL));
-      return next(pathToFileURL(withTs(path.resolve(dir, specifier))).href, context);
-    }
-    throw error;
-  }
-}`;
-register(`data:text/javascript,${encodeURIComponent(loader)}`, pathToFileURL("./"));
 
 const engineUrl = pathToFileURL(path.join(root, "src/lib/runtime/engine.ts")).href;
 const seedUrl = pathToFileURL(path.join(root, "src/lib/seed.ts")).href;
@@ -85,29 +64,17 @@ const offlineLlm: LlmStub = {
   }),
 };
 
-/**
- * A scripted "model" that answers each decision call with valid JSON.
- *
- * `onCreative` may return copy for a given revision, which is how the suite
- * drives the case the deterministic fallback cannot reach: a revision that is
- * still non-compliant, so all three AHR-04 attempts are spent and the case has
- * to escalate.
- */
-function scriptedLlm(
-  onCreative?: (revision: number) => { headline: string; subhead: string } | null,
-): LlmStub {
-  let revision = 0;
+/** A scripted "model" that answers each decision call with valid JSON. */
+function scriptedLlm(): LlmStub {
   return {
     request: async (req: CompleteRequest) => {
       let text: string | null = null;
       if (req.agent === "creative") {
-        revision += 1;
-        const over = onCreative?.(revision) ?? null;
         const variant = (n: "A" | "B") => ({
           variant: n,
           kicker: "Weekly",
-          headline: n === "A" ? (over?.headline ?? "Olive oil, honestly described") : "Pantry staple",
-          subhead: n === "A" ? (over?.subhead ?? "Cold-pressed, in store this week.") : "In store this week.",
+          headline: n === "A" ? "Olive oil, honestly described" : "Pantry staple",
+          subhead: n === "A" ? "Cold-pressed, in store this week." : "In store this week.",
           cta: "See the range",
           caption: "Lane & Co. grocery.",
           prompt: "studio ad",
@@ -250,6 +217,16 @@ async function startAndClear(...args: Parameters<typeof startAndAdvance>) {
   return s;
 }
 
+/** Approve the draft, then drive the run to its next gate. */
+async function approveAndAdvance(s: ReturnType<typeof session>, note: string) {
+  await s.run({ type: "APPROVE", actor: "founder", note });
+  let i = 0;
+  let r = await s.run({ type: "ADVANCE", actor: "founder" });
+  while ((r.canAdvance || s.campaign.run?.status === "running") && i++ < 8) {
+    r = await s.run({ type: "ADVANCE", actor: "founder" });
+  }
+}
+
 /* ------------------------------------------------- UC-01 ext 3.a / 4.a / 5.a */
 
 {
@@ -344,12 +321,7 @@ async function startAndClear(...args: Parameters<typeof startAndAdvance>) {
 
 {
   const s = await startAndClear({ channels: ["instagram", "web", "email", "print"], budget: 18000 });
-  await s.run({ type: "APPROVE", actor: "founder", note: "Ship variant A." });
-  let i = 0;
-  let r = await s.run({ type: "ADVANCE", actor: "founder" });
-  while ((r.canAdvance || s.campaign.run?.status === "running") && i++ < 8) {
-    r = await s.run({ type: "ADVANCE", actor: "founder" });
-  }
+  await approveAndAdvance(s, "Ship variant A.");
   const c = s.campaign;
   assert.ok(c.channelVersions.length > 0, "channel versions must exist after approval");
   const frozen = c.channelVersions.filter((v) => v.claimsUnchanged);
@@ -400,18 +372,12 @@ async function startAndClear(...args: Parameters<typeof startAndAdvance>) {
 
 {
   const s = await startAndClear({ channels: ["instagram", "web", "email"], budget: 12000 });
-  await s.run({ type: "APPROVE", actor: "founder", note: "Go." });
-  let i = 0;
-  let r = await s.run({ type: "ADVANCE", actor: "founder" });
-  while ((r.canAdvance || s.campaign.run?.status === "running") && i++ < 8) {
-    r = await s.run({ type: "ADVANCE", actor: "founder" });
-  }
+  await approveAndAdvance(s, "Go.");
 
   // The bench must stop at Scheduled: an agent may not publish.
   assert.equal(s.campaign.status, "scheduled", "the run must stop at Scheduled");
-  const agentPublish = await s.run({ type: "ATTEMPT_BLOCKED", actor: "PUBLISH_CONTENT" });
+  await s.run({ type: "ATTEMPT_BLOCKED", actor: "PUBLISH_CONTENT" });
   assert.equal(s.campaign.policyDecisions.at(-1)?.verdict, "block");
-  void agentPublish;
 
   const published = await s.run({ type: "PUBLISH", actor: "founder" });
   assert.equal(s.campaign.status, "published", `publish failed: ${published.message}`);
@@ -461,12 +427,7 @@ async function startAndClear(...args: Parameters<typeof startAndAdvance>) {
     { channels: ["web", "email", "print"], budget: 12000 },
     { publishOverrides: { web: "retry_then_ok", email: "late", print: "ok" } },
   );
-  await s.run({ type: "APPROVE", actor: "founder", note: "Go." });
-  let i = 0;
-  let r = await s.run({ type: "ADVANCE", actor: "founder" });
-  while ((r.canAdvance || s.campaign.run?.status === "running") && i++ < 8) {
-    r = await s.run({ type: "ADVANCE", actor: "founder" });
-  }
+  await approveAndAdvance(s, "Go.");
   assert.equal(s.campaign.status, "scheduled", "the run must reach Scheduled before publish");
 
   const published = await s.run({ type: "PUBLISH", actor: "founder" });
@@ -513,12 +474,7 @@ async function startAndClear(...args: Parameters<typeof startAndAdvance>) {
     { channels: ["web", "email", "print"], budget: 12000 },
     { publishOverrides: { web: "fail" } },
   );
-  await s.run({ type: "APPROVE", actor: "founder", note: "Go." });
-  let i = 0;
-  let r = await s.run({ type: "ADVANCE", actor: "founder" });
-  while ((r.canAdvance || s.campaign.run?.status === "running") && i++ < 8) {
-    r = await s.run({ type: "ADVANCE", actor: "founder" });
-  }
+  await approveAndAdvance(s, "Go.");
   assert.equal(s.campaign.status, "scheduled", "the run must reach Scheduled before publish");
 
   await s.run({ type: "PUBLISH", actor: "founder" });
@@ -538,9 +494,8 @@ async function startAndClear(...args: Parameters<typeof startAndAdvance>) {
     "retry exhaustion leaves a guard record (no infinite retry, no silent skip)",
   );
 
-  const collected = await s.run({ type: "COLLECT_FEEDBACK", actor: "founder" });
+  await s.run({ type: "COLLECT_FEEDBACK", actor: "founder" });
   assert.ok(!s.campaign.performanceReport, "results cannot be collected before delivery completes");
-  void collected;
   pass(
     "UC-05 ext 6.a — unconfirmed channel capped, escalated, never skipped silently",
     dr.attempts.map((a) => `${a.channel}:${a.status}@${a.attempts}`).join(" "),
@@ -589,12 +544,7 @@ async function startAndClear(...args: Parameters<typeof startAndAdvance>) {
     {},
     { llm: captionLlm },
   );
-  await s.run({ type: "APPROVE", actor: "founder", note: "Go." });
-  let i = 0;
-  let r = await s.run({ type: "ADVANCE", actor: "founder" });
-  while ((r.canAdvance || s.campaign.run?.status === "running") && i++ < 8) {
-    r = await s.run({ type: "ADVANCE", actor: "founder" });
-  }
+  await approveAndAdvance(s, "Go.");
   const c = s.campaign;
   const web = c.channelVersions.find((v) => v.channel === "web");
   const email = c.channelVersions.find((v) => v.channel === "email");
@@ -678,12 +628,7 @@ async function startAndClear(...args: Parameters<typeof startAndAdvance>) {
     { channels: ["print", "digital_signage"], budget: 6000 },
     { collectorOverrides: { print: "not_authorised", digital_signage: "late" } },
   );
-  await s.run({ type: "APPROVE", actor: "founder", note: "Go." });
-  let i = 0;
-  let r = await s.run({ type: "ADVANCE", actor: "founder" });
-  while ((r.canAdvance || s.campaign.run?.status === "running") && i++ < 8) {
-    r = await s.run({ type: "ADVANCE", actor: "founder" });
-  }
+  await approveAndAdvance(s, "Go.");
   if (s.campaign.status === "scheduled") {
     await s.run({ type: "PUBLISH", actor: "founder" });
     await s.run({ type: "COLLECT_FEEDBACK", actor: "founder" });

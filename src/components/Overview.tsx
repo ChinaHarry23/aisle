@@ -8,25 +8,22 @@ import {
   CalendarDays,
   Clapperboard,
   LineChart,
-  Megaphone,
   Plus,
   ShieldAlert,
   ShieldCheck,
   TrendingUp,
 } from "lucide-react";
-import { AgentPipeline, StatusBadge } from "@/components/ui";
+import { AgentPipeline, PageHeader, StatusBadge } from "@/components/ui";
 import { cn } from "@/lib/cn";
 import { getLlmOrDefault } from "@/lib/llm/catalog";
 import type { AgentSlot } from "@/lib/llm/types";
-import { isArchived } from "@/lib/campaign-lifecycle";
-import { useAisle } from "@/lib/store";
+import { useActiveCampaigns, useAisle } from "@/lib/store";
 import type { CampaignStatus } from "@/lib/types";
 
 type Icon = ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
 
 type Stage = {
-  id: AgentSlot | "create" | "founder";
-  step: number;
+  id: AgentSlot | "founder";
   name: string;
   does: string;
   icon: Icon;
@@ -36,17 +33,7 @@ type Stage = {
 
 const stages: Stage[] = [
   {
-    id: "create",
-    step: 1,
-    name: "Campaigns",
-    does: "Add a product and an audience.",
-    icon: Megaphone,
-    statuses: ["draft"],
-    href: "/campaigns/new",
-  },
-  {
     id: "trend",
-    step: 2,
     name: "Trends",
     does: "Finds what's selling and drafts the brief.",
     icon: TrendingUp,
@@ -55,7 +42,6 @@ const stages: Stage[] = [
   },
   {
     id: "creative",
-    step: 3,
     name: "Studio",
     does: "Creates the ad copy and visuals.",
     icon: Clapperboard,
@@ -64,7 +50,6 @@ const stages: Stage[] = [
   },
   {
     id: "compliance",
-    step: 4,
     name: "Compliance",
     does: "Checks the poster against that market's law index, and sends fixes back.",
     icon: ShieldCheck,
@@ -73,7 +58,6 @@ const stages: Stage[] = [
   },
   {
     id: "founder",
-    step: 5,
     name: "Approvals",
     does: "You sign off anything medium or high risk.",
     icon: ShieldAlert,
@@ -82,7 +66,6 @@ const stages: Stage[] = [
   },
   {
     id: "media",
-    step: 6,
     name: "Schedule",
     does: "Posts approved work to every channel.",
     icon: CalendarDays,
@@ -91,15 +74,12 @@ const stages: Stage[] = [
   },
 ];
 
-const agentStages = stages.filter((s) => s.id !== "create");
-
-function StageIcon({ icon: Icon, human, size }: { icon: Icon; human: boolean; size: "sm" | "md" }) {
+function StageIcon({ icon: Icon, size }: { icon: Icon; size: "sm" | "md" }) {
   return (
     <span
       className={cn(
-        "flex shrink-0 items-center justify-center",
+        "flex shrink-0 items-center justify-center bg-paper-2 text-ink",
         size === "md" ? "h-9 w-9 rounded-xl" : "h-8 w-8 rounded-lg",
-        human ? "bg-signal text-paper" : "bg-paper-2 text-ink",
       )}
     >
       <Icon size={size === "md" ? 18 : 15} strokeWidth={1.8} />
@@ -113,7 +93,7 @@ const greeting = () => {
 };
 
 export function Overview() {
-  const campaigns = useAisle((s) => s.campaigns).filter((campaign) => !isArchived(campaign));
+  const campaigns = useActiveCampaigns();
   const brand = useAisle((s) => s.brand);
   const settings = useAisle((s) => s.settings);
   const collectFeedback = useAisle((s) => s.collectFeedback);
@@ -144,7 +124,7 @@ export function Overview() {
   const countIn = (statuses: CampaignStatus[]) =>
     campaigns.filter((c) => statuses.includes(c.status)).length;
   const working = stages
-    .filter((s) => s.id !== "create" && s.id !== "founder")
+    .filter((s) => s.id !== "founder")
     .reduce((n, s) => n + countIn(s.statuses), 0);
 
   const kpis: { label: string; value: number; hint: string; href: string; icon: Icon; hot?: boolean }[] = [
@@ -185,35 +165,30 @@ export function Overview() {
 
   const stageStatus = (stage: Stage) => {
     const n = countIn(stage.statuses);
-    const isHuman = stage.id === "create" || stage.id === "founder";
+    const isHuman = stage.id === "founder";
     const model = isHuman ? null : getLlmOrDefault(settings.agents[stage.id as AgentSlot].modelId);
     return { n, isHuman, model };
   };
 
   return (
     <div className="flex flex-col gap-8">
-      {/* Welcome */}
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-[18rem] flex-1">
-          <p className="text-sm text-mute">{greeting()}</p>
-          <h1 className="mt-1 font-serif text-2xl tracking-tight md:text-3xl">
-            Welcome to Aisle{firstName ? `, ${firstName}` : ""}
-          </h1>
-          <p className="mt-2 max-w-4xl text-[15px] leading-relaxed text-ink-soft">
-            {isNew
-              ? `Aisle is a marketing team for ${brand.retailerName}, run by AI agents. Give it a brief for a promotion and the agents research trends, create the images and copy, check everything for legal and brand risk, and schedule it across web, social media and print. Nothing goes live until you approve it.`
-              : `Your AI marketing team for ${brand.retailerName}. Nothing goes live until you approve it.`}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2 md:pt-1">
+      <PageHeader
+        eyebrow={greeting()}
+        title={`Welcome to Aisle${firstName ? `, ${firstName}` : ""}`}
+        description={
+          isNew
+            ? `Aisle is a marketing team for ${brand.retailerName}, run by AI agents. Give it a brief for a promotion and the agents research trends, create the images and copy, check everything for legal and brand risk, and schedule it across web, social media and print. Nothing goes live until you approve it.`
+            : `Your AI marketing team for ${brand.retailerName}. Nothing goes live until you approve it.`
+        }
+        actions={
           <Link
             href="/campaigns/new"
             className="inline-flex items-center gap-2 rounded-full btn-primary px-4 py-2 text-sm font-medium"
           >
             <Plus size={16} /> New campaign
           </Link>
-        </div>
-      </header>
+        }
+      />
 
       {/* What needs the user */}
       {awaiting.length > 0 || toCollect.length > 0 || conflicts > 0 ? (
@@ -313,21 +288,19 @@ export function Overview() {
       </section>
 
       {isNew ? (
-        <>
+        <section aria-label="Campaigns" className="hairline flex flex-col items-start gap-3 p-8">
           {/* First visit: a call to action */}
-          <section aria-label="Campaigns" className="hairline flex flex-col items-start gap-3 p-8">
-            <h2 className="font-serif text-xl">No campaigns yet</h2>
-            <p className="max-w-md text-sm text-ink-soft">
-              Add a product and an audience. The agents handle the rest.
-            </p>
-            <Link
-              href="/campaigns/new"
-              className="inline-flex items-center gap-2 rounded-full btn-primary px-4 py-2 text-sm font-medium"
-            >
-              <Plus size={14} /> Create your first campaign
-            </Link>
-          </section>
-        </>
+          <h2 className="font-serif text-xl">No campaigns yet</h2>
+          <p className="max-w-md text-sm text-ink-soft">
+            Add a product and an audience. The agents handle the rest.
+          </p>
+          <Link
+            href="/campaigns/new"
+            className="inline-flex items-center gap-2 rounded-full btn-primary px-4 py-2 text-sm font-medium"
+          >
+            <Plus size={14} /> Create your first campaign
+          </Link>
+        </section>
       ) : (
         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
           {/* Campaigns */}
@@ -369,7 +342,7 @@ export function Overview() {
               </Link>
             </div>
             <ul className="mt-3 flex flex-col">
-              {agentStages.map((stage) => {
+              {stages.map((stage) => {
                 const { n, isHuman, model } = stageStatus(stage);
                 return (
                   <li key={stage.id} className="border-t border-line first:border-t-0">
@@ -377,7 +350,7 @@ export function Overview() {
                       href={stage.href}
                       className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-2.5 hover:bg-paper-2"
                     >
-                      <StageIcon icon={stage.icon} human={false} size="sm" />
+                      <StageIcon icon={stage.icon} size="sm" />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-medium">{stage.name}</span>
                         <span className="block truncate text-xs text-mute">
@@ -415,14 +388,14 @@ export function Overview() {
           </p>
         </div>
         <ol className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5 lg:gap-6">
-          {agentStages.map((stage, i) => (
+          {stages.map((stage, i) => (
             <li key={stage.id} className="relative">
               <Link
                 href={stage.href}
                 className="hairline flex h-full flex-col gap-3 p-4 hairline-hover"
               >
                 <div className="flex items-center justify-between">
-                  <StageIcon icon={stage.icon} human={false} size="md" />
+                  <StageIcon icon={stage.icon} size="md" />
                   <span className="text-xs tabular-nums text-mute">Step {i + 1}</span>
                 </div>
                 <div>
@@ -430,7 +403,7 @@ export function Overview() {
                   <p className="mt-0.5 text-sm leading-snug text-ink-soft">{stage.does}</p>
                 </div>
               </Link>
-              {i < agentStages.length - 1 && (
+              {i < stages.length - 1 && (
                 <ArrowRight
                   aria-hidden
                   size={16}

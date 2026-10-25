@@ -52,11 +52,9 @@ type Evidence = {
   error?: string;
 };
 
-/** Cheapest model of a kind for a provider, skipping ones already scheduled to shut down. */
+/** Cheapest model of a kind for a provider. */
 function cheapest(providerId: ProviderId, kind: MediaKind): MediaModel | undefined {
-  const candidates = MEDIA_MODELS.filter((m) => m.providerId === providerId && m.kind === kind) as MediaModel[];
-  const live = candidates.filter((m) => !m.sunset);
-  const pool = live.length ? live : candidates;
+  const pool = MEDIA_MODELS.filter((m) => m.providerId === providerId && m.kind === kind);
   const seconds = (m: MediaModel) => m.durations?.[0] ?? 4;
   return pool.sort((a, b) => quoteModel(a.id, { durationSec: seconds(a) }).costUsd - quoteModel(b.id, { durationSec: seconds(b) }).costUsd)[0];
 }

@@ -1,6 +1,5 @@
 import type { ComplianceSubmission } from "./service";
 import type { RuleSelection } from "./rules";
-import type { ComplianceIssue } from "../runtime/types";
 /**
  * Records what this step does not decide.
  *
@@ -11,11 +10,11 @@ import type { ComplianceIssue } from "../runtime/types";
 export function checkSubmission(
   s: ComplianceSubmission,
   selection: RuleSelection,
-): { issues: ComplianceIssue[]; limitations: string[] } {
+): { limitations: string[] } {
   const limitations = [
     ...s.limitations,
     ...selection.problems,
     "No phrase, price, image, or claim scan is applied in code. The compliance agent reviews the submitted advertisement against the rules it was given.",
   ];
-  return { issues: [], limitations: [...new Set(limitations)] };
+  return { limitations: [...new Set(limitations)] };
 }

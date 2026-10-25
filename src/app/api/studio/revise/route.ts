@@ -2,10 +2,9 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/current";
 import { loadWorkspace, saveWorkspace } from "@/lib/auth/workspace";
 import { billingForSession } from "@/lib/billing/meter";
-import { runComplete } from "@/lib/llm/metered-complete";
 import { renderCampaignPoster } from "@/lib/media/campaign-poster";
-import { MediaNotFoundError, readMedia } from "@/lib/media/store";
-import { rewriteImagePrompts, type LlmRuntime } from "@/lib/runtime/decide";
+import { readMedia } from "@/lib/media/store";
+import { makeLlmRuntime, rewriteImagePrompts } from "@/lib/runtime/decide";
 import { makeLog } from "@/lib/seed";
 import type { Campaign, Creative } from "@/lib/types";
 
@@ -43,16 +42,12 @@ export async function POST(request: Request) {
 
   const userKey = request.headers.get("x-provider-key")?.trim() || undefined;
   const billing = await billingForSession(user);
-  const llm: LlmRuntime = {
-    request: (req) => runComplete(req, billing),
-    meta: { label: "server", live: true, billing },
-  };
+  const llm = makeLlmRuntime(billing);
   const rewritten = await rewriteImagePrompts({
     campaign,
     brand: stored.brand,
     settings: stored.settings,
     llm,
-    billing,
     note,
     creatives: campaign.creatives,
   }).catch(() => ({ prompts: new Map<string, string>(), trace: null }));
@@ -66,8 +61,8 @@ export async function POST(request: Request) {
     if (url) {
       try {
         editFrom = await readMedia(url, "image", user.id);
-      } catch (error) {
-        if (!(error instanceof MediaNotFoundError)) editFrom = undefined;
+      } catch {
+        /* No readable poster: render from the product photo instead. */
       }
     }
     const agentPrompt = rewritten.prompts.get(creative.id);

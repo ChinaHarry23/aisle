@@ -1,11 +1,8 @@
 /** Isolated status tests: no live jobs, account data, model calls or ad publication. */
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
-import { createRequire } from "node:module";
-import ts from "typescript";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createRenderJob, listRenderJobs, renderJobForPrompt, updateRenderJob } from "../src/lib/media/progress-store";
@@ -14,6 +11,7 @@ import { blankCampaign, defaultBrand } from "../src/lib/seed";
 import { defaultSettings } from "../src/lib/settings";
 import type { RenderProgress } from "../src/lib/media/progress-types";
 import type { MediaGeneration } from "../src/lib/media/pr2-types";
+import { compileComponent } from "./fixtures";
 
 const dir = mkdtempSync(path.join(os.tmpdir(), "aisle-progress-test-"));
 process.env.AISLE_MEDIA_PROGRESS_DB = path.join(dir, "progress.db");
@@ -104,14 +102,7 @@ assert.equal((await reconcileRenderJob(stale, campaign, async () => ({ status: "
 console.log("PASS multi-scene completion boundary, next-scene reset, local editing and stopped-worker detection");
 
 // Compile the actual client panel for server-rendered accessibility/state assertions.
-const require = createRequire(import.meta.url);
-const source = readFileSync("src/components/studio/RenderProgress.tsx", "utf8");
-let compiled = ts.transpileModule(source, { compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
-for (const specifier of ["react/jsx-runtime", "react"]) compiled = compiled.replaceAll(`from "${specifier}"`, `from "${pathToFileURL(require.resolve(specifier)).href}"`);
-compiled = compiled.replaceAll('from "@/lib/media/progress-types"', `from "${pathToFileURL(path.resolve("src/lib/media/progress-types.ts")).href}"`);
-const moduleFile = path.join(dir, "RenderProgress.mjs");
-writeFileSync(moduleFile, compiled);
-const { RenderProgressPanel } = await import(pathToFileURL(moduleFile).href);
+const { RenderProgressPanel } = await compileComponent("src/components/studio/RenderProgress.tsx", dir, { modules: ["react/jsx-runtime", "react"], files: { "@/lib/media/progress-types": "src/lib/media/progress-types.ts" } });
 const render = (renderJob: RenderProgress, unavailable = false) => renderToStaticMarkup(createElement(RenderProgressPanel, { jobs: [renderJob], unavailable, liveConnected: true, onViewVideo: () => {} }));
 const sampling = render({ ...job, stage: "sampling", step: 4, totalSteps: 6 });
 assert.match(sampling, /aria-valuenow="67"/);

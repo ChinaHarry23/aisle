@@ -6,17 +6,14 @@ import type { ArtDirection } from "./art-direction";
 import type {
   AdVideo as CindyAdVideo,
   AspectRatio,
-  Billing,
   GenerateRequest as CindyGenerateRequest,
   MediaGeneration as CindyMediaGeneration,
   MediaKind,
   MediaModel as CindyMediaModel,
   ProviderId as CindyProviderId,
-  StudioRun,
-  UsageMeter,
 } from "./types";
 
-export type { AspectRatio, Billing, MediaKind, StudioRun, UsageMeter };
+export type { AspectRatio, MediaKind };
 
 /** PR #2 added local ComfyUI and Tencent TokenHub ids. */
 export type ProviderId = CindyProviderId | "comfy" | "tencent";
@@ -25,9 +22,6 @@ export type MediaModel = Omit<CindyMediaModel, "providerId"> & {
   providerId: ProviderId;
   videoInput?: "text" | "image";
   durations?: number[];
-  sunset?: string;
-  usageBilled?: boolean;
-  promptLength?: boolean;
 };
 
 export type MediaGeneration = CindyMediaGeneration & {
@@ -62,10 +56,7 @@ export type AdVideo = Omit<CindyAdVideo, "generation"> & { generation: MediaGene
 
 export type GenerateRequest = CindyGenerateRequest & {
   startImageUrl?: string;
-  campaignId?: string;
-  creativeId?: string;
   ownerId?: string;
-  styleReference?: string;
 };
 
 export type GenerateResult = MediaGeneration;

@@ -12,7 +12,7 @@ import {
   type IntakeTurnOutput,
 } from "@/lib/intake/shared";
 import { channelLabel } from "@/lib/status";
-import type { AgentEvent, BrandProfile, CampaignInput, Channel, Country } from "@/lib/types";
+import type { BrandProfile, CampaignInput, Channel, Country } from "@/lib/types";
 
 type SpeechRecognitionAlternativeLike = {
   transcript: string;
@@ -38,6 +38,17 @@ type SpeechRecognitionInstance = {
   start: () => void;
   stop: () => void;
 };
+
+type SpeechRecognitionCtor = new () => SpeechRecognitionInstance;
+
+function speechRecognitionCtor(): SpeechRecognitionCtor | undefined {
+  if (typeof window === "undefined") return undefined;
+  const win = window as unknown as {
+    SpeechRecognition?: SpeechRecognitionCtor;
+    webkitSpeechRecognition?: SpeechRecognitionCtor;
+  };
+  return win.SpeechRecognition ?? win.webkitSpeechRecognition;
+}
 
 type Props = {
   brand: BrandProfile;
@@ -83,14 +94,7 @@ export function IntakeChatbot({
   const [input, setInput] = useState("");
   const [interimVoice, setInterimVoice] = useState("");
   const [listening, setListening] = useState(false);
-  const [speechSupported] = useState(() => {
-    if (typeof window === "undefined") return false;
-    const win = window as unknown as {
-      SpeechRecognition?: new () => SpeechRecognitionInstance;
-      webkitSpeechRecognition?: new () => SpeechRecognitionInstance;
-    };
-    return Boolean(win.SpeechRecognition ?? win.webkitSpeechRecognition);
-  });
+  const [speechSupported] = useState(() => Boolean(speechRecognitionCtor()));
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [missingField, setMissingField] =
@@ -104,7 +108,6 @@ export function IntakeChatbot({
   const [sessionCostUsd, setSessionCostUsd] = useState(0);
   const [sessionTokens, setSessionTokens] = useState(0);
   const [lastModelLabel, setLastModelLabel] = useState<string | null>(null);
-  const [intakeEvents, setIntakeEvents] = useState<AgentEvent[]>([]);
   const msgCounterRef = useRef(0);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const scrollEndRef = useRef<HTMLDivElement | null>(null);
@@ -119,11 +122,7 @@ export function IntakeChatbot({
       setListening(false);
       return;
     }
-    const win = window as unknown as {
-      SpeechRecognition?: new () => SpeechRecognitionInstance;
-      webkitSpeechRecognition?: new () => SpeechRecognitionInstance;
-    };
-    const Ctor = win.SpeechRecognition ?? win.webkitSpeechRecognition;
+    const Ctor = speechRecognitionCtor();
     if (!Ctor) return;
     const rec = new Ctor();
     rec.lang = "en-AU";
@@ -159,8 +158,7 @@ export function IntakeChatbot({
     rec.start();
   }
 
-  function syncToParent(nextDraft: IntakeDraftState, nextEvents: AgentEvent[]) {
-    void nextEvents;
+  function syncToParent(nextDraft: IntakeDraftState) {
     onApplyDraft({
       name: nextDraft.name || form.name,
       product: nextDraft.product || form.product,
@@ -239,9 +237,7 @@ export function IntakeChatbot({
           : null,
       );
 
-      const mergedEvents = [...intakeEvents, ...(data.logEvents ?? [])];
-      setIntakeEvents(mergedEvents);
-      syncToParent(data.draft, mergedEvents);
+      syncToParent(data.draft);
     } catch {
       setError("Network error talking to the intake assistant. Your draft fields are preserved.");
     } finally {
@@ -520,7 +516,7 @@ export function IntakeChatbot({
                         fieldSources: { ...draft.fieldSources, channels: "founder" },
                       };
                       setDraft(next);
-                      syncToParent(next, intakeEvents);
+                      syncToParent(next);
                     }}
                     className={`rounded-full px-2.5 py-1 text-[11px] ${
                       active
@@ -545,7 +541,7 @@ export function IntakeChatbot({
                       fieldSources: { ...draft.fieldSources, country: "founder" },
                     };
                     setDraft(next);
-                    syncToParent(next, intakeEvents);
+                    syncToParent(next);
                   }}
                   className={`rounded-full px-2.5 py-0.5 text-[11px] ${
                     draft.country === c
@@ -564,7 +560,7 @@ export function IntakeChatbot({
           <button
             type="button"
             onClick={() => {
-              syncToParent(draft, intakeEvents);
+              syncToParent(draft);
               onSwitchToForm();
             }}
             className="w-full rounded-full bg-ink px-4 py-2.5 text-sm text-paper"

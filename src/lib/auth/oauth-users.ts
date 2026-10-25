@@ -18,12 +18,8 @@ import {
   recordLogin,
 } from "./users";
 
-export function resetSeedCheck() {
-  /* Cindy's users.ts does not export a seed reset; tests share one process. */
-}
-
 /** Columns PR #2 added; Cindy's `toAuthUser` does not map them. */
-export type UserExtras = {
+type UserExtras = {
   passwordLogin: boolean;
   googleSub: string | null;
   appleSub: string | null;

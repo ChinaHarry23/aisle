@@ -2,11 +2,12 @@
 
 import { AlertTriangle, CheckCircle2, FileCheck2, ImageIcon } from "lucide-react";
 import { ComplianceReviewHistory } from "@/components/ComplianceReviewHistory";
+import { advertisementLetter, excerptExplainer } from "@/components/advertisementLabels";
 import { cn } from "@/lib/cn";
 import { formatDate } from "@/lib/ids";
 import { campaignMediaUrl } from "@/lib/media/url";
 import type { Campaign } from "@/lib/types";
-import type { ComplianceIssue } from "@/lib/runtime/types";
+import { MAX_REVISION_ATTEMPTS, type ComplianceIssue } from "@/lib/runtime/types";
 
 const statusCopy = {
   PASSED: { label: "Automated checks passed", className: "risk-low" },
@@ -32,6 +33,7 @@ export function ComplianceCheckerPanel({ campaign }: { campaign: Campaign }) {
   const runs = campaign.complianceReviewRuns ?? [];
   const run = runs.at(-1);
   const report = run?.report;
+  const attempt = campaign.complianceAttempts.at(-1);
   const legacyReport = campaign.complianceReports.at(-1);
   const legacyFindings: ComplianceIssue[] = (legacyReport?.findings ?? []).map((finding) => ({
     id: finding.id,
@@ -45,12 +47,13 @@ export function ComplianceCheckerPanel({ campaign }: { campaign: Campaign }) {
     policyDate: "",
     recommendedCorrection: "Revise the cited wording and submit a new advertisement version.",
   }));
-  const findings = (report?.findings ?? run?.result?.findings ?? campaign.complianceAttempts.at(-1)?.issues ?? legacyFindings) as ComplianceIssue[];
+  const findings: ComplianceIssue[] = report?.findings ?? run?.result?.findings ?? attempt?.issues ?? legacyFindings;
   const submission = run?.submission;
   const legacyStatus = legacyReport?.verdict === "pass" ? "PASSED" : legacyReport?.verdict === "revise" ? "CHANGES_REQUIRED" : legacyReport ? "MANUAL_REVIEW_REQUIRED" : null;
   const status = report ? statusCopy[report.status] : legacyStatus ? statusCopy[legacyStatus] : null;
   const passes = passedChecks(findings, Boolean(report || legacyReport));
   const policyProblems = run?.ruleSelection?.problems ?? [];
+  const limitations = report?.limitations ?? run?.result?.limitations ?? [];
 
   const ads = submission?.content ?? campaign.creatives.map((creative) => ({
     creativeId: creative.id,
@@ -62,13 +65,7 @@ export function ComplianceCheckerPanel({ campaign }: { campaign: Campaign }) {
     createdAt: creative.createdAt ?? campaign.createdAt,
     generationInputs: { prompt: creative.prompt },
   }));
-  const advertisementLabels = new Map(
-    ads.map((advertisement, index) => [
-      advertisement.creativeId,
-      `Advertisement ${String.fromCharCode(65 + index)} — ${advertisement.headline}`,
-    ]),
-  );
-  const explainExcerpt = (excerpt: string) => advertisementLabels.get(excerpt) ?? excerpt;
+  const explainExcerpt = excerptExplainer(ads);
 
   return (
     <section className="flex flex-col gap-6" aria-label="Compliance Checker">
@@ -101,7 +98,7 @@ export function ComplianceCheckerPanel({ campaign }: { campaign: Campaign }) {
             return (
               <article key={ad.creativeId} className="hairline overflow-hidden">
                 <div className="border-b border-line bg-paper-2 px-4 py-2 text-xs text-mute">
-                  Advertisement {String.fromCharCode(65 + advertisementIndex)} · submitted {formatDate(ad.createdAt, true)}
+                  Advertisement {advertisementLetter(advertisementIndex)} · submitted {formatDate(ad.createdAt, true)}
                 </div>
                 {image ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -135,11 +132,11 @@ export function ComplianceCheckerPanel({ campaign }: { campaign: Campaign }) {
               <div>
                 <h3 className="font-medium">Review result</h3>
                 <p className="mt-1 text-sm text-ink-soft">
-                  {campaign.complianceAttempts.at(-1)?.summary ?? legacyReport?.summary ?? (run ? "The review is still running." : "The automatic review starts after Content Generation finishes.")}
+                  {attempt?.summary ?? legacyReport?.summary ?? (run ? "The review is still running." : "The automatic review starts after Content Generation finishes.")}
                 </p>
                 {run ? (
                   <p className="mt-2 text-xs text-mute">
-                    Attempt {run.attemptNumber}/3 · {run.ruleSelection?.rules.length ?? 0} binding local/global rule(s) · {run.ruleSelection?.referenceRules?.length ?? 0} non-binding foreign reference(s) · {run.submission.brandAssets.guidelines.length} uploaded document(s) · {run.submission.content.filter((ad) => ad.imageUrl).length} image attachment(s)
+                    Attempt {run.attemptNumber}/{MAX_REVISION_ATTEMPTS} · {run.ruleSelection?.rules.length ?? 0} binding local/global rule(s) · {run.ruleSelection?.referenceRules?.length ?? 0} non-binding foreign reference(s) · {run.submission.brandAssets.guidelines.length} uploaded document(s) · {run.submission.content.filter((ad) => ad.imageUrl).length} image attachment(s)
                   </p>
                 ) : null}
               </div>
@@ -189,10 +186,10 @@ export function ComplianceCheckerPanel({ campaign }: { campaign: Campaign }) {
             </div>
           ) : null}
 
-          {(report?.limitations ?? run?.result?.limitations ?? []).length ? (
+          {limitations.length ? (
             <details className="hairline p-4 text-sm">
               <summary className="cursor-pointer font-medium">Review limitations</summary>
-              <ul className="mt-2 list-disc space-y-1 pl-5 text-mute">{(report?.limitations ?? run?.result?.limitations ?? []).map((item) => <li key={item}>{item}</li>)}</ul>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-mute">{limitations.map((item) => <li key={item}>{item}</li>)}</ul>
             </details>
           ) : null}
         </div>

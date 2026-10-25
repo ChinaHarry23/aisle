@@ -1,3 +1,4 @@
+import { COUNTRIES } from "@/lib/runtime/intake";
 import type {
   BrandProfile,
   Campaign,
@@ -8,8 +9,6 @@ import type {
   RetailPos,
   RetailProduct,
 } from "./types";
-
-const COUNTRIES = new Set<Country>(["AU", "NZ", "UK", "US"]);
 
 /** Collapse a retailer name so "Woolworth" and "Woolworths" are the same banner. */
 export function retailerKey(name: string): string {
@@ -131,7 +130,7 @@ export function parseRetailUpload(value: unknown, fileName: string): { ok: true;
   const country = text(retailer?.country, 2).toUpperCase();
   const extractedAt = date(raw.extractedAt);
   if (!name || !id) return { ok: false, error: "retailer.id and retailer.name are required." };
-  if (!COUNTRIES.has(country as Country)) return { ok: false, error: "retailer.country must be AU, NZ, UK or US." };
+  if (!COUNTRIES.includes(country as Country)) return { ok: false, error: "retailer.country must be AU, NZ, UK or US." };
   if (raw.currency !== "AUD") return { ok: false, error: 'currency must be "AUD".' };
   if (!extractedAt) return { ok: false, error: "extractedAt must be YYYY-MM-DD." };
   if (!Array.isArray(raw.products) || raw.products.length < 1) return { ok: false, error: "The file needs at least one product." };

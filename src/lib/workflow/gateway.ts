@@ -1,4 +1,7 @@
 import type { Campaign } from "../types";
+import type { UserRole } from "../auth/types";
+import { loadWorkspace } from "../auth/workspace";
+import { retainCampaignLifecycle } from "../campaign-lifecycle";
 import type { WorkflowJob, WorkflowSubmission } from "./types";
 import { WorkflowError } from "./commands";
 import type { StudioMediaUpdate } from "../media/persistence";
@@ -26,7 +29,7 @@ export const submitWorkflow = (userId: string, input: WorkflowSubmission, key: s
 export const getWorkflowJob = (userId: string, id: string) => request<WorkflowJob>(userId, `/jobs/${encodeURIComponent(id)}`);
 export const retryWorkflowJob = (userId: string, id: string) => request<WorkflowJob>(userId, `/jobs/${encodeURIComponent(id)}/retry`, { method: "POST" });
 export const listWorkflowJobs = (userId: string) => request<{ jobs: WorkflowJob[]; worker: { online: boolean; lastSeen: string | null } }>(userId, "/jobs");
-export const workflowCampaigns = (userId: string) => request<Campaign[]>(userId, "/campaigns");
+const workflowCampaigns = (userId: string) => request<Campaign[]>(userId, "/campaigns");
 export const saveWorkflowMedia = (userId: string, id: string, update: StudioMediaUpdate) =>
   request<Campaign>(userId, `/campaigns/${encodeURIComponent(id)}/media`, { method: "POST", body: JSON.stringify(update) });
 
@@ -37,4 +40,11 @@ export async function mergeWorkflowCampaigns(userId: string, existing: Campaign[
     campaigns: [...existing.map(c => authoritative.get(c.id) ?? c), ...managed.filter(c => !existing.some(e => e.id === c.id))],
     workflowCampaignIds: managed.map(c => c.id),
   };
+}
+
+export async function accountCampaigns(userId: string, role: UserRole): Promise<Campaign[]> {
+  const workspace = await loadWorkspace(userId, role);
+  if (!workflowEnabled()) return workspace.campaigns;
+  const merged = await mergeWorkflowCampaigns(userId, workspace.campaigns);
+  return retainCampaignLifecycle(workspace.campaigns, workspace.retiredCampaignIds ?? [], merged.campaigns);
 }

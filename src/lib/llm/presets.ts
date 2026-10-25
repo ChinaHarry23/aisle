@@ -1,8 +1,7 @@
-import { getLlmModel } from "./catalog";
 import { quoteLlm } from "./estimate";
 import type { AgentSlot, LlmAssignment, LlmProviderId } from "./types";
 
-export type PresetId = "cheapest" | "balanced" | "best";
+type PresetId = "cheapest" | "balanced" | "best";
 
 export const PRESETS: { id: PresetId; label: string; help: string }[] = [
   { id: "cheapest", label: "Cheapest", help: "Smallest model everywhere. Good for drafting and demos." },
@@ -108,7 +107,7 @@ export function textCostPerRun(agents: Record<AgentSlot, LlmAssignment>) {
   let total = 0;
   for (const slot of SLOTS) {
     try {
-      total += quoteLlm(getLlmModel(agents[slot].modelId).id, slot).costUsd;
+      total += quoteLlm(agents[slot].modelId, slot).costUsd;
     } catch {
       // unknown model id in old saved settings: ignore it in the estimate
     }
