@@ -113,7 +113,7 @@ export function evaluateQuality(c:Campaign, raw:QualityAssessment|null, at:strin
     else if(f.supported&&!optionalFindingCategory(f.category)&&(f.material&&f.limitation.trim()||f.conflict&&!f.conflict.explained))add(`limited:${f.id}:${decisionFingerprint([f.claim,f.supports,f.conflict,f.limitation,rules])}`,f.category,f.limitation||'Evidence conflicts; both accounts are retained.',[f.id],true);
   }
   const passed=Boolean(assessment&&researchAreas.every(a=>a.supported||optionalResearchArea(a.category))&&requiredCategories.every(a=>a.supported||optionalFindingCategory(a.category))&&findings.filter(f=>f.main&&!optionalFindingCategory(f.category)).every(f=>f.supported)&&requests.every(r=>r.status==='resolved'));
-  return {rules,version,contextVersion:ctx,runId,rulesVersion:QUALITY_RULES.version,assessedAt:at,status:passed?'COMPLETE':'INCOMPLETE',storedVersion:null,handedOffAt:null,resumeStep:12,evidence,findings,researchAreas,requiredCategories,
+  return {rules,version,contextVersion:ctx,runId,rulesVersion:QUALITY_RULES.version,assessedAt:at,status:passed?'COMPLETE':'INCOMPLETE',storedVersion:null,handedOffAt:null,continuedAt:null,resumeStep:12,evidence,findings,researchAreas,requiredCategories,
     limitations:[...new Set([...findings.flatMap(f=>f.limitation?[f.limitation]:[]),...evidence.flatMap(e=>e.exclusions.map(reason=>`${e.id}: ${reason}`)),...continued.map(a=>`${a.reason} Trends is optional, so this gap does not stop the report.`)])],requests,replacementAttempts,assessment,modelStatus};
 }
 export function recordStoredTrend(c:Campaign):void {
@@ -121,6 +121,19 @@ export function recordStoredTrend(c:Campaign):void {
  c.sharedContext={...c.sharedContext,trendBrief:{version:q.version,contextVersion:q.contextVersion,status:q.status,evidenceIds:q.evidence.map(e=>e.id),findings:q.findings,limitations:q.limitations}};
  if(c.structuredTrendBrief)c.sharedContext.structuredTrendBrief=structuredClone(c.structuredTrendBrief);
  q.storedVersion=q.version;
+}
+/** Evidence gaps do not wait for a founder. The supported claims continue; the gaps stay visible. */
+export function releaseResearchWait(c:Campaign, at:string):void {
+  const q=c.trendQuality;if(!q)return;
+  q.continuedAt=at;
+  for(const request of q.requests)if(request.status==='pending')request.status='superseded';
+  c.trendRequests=c.trendRequests?.map(r=>r.status==='pending'&&r.contextVersion===q.contextVersion?{...r,status:'superseded' as const}:r);
+  const supported=q.findings.filter(f=>f.main&&f.supported&&!['OPPORTUNITY','RISK'].includes(f.category)).map(f=>f.claim);
+  if(c.brief){
+    const placeholder=/needs review|awaits sufficient|No supported theme/i.test(c.brief.angle);
+    c.brief={...c.brief,angle:c.brief.angle&&!placeholder?c.brief.angle:(q.findings.find(f=>f.supported)?.claim??c.product),claimsAllowed:supported};
+  }
+  if(!q.limitations.some(l=>l.includes('compliance is the human review')))q.limitations.push('Evidence gaps stay on the report. Image generation continues; compliance is the human review.');
 }
 export function trendReadyForHandoff(c:Campaign):boolean {
   if(c.trendBriefRequired&&(!c.structuredTrendBrief||c.structuredTrendBrief.status!=='COMPLETE'||!briefMatches(c,c.structuredTrendBrief)||JSON.stringify(c.sharedContext.structuredTrendBrief)!==JSON.stringify(c.structuredTrendBrief)))return false;

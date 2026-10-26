@@ -1,7 +1,7 @@
 import { uid } from '@/lib/ids';
 import { addEvent,addStep,setRun,callTool,type Work,type StepEnv } from './steps';
-import { evaluateQuality,trendReadyForHandoff } from '@/lib/trend/quality';
-import { contextVersion,type TrendResolution,type ReviewRequest } from '@/lib/trend/quality-contracts';
+import { evaluateQuality,releaseResearchWait,trendReadyForHandoff } from '@/lib/trend/quality';
+import { contextVersion,type QualityRunner,type TrendResolution,type ReviewRequest } from '@/lib/trend/quality-contracts';
 import { validateIntake } from './intake';
 import type { Campaign } from '@/lib/types';
 import type { ResearchCategory } from '@/lib/trend/contracts';
@@ -13,8 +13,12 @@ export async function runTrendQuality(w:Work,env:StepEnv):Promise<{message:strin
  if(!await permitted()){c.status='paused';c.running=false;setRun(w,{status:'paused',step:'trend.quality',haltedReason:'Paused; evidence retained.'});return {message:'Quality review paused.',blocked:true};}
  c.status='analysing';c.running=true;
  const saved=c.trendQuality;
- const result=saved?.resumeStep===8&&saved.assessment ? {assessment:saved.assessment,modelStatus:saved.modelStatus,replacementAttempts:0} : await env.llm.quality?.({campaign:c,brand:env.brand,settings:env.settings,at:w.now,allowed:permitted,
-   execute:(name,args,override)=>callTool(w,'trend',name,args,env,override),onFailedUsage:cost=>{c.spend.inferenceUsd+=cost;}});
+ let result:Awaited<ReturnType<QualityRunner>>|null=saved?.resumeStep===8&&saved.assessment ? {assessment:saved.assessment,modelStatus:saved.modelStatus,replacementAttempts:0} : null;
+ if(!result){
+   try { result=await env.llm.quality?.({campaign:c,brand:env.brand,settings:env.settings,at:w.now,allowed:permitted,
+     execute:(name,args,override)=>callTool(w,'trend',name,args,env,override),onFailedUsage:cost=>{c.spend.inferenceUsd+=cost;}}) ?? null; }
+   catch { result={assessment:null,modelStatus:'unavailable',replacementAttempts:0}; }
+ }
  const q=evaluateQuality(c,result?.assessment??null,w.now,result?.modelStatus??'unavailable',result?.replacementAttempts??0);
  if(c.trendQuality)(c.trendQualityHistory??=[]).push(structuredClone(c.trendQuality));
  c.trendQuality=q;
@@ -38,7 +42,9 @@ export async function runTrendQuality(w:Work,env:StepEnv):Promise<{message:strin
  if(env.llm.brief){
    c.trendBriefRequired=true;
    if(c.structuredTrendBrief)(c.trendBriefHistory??=[]).push(structuredClone(c.structuredTrendBrief));
-   const report=await env.llm.brief({campaign:c,brand:env.brand,settings:env.settings,at:w.now,allowed:permitted,execute:async()=>{throw Error('Report synthesis has no retrieval or action tools.');},onFailedUsage:cost=>{c.spend.inferenceUsd+=cost;}});
+   let report;
+   try { report=await env.llm.brief({campaign:c,brand:env.brand,settings:env.settings,at:w.now,allowed:permitted,execute:async()=>{throw Error('Report synthesis has no retrieval or action tools.');},onFailedUsage:cost=>{c.spend.inferenceUsd+=cost;}}); }
+   catch (error) { report=assembleBrief(c,null,null,w.now,'unavailable',[error instanceof Error?error.message:'Report synthesis failed.']); }
    c.structuredTrendBrief=report;
    for(const request of q.requests)if(!c.trendRequests?.some(r=>r.id===request.id)){
      (c.trendRequests??=[]).push(request);
@@ -61,19 +67,20 @@ export async function runTrendQuality(w:Work,env:StepEnv):Promise<{message:strin
    }
    if(c.brief)c.brief={...c.brief,angle:report.validation==='passed'?report.candidate?.themes[0]?.text??'No supported theme available.':'Report synthesis needs review.',visualDirection:report.validation==='passed'?report.candidate?.visualDirections.map(v=>v.text).join(' ')||'Visual direction unavailable.':'Visual direction awaits a validated report.',claimsAllowed:report.status==='COMPLETE'?c.brief.claimsAllowed:[]};
    for(const reason of report.errors)c.trendGaps.push({id:uid('gap'),kind:'low_confidence',detail:reason,effect:'Final report cannot be completed or handed off; retry within the shared run budget.',needsFounder:false});
-   addStep(w,'trend.brief','trend',report.validation==='passed'?'ok':'blocked','Structured TrendBrief validated',report.errors.join(' ')||'All report sections, citations, scope rationales and semantic support checks validated.');
+   addStep(w,'trend.brief','trend',report.validation==='passed'?'ok':'warn','Structured TrendBrief validated',report.errors.join(' ')||'All report sections, citations, scope rationales and semantic support checks validated.');
  }else if(c.trendBriefRequired){
    c.structuredTrendBrief=assembleBrief(c,null,null,w.now,'unavailable',['Structured brief runner unavailable.']);q.status='INCOMPLETE';
  }
- addEvent(w,'trend','output',q.status==='COMPLETE'?'Evidence review passed — awaiting storage':'Research needs your input',`${q.requiredCategories.filter(v=>v.supported).length}/7 report categories supported. ${q.requests.filter(r=>r.status==='pending').length} requests. Rules ${q.rulesVersion}.`);
- addStep(w,'trend.quality','trend',q.status==='COMPLETE'?'ok':'blocked','Evidence quality assessed',q.limitations.join(' ')||'All required main findings supported.');
- if(!await permitted()||q.status==='INCOMPLETE'){
+ addEvent(w,'trend','output',q.status==='COMPLETE'?'Evidence review passed — awaiting storage':'Research gaps recorded — continuing to image generation',`${q.requiredCategories.filter(v=>v.supported).length}/7 report categories supported. ${q.requests.filter(r=>r.status==='pending').length} open gaps. Rules ${q.rulesVersion}.`);
+ addStep(w,'trend.quality','trend',q.status==='COMPLETE'?'ok':'warn','Evidence quality assessed',q.limitations.join(' ')||'All required main findings supported.');
+ if(!await permitted()){
    c.status='paused';c.running=false;
-   setRun(w,{status:'paused',step:'trend.quality',awaiting:q.status==='INCOMPLETE'?'trend_clarification':null,awaitingDetail:[...q.requests.filter(r=>r.status==='pending').map(r=>r.reason),...(c.structuredTrendBrief?.errors??[])].join(' '),haltedReason:q.status==='INCOMPLETE'?'Resolve research requests or retry the failed report within the run budget.':'Paused by founder; explicit resume required.'});
+   setRun(w,{status:'paused',step:'trend.quality',haltedReason:'Paused by founder; explicit resume required.'});
    return {message:'Valid partial work saved; no content-generation handoff.',blocked:true};
  }
+ if(q.status==='INCOMPLETE')releaseResearchWait(c,w.now);
  q.resumeStep=13;setRun(w,{status:'running',step:'trend.handoff',awaiting:null,awaitingDetail:null,haltedReason:null});
- return {message:'Evidence sufficient. Save this version before handoff.',blocked:false};
+ return {message:q.status==='COMPLETE'?'Evidence sufficient. Save this version before handoff.':'Evidence gaps recorded. Save this version and continue to image generation.',blocked:false};
 }
 export async function handoffTrend(w:Work,env:StepEnv):Promise<{message:string;blocked:boolean}> {
  const c=w.campaign;
@@ -82,16 +89,18 @@ export async function handoffTrend(w:Work,env:StepEnv):Promise<{message:string;b
    setRun(w,{status:'running',step:'trend.quality'});
    return {message:'Prepare the full structured report from the retained assessment before handoff.',blocked:false};
  }
- if(c.trendBriefRequired&&c.trendQuality&&c.structuredTrendBrief&&!briefMatches(c,c.structuredTrendBrief)&&(!env.researchAllowed||await env.researchAllowed())){
+ if(!c.trendQuality?.continuedAt&&c.trendBriefRequired&&c.trendQuality&&c.structuredTrendBrief&&!briefMatches(c,c.structuredTrendBrief)&&(!env.researchAllowed||await env.researchAllowed())){
    c.trendQuality.status='INCOMPLETE';c.trendQuality.storedVersion=null;c.trendQuality.handedOffAt=null;
    const changed=c.trendQuality.contextVersion!==contextVersion(c);c.trendQuality.resumeStep=changed?2:3;
    setRun(w,{status:'running',step:changed?'trend.receive':'trend.quality'});
    return {message:'The report, evidence or data permission changed; revalidate before handoff.',blocked:false};
  }
- if(c.trendQuality?.status==='COMPLETE'&&c.trendQuality.contextVersion===contextVersion(c)&&c.trendQuality.storedVersion!==c.trendQuality.version&&(!env.researchAllowed||await env.researchAllowed())){
-   c.trendQuality.resumeStep=13;return {message:'Retrying persistence of the supported current brief; handoff awaits confirmation.',blocked:false};
+ const q=c.trendQuality;
+ const continuing=Boolean(q?.continuedAt&&q.contextVersion===contextVersion(c));
+ if(q&&(q.status==='COMPLETE'||continuing)&&q.contextVersion===contextVersion(c)&&q.storedVersion!==q.version&&(!env.researchAllowed||await env.researchAllowed())){
+   q.resumeStep=13;return {message:'Retrying persistence of the current brief; handoff awaits confirmation.',blocked:false};
  }
- if(!trendReadyForHandoff(c)||env.researchAllowed&&!await env.researchAllowed()){
+ if((!trendReadyForHandoff(c)&&!continuing)||env.researchAllowed&&!await env.researchAllowed()){
    c.status='paused';c.running=false;
    setRun(w,{status:'paused',step:'trend.handoff',haltedReason:'The current supported brief must be stored and execution permitted before handoff.'});
    return {message:'Trend handoff pending; current version retained.',blocked:true};

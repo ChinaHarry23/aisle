@@ -904,7 +904,7 @@ export async function runCreativeGeneration(
     return {message:'Prepare the full structured report before generating content.',blocked:false};
   }
   if(c.trendQuality || c.researchMode==='agent'){
-    if(!trendReadyForHandoff(c)||env.researchAllowed&&!await env.researchAllowed()){
+    if((!trendReadyForHandoff(c)&&!c.trendQuality?.continuedAt)||env.researchAllowed&&!await env.researchAllowed()){
       c.status='paused';c.running=false;setRun(w,{status:'paused',step:'trend.handoff',haltedReason:'Current evidence-backed brief is not ready for handoff.'});
       return {message:'Content generation blocked: insufficient, unsaved or unresolved research.',blocked:true};
     }

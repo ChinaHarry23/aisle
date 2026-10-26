@@ -31,6 +31,8 @@ export type ReviewRequest = {
 export type TrendQuality = {
   version:number; contextVersion:string; runId:string; rulesVersion:string; assessedAt:string;
   status:'INCOMPLETE'|'COMPLETE'; storedVersion:number|null; handedOffAt:string|null;
+  /** Set when evidence gaps are disclosed and image generation continues. Compliance remains the human review. */
+  continuedAt:string|null;
   resumeStep:2|3|8|12|13|15; evidence:EvidenceReview[]; findings:FindingReview[];
   researchAreas:{category:ResearchCategory;channel?:string;supported:boolean;reason:string}[];
   requiredCategories:{category:FindingCategory;supported:boolean}[];

@@ -1,4 +1,5 @@
 import {runTrendQuality,handoffTrend,resolveTrend,cancelTrend} from './trend-quality';
+import { releaseResearchWait } from '@/lib/trend/quality';
 /**
  * The campaign operation as a LangGraph.
  *
@@ -284,13 +285,12 @@ export async function intakeNode(state: OpState): Promise<Partial<OpState>> {
     return { work: w, stop: true, canAdvance: false, message: "This campaign is already running." };
   }
   if (w.campaign.status === "paused" && w.campaign.trendQuality) {
-    if (w.campaign.trendRequests?.some((request) => request.status === "pending")) {
-      return { work: w, stop: true, canAdvance: false, message: "Resolve the research requests before resuming." };
-    }
-    setRun(w, { status: "running", awaiting: null, awaitingDetail: null, haltedReason: null });
+    releaseResearchWait(w.campaign, envOf(state).now);
+    w.campaign.status = "analysing";
     w.campaign.running = true;
-    addEvent(w, "founder", "decision", "Research explicitly resumed", `Continuing the saved ${w.run?.step} checkpoint.`);
-    return { work: w, stop: false, canAdvance: true, message: "Research resumed." };
+    setRun(w, { status: "running", step: "trend.handoff", awaiting: null, awaitingDetail: null, haltedReason: null });
+    addEvent(w, "founder", "decision", "Research gaps kept on the report", "Image generation continues. Compliance is the human review.");
+    return { work: w, stop: false, canAdvance: true, message: "Research gaps recorded. Continuing to image generation." };
   }
   const env = envOf(state);
   const started = startIntake(w, env);
