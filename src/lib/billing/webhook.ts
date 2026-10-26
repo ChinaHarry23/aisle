@@ -1,10 +1,10 @@
 /**
  * What a verified Stripe event does to Aisle.
  *
- * `invoice.paid` for a subscription's first or renewal invoice is the only
- * thing that grants credits: it sets the balance to the monthly allowance,
- * once per invoice. Everything else keeps `billing_customers` in step with the
- * subscription so the Billing page can say what is going on.
+ * `invoice.paid` for a subscription's first or renewal invoice grants the monthly
+ * allowance. A paid one-time Checkout for the credit pack adds that pack on
+ * top of the balance. Everything else keeps `billing_customers` in step with
+ * the subscription so the Billing page can say what is going on.
  *
  * Stripe does not promise order or single delivery, so every handler is safe
  * to replay and to receive early: the user is found from metadata Aisle wrote
@@ -19,7 +19,8 @@
  */
 
 import { getDatabase } from "@/lib/db";
-import { expireCredits, resetForInvoice } from "./ledger";
+import { expireCredits, grantTopup, resetForInvoice, reverseTopup } from "./ledger";
+import { CREDIT_PACK } from "./plan";
 import { stripeRequest, type StripeEvent } from "./stripe";
 
 type Obj = Record<string, unknown>;
@@ -184,7 +185,28 @@ function invoicePeriodEnd(invoice: Obj): string | null {
   return isoFromUnix(obj(first?.period)?.end) ?? isoFromUnix(invoice.period_end);
 }
 
+async function onCreditPackCheckout(session: Obj, livemode: boolean | null): Promise<WebhookOutcome> {
+  if (str(obj(session.metadata)?.aisle_pack) !== CREDIT_PACK.id) return ignored("not a credit pack checkout");
+  if (session.payment_status !== "paid") return ignored("credit pack waiting for payment");
+  const customerId = idOf(session.customer);
+  const userId = await userExists(str(session.client_reference_id) ?? str(obj(session.metadata)?.aisle_user_id));
+  if (!userId || !customerId) return ignored("credit pack checkout for an unknown user");
+  const paymentIntent = idOf(session.payment_intent);
+  if (!paymentIntent) return ignored("credit pack checkout has no payment");
+  await saveLink({ userId, customerId, livemode });
+  const granted = await grantTopup(
+    userId,
+    CREDIT_PACK.credits,
+    paymentIntent,
+    `${CREDIT_PACK.credits.toLocaleString("en-US")} credits bought for $${CREDIT_PACK.priceUsd}`,
+  );
+  return granted
+    ? { handled: true, note: `${userId} bought ${CREDIT_PACK.credits} credits (${paymentIntent})` }
+    : ignored(`credit pack ${paymentIntent} already granted`);
+}
+
 async function onCheckoutCompleted(session: Obj, livemode: boolean | null, eventAt: number | null): Promise<WebhookOutcome> {
+  if (session.mode === "payment") return onCreditPackCheckout(session, livemode);
   if (session.mode !== "subscription") return ignored("not a subscription checkout");
   const customerId = idOf(session.customer);
   const userId = await userExists(str(session.client_reference_id) ?? str(obj(session.metadata)?.aisle_user_id));
@@ -350,6 +372,17 @@ async function onPaymentReversed(object: Obj, kind: "refund" | "dispute"): Promi
   const chargeId = str(charge.id);
   const userId = await userForCustomer(idOf(charge.customer));
   if (!chargeId || !userId) return ignored(`${kind} for a payment Aisle did not take`);
+  const paymentIntent = idOf(charge.payment_intent);
+  if (paymentIntent) {
+    const note =
+      kind === "refund" ? "Payment refunded; the credits it bought were taken back" : "Payment disputed; the credits it bought were taken back";
+    const reversed = await reverseTopup(userId, paymentIntent, `${kind}:${chargeId}`, note);
+    if (reversed !== null) {
+      return reversed
+        ? { handled: true, note: `${userId} credit pack reversed after ${kind}` }
+        : ignored(`${kind} for ${chargeId} already applied`);
+    }
+  }
   const expired = await expireCredits(
     userId,
     `${kind}:${chargeId}`,
@@ -364,6 +397,7 @@ async function processStripeEvent(event: StripeEvent): Promise<WebhookOutcome> {
   const eventAt = typeof event.created === "number" && Number.isFinite(event.created) ? Math.floor(event.created) : null;
   switch (event.type) {
     case "checkout.session.completed":
+    case "checkout.session.async_payment_succeeded":
       return onCheckoutCompleted(object, livemode, eventAt);
     case "invoice.paid":
       return onInvoicePaid(object, livemode, eventAt);

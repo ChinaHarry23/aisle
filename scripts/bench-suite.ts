@@ -284,13 +284,15 @@ async function approveAndAdvance(s: ReturnType<typeof session>, note: string) {
 {
   const s = await startAndAdvance({ channels: ["web"] }, { internalDataAuthorised: false });
   const c = s.campaign;
-  const exclusion = c.trendGaps.find((g) => g.kind === "unauthorised");
-  assert.ok(exclusion, "unauthorised internal data must be recorded as a gap (UC-02 ext 4.b)");
   assert.ok(
-    c.toolCalls.some((t) => t.tool === "retail.internal_signals" && t.status === "skipped"),
-    "the internal tool must be skipped, not silently used",
+    c.evidence.some((e) => e.sourceName === "Woolworths POS"),
+    "the Brand POS file is used without a separate campaign authorisation",
   );
-  pass("UC-02 ext 4.b — unauthorised internal data excluded", exclusion.detail);
+  assert.ok(
+    !c.policyDecisions.some((d) => d.action === "READ_INTERNAL_DATA" && d.verdict === "block"),
+    "a loaded Brand file must not be blocked as unauthorised",
+  );
+  pass("UC-02 — Brand POS file authorises the trend read", `${c.evidence.length} evidence rows`);
 }
 
 /* CC-03: missing trusted policy must stop the automatic revision chain. */

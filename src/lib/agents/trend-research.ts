@@ -47,7 +47,8 @@ export function createTrendResearch(billing?: BillingContext, test?: { mode:'moc
       if(!names.includes(name))return fail('Tool is not exposed to this research agent.');
       const definition=toolByName(name)!;
       if(!toolSchema(definition).safeParse(args).success)return fail('Invalid arguments.','error');
-      if(name==='retail.internal_signals' ? !input.campaign.internalDataAuthorised : !sourcePermitted(input.campaign,name,DEFAULT_EXTERNAL_SOURCES))return fail('Source excluded by campaign permission.');
+      const brandRetail = input.brand.retailData?.schemaVersion === "1.0" && (input.brand.retailData.products?.length ?? 0) > 0;
+      if(name==='retail.internal_signals' ? !(input.campaign.internalDataAuthorised || brandRetail) : !sourcePermitted(input.campaign,name,DEFAULT_EXTERNAL_SOURCES))return fail('Source excluded by campaign permission.');
       const key=name+JSON.stringify(Object.entries(args).sort(([a],[b])=>a.localeCompare(b)));
       const previous=cache.get(key);if(previous)return input.execute(name,args,{...previous,evidence:[],usage:previous.usage?{...previous.usage,cache:'same_run',credits:0,creditsBasis:'cache',originalCredits:previous.usage.credits,estimatedCostUsd:0}:undefined,summary:'Same-run cache hit: '+previous.summary});
       if(++calls>Math.min(MAX_TOOLS, test?.toolCallLimit??MAX_TOOLS))return fail('Research tool-call cap reached.');
@@ -143,7 +144,8 @@ export function createTrendResearch(billing?: BillingContext, test?: { mode:'moc
     // Calendar/specialist enrichment is selected by the model. Cultural search
     // above guarantees an attempt without pre-empting its tool decision.
   }
-  if (input.campaign.internalDataAuthorised) {
+  const brandRetail = input.brand.retailData?.schemaVersion === "1.0" && (input.brand.retailData.products?.length ?? 0) > 0;
+  if (input.campaign.internalDataAuthorised || brandRetail) {
     const area = plan.find(a => a.category === 'purchase_preference')!;
     await requiredCall(area, 'retail.internal_signals', {category:input.campaign.category,country:input.campaign.country});
   }

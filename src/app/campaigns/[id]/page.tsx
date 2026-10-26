@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
-import { Suspense, useMemo, useState, type ReactNode } from "react";
+import { Suspense, useMemo, useRef, useState, type ReactNode } from "react";
 import { AgentLog } from "@/components/AgentLog";
 import { OperationGraph } from "@/components/OperationGraph";
 import { ChecksPanel } from "@/components/ChecksPanel";
@@ -112,6 +112,7 @@ function CampaignWorkspace() {
   const restoreCampaign = useAisle((s) => s.restoreCampaign);
   const deleteCampaign = useAisle((s) => s.deleteCampaign);
   const busy = useAisle((s) => s.busy[id] ?? false);
+  const launchLock = useRef(false);
   const router = useRouter();
   const setTab = (next: Tab) => router.replace(`/campaigns/${id}?tab=${next}`, { scroll: false });
   const attachRetailUpload = useAisle((s) => s.attachRetailUpload);
@@ -182,10 +183,17 @@ function CampaignWorkspace() {
             {canLaunch ? (
               <button
                 type="button"
-                onClick={() => void launch(campaign.id)}
-                className="rounded-full btn-primary px-4 py-2 text-sm font-medium"
+                disabled={busy}
+                onClick={() => {
+                  if (launchLock.current || busy) return;
+                  launchLock.current = true;
+                  void launch(campaign.id).finally(() => {
+                    launchLock.current = false;
+                  });
+                }}
+                className="rounded-full btn-primary px-4 py-2 text-sm font-medium disabled:opacity-50"
               >
-                Launch agents
+                {busy ? "Launching…" : "Launch agents"}
               </button>
             ) : null}
             {!archived && campaign.running ? (

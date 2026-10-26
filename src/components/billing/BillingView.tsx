@@ -2,13 +2,14 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { formatCredits, LIVE_STATUSES, MILLI, PLAN } from "@/lib/billing/plan";
+import { formatCredits, LIVE_STATUSES, MILLI, PLAN, CREDIT_PACK } from "@/lib/billing/plan";
 import type { LedgerEntry } from "@/lib/billing/ledger";
 import type { BillingSummary } from "@/lib/billing/summary";
 import { formatDate, formatUsd } from "@/lib/ids";
 import { cn } from "@/lib/cn";
 import { creditExamples } from "./examples";
 import { BILLING_CHANGED } from "./events";
+import { BuyCreditsButton } from "./BuyCreditsButton";
 
 const STATUS: Record<string, { label: string; tone: "ok" | "warn" | "mute" }> = {
   active: { label: "Active", tone: "ok" },
@@ -28,6 +29,8 @@ const REASON: Record<string, string> = {
   dev_usage: "Cloud usage (team desk)",
   adjust: "Adjustment",
   expired: "Credits expired",
+  topup: "Credits bought",
+  reversal: "Credits returned",
 };
 
 function signed(milli: number) {
@@ -162,7 +165,11 @@ export function BillingView({ checkout }: { checkout: "success" | "cancel" | nul
           <p className="text-xs text-mute">{PLAN.name}</p>
           <ul className="mt-4 space-y-1.5 text-sm text-ink-soft">
             <li>{PLAN.monthlyCredits.toLocaleString("en-US")} credits every month, reset on each payment (no rollover)</li>
-            {plan.freeCredits > 0 && <li>{plan.freeCredits} free credits to start, once per person</li>}
+            {plan.freeCredits > 0 && <li>{plan.freeCredits.toLocaleString("en-US")} free credits to start, once per person</li>}
+            <li>
+              Or buy {CREDIT_PACK.credits.toLocaleString("en-US")} more for ${CREDIT_PACK.priceUsd}. Bought credits are added
+              to the balance and are not reset with the month.
+            </li>
             <li>
               1 credit = ${PLAN.usdPerCredit.toFixed(2)}, charged at {PLAN.markup}× what the provider bills
             </li>
@@ -218,7 +225,7 @@ export function BillingView({ checkout }: { checkout: "success" | "cancel" | nul
                 </p>
               )}
 
-              <div className="mt-4 flex flex-wrap gap-2">
+              <div className="mt-4 flex flex-wrap items-start gap-2">
                 {!live && (
                   <button
                     type="button"
@@ -234,6 +241,7 @@ export function BillingView({ checkout }: { checkout: "success" | "cancel" | nul
                         : `Subscribe — $${PLAN.priceUsd}/month`}
                   </button>
                 )}
+                <BuyCreditsButton ready={summary.topupReady} />
                 {sub && (
                   <button
                     type="button"

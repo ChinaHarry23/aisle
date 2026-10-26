@@ -10,6 +10,11 @@ import { RESEARCH_CATEGORIES } from './contracts';
 import { contextVersion, FINDING_CATEGORIES, findingResearch, QUALITY_RULES, qualityAssessmentSchema,configuredQualityRules,type QualityRules,
   type QualityAssessment,type TrendQuality,type EvidenceReview,type FindingReview,type ReviewRequest } from './quality-contracts';
 const decisionFingerprint=(value:unknown)=>{const text=JSON.stringify(value);let h=2166136261;for(let i=0;i<text.length;i++)h=Math.imul(h^text.charCodeAt(i),16777619);return (h>>>0).toString(16);};
+/** Page reads often have no machine-declared publication date. Trends is optional context. */
+export function undatedPageRead(sourceName:string):boolean { return sourceName==='Firecrawl Scrape'||sourceName==='Public source text'; }
+export function trendsMeasurement(sourceName:string):boolean { return sourceName==='SerpApi Google Trends'; }
+export function optionalResearchArea(category:string):boolean { return category==='historical_market'||category==='customer_interest'; }
+export function optionalFindingCategory(category:string):boolean { return category==='TREND'; }
 const normalized=(s:string)=>s.toLowerCase().replace(/\s+/g,' ').trim();
 export function sourceIdentity(e:Evidence):string {
   try {const u=new URL(e.sourceRef);return u.hostname.replace(/^www\./,'')+u.pathname.replace(/\/$/,'');}catch{return e.sourceRef;}
@@ -34,7 +39,9 @@ export function evaluateQuality(c:Campaign, raw:QualityAssessment|null, at:strin
     const semantic=matches.length===1?matches[0]:null;
     const currency=evidenceCurrency(e,at,rules), exclusions:string[]=[];
     if(!semantic)exclusions.push('No unique semantic review for this record.');
-    if(e.sourceKind==='internal_retail'?!c.internalDataAuthorised:e.sourceKind!=='external_public'||!publicSourceUrl(e.sourceRef))exclusions.push('Unauthorised or non-public source.');
+    const brandRetail=e.sourceKind==='internal_retail'&&e.sourceRef.startsWith('brand://retail-data');
+    const trends=trendsMeasurement(e.sourceName);
+    if(!trends&&(e.sourceKind==='internal_retail'?!(c.internalDataAuthorised||brandRetail):e.sourceKind!=='external_public'||!publicSourceUrl(e.sourceRef)))exclusions.push('Unauthorised or non-public source.');
     if(semantic?.sensitive)exclusions.push('Sensitive information excluded.');
     if(e.research?.permission!=='allowed')exclusions.push('No evidence access permission.');
     if(e.status!=='verified'&&e.status!=='conflicting')exclusions.push('Source is not usable.');
@@ -42,7 +49,10 @@ export function evaluateQuality(c:Campaign, raw:QualityAssessment|null, at:strin
     if(semantic?.relevant!==true)exclusions.push('Relevance not established.');
     if(semantic?.geography!=='matches'&&semantic?.geography!=='transferable')exclusions.push('Geographical applicability not established.');
     if(semantic?.reliability==='uncertain')exclusions.push('Source reliability uncertain.');
-    if(semantic?.temporal!=='fits'||currency==='outdated'||currency==='unknown')exclusions.push('Currency or target-period fit not established.');
+    // A Firecrawl page with no publication date, and a Trends series, stay usable.
+    // A page that does declare a date still has to fit the campaign window.
+    const skipTimeCheck=(undatedPageRead(e.sourceName)&&currency==='unknown')||trends;
+    if(!skipTimeCheck&&(semantic?.temporal!=='fits'||currency==='outdated'||currency==='unknown'))exclusions.push('Currency or target-period fit not established.');
     const fingerprint=normalized(e.detail).replace(/[^a-z0-9]/g,'');
     const identity=sourceIdentity(e), duplicate=seen.get(identity)|| (fingerprint.length>80?seen.get(fingerprint):undefined);
     const origin=semantic?.originEvidenceId;
@@ -95,15 +105,16 @@ export function evaluateQuality(c:Campaign, raw:QualityAssessment|null, at:strin
       options:limited?['correct_context','provide_data','continue_limited','decline']:['correct_context','provide_data','decline'],
       status:old?.decision==='continue_limited'&&limited?'resolved':'pending',requestedAt:old?.requestedAt??at});
   };
-  for(const a of researchAreas)if(!a.supported)add(`area:${a.category}:${a.channel??''}`,a.category,a.reason);
-  for(const cat of requiredCategories)if(!cat.supported)add(`output:${cat.category}`,cat.category,`The report needs a sufficiently supported main ${cat.category.toLowerCase()} finding.`,findings.filter(f=>f.category===cat.category).map(f=>f.id));
+  const continued=researchAreas.filter(a=>!a.supported&&optionalResearchArea(a.category));
+  for(const a of researchAreas)if(!a.supported&&!optionalResearchArea(a.category))add(`area:${a.category}:${a.channel??''}`,a.category,a.reason);
+  for(const cat of requiredCategories)if(!cat.supported&&!optionalFindingCategory(cat.category))add(`output:${cat.category}`,cat.category,`The report needs a sufficiently supported main ${cat.category.toLowerCase()} finding.`,findings.filter(f=>f.category===cat.category).map(f=>f.id));
   for(const f of findings){
-    if(f.main&&!f.supported&&!requests.some(r=>r.findingIds.includes(f.id)))add(`finding:${f.id}`,f.category,f.reasons.join(' '),[f.id]);
-    else if(f.supported&&(f.material&&f.limitation.trim()||f.conflict&&!f.conflict.explained))add(`limited:${f.id}:${decisionFingerprint([f.claim,f.supports,f.conflict,f.limitation,rules])}`,f.category,f.limitation||'Evidence conflicts; both accounts are retained.',[f.id],true);
+    if(f.main&&!f.supported&&!optionalFindingCategory(f.category)&&!requests.some(r=>r.findingIds.includes(f.id)))add(`finding:${f.id}`,f.category,f.reasons.join(' '),[f.id]);
+    else if(f.supported&&!optionalFindingCategory(f.category)&&(f.material&&f.limitation.trim()||f.conflict&&!f.conflict.explained))add(`limited:${f.id}:${decisionFingerprint([f.claim,f.supports,f.conflict,f.limitation,rules])}`,f.category,f.limitation||'Evidence conflicts; both accounts are retained.',[f.id],true);
   }
-  const passed=Boolean(assessment&&researchAreas.every(a=>a.supported)&&requiredCategories.every(a=>a.supported)&&findings.filter(f=>f.main).every(f=>f.supported)&&requests.every(r=>r.status==='resolved'));
+  const passed=Boolean(assessment&&researchAreas.every(a=>a.supported||optionalResearchArea(a.category))&&requiredCategories.every(a=>a.supported||optionalFindingCategory(a.category))&&findings.filter(f=>f.main&&!optionalFindingCategory(f.category)).every(f=>f.supported)&&requests.every(r=>r.status==='resolved'));
   return {rules,version,contextVersion:ctx,runId,rulesVersion:QUALITY_RULES.version,assessedAt:at,status:passed?'COMPLETE':'INCOMPLETE',storedVersion:null,handedOffAt:null,resumeStep:12,evidence,findings,researchAreas,requiredCategories,
-    limitations:[...new Set([...findings.flatMap(f=>f.limitation?[f.limitation]:[]),...evidence.flatMap(e=>e.exclusions.map(reason=>`${e.id}: ${reason}`))])],requests,replacementAttempts,assessment,modelStatus};
+    limitations:[...new Set([...findings.flatMap(f=>f.limitation?[f.limitation]:[]),...evidence.flatMap(e=>e.exclusions.map(reason=>`${e.id}: ${reason}`)),...continued.map(a=>`${a.reason} Trends is optional, so this gap does not stop the report.`)])],requests,replacementAttempts,assessment,modelStatus};
 }
 export function recordStoredTrend(c:Campaign):void {
  const q=c.trendQuality;if(!q||q.contextVersion!==contextVersion(c))return;
@@ -113,5 +124,5 @@ export function recordStoredTrend(c:Campaign):void {
 }
 export function trendReadyForHandoff(c:Campaign):boolean {
   if(c.trendBriefRequired&&(!c.structuredTrendBrief||c.structuredTrendBrief.status!=='COMPLETE'||!briefMatches(c,c.structuredTrendBrief)||JSON.stringify(c.sharedContext.structuredTrendBrief)!==JSON.stringify(c.structuredTrendBrief)))return false;
-  const q=c.trendQuality;return Boolean(q&&q.status==='COMPLETE'&&q.contextVersion===contextVersion(c)&&q.runId===c.run?.id&&q.storedVersion===q.version&&c.sharedContext.trendBrief?.version===q.version&&c.sharedContext.trendBrief.status==='COMPLETE'&&q.researchAreas.every(a=>a.supported)&&q.requiredCategories.every(a=>a.supported)&&q.findings.filter(f=>f.main).every(f=>f.supported)&&!c.trendRequests?.some(r=>r.contextVersion===q.contextVersion&&r.status==='pending')&&c.run?.status==='running');
+  const q=c.trendQuality;return Boolean(q&&q.status==='COMPLETE'&&q.contextVersion===contextVersion(c)&&q.runId===c.run?.id&&q.storedVersion===q.version&&c.sharedContext.trendBrief?.version===q.version&&c.sharedContext.trendBrief.status==='COMPLETE'&&q.researchAreas.every(a=>a.supported||optionalResearchArea(a.category))&&q.requiredCategories.every(a=>a.supported||optionalFindingCategory(a.category))&&q.findings.filter(f=>f.main&&!optionalFindingCategory(f.category)).every(f=>f.supported)&&!c.trendRequests?.some(r=>r.contextVersion===q.contextVersion&&r.status==='pending')&&c.run?.status==='running');
 }

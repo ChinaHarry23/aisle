@@ -152,6 +152,35 @@ pass('declared publication metadata is distinct from fetch time; original conten
  const next=evaluateQuality(test,changed,at,'MOCK');assert.equal(next.status,'INCOMPLETE');assert.ok(next.requests.some(v=>v.status==='pending'&&v.options.includes('continue_limited')));assert.notEqual(next.requests[0].id,r.id);
 }
 pass('limited continuation is bound to the exact claim, citations, conflict, qualification and rules; a reused finding ID cannot transfer approval');
+{
+ const test=base(),page=test.evidence[0],a=assessment(test);
+ page.sourceName='Firecrawl Scrape';page.observedAt=null;page.dateBasis='unknown';
+ a.evidence[0].temporal='unknown';a.evidence[0].reason='Retailer page read has no publication date; the page content is still usable.';
+ const q=evaluateQuality(test,a,at,'MOCK');
+ assert.equal(q.evidence.find(e=>e.id==='e0')!.currency,'unknown');assert.equal(q.evidence.find(e=>e.id==='e0')!.accepted,true);assert.equal(q.status,'COMPLETE');
+ page.observedAt='2020-01-01';a.evidence[0].temporal='outdated';
+ const stale=evaluateQuality(test,a,at,'MOCK');
+ assert.equal(stale.evidence.find(e=>e.id==='e0')!.accepted,false);assert.equal(stale.status,'INCOMPLETE');
+}
+pass('an undated Firecrawl page read can support the report; a page that declares an old date still fails the window');
+{
+ const test=base(),trends=test.evidence.find(e=>e.research?.category==='historical_market')!,a=assessment(test);
+ trends.sourceName='SerpApi Google Trends';trends.sourceRef='https://trends.google.com/trends/explore?geo=AU&q=Apple%20juice&date=today%2012-m';trends.observedAt=null;
+ const review=a.evidence.find(e=>e.id===trends.id)!;review.temporal='fits';review.reason='Relevant AU search-interest series.';
+ const used=evaluateQuality(test,a,at,'MOCK');
+ assert.equal(used.evidence.find(e=>e.id===trends.id)!.accepted,true);assert.equal(used.status,'COMPLETE');
+ const area=a.areas.find(x=>x.category==='historical_market')!;area.supports=[];area.summary='Trends returned nothing that answers this campaign.';area.limitation='No usable search-interest series.';
+ const interest=a.areas.find(x=>x.category==='customer_interest')!;interest.supports=[];interest.summary='No usable related-query series.';interest.limitation='Customer-interest trends were empty.';
+ const finding=a.findings.find(f=>f.category==='TREND')!;finding.supports=[];finding.confidence='low';finding.claim='No usable trends series for this product.';
+ const skipped=evaluateQuality(test,a,at,'MOCK');
+ assert.equal(skipped.researchAreas.find(x=>x.category==='historical_market')!.supported,false);
+ assert.equal(skipped.researchAreas.find(x=>x.category==='customer_interest')!.supported,false);
+ assert.equal(skipped.requiredCategories.find(x=>x.category==='TREND')!.supported,false);
+ assert.equal(skipped.requests.some(r=>r.category==='historical_market'||r.category==='customer_interest'||r.category==='TREND'),false);
+ assert.equal(skipped.status,'COMPLETE');
+ assert.ok(skipped.limitations.some(l=>l.includes('historical_market')&&l.includes('does not stop the report')));
+}
+pass('a relevant Trends series can be used; an unusable series is disclosed and does not stop the report');
 console.log(`${checks} TA-04 acceptance groups passed. ALL model/data fixtures above are synthetic.`);
 if(process.argv.includes('--preview')){
  const {loadWorkspace,saveWorkspace}=await import('../src/lib/auth/workspace');

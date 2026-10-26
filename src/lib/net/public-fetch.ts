@@ -114,6 +114,63 @@ function checkUrl(url: URL) {
   if (isIP(host) && !isPublicAddress(host)) throw new PrivateAddressError();
 }
 
+const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
+
+/** A fetch of a URL the user typed: loopback stays on this machine; anything else must resolve to a public address. */
+export async function fetchGuarded(
+  target: string,
+  init: { method?: string; headers?: Record<string, string>; body?: string; timeoutMs: number },
+): Promise<{ status: number; ok: boolean; text: string }> {
+  const url = new URL(target);
+  if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error("The address must start with http:// or https://.");
+  if (url.username || url.password) throw new Error("Leave the user name and password out of the address.");
+  const host = url.hostname.replace(/^\[|\]$/g, "").toLowerCase();
+  if (LOOPBACK_HOSTS.has(host)) {
+    const res = await fetch(target, {
+      method: init.method ?? "GET",
+      headers: init.headers,
+      body: init.body,
+      redirect: "error",
+      signal: AbortSignal.timeout(init.timeoutMs),
+    });
+    return { status: res.status, ok: res.ok, text: await res.text() };
+  }
+  checkUrl(url);
+  const signal = AbortSignal.timeout(init.timeoutMs);
+  const page = await new Promise<{ status: number; text: string }>((resolve, reject) => {
+    const client = url.protocol === "https:" ? https : http;
+    const request = client.request(
+      url,
+      { method: init.method ?? "GET", headers: init.headers, lookup: publicLookup as never, signal },
+      (response) => {
+        const chunks: Buffer[] = [];
+        let size = 0;
+        let done = false;
+        const finish = () => {
+          if (done) return;
+          done = true;
+          response.destroy();
+          resolve({ status: response.statusCode ?? 0, text: Buffer.concat(chunks).toString("utf8") });
+        };
+        response.on("data", (chunk: Buffer) => {
+          if (done) return;
+          chunks.push(chunk);
+          size += chunk.length;
+          if (size >= 2_000_000) finish();
+        });
+        response.on("end", finish);
+        response.on("error", reject);
+      },
+    );
+    request.on("error", (error) => {
+      reject(error instanceof PrivateAddressError ? new PrivateAddressError() : error);
+    });
+    if (init.body) request.write(init.body);
+    request.end();
+  });
+  return { status: page.status, ok: page.status >= 200 && page.status < 300, text: page.text };
+}
+
 type PublicPage = { status: number; url: URL; text: string };
 
 function requestOnce(

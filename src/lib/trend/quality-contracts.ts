@@ -46,7 +46,7 @@ export type TrendResolution = {
 export type QualityRunner = (input:ResearchInput) => Promise<{assessment:QualityAssessment|null;modelStatus:string;replacementAttempts:number}>;
 /** Named, versioned implementation rules; no numeric threshold is attributed to Stage 1. */
 export const QUALITY_RULES = {
-  version:'ta04-1', currentMaxAgeDays:120, culturalMaxAgeDays:730, replacementCallLimit:4,
+  version:'ta04-2', currentMaxAgeDays:120, culturalMaxAgeDays:730, replacementCallLimit:4,
   minIndependentSources:1, materialMinIndependentSources:2,
 };
 export type QualityRules=typeof QUALITY_RULES;

@@ -1,6 +1,6 @@
 import { DEFAULT_LOCAL_BASE_URL } from "../settings";
 import { isHosted } from "@/lib/billing/hosted";
-import { allowedLocalBase, refusedLocalBaseMessage } from "./local-base";
+import { allowedLocalBase, fetchLocalModel, refusedLocalBaseMessage } from "./local-base";
 import type { CompleteRequest, LlmModel } from "./types";
 
 class LlmAdapterNotWiredError extends Error {
@@ -85,18 +85,14 @@ export async function callLlm(
   req: CompleteRequest,
 ): Promise<{ text: string; inputTokens?: number; outputTokens?: number }> {
   if (model.providerId === "local") {
-    const res = await fetch(`${localBase(req)}/chat/completions`, {
+    const res = await fetchLocalModel(localBase(req), "chat/completions", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(buildLlmBody(model, req)),
-      // A redirect could carry the request past the URL check above.
-      redirect: "error",
-      signal: AbortSignal.timeout(2_500),
     });
     if (!res.ok) {
-      throw new Error(`Local LLM ${res.status}: ${(await res.text()).slice(0, 240)}`);
+      throw new Error(`Local LLM ${res.status}: ${res.text.slice(0, 240)}`);
     }
-    const json = (await res.json()) as {
+    const json = JSON.parse(res.text) as {
       choices?: { message?: { content?: string } }[];
       usage?: { prompt_tokens?: number; completion_tokens?: number };
     };

@@ -1,7 +1,7 @@
 import { LLM_MODELS } from "@/lib/llm/catalog";
 import { MEDIA_MODELS } from "@/lib/media/catalog";
 import type { ConnectionTestResult } from "@/lib/connections";
-import { allowedLocalBase, refusedLocalBaseMessage } from "@/lib/llm/local-base";
+import { allowedLocalBase, fetchLocalModel, refusedLocalBaseMessage } from "@/lib/llm/local-base";
 
 type Body = { kind?: "llm" | "image"; providerId?: string; baseUrl?: string };
 
@@ -54,10 +54,16 @@ export async function POST(req: Request) {
     // The same check the agents' calls use, so this cannot probe internal hosts.
     const allowed = allowedLocalBase(raw);
     if (!allowed) return Response.json(fail(refusedLocalBaseMessage(), 0));
-    const result = await probe(`${allowed}/models`, {});
-    return Response.json(
-      result.ok ? { ...result, message: "Endpoint reachable." } : { ...result, message: `${result.message} Is the server running and reachable from where Aisle runs?` },
-    );
+    const started = Date.now();
+    try {
+      const result = await fetchLocalModel(allowed, "models", { timeoutMs: 12_000 });
+      const ms = Date.now() - started;
+      if (result.ok) return Response.json({ ok: true, message: "Endpoint reachable.", ms });
+      return Response.json(fail(`${result.status ? `The endpoint answered with status ${result.status}. ` : ""}Is the server running and reachable from where Aisle runs?`, ms));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not reach the endpoint.";
+      return Response.json(fail(`${message} Is the server running and reachable from where Aisle runs?`, Date.now() - started));
+    }
   }
 
   const envKeys =

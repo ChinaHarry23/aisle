@@ -124,7 +124,7 @@ try {
   const stripe = await import("../src/lib/billing/stripe");
   const summary = await import("../src/lib/billing/summary");
   const ledger = await import("../src/lib/billing/ledger");
-  const { MILLI, milliForCost } = await import("../src/lib/billing/plan");
+  const { MILLI, milliForCost, freeCredits, CREDIT_PACK } = await import("../src/lib/billing/plan");
   const meter = await import("../src/lib/billing/meter");
   const { isHosted } = await import("../src/lib/billing/hosted");
   const seeds = await import("../src/lib/auth/seed-accounts");
@@ -171,7 +171,7 @@ try {
   const dev = await users.findUserByEmail("alex@aisle.website");
   assert.ok(dev && dev.role === "dev");
   const balance = (id: string) => ledger.balanceMilli(id);
-  assert.equal(await balance(beta.id), 50 * MILLI);
+  assert.equal(await balance(beta.id), freeCredits() * MILLI);
 
   /* ---------- Checkout ---------- */
   {
@@ -203,7 +203,7 @@ try {
     assert.ok(String(sessions[0].headers["idempotency-key"]).startsWith(`checkout-${beta.id}-`));
     assert.notEqual(sessions[0].headers["idempotency-key"], sessions[1].headers["idempotency-key"]);
     // No credits for starting a checkout.
-    assert.equal(await balance(beta.id), 50 * MILLI);
+    assert.equal(await balance(beta.id), freeCredits() * MILLI);
     await assert.rejects(summary.checkoutOrPortal(declined, "https://aisle.test"), (e: unknown) => {
       assert.ok(e instanceof stripe.StripeApiError);
       assert.equal(e.status, 402);
@@ -215,6 +215,26 @@ try {
     await assert.rejects(stripe.createCheckoutSession(beta, "https://aisle.test"), stripe.StripeNotConfiguredError);
     process.env.STRIPE_PRICE_ID = price;
     pass("checkout: one customer per user, subscription params, fresh idempotency per click, typed errors");
+  }
+
+  {
+    seen.length = 0;
+    const session = await stripe.createTopupCheckoutSession(beta, "https://aisle.test");
+    assert.match(session.url, /^https:\/\/checkout\.stripe\.test\//);
+    const pack = seen.find((r) => r.path === "/v1/checkout/sessions");
+    assert.ok(pack);
+    assert.equal(pack.form.get("mode"), "payment");
+    assert.equal(pack.form.get("line_items[0][quantity]"), "1");
+    assert.equal(pack.form.get("line_items[0][price_data][currency]"), "usd");
+    assert.equal(pack.form.get("line_items[0][price_data][unit_amount]"), String(CREDIT_PACK.priceUsd * 100));
+    assert.equal(pack.form.get("metadata[aisle_pack]"), CREDIT_PACK.id);
+    assert.equal(pack.form.get("metadata[aisle_user_id]"), beta.id);
+    assert.equal(pack.form.get("payment_intent_data[metadata][aisle_pack]"), CREDIT_PACK.id);
+    assert.equal(pack.form.get("client_reference_id"), beta.id);
+    assert.equal(pack.form.get("success_url"), "https://aisle.test/account/usage?checkout=success");
+    assert.equal(pack.form.get("cancel_url"), "https://aisle.test/account/usage?checkout=cancel");
+    assert.equal(await balance(beta.id), freeCredits() * MILLI, "opening checkout does not grant the pack");
+    pass("credit pack checkout is a one-time payment for 1,000 credits at $20");
   }
 
   /* ---------- Webhooks ---------- */
@@ -261,7 +281,7 @@ try {
     assert.equal(bad.status, 400);
     const tampered = await deliver(event("invoice.paid", invoice("in_bad", { user: beta.id, customer: "cus_fake1", reason: "subscription_create" })), "whsec_primary", true);
     assert.equal(tampered.status, 400);
-    assert.equal(await balance(beta.id), 50 * MILLI);
+    assert.equal(await balance(beta.id), freeCredits() * MILLI);
     pass("webhook route: bad or tampered signature → 400, no credits");
   }
 
@@ -288,7 +308,7 @@ try {
     // Normal order for the beta user: checkout completes, then the first invoice.
     const done = await deliver(event("checkout.session.completed", { id: "cs_beta", mode: "subscription", status: "complete", payment_status: "paid", client_reference_id: beta.id, customer: "cus_fake1", subscription: "sub_beta" }));
     assert.equal(done.status, 200);
-    assert.equal(await balance(beta.id), 50 * MILLI, "no credits on checkout");
+    assert.equal(await balance(beta.id), freeCredits() * MILLI, "no credits on checkout");
     assert.equal((await link(beta.id)).stripe_subscription_id, "sub_beta");
 
     // First invoice, resolved by customer only (no metadata on the invoice).
@@ -315,7 +335,7 @@ try {
     assert.equal(await balance(beta.id), 990 * MILLI);
     const resets = (await ledger.recentLedger(beta.id, 50)).filter((e) => e.reason === "monthly_reset");
     assert.equal(resets.length, 2);
-    assert.equal(resets.find((e) => e.ref === "in_beta_1")?.deltaMilli, 950 * MILLI);
+    assert.equal(resets.find((e) => e.ref === "in_beta_1")?.deltaMilli, (1000 - freeCredits()) * MILLI);
 
     // Proration and manual invoices never grant.
     await deliver(event("invoice.paid", invoice("in_beta_upd", { user: beta.id, customer: "cus_fake1", reason: "subscription_update" })));
@@ -449,7 +469,7 @@ try {
     assert.equal(d.subscription, null);
     const fresh = await users.createUser({ name: "Fresh", email: "fresh@shop.test", password: "password-123" });
     const f = await summary.billingSummary({ id: fresh.id, role: "beta" });
-    assert.equal(f.balanceMilli, 50 * MILLI);
+    assert.equal(f.balanceMilli, freeCredits() * MILLI);
     assert.equal(f.ledger[0]?.reason, "free_grant");
     const secret = process.env.STRIPE_WEBHOOK_SECRET;
     delete process.env.STRIPE_WEBHOOK_SECRET;
@@ -592,25 +612,25 @@ try {
   {
     const u = await users.createUser({ name: "Sweep", email: "sweep@shop.test", password: "password-123" });
     const ctx = meter.billingFor(u);
-    assert.equal(await balance(u.id), 50 * MILLI);
+    assert.equal(await balance(u.id), freeCredits() * MILLI);
     const once = await meter.holdCredits(ctx, usd(20));
     assert.equal(await holdStatus(once!.ref), "open");
     await meter.settleHold(once!, usd(5), { modelId: "m" });
-    assert.equal(await balance(u.id), 45 * MILLI);
+    assert.equal(await balance(u.id), (freeCredits() - 5) * MILLI);
     await meter.settleHold(once!, usd(5), { modelId: "m" });
     await meter.releaseHold(once!);
-    assert.equal(await balance(u.id), 45 * MILLI, "a second settle or a release after settling changes nothing");
+    assert.equal(await balance(u.id), (freeCredits() - 5) * MILLI, "a second settle or a release after settling changes nothing");
     const released = await meter.holdCredits(ctx, usd(10));
     await meter.releaseHold(released!);
     await meter.releaseHold(released!);
-    assert.equal(await balance(u.id), 45 * MILLI, "double release returns the hold once");
+    assert.equal(await balance(u.id), (freeCredits() - 5) * MILLI, "double release returns the hold once");
 
     // A process that died mid-call: the hold is still open 21 minutes later.
     const stranded = await meter.holdCredits(ctx, usd(30));
-    assert.equal(await balance(u.id), 15 * MILLI);
+    assert.equal(await balance(u.id), (freeCredits() - 35) * MILLI);
     await db.execute("update credit_holds set created_at = $1 where ref = $2", [new Date(Date.now() - 21 * 60_000).toISOString(), stranded!.ref]);
-    assert.equal(await balance(u.id), 45 * MILLI, "the sweeper returned the stranded hold");
-    assert.equal(await balance(u.id), 45 * MILLI, "and only once");
+    assert.equal(await balance(u.id), (freeCredits() - 5) * MILLI, "the sweeper returned the stranded hold");
+    assert.equal(await balance(u.id), (freeCredits() - 5) * MILLI, "and only once");
     assert.equal(await holdStatus(stranded!.ref), "swept");
     const swept = (await ledger.recentLedger(u.id, 50)).filter((e) => e.ref === `hold:${stranded!.ref}`);
     assert.equal(swept.length, 1);
@@ -619,7 +639,7 @@ try {
     // The call did finish after all: its real cost lands as a fresh debit, once.
     await meter.settleHold(stranded!, usd(8), { modelId: "m" });
     await meter.settleHold(stranded!, usd(8), { modelId: "m" });
-    assert.equal(await balance(u.id), 37 * MILLI, "a swept hold that settles late is charged its real cost");
+    assert.equal(await balance(u.id), (freeCredits() - 13) * MILLI, "a swept hold that settles late is charged its real cost");
     // A stranded hold from before a reset is forfeited, not returned on top of the new month.
     const lapsing = await meter.holdCredits(ctx, usd(20));
     await ledger.resetForInvoice(u.id, "in_sweep_1");
@@ -649,7 +669,7 @@ try {
       db.query = realQuery;
     }
     assert.equal(failures, 1);
-    assert.equal(await balance(u.id), 45 * MILLI, "the retry settled it");
+    assert.equal(await balance(u.id), (freeCredits() - 5) * MILLI, "the retry settled it");
 
     await db.execute(
       "create trigger fail_reset before update on credit_accounts when new.last_grant_ref = 'in_fail' begin select raise(abort, 'reset blocked'); end",
@@ -790,15 +810,15 @@ try {
     assert.equal(await balance(stale.id), 0);
     await db.execute("update users set created_at = $1 where id = $2", [new Date(Date.now() - 8 * 86_400_000).toISOString(), stale.id]);
     delete process.env.FREE_GRANTS_PER_DAY;
-    assert.equal(await balance(blocked.id), 50 * MILLI, "granted on a later visit once the cap allows");
-    assert.equal(await balance(blocked.id), 50 * MILLI, "and only once");
-    assert.equal(await balance(stale.id), 0, "not after the 7-day window");
+    assert.equal(await balance(blocked.id), freeCredits() * MILLI, "granted on a later visit once the cap allows");
+    assert.equal(await balance(blocked.id), freeCredits() * MILLI, "and only once");
+    assert.equal(await balance(stale.id), freeCredits() * MILLI, "an older account that never received the trial still gets it");
     const twin = await users.createUser({ name: "Twin", email: "blocked+2@shop.test", password: "password-123" });
     assert.equal(await balance(twin.id), 0);
     assert.equal(await balance(twin.id), 0, "the retry still honours one grant per person");
     assert.equal(await balance(dev!.id), 0, "dev desks never get one");
     assert.equal((await ledger.recentLedger(blocked.id)).filter((e) => e.reason === "free_grant").length, 1);
-    pass("N5: a free grant blocked by FREE_GRANTS_PER_DAY is retried for 7 days, once per person, never for desks");
+    pass("N5: a free grant blocked by FREE_GRANTS_PER_DAY is retried on a later visit, once per person, including accounts older than a week, never for desks");
   }
 
   /* ---------- C3 / C8 / C9: webhook ordering ---------- */
@@ -1030,12 +1050,12 @@ try {
       const u = await users.createUser({ name: "Farm", email, password: "password-123" });
       return balance(u.id);
     };
-    assert.equal(await grantOf("farmer@gmail.com"), 50 * MILLI);
+    assert.equal(await grantOf("farmer@gmail.com"), freeCredits() * MILLI);
     assert.equal(await grantOf("far.mer+2@googlemail.com"), 0, "gmail dots and +tags are one person");
     assert.equal(await grantOf("farmer+3@gmail.com"), 0);
-    assert.equal(await grantOf("bob@shop.test"), 50 * MILLI);
+    assert.equal(await grantOf("bob@shop.test"), freeCredits() * MILLI);
     assert.equal(await grantOf("bob+1@shop.test"), 0, "+tag farming blocked");
-    assert.equal(await grantOf("b.ob@shop.test"), 50 * MILLI);
+    assert.equal(await grantOf("b.ob@shop.test"), freeCredits() * MILLI);
     // Team desks get none (a hosted desk off the unlimited list starts at 0).
     assert.equal(await balance(dev!.id), 0);
     // FREE_CREDITS overrides the amount; the Billing page shows it.
@@ -1050,7 +1070,7 @@ try {
     process.env.FREE_GRANTS_PER_DAY = String(granted);
     assert.equal(await grantOf("capped@shop.test"), 0, "no grant once today's cap is reached");
     process.env.FREE_GRANTS_PER_DAY = String(granted + 1);
-    assert.equal(await grantOf("uncapped@shop.test"), 50 * MILLI);
+    assert.equal(await grantOf("uncapped@shop.test"), freeCredits() * MILLI);
     delete process.env.FREE_GRANTS_PER_DAY;
 
     // Signup is limited per address: the sixth account in an hour gets 429. On Vercel the edge
@@ -1273,6 +1293,60 @@ try {
       }
     }
     pass("hosted backstops: the demo password is refused at login on a hosted install; production on Postgres counts as hosted; AISLE_HOSTED=0 overrides");
+  }
+
+  {
+    const buyer = await users.createUser({ name: "Buyer", email: "buyer@shop.test", password: "password-123" });
+    const trial = await balance(buyer.id);
+    const unpaid = await deliver(event("checkout.session.completed", {
+      id: "cs_pack_wait",
+      mode: "payment",
+      payment_status: "unpaid",
+      client_reference_id: buyer.id,
+      customer: "cus_pack",
+      payment_intent: "pi_pack_wait",
+      metadata: { aisle_user_id: buyer.id, aisle_pack: CREDIT_PACK.id },
+    }));
+    assert.equal(unpaid.json.handled, false);
+    assert.equal(await balance(buyer.id), trial, "an unpaid pack grants nothing");
+    const paid = event("checkout.session.completed", {
+      id: "cs_pack",
+      mode: "payment",
+      payment_status: "paid",
+      client_reference_id: buyer.id,
+      customer: "cus_pack",
+      payment_intent: "pi_pack",
+      metadata: { aisle_user_id: buyer.id, aisle_pack: CREDIT_PACK.id },
+    });
+    assert.equal((await deliver(paid)).json.handled, true);
+    assert.equal(await balance(buyer.id), trial + CREDIT_PACK.credits * MILLI);
+    const again = await deliver({ ...paid, id: "evt_pack_replay" });
+    assert.equal(again.json.handled, false);
+    assert.equal(await balance(buyer.id), trial + CREDIT_PACK.credits * MILLI, "the same payment never grants twice");
+    const refund = await deliver(event("charge.refunded", {
+      id: "ch_pack",
+      customer: "cus_pack",
+      refunded: true,
+      payment_intent: "pi_pack",
+      amount: CREDIT_PACK.priceUsd * 100,
+    }));
+    assert.equal(refund.json.handled, true);
+    assert.equal(await balance(buyer.id), trial, "a pack refund takes the pack back and leaves the trial");
+    pass("credit pack: a paid checkout adds 1,000 credits once; a refund returns that pack only");
+  }
+
+  {
+    process.env.FREE_GRANTS_PER_DAY = "0";
+    process.env.AISLE_TRIAL_BACKFILL = "1";
+    try {
+      const late = await users.createUser({ name: "Late Trial", email: "late-trial@shop.test", password: "password-123" });
+      assert.equal(await balance(late.id), freeCredits() * MILLI, "the backfill ignores the daily cap");
+      assert.equal(await balance(late.id), freeCredits() * MILLI, "and only once");
+    } finally {
+      delete process.env.FREE_GRANTS_PER_DAY;
+      delete process.env.AISLE_TRIAL_BACKFILL;
+    }
+    pass("AISLE_TRIAL_BACKFILL grants the trial to existing accounts past the daily cap");
   }
 
   await closeDatabase();

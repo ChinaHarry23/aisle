@@ -7,7 +7,7 @@ import { getDatabase } from "@/lib/db";
 import { balanceMilli, creditMeter, recentLedger, type LedgerEntry } from "./ledger";
 import { billingFor, isUnlimited } from "./meter";
 import { currentPlan, LIVE_STATUSES, type Plan } from "./plan";
-import { createCheckoutSession, openPortal, rowFromOtherMode, stripeReady, type BillingUser } from "./stripe";
+import { createCheckoutSession, openPortal, rowFromOtherMode, stripeReady, topupConfigured, type BillingUser } from "./stripe";
 
 type SubscriptionSummary = {
   status: string;
@@ -28,6 +28,8 @@ export type BillingSummary = {
   subscription: SubscriptionSummary | null;
   ledger: LedgerEntry[];
   stripeReady: boolean;
+  /** The $20 credit pack can be bought: secret key and webhook are both set. */
+  topupReady: boolean;
 };
 
 type Row = {
@@ -82,6 +84,7 @@ export async function billingSummary(
     subscription,
     ledger,
     stripeReady: stripeReady(),
+    topupReady: topupConfigured(),
   };
 }
 

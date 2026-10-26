@@ -293,6 +293,10 @@ try {
     process.env.VERCEL = "1";
     assert.equal(allowedLocalBase(`${internal.base}/v1`), null, "hosted user URLs are refused");
     assert.equal(allowedLocalBase("http://127.0.0.1:11434/v1"), null, "hosted, the laptop probe ports are not trusted by default");
+    assert.equal(allowedLocalBase("https://29a4-129-78-56-156.ngrok-free.app/v1"), "https://29a4-129-78-56-156.ngrok-free.app/v1");
+    assert.equal(allowedLocalBase("https://169.254.169.254/v1"), null, "a literal metadata address stays refused");
+    assert.equal(allowedLocalBase("http://tunnel.example/v1"), null, "plain http to a public name stays refused");
+    assert.equal(allowedLocalBase("https://127.0.0.1.nip.io/v1"), null, "a rebinding name stays refused");
     // A blank URL must not fall back to the laptop default on a hosted server.
     for (const blank of [" ", "\t"]) {
       assert.throws(() => localBase(custom(blank)), /LOCAL_LLM_BASE_URL/, JSON.stringify(blank));

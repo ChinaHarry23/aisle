@@ -23,6 +23,7 @@ const { PLAN } = await import("../src/lib/billing/plan");
 
 const WEBHOOK_EVENTS = [
   "checkout.session.completed",
+  "checkout.session.async_payment_succeeded",
   "invoice.paid",
   "invoice.payment_failed",
   "customer.subscription.updated",

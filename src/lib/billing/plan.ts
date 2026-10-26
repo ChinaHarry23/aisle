@@ -10,12 +10,22 @@ export const PLAN = {
   name: "Aisle Credits",
   priceUsd: 10,
   monthlyCredits: 1000,
-  /** Default one-time grant; the server reads FREE_CREDITS through `freeCredits()`. */
-  freeCredits: 50,
+  /** Default one-time trial; the server reads FREE_CREDITS through `freeCredits()`. */
+  freeCredits: 1000,
   /** Retail value of one credit. */
   usdPerCredit: 0.01,
   /** Credits are charged at this multiple of what the provider bills. */
   markup: 2,
+} as const;
+
+/**
+ * One-time credit pack. Added on top of the balance (the monthly plan resets
+ * instead). Checkout sends this id in metadata; the webhook grants only then.
+ */
+export const CREDIT_PACK = {
+  id: "credits_1000",
+  priceUsd: 20,
+  credits: 1000,
 } as const;
 
 /** The plan as the server sells it, with the owner's FREE_CREDITS override applied. */
@@ -27,7 +37,7 @@ const envCount = (name: string, fallback: number) => {
   return Number.isFinite(value) && value >= 0 ? Math.floor(value) : fallback;
 };
 
-/** Free credits for a new person (FREE_CREDITS, default 50; 0 switches the grant off). */
+/** Free trial credits for a new person (FREE_CREDITS, default 1,000; 0 switches the grant off). */
 export function freeCredits(): number {
   return envCount("FREE_CREDITS", PLAN.freeCredits);
 }

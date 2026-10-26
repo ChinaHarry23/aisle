@@ -118,6 +118,8 @@ export default function NewCampaignPage() {
   const [attempted, setAttempted] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [mode, setMode] = useState<"form" | "chat">("form");
+  const [pending, setPending] = useState<"launch" | "save" | null>(null);
+  const submitting = useRef(false);
   const priorRecommendation = useMemo(() => {
     const chosen = resolveInsights(savedInsights, selectedInsightIds, campaigns);
     const feedback = composeSelectedFeedback(chosen);
@@ -195,6 +197,7 @@ export default function NewCampaignPage() {
   const moreVisible = moreOpen || (attempted && hiddenProblems.length > 0);
 
   async function submit(run: boolean) {
+    if (submitting.current) return;
     setAttempted(true);
     if (problems.length > 0) {
       requestAnimationFrame(() =>
@@ -204,6 +207,8 @@ export default function NewCampaignPage() {
       );
       return;
     }
+    submitting.current = true;
+    setPending(run ? "launch" : "save");
     const id = createCampaign(brief, selectedInsightIds);
     router.push(`/campaigns/${id}`);
     if (run) await launch(id);
@@ -524,16 +529,19 @@ export default function NewCampaignPage() {
               </Link>
               <button
                 type="button"
+                disabled={pending !== null}
                 onClick={() => void submit(false)}
-                className="rounded-full border border-line bg-surface px-4 py-2 text-sm font-medium hover:bg-paper-2"
+                className="rounded-full border border-line bg-surface px-4 py-2 text-sm font-medium hover:bg-paper-2 disabled:opacity-50"
               >
-                Save draft
+                {pending === "save" ? "Saving…" : "Save draft"}
               </button>
               <button
                 type="submit"
-                className="rounded-full bg-signal px-5 py-2 text-sm font-semibold text-white hover:bg-signal-dark"
+                disabled={pending !== null}
+                aria-busy={pending === "launch"}
+                className="rounded-full bg-signal px-5 py-2 text-sm font-semibold text-white hover:bg-signal-dark disabled:opacity-50"
               >
-                Launch agents
+                {pending === "launch" ? "Launching…" : "Launch agents"}
               </button>
             </div>
           </div>

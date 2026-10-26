@@ -522,8 +522,8 @@ export async function runTrendResearch(
 
   }
 
-  // UC-02 ext 4.b: if internal data is not authorised, say so rather than guess.
-  if (retail.status === "skipped") {
+  // A campaign CSV still needs its own consent. The Brand POS file does not.
+  if (retail.status === "skipped" && !env.brand.retailData) {
     const outcome = evaluateGuard(
       {
         actor: "trend",

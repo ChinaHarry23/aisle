@@ -7,6 +7,7 @@ import { balanceMilli } from "@/lib/billing/ledger";
 import { holdCredits, releaseHold, settleHold, type BillingContext, type Hold } from "@/lib/billing/meter";
 import { formatCredits, milliForCost } from "@/lib/billing/plan";
 import { callLlm, isLlmConfigured, localBase, systemFor } from "./adapters";
+import { fetchLocalModel } from "./local-base";
 import { getLlmOrDefault } from "./catalog";
 import { estimateLlmUsage, llmCostUsd, usageFromProvider, worstCaseUsd } from "./estimate";
 import { traceModelCall } from "./langsmith";
@@ -364,23 +365,19 @@ async function callProviderTools(
   const apiModel = model.id === "local:custom" ? req.localModel || "llama3.3" : model.apiModel;
   const messages = openAIMessages({ ...req, images: undefined });
 
-  const res = await fetch(`${base}/chat/completions`, {
+  const res = await fetchLocalModel(base, "chat/completions", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       model: apiModel,
       temperature: 0.4,
       messages,
       ...(req.tools?.length ? { tools: openAITools(req) } : {}),
     }),
-    // localBase checked the URL; a redirect must not take the call elsewhere.
-    redirect: "error",
-    signal: AbortSignal.timeout(2_500),
   });
   if (!res.ok) {
-    throw new Error(`Local LLM ${res.status}: ${(await res.text()).slice(0, 240)}`);
+    throw new Error(`Local LLM ${res.status}: ${res.text.slice(0, 240)}`);
   }
-  const json = (await res.json()) as {
+  const json = JSON.parse(res.text) as {
     choices?: {
       message?: {
         content?: string;

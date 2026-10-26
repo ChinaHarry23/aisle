@@ -167,9 +167,8 @@ export const internalRetailTool: ToolDefinition = {
     "Reads an authorised aggregate CSV for this campaign, or the POS file uploaded on Brand for this retailer. It does not use another retailer's file.",
   args: ["category", "country"],
   async run({ campaign, brand, at }) {
-    if (!campaign.internalDataAuthorised) return internalRetailOutcome(campaign, at);
-    if (retailUploadSchema.safeParse(campaign.retailUpload).success) return internalRetailOutcome(campaign, at);
-    if (!brand.retailData) return internalRetailOutcome(campaign, at);
+    const dataset = brand.retailData;
+    if (!dataset || dataset.schemaVersion !== "1.0" || !dataset.products?.length) return internalRetailOutcome(campaign, at);
     const matched = matchRetailData(brand, campaign);
     const observedAt = brand.retailData?.extractedAt || at.slice(0, 10);
     if (matched.kind !== "product" && matched.kind !== "category") {

@@ -20,7 +20,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { getDatabase, type Database } from "@/lib/db";
 import { freeCredits, freeGrantsPerDay, MILLI, milliForCost, PLAN } from "./plan";
 
-type LedgerReason = "free_grant" | "monthly_reset" | "usage" | "dev_usage" | "adjust" | "expired";
+type LedgerReason = "free_grant" | "monthly_reset" | "usage" | "dev_usage" | "adjust" | "expired" | "topup" | "reversal";
 
 export type LedgerEntry = {
   id: string;
@@ -113,13 +113,14 @@ export function canonicalEmail(email: string): string {
  * under the canonical email, and only while today's grants are under
  * FREE_GRANTS_PER_DAY, in one statement. A claim this user already holds
  * (a crash between the claim and the credit) is completed, never repeated.
+ * `ignoreDailyCap` is the one-time backfill of accounts that already exist.
  */
-async function grantFreeCredits(db: Database, userId: string) {
+async function grantFreeCredits(db: Database, userId: string, ignoreDailyCap = false): Promise<boolean> {
   const free = freeCredits() * MILLI;
-  if (free <= 0) return;
+  if (free <= 0) return false;
   const users = await db.query<{ email: string; role: string }>("select email, role from users where id = $1", [userId]);
   const user = users[0];
-  if (user?.role === "dev") return;
+  if (user?.role === "dev") return false;
   // An id with no account row only exists in tests and owner scripts; key it on the id.
   const identity = user ? `email:${canonicalEmail(user.email)}` : `user:${userId}`;
   const at = now();
@@ -127,14 +128,15 @@ async function grantFreeCredits(db: Database, userId: string) {
   const claimed = await db.query(
     `insert into free_grants (identity_key, user_id, granted_at)
      select $1, $2, $3
-     where (select count(*) from free_grants where granted_at >= $4) < $5
+     where cast($6 as integer) = 1
+        or (select count(*) from free_grants where granted_at >= $4) < cast($5 as integer)
      on conflict do nothing
      returning identity_key`,
-    [identity, userId, at, dayStart, freeGrantsPerDay()],
+    [identity, userId, at, dayStart, freeGrantsPerDay(), ignoreDailyCap ? 1 : 0],
   );
   if (!claimed.length) {
     const holder = await db.query<{ user_id: string }>("select user_id from free_grants where identity_key = $1", [identity]);
-    if (holder[0]?.user_id !== userId) return; // someone else's, or today's cap is reached
+    if (holder[0]?.user_id !== userId) return false; // someone else's, or today's cap is reached
   }
   const rows = await db.query<{ balance_milli: number | string }>(
     `update credit_accounts set balance_milli = balance_milli + $1, free_granted_at = $2, updated_at = $2
@@ -142,7 +144,7 @@ async function grantFreeCredits(db: Database, userId: string) {
      returning balance_milli`,
     [free, at, userId],
   );
-  if (!rows.length) return;
+  if (!rows.length) return false;
   await writeLedger(db, {
     userId,
     deltaMilli: free,
@@ -151,17 +153,15 @@ async function grantFreeCredits(db: Database, userId: string) {
     balanceAfterMilli: num(rows[0].balance_milli),
     note: `${freeCredits()} free credits to try cloud models`,
   });
+  return true;
 }
-
-/** A signup whose grant was blocked (today's cap was reached) tries again for this long. */
-const FREE_GRANT_RETRY_MS = 7 * 86_400_000;
 
 /**
  * Create the account on first use, and grant the free credits if this person
- * is due them. A grant the daily cap blocked is retried on later visits while
- * the user is under FREE_GRANT_RETRY_MS old, so exhausting the cap cannot take
- * a real signup's trial away for good. The claim on the canonical email keeps
- * the retry to one grant per person.
+ * is due them. A grant the daily cap blocked is retried on later visits for
+ * as long as the account has never received one, so an old signup is not
+ * stuck at zero after the cap (or a FREE_CREDITS=0 deploy) lifts. The claim
+ * on the canonical email keeps the retry to one grant per person.
  */
 async function ensureCreditAccount(userId: string): Promise<void> {
   const db = await getDatabase();
@@ -178,10 +178,53 @@ async function ensureCreditAccount(userId: string): Promise<void> {
   }
   const pending = await db.query<{ user_id: string }>(
     `select a.user_id from credit_accounts a join users u on u.id = a.user_id
-     where a.user_id = $1 and a.free_granted_at is null and u.role <> 'dev' and u.created_at >= $2`,
-    [userId, new Date(Date.now() - FREE_GRANT_RETRY_MS).toISOString()],
+     where a.user_id = $1 and a.free_granted_at is null and u.role <> 'dev'`,
+    [userId],
   );
   if (pending.length) await grantFreeCredits(db, userId);
+}
+
+/**
+ * Give the current trial to every non-desk account that has never had it.
+ * Ignores the daily cap: these people already signed up. One canonical email
+ * still receives it once. Safe to run again.
+ */
+export async function grantOutstandingTrials(): Promise<number> {
+  const db = await getDatabase();
+  const rows = await db.query<{ id: string }>(
+    `select u.id from users u
+     left join credit_accounts a on a.user_id = u.id
+     where u.role <> 'dev' and a.free_granted_at is null`,
+  );
+  let granted = 0;
+  for (const row of rows) {
+    await db.execute(
+      `insert into credit_accounts (user_id, balance_milli, free_granted_at, updated_at)
+       values ($1, 0, null, $2)
+       on conflict (user_id) do nothing`,
+      [row.id, now()],
+    );
+    if (await grantFreeCredits(db, row.id, true)) granted += 1;
+  }
+  return granted;
+}
+
+/** One backfill per process when AISLE_TRIAL_BACKFILL=1. A failure is retried next time. */
+let trialBackfill: Promise<void> | null = null;
+
+function scheduleTrialBackfill(): Promise<void> {
+  if (process.env.AISLE_TRIAL_BACKFILL !== "1") return Promise.resolve();
+  if (!trialBackfill) {
+    trialBackfill = grantOutstandingTrials()
+      .then((count) => {
+        if (count > 0) console.log(`[billing] granted the free trial to ${count} existing account(s)`);
+      })
+      .catch((error) => {
+        trialBackfill = null;
+        console.error("[billing] trial backfill failed", error instanceof Error ? error.message : error);
+      });
+  }
+  return trialBackfill;
 }
 
 /* ---------- Holds ---------- */
@@ -262,6 +305,7 @@ export async function sweepStaleHolds(userId: string): Promise<number> {
 }
 
 export async function balanceMilli(userId: string): Promise<number> {
+  await scheduleTrialBackfill();
   await ensureCreditAccount(userId);
   await sweepStaleHolds(userId);
   const db = await getDatabase();
@@ -552,6 +596,86 @@ export async function expireCredits(userId: string, ref: string, note: string): 
   return true;
 }
 
+/**
+ * Add a bought pack to the balance, once per `ref` (the PaymentIntent id).
+ * The ledger row is written first, so a replayed webhook cannot grant twice.
+ */
+export async function grantTopup(userId: string, credits: number, ref: string, note: string): Promise<boolean> {
+  if (!ref || !Number.isFinite(credits) || credits <= 0) return false;
+  await scheduleTrialBackfill();
+  await ensureCreditAccount(userId);
+  const milli = Math.round(credits) * MILLI;
+  const db = await getDatabase();
+  const ledgerId = randomUUID();
+  const inserted = await db.query(
+    `insert into credit_ledger
+       (id, user_id, delta_milli, reason, ref, model_id, cost_usd, balance_after_milli, note, created_at)
+     values ($1, $2, $3, 'topup', $4, null, null, null, $5, $6)
+     on conflict do nothing
+     returning id`,
+    [ledgerId, userId, milli, ref, note, now()],
+  );
+  if (!inserted.length) return false;
+  try {
+    const rows = await db.query<{ balance_milli: number | string }>(
+      `update credit_accounts set balance_milli = balance_milli + $1, updated_at = $2
+       where user_id = $3
+       returning balance_milli`,
+      [milli, now(), userId],
+    );
+    if (!rows.length) throw new Error(`No credit account for ${userId}.`);
+    await db.execute("update credit_ledger set balance_after_milli = $1 where id = $2", [num(rows[0].balance_milli), ledgerId]);
+  } catch (error) {
+    await db.execute("delete from credit_ledger where id = $1", [ledgerId]).catch(() => {});
+    throw error;
+  }
+  return true;
+}
+
+/**
+ * Take back one bought pack. Null when `paymentIntentId` was not a pack this
+ * account received (a subscription charge still goes through expiry). False
+ * when this reversal was already applied.
+ */
+export async function reverseTopup(
+  userId: string,
+  paymentIntentId: string,
+  reversalRef: string,
+  note: string,
+): Promise<boolean | null> {
+  const db = await getDatabase();
+  const grants = await db.query<{ delta_milli: number | string }>(
+    "select delta_milli from credit_ledger where user_id = $1 and reason = 'topup' and ref = $2",
+    [userId, paymentIntentId],
+  );
+  const amount = Number(grants[0]?.delta_milli ?? 0);
+  if (!grants.length || !Number.isFinite(amount) || amount <= 0) return null;
+  const ledgerId = randomUUID();
+  const inserted = await db.query(
+    `insert into credit_ledger
+       (id, user_id, delta_milli, reason, ref, model_id, cost_usd, balance_after_milli, note, created_at)
+     values ($1, $2, $3, 'reversal', $4, null, null, null, $5, $6)
+     on conflict do nothing
+     returning id`,
+    [ledgerId, userId, -amount, reversalRef, note, now()],
+  );
+  if (!inserted.length) return false;
+  try {
+    const rows = await db.query<{ balance_milli: number | string }>(
+      `update credit_accounts set balance_milli = balance_milli - $1, updated_at = $2
+       where user_id = $3
+       returning balance_milli`,
+      [amount, now(), userId],
+    );
+    if (!rows.length) throw new Error(`No credit account for ${userId}.`);
+    await db.execute("update credit_ledger set balance_after_milli = $1 where id = $2", [num(rows[0].balance_milli), ledgerId]);
+  } catch (error) {
+    await db.execute("delete from credit_ledger where id = $1", [ledgerId]).catch(() => {});
+    throw error;
+  }
+  return true;
+}
+
 /** Owner-side correction, e.g. a goodwill top-up from the CLI. */
 export async function adjustCredits(userId: string, deltaMilli: number, note: string): Promise<number> {
   await ensureCreditAccount(userId);
@@ -572,7 +696,7 @@ export async function creditMeter(userId: string, balance: number): Promise<{ sp
   const db = await getDatabase();
   const grants = await db.query<{ created_at: string }>(
     `select created_at from credit_ledger
-     where user_id = $1 and delta_milli > 0 and reason in ('free_grant', 'monthly_reset', 'adjust')
+     where user_id = $1 and delta_milli > 0 and reason in ('free_grant', 'monthly_reset', 'adjust', 'topup')
      order by created_at desc limit 1`,
     [userId],
   );

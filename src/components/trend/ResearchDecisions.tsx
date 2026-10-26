@@ -41,8 +41,11 @@ export function ResearchDecisions({campaign}:{campaign:Campaign}){
  const pending=campaign.trendRequests?.filter(r=>r.status==='pending')??[];
  const history=campaign.trendRequests?.filter(r=>r.status!=='pending')??[];
  const busy=useAisle(s=>s.busy[campaign.id]),launch=useAisle(s=>s.launch),cancel=useAisle(s=>s.cancelTrend);
+ const [openKey,setOpenKey]=useState(pending[0]?`${pending[0].id}:${pending[0].reviewVersion}`:'');
+ const open=pending.find(r=>`${r.id}:${r.reviewVersion}`===openKey)??pending[0];
  return <div className="mt-5 space-y-4">
-   {pending.map(r=><DecisionCard key={`${r.id}:${r.reviewVersion}`} campaign={campaign} request={r}/>)}
+   {pending.length>1&&<label className="block text-sm">Open one request<select className="mt-1 w-full rounded-lg border border-line bg-surface p-2" value={open?`${open.id}:${open.reviewVersion}`:''} onChange={e=>setOpenKey(e.target.value)}>{pending.map(r=><option key={`${r.id}:${r.reviewVersion}`} value={`${r.id}:${r.reviewVersion}`}>{r.category.replaceAll('_',' ')} — {r.reason.slice(0,90)}</option>)}</select></label>}
+   {open&&<DecisionCard key={`${open.id}:${open.reviewVersion}`} campaign={campaign} request={open}/>}
    {!pending.length&&<p className="text-sm text-mute">{campaign.trendQuality?.status==='COMPLETE'?'Evidence review passed. No research decision is required.':'No open research decisions. Further validation may still be required.'}</p>}
    {!pending.length&&campaign.status==='paused'&&campaign.trendQuality&&<button disabled={busy} className="rounded-full border border-signal px-4 py-2 text-sm text-signal" onClick={()=>void launch(campaign.id)}>Resume saved analysis</button>}
    {['paused','analysing'].includes(campaign.status)&&campaign.run?.step.startsWith('trend.')&&<button disabled={busy} className="ml-3 text-sm text-mute underline" onClick={()=>void cancel(campaign.id,'Founder ended the analysis from the research report.')}>End analysis and keep partial report</button>}

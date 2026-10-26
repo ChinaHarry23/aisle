@@ -12,6 +12,7 @@
 
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { getDatabase } from "@/lib/db";
+import { CREDIT_PACK } from "./plan";
 
 const DEFAULT_STRIPE_API_VERSION = "2026-08-26.dahlia";
 export const PRICE_LOOKUP_KEY = "aisle_monthly_1000";
@@ -35,6 +36,12 @@ export function stripeEnv() {
 export function checkoutConfigured() {
   const env = stripeEnv();
   return Boolean(env.secretKey && env.priceId);
+}
+
+/** A one-time credit pack can be sold and granted: the secret key and the webhook. */
+export function topupConfigured() {
+  const env = stripeEnv();
+  return Boolean(env.secretKey && env.webhookSecrets.length > 0);
 }
 
 /** A live-mode key. Test-mode and live-mode objects (customers, subscriptions) never mix. */
@@ -294,6 +301,56 @@ async function checkoutFor(customer: string, user: BillingUser, origin: string, 
     },
     { idempotencyKey: `checkout-${user.id}-${randomUUID()}` },
   );
+}
+
+/**
+ * A one-time Checkout for CREDIT_PACK. Credits are not granted here: the
+ * webhook grants them when Stripe reports the session paid.
+ */
+export async function createTopupCheckoutSession(user: BillingUser, origin: string): Promise<{ id: string; url: string }> {
+  const env = stripeEnv();
+  if (!env.secretKey) throw new StripeNotConfiguredError(["STRIPE_SECRET_KEY"]);
+  let customer = await ensureCustomer(user);
+  const params = {
+    mode: "payment" as const,
+    line_items: [
+      {
+        quantity: 1,
+        price_data: {
+          currency: "usd",
+          unit_amount: CREDIT_PACK.priceUsd * 100,
+          product_data: {
+            name: `${CREDIT_PACK.credits.toLocaleString("en-US")} Aisle credits`,
+            description: `${CREDIT_PACK.credits.toLocaleString("en-US")} credits added to your Aisle balance.`,
+          },
+        },
+      },
+    ],
+    customer,
+    client_reference_id: user.id,
+    metadata: { aisle_user_id: user.id, aisle_pack: CREDIT_PACK.id },
+    payment_intent_data: { metadata: { aisle_user_id: user.id, aisle_pack: CREDIT_PACK.id } },
+    success_url: `${origin}/account/usage?checkout=success`,
+    cancel_url: `${origin}/account/usage?checkout=cancel`,
+  };
+  let session: { id: string; url: string | null };
+  try {
+    session = await stripeRequest<{ id: string; url: string | null }>("POST", "/v1/checkout/sessions", params, {
+      idempotencyKey: `topup-${user.id}-${randomUUID()}`,
+    });
+  } catch (error) {
+    if (!isMissingCustomer(error)) throw error;
+    await forgetCustomer(user.id, customer);
+    customer = await ensureCustomer(user, { fresh: true });
+    session = await stripeRequest<{ id: string; url: string | null }>(
+      "POST",
+      "/v1/checkout/sessions",
+      { ...params, customer },
+      { idempotencyKey: `topup-${user.id}-${randomUUID()}` },
+    );
+  }
+  if (!session.url) throw new StripeApiError(502, { message: "Stripe did not return a Checkout URL." });
+  return { id: session.id, url: session.url };
 }
 
 export async function createCheckoutSession(user: BillingUser, origin: string): Promise<{ id: string; url: string }> {
