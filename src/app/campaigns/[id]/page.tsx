@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
-import { Suspense, useMemo, useRef, useState, type ReactNode } from "react";
+import { Suspense, useRef, useState, type ReactNode } from "react";
 import { AgentLog } from "@/components/AgentLog";
 import { OperationGraph } from "@/components/OperationGraph";
 import { ChecksPanel } from "@/components/ChecksPanel";
@@ -127,11 +127,7 @@ function CampaignWorkspace() {
   /** The creative that goes out on social: the approved one, else the first. */
   const postCreative =
     campaign?.creatives.find((c) => c.status === "approved") ?? campaign?.creatives[0] ?? null;
-  const scheduleChannels = useMemo(
-    () =>
-      [...new Set([...(campaign?.adaptations ?? []).map((a) => a.channel), ...(campaign?.schedule ?? []).map((x) => x.channel)])],
-    [campaign],
-  );
+  const scheduleChannels = [...new Set([...(campaign?.adaptations ?? []).map((a) => a.channel), ...(campaign?.schedule ?? []).map((x) => x.channel)])];
   const recommendText =
     recommendationDraft ??
     campaign?.performanceReport?.recommendationText ??

@@ -16,7 +16,7 @@
  *    another banner is not used, and no figure is invented when neither exists.
  */
 
-import { internalRetailOutcome, retailUploadSchema } from '@/lib/trend/internal-retail';
+import { internalRetailOutcome } from '@/lib/trend/internal-retail';
 import { researchTools, RESEARCH_TOOL_IDS, definePublicResearchTool } from "@/lib/trend/source-tools";
 import { z } from "zod";
 import { describeShelf } from "@/lib/retail/whichgrocer/query";
