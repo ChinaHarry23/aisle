@@ -17,6 +17,8 @@
  */
 
 import { contextVersion } from '@/lib/trend/quality-contracts';
+import { currentStrategy, fallbackStrategy } from '@/lib/trend/strategy';
+import { assembleStrategyReport } from '@/lib/trend/strategy-report';
 import { verifiedPreviousAdvice } from './defaults';
 import { evaluateQuality,trendReadyForHandoff } from '@/lib/trend/quality';
 import { validateIntake } from './intake';
@@ -320,6 +322,9 @@ export function buildCreatives(
       subhead: v.subhead,
       cta: v.cta,
       caption: v.caption,
+      strategyVersion: v.strategyVersion,
+      insightUses: v.insightUses,
+      unusedInsightIds: v.unusedInsightIds,
       palette: pal[variant],
       motif,
       status,
@@ -904,7 +909,8 @@ export async function runCreativeGeneration(
     return {message:'Prepare the full structured report before generating content.',blocked:false};
   }
   if(c.trendQuality || c.researchMode==='agent'){
-    if((!trendReadyForHandoff(c)&&!c.trendQuality?.continuedAt)||env.researchAllowed&&!await env.researchAllowed()){
+    const revisingStoredFindings=version>1&&c.trendQuality?.handedOffAt&&c.trendQuality.storedVersion===c.trendQuality.version&&c.trendQuality.contextVersion===contextVersion(c);
+    if((!trendReadyForHandoff(c)&&!c.trendQuality?.continuedAt&&!revisingStoredFindings)||env.researchAllowed&&!await env.researchAllowed()){
       c.status='paused';c.running=false;setRun(w,{status:'paused',step:'trend.handoff',haltedReason:'Current evidence-backed brief is not ready for handoff.'});
       return {message:'Content generation blocked: insufficient, unsaved or unresolved research.',blocked:true};
     }
@@ -914,17 +920,38 @@ export async function runCreativeGeneration(
   c.status = version === 1 ? "generating" : "revising";
   c.running = true;
 
+  // A founder refinement reinterprets retained findings; it never reruns retrieval.
+  if (version > 1 && !currentStrategy(c) && env.llm.brief) {
+    try { c.structuredTrendBrief = await env.llm.brief({ campaign: c, brand: env.brand, settings: env.settings, at: w.now,
+      allowed: async () => env.researchAllowed ? await env.researchAllowed() : true,
+      execute: async () => { throw Error('Campaign refinement reuses existing research.'); },
+      onFailedUsage: cost => { c.spend.inferenceUsd += cost; } }); }
+    catch {
+      c.strategy = fallbackStrategy(c, w.now, 'Creative refinement uses retained research; strategy model unavailable.');
+      c.structuredTrendBrief = assembleStrategyReport(c, w.now);
+    }
+    c.sharedContext.structuredTrendBrief = structuredClone(c.structuredTrendBrief);
+    const strategy = currentStrategy(c);
+    if (strategy) {
+      c.brief = { ...c.brief, angle: strategy.recommendedAngle, keyMessage: strategy.keyMessage, visualDirection: strategy.visualDirection };
+      addEvent(w, 'trend', 'output', 'Campaign direction refined', 'Reused the saved findings and sources to apply your feedback.');
+    }
+  }
+
   const previous = c.complianceReports.at(-1);
-  const notes =
+  const notes = [
+    ...(version > 1 ? c.sharedContext.founderNotes.slice(-3) : []),
+    ...(
     version > 1 && previous
       ? previous.attempt?.issues.map((i) => `${i.excerpt}: ${i.recommendedCorrection}`) ?? []
-      : [];
+      : []),
+  ];
 
   addEvent(
     w,
     "creative",
     version === 1 ? "handoff" : "revision",
-    version === 1 ? "Received campaign brief" : `Revision ${version} from compliance notes`,
+    version === 1 ? "Received campaign brief" : `Applying feedback for revision ${version}`,
     version === 1
       ? `Two variants under brand guidelines. Visual direction: ${c.brief.visualDirection}`
       : notes.length

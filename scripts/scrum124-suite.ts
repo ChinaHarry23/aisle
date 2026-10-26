@@ -23,7 +23,7 @@ const keys:Record<string,string>={'web.search':'FIRECRAWL_API_KEY','web.scrape_p
 function fixture(name:string,url:string):Response {
  if(name==='web.search')return Response.json({creditsUsed:2,data:{web:[{url:'https://www.abs.gov.au/statistics/synthetic',description:'SYNTHETIC primary source snippet'}]}});
  if(name==='web.scrape_page')return Response.json({data:{markdown:'SYNTHETIC source observation.',metadata:{sourceURL:'https://www.abs.gov.au/statistics/synthetic',publishedTime:'2026-10-01',creditsUsed:1}}});
- if(name==='web.search_trends')return Response.json({interest_over_time:{timeline_data:[{date:'Oct 2026',value:42}]}});
+ if(name==='web.search_trends')return Response.json({interest_over_time:{timeline_data:[{date:'Oct 2026',values:[{query:'Apple juice',extracted_value:42}]}]}});
  if(name==='calendar.public_holidays')return Response.json([{date:'2026-12-25',name:'Synthetic holiday',global:false,counties:['AU-NSW']}]);
  if(name==='stats.abs_spending')return url.includes('/dataflow/')?new Response(xml):new Response('TIME_PERIOD,OBS_VALUE,UNIT_MEASURE\n2026-08,12,INDEX\n');
  if(name.includes('weather'))return Response.json({daily:{time:[name==='web.season_weather'?'2026-11-02':'2025-11-02'],temperature_2m_max:[24],temperature_2m_min:[12],precipitation_sum:[0]},daily_units:{temperature_2m_max:'C'}});

@@ -92,6 +92,9 @@ function evidence(input: {
   sourceName: string;
   sourceRef: string;
   sourceKind: SourceKind;
+  origin?: Evidence['origin'];
+  sourceNote?: string;
+  research?: Evidence['research'];
   observedAt: string | null;
   dateBasis?: Evidence["dateBasis"];
   coverage?: Evidence["coverage"];
@@ -108,6 +111,9 @@ function evidence(input: {
     sourceName: input.sourceName,
     sourceRef: input.sourceRef,
     sourceKind: input.sourceKind,
+    ...(input.origin ? { origin: input.origin } : {}),
+    ...(input.sourceNote ? { sourceNote: input.sourceNote } : {}),
+    ...(input.research ? { research: input.research } : {}),
     observedAt: input.observedAt,
     fetchedAt: input.at,
     dateBasis: input.observedAt ? (input.dateBasis ?? "source_record") : "unknown",
@@ -218,12 +224,25 @@ export const internalRetailTool: ToolDefinition = {
     const shelf = lead.catalogue;
     const rival = lead.competitors[0];
     const sku = matched.kind === "product" ? `article ${lead.sku}, ` : "";
+    const synthetic = /\b(?:synthetic|fabricated|mock data|classroom demo)\b/i.test(dataset.note ?? '');
+    const provenance = {
+      origin: synthetic ? 'synthetic' as const : 'uploaded' as const,
+      sourceNote: dataset.note,
+      ...(synthetic ? { status: 'assumed' as const } : {}),
+    };
+    const retailResearch = (category: NonNullable<Evidence['research']>['category']): NonNullable<Evidence['research']> => ({
+      category, geography: dataset.retailer.country, queryScope: `${subject}: ${category}`,
+      permission: 'allowed', quality: 'unassessed',
+      transformation: synthetic ? 'Synthetic classroom figures; retained for demonstration only, not campaign substantiation.' : 'Aggregate records from the retailer file uploaded on Brand; applicability remains subject to analysis.',
+    });
     return {
-      summary: `${retailer} ${subject}: ${signedPct(shown)} versus last year. Catalogue ${aud(shelf.shelfPriceAud)}. ${rival.retailer} observed at ${aud(rival.shelfPriceAud)}.`,
+      summary: synthetic ? `${retailer} demo file retained for illustration. Its fabricated POS, catalogue and competitor figures are not live campaign evidence.` : `${retailer} ${subject}: ${signedPct(shown)} versus last year. Catalogue ${aud(shelf.shelfPriceAud)}. ${rival.retailer} observed at ${aud(rival.shelfPriceAud)}.`,
       status: "ok",
-      data: { relevance: matched.kind === "product" ? 92 : 78, confidence, matched: matched.kind },
+      data: { relevance: synthetic ? 0 : matched.kind === "product" ? 92 : 78, confidence: synthetic ? 0 : confidence, matched: matched.kind, origin: provenance.origin, sourceNote: dataset.note },
       evidence: [
         evidence({
+          ...provenance,
+          research: retailResearch('purchase_preference'),
           claim: `${retailer} POS: ${subject} is ${signedPct(shown)} on last year`,
           detail: `${retailer} ${sku}${subject}: ${units.toLocaleString("en-AU")} units in ${lead.pos.weeks} weeks to ${lead.pos.periodTo}, ${matched.kind === "product" ? `across ${lead.pos.storesRanged.toLocaleString("en-AU")} stores (${lead.pos.avgUnitsPerStoreWeek} units per store per week)` : `summed across ${rows.length} ranged articles`}. ${signedPct(shown)} on the prior year. Average selling price ${aud(lead.pos.avgPriceAud)}.`,
           sourceName: `${retailer} POS`,
@@ -236,6 +255,8 @@ export const internalRetailTool: ToolDefinition = {
           usedFor: "Demand signal",
         }),
         evidence({
+          ...provenance,
+          research: retailResearch('current_market'),
           claim: `${retailer} catalogue: ${subject} is ${shelf.ranged ? "ranged" : "not ranged"} in ${shelf.aisle}`,
           detail: `${shelf.note} Shelf ${aud(shelf.shelfPriceAud)}${shelf.promoPriceAud != null ? `, ${shelf.promoMechanic ?? "promotion"} ${aud(shelf.promoPriceAud)}${shelf.promoEnds ? ` until ${shelf.promoEnds}` : ""}` : ", not on promotion"}. Attach ${shelf.attachRatePct}% with ${shelf.pairedWith.join(", ") || "no recorded pair"}, ${shelf.heroOnlyAttachRatePct}% when sold alone.`,
           sourceName: `${retailer} catalogue`,
@@ -248,6 +269,8 @@ export const internalRetailTool: ToolDefinition = {
           usedFor: "Catalogue history",
         }),
         evidence({
+          ...provenance,
+          research: retailResearch('competitor'),
           claim: `${rival.retailer} observed ${subject} at ${aud(rival.shelfPriceAud)}`,
           detail: lead.competitors.map((row) => `${row.retailer} ${row.channel}, ${row.observedAt}: ${aud(row.shelfPriceAud)}${row.onPromotion ? `, ${row.promoMechanic ?? "on promotion"}` : ", not on promotion"}. ${row.observation}`).join(" "),
           sourceName: `${rival.retailer} competitor check`,

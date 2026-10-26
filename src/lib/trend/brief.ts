@@ -1,10 +1,10 @@
 import type { Campaign } from '@/lib/types';
-import { contextVersion, findingResearch, type FindingCategory } from './quality-contracts';
-import { briefCandidateSchema,briefAuditSchema,BRIEF_SECTIONS,type BriefCandidate,type BriefAudit,type StructuredTrendBrief } from './brief-contracts';
+import { contextVersion, findingResearch } from './quality-contracts';
+import { briefCandidateSchema,briefAuditSchema,type BriefCandidate,type BriefAudit,type StructuredTrendBrief } from './brief-contracts';
+import { requiredBriefSections, sectionCategories, sectionResearch } from './brief-sections';
+import { strategyReportMatches } from './strategy-report';
+export { requiredBriefSections, sectionCategories, sectionResearch } from './brief-sections';
 
-export const sectionCategories:Record<typeof BRIEF_SECTIONS[number],FindingCategory[]>={market_summary:['MARKET'],current_trends:['MARKET','TREND'],historical_trends:['TREND'],customer_interests:['CUSTOMER'],purchasing_preferences:['CUSTOMER'],seasonal:['SEASONAL_CULTURAL'],cultural:['SEASONAL_CULTURAL'],channel:['OPPORTUNITY','RISK','MARKET','TREND','CUSTOMER'],competitor:['COMPETITOR'],opportunities:['OPPORTUNITY'],risks:['RISK']};
-export const sectionResearch:Partial<Record<typeof BRIEF_SECTIONS[number],string>>={market_summary:'current_market',current_trends:'current_market',historical_trends:'historical_market',customer_interests:'customer_interest',purchasing_preferences:'purchase_preference',seasonal:'seasonal',cultural:'cultural',channel:'channel',competitor:'competitor'};
-export function requiredBriefSections(c:Campaign){return BRIEF_SECTIONS.flatMap(key=>(key==='channel'?c.channels:[null]).map(channel=>({key,channel})));}
 /** Negative support checks may withdraw a candidate's acceptance. They can
  * never create support or resolve a founder decision. Preserve the original
  * claim/quotes and request the existing TA-04 recovery path. */
@@ -87,5 +87,6 @@ export function assembleBrief(c:Campaign,candidate:BriefCandidate|null,audit:Bri
  return {briefId:c.id+':'+(c.run?.id??'unlaunched')+':brief',campaignId:c.id,runId:c.run?.id??'unlaunched',contextVersion:contextVersion(c),version:q?.version??0,qualityVersion:q?.version??0,generatedAt:at,status:!errors.length&&q?.status==='COMPLETE'?'COMPLETE':'INCOMPLETE',validation:errors.length?'failed':'passed',errors,modelStatus,candidate,audit,supportReviewFingerprint:supportFingerprint(c,candidate,audit),findings:structuredClone(q?.findings??[]),sources:c.evidence.filter(e=>cited.has(e.id)&&q?.evidence.some(r=>r.id===e.id&&r.accepted)).map(e=>({evidenceId:e.id,name:e.sourceName,ref:e.sourceRef,informationDate:e.observedAt,retrievedAt:e.fetchedAt})),limitations:[...new Set([...(q?.limitations??[]),...(candidate?.limitations??[]),...errors])],previousAdvice:c.sharedContext.previousAdvice??null};
 }
 export function briefMatches(c:Campaign,b:StructuredTrendBrief):boolean{
+ if(b.format==='strategy-v1')return strategyReportMatches(c,b);
  return b.briefId===c.id+':'+c.run?.id+':brief'&&b.version===c.trendQuality?.version&&b.campaignId===c.id&&b.runId===c.run?.id&&b.contextVersion===contextVersion(c)&&b.qualityVersion===c.trendQuality?.version&&b.supportReviewFingerprint===supportFingerprint(c,b.candidate,b.audit)&&b.validation==='passed'&&validateBrief(c,b.candidate,b.audit).length===0&&JSON.stringify(b.findings)===JSON.stringify(c.trendQuality.findings);
 }

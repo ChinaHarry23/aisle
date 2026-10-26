@@ -1,5 +1,12 @@
 import type { Campaign, Creative } from "@/lib/types";
 import type { GenerateRequest } from "./types";
+import { currentStrategy } from "@/lib/trend/strategy";
+
+/** Older runs stored workflow placeholders in the same fields as art direction. */
+export function creativeDirectionText(value: string | null | undefined): string {
+  const text = value?.trim() ?? "";
+  return /^(?:visual direction (?:awaits|unavailable)|report synthesis needs review|campaign direction awaits|no supported (?:theme|market message)|pending\b|awaiting\b)/i.test(text) ? "" : text;
+}
 
 /**
  * The scene that sells this product. The uploaded photo stays the product;
@@ -33,11 +40,13 @@ export function posterPrompt(
   options?: { correction?: string; editing?: boolean },
 ) {
   const brief = campaign.brief;
+  const strategy = currentStrategy(campaign);
+  const visual = creativeDirectionText(strategy?.visualDirection ?? brief?.visualDirection);
   const scene =
-    creative.prompt?.trim() ||
+    creativeDirectionText(creative.prompt) ||
     [
-      brief?.angle ? `Angle from the trend brief: ${brief.angle}.` : "",
-      brief?.visualDirection ? `Visual direction from the trend brief: ${brief.visualDirection}.` : "",
+      creativeDirectionText(strategy?.recommendedAngle ?? brief?.angle) ? `Campaign angle: ${creativeDirectionText(strategy?.recommendedAngle ?? brief?.angle)}.` : "",
+      visual ? `Visual direction: ${visual}.` : "",
       `The product is ${campaign.product}.`,
     ]
       .filter(Boolean)
@@ -45,7 +54,9 @@ export function posterPrompt(
   const reference = campaign.productImageUrl
     ? [
         "The attached photo is this product. Keep its shape, colour and markings recognisable.",
-        productScene(campaign.product, campaign.category, campaign.notes ?? ""),
+        creativeDirectionText(creative.prompt) || visual
+          ? "Use the campaign scene described below; keep the photographed product recognisable within it."
+          : productScene(campaign.product, campaign.category, campaign.notes ?? ""),
         "Do not depict a named real person, and do not replace the product with a different one.",
       ].join(" ")
     : "No product photo was supplied. Illustrate this exact product from the brief, not a generic category scene.";

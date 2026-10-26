@@ -4,8 +4,10 @@ import { useState } from "react";
 import Link from "next/link";
 import { ResearchDecisions } from "./ResearchDecisions";
 import { StructuredBrief } from "./StructuredBrief";
+import { StrategySummary } from "./StrategySummary";
 import type { Campaign } from "@/lib/types";
 import { coverageFor, type ResearchCategory } from "@/lib/trend/contracts";
+import { currentStrategy } from "@/lib/trend/strategy";
 import { cn } from "@/lib/cn";
 
 const labels: Record<ResearchCategory, string> = {
@@ -20,7 +22,7 @@ const labels: Record<ResearchCategory, string> = {
 };
 
 type Area = NonNullable<Campaign["researchCoverage"]>[number];
-type View = "areas" | "decisions" | "brief";
+type View = "strategy" | "areas" | "decisions" | "brief";
 
 function areaKey(area: Area) {
   return `${area.category}:${area.channel ?? ""}`;
@@ -34,11 +36,18 @@ export function TrendReport({ campaign }: { campaign: Campaign }) {
   const areas = campaign.researchCoverage ?? coverageFor(campaign, []);
   const retrieved = areas.filter((area) => area.evidenceIds.length).length;
   const quality = campaign.trendQuality;
+  const strategy = currentStrategy(campaign);
+  const strategyInsightIds = new Set(strategy?.insights.map((insight) => insight.id));
+  const appliedInsightIds = new Set(campaign.creatives.filter((creative) => creative.strategyVersion === strategy?.version).flatMap((creative) => creative.insightUses?.map((use) => use.insightId).filter((id) => strategyInsightIds.has(id)) ?? []));
   const attention = quality
     ? (campaign.trendRequests?.filter((request) => request.status === "pending") ?? [])
     : campaign.trendGaps.filter((gap) => gap.needsFounder);
   const recorded = Boolean(campaign.researchAttempts?.length);
-  const draft = quality
+  const draft = strategy
+    ? strategy.status === "product_led" ? "Product-led direction" : "Campaign strategy ready"
+    : campaign.running && campaign.run?.step.startsWith("trend.")
+      ? "Developing your campaign"
+      : quality
     ? quality.status === "COMPLETE"
       ? quality.storedVersion === quality.version
         ? quality.handedOffAt
@@ -47,7 +56,7 @@ export function TrendReport({ campaign }: { campaign: Campaign }) {
         : "Evidence passed · awaiting storage"
       : campaign.status === "rejected"
         ? "Analysis ended · partial report"
-        : "Incomplete · evidence needs review"
+        : "Research saved · some questions remain"
     : recorded
       ? "Draft · evidence review pending"
       : "No verified research run";
@@ -65,14 +74,15 @@ export function TrendReport({ campaign }: { campaign: Campaign }) {
   }
 
   const firstGap = areas.find((area) => statusFor(area) !== "Supported") ?? areas[0];
-  const [view, setView] = useState<View>("areas");
+  const [view, setView] = useState<View>("strategy");
   const [selectedKey, setSelectedKey] = useState(firstGap ? areaKey(firstGap) : "");
   const selected = areas.find((area) => areaKey(area) === selectedKey) ?? firstGap;
 
   const views: { id: View; label: string }[] = [
-    { id: "areas", label: `Areas · ${areas.length}` },
-    { id: "decisions", label: `Decisions · ${attention.length}` },
-    { id: "brief", label: "Brief" },
+    { id: "strategy", label: "Campaign direction" },
+    { id: "areas", label: "Research details" },
+    ...(attention.length ? [{ id: "decisions" as const, label: `Your inputs · ${attention.length}` }] : []),
+    { id: "brief", label: "Full report" },
   ];
 
   return (
@@ -80,7 +90,7 @@ export function TrendReport({ campaign }: { campaign: Campaign }) {
       <section className="hairline p-4 md:p-5" aria-label="Trend report overview">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="font-serif text-2xl">Trend analysis</h2>
+            <h2 className="font-serif text-2xl">Research for your campaign</h2>
             <p className="mt-1 text-sm text-ink-soft">
               {campaign.product} · {campaign.country} · {campaign.startDate} – {campaign.endDate}
             </p>
@@ -89,30 +99,32 @@ export function TrendReport({ campaign }: { campaign: Campaign }) {
         </div>
         <dl className="mt-4 grid grid-cols-3 gap-3 border-t border-line pt-3 text-sm">
           <div>
-            <dt className="text-mute">Sources</dt>
-            <dd className="mt-1 text-lg">{retrieved} / {areas.length}</dd>
+            <dt className="text-mute">Useful directions</dt>
+            <dd className="mt-1 text-lg">{strategy?.insights.length ?? "—"}</dd>
           </div>
           <div>
-            <dt className="text-mute">Supported</dt>
-            <dd className="mt-1 text-lg">{quality ? `${quality.requiredCategories.filter((item) => item.supported).length} / 7` : "—"}</dd>
+            <dt className="text-mute">Applied to creative</dt>
+            <dd className="mt-1 text-lg">{strategy ? appliedInsightIds.size : "—"}</dd>
           </div>
           <div>
-            <dt className="text-mute">Needs you</dt>
-            <dd className="mt-1 text-lg">{attention.length}</dd>
+            <dt className="text-mute">Channels planned</dt>
+            <dd className="mt-1 text-lg">{strategy?.channels.length ?? campaign.channels.length}</dd>
           </div>
         </dl>
         {campaign.researchModelTurns?.length ? (
           <details className="mt-4 border-t border-line pt-3">
             <summary className="cursor-pointer text-sm text-signal">
-              Agent execution · {campaign.researchModelTurns.length} model turns
+              Research activity
             </summary>
             <ol className="mt-3 space-y-2 text-xs text-mute">
+              <li>{retrieved} of {areas.length} research areas returned sources. {quality?.findings.filter((finding) => finding.supported).length ?? 0} reviewed findings.</li>
               {campaign.researchModelTurns.map((turn) => (
                 <li key={turn.turn}>
                   Turn {turn.turn} · {turn.modelId} · {turn.phase} · {turn.status} · {turn.tokens} tokens
                   <p>{turn.selectedTools.length ? `Selected: ${turn.selectedTools.join(", ")}` : "No tool selected"}</p>
                 </li>
               ))}
+              {quality?.modelStatus && quality.modelStatus !== "assessed" ? <li>Review detail: {quality.modelStatus}</li> : null}
             </ol>
           </details>
         ) : null}
@@ -135,6 +147,8 @@ export function TrendReport({ campaign }: { campaign: Campaign }) {
           </button>
         ))}
       </div>
+
+      {view === "strategy" ? <StrategySummary campaign={campaign} /> : null}
 
       {view === "areas" && selected ? (
         <section className="grid gap-4 lg:grid-cols-[16rem_minmax(0,1fr)]" aria-label="Research areas">

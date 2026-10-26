@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { importRetailCsv, internalRetailOutcome } from '../src/lib/trend/internal-retail';
 import { blankCampaign, defaultBrand } from '../src/lib/seed';
 import { defaultSettings } from '../src/lib/settings';
-import { researchTools, publicSourceUrl, parseCsv, boundedResponse } from '../src/lib/trend/source-tools';
+import { researchTools, publicSourceUrl, parseCsv, boundedResponse, queryFor } from '../src/lib/trend/source-tools';
+import { researchEvidenceContext, unreadResearchSources } from '../src/lib/trend/retrieval-context';
 import { createTrendResearch, researchEnabled, researchModelResult } from '../src/lib/agents/trend-research';
 import { createServerResearchRuntime } from '../src/lib/agents/trend-server';
 import { runEngine } from '../src/lib/runtime/engine';
@@ -40,12 +41,47 @@ try{
  globalThis.fetch=async()=>Response.json({interest_over_time:{timeline_data:[{date:'Oct 2026',values:[{extracted_value:42}]}]}});
  const trends=await tool('web.search_trends').run({...base,args:{kind:'TIMESERIES'}});assert.equal(trends.evidence[0].research?.category,'historical_market');assert.ok(!JSON.stringify(trends).includes('synthetic-key'));assert.match(trends.summary,/not purchase/);
  pass('Trends returns relative interest with no key in provenance');
+ const chicken={...base,campaign:{...c,product:'Coles RSPCA Approved Chicken Breast Fillet',category:'Grocery'},brand:{...defaultBrand,retailerName:'Coles'}};
+ assert.match(queryFor(chicken,'current_market'),/Coles RSPCA Approved Chicken Breast Fillet/);
+ assert.doesNotMatch(queryFor(chicken,'purchase_preference'),/Coles|RSPCA|Approved/);
+ assert.match(queryFor(chicken,'purchase_preference'),/Chicken Breast Fillet.*purchase drivers/);
+ assert.match(queryFor(chicken,'channel','email'),/email content formats/);
+ assert.match(queryFor({...chicken,args:{query:'chicken meal preparation Australian consumer survey'}},'customer_interest'),/^chicken meal preparation Australian consumer survey AU$/);
+ let refined='';globalThis.fetch=async(_url,init)=>{refined=JSON.parse(String(init?.body)).query;return Response.json({data:{web:[]}});};
+ await tool('web.search').run({...chicken,args:{category:'customer_interest',query:'chicken meal preparation consumer survey'}});
+ assert.match(refined,/chicken meal preparation consumer survey/);
+ pass('audience and channel searches broaden beyond the branded SKU; typed query refinement reaches the existing search API');
+ const useful='The 2026 survey of 1200 adult shoppers found that meal preparation convenience influenced chicken purchase choice; the sample covers Australian households.';
+ globalThis.fetch=async()=>Response.json({data:{markdown:'Skip to navigation. Cookie preferences. '.repeat(400)+'\n\n'+useful+'\n\n'+'Site footer contact and terms. '.repeat(100),metadata:{sourceURL:'https://www.abs.gov.au/statistics/example','article:published_time':'2026-09-01'}}});
+ const latePassage=await tool('web.scrape_page').run({...chicken,args:{url:'https://www.abs.gov.au/statistics/example',category:'purchase_preference',question:'Australian chicken meal preparation convenience consumer survey sample'}});
+ assert.ok(latePassage.evidence[0].detail.includes(useful));
+ assert.ok(researchModelResult(latePassage).evidence.some(e=>e.excerpt.includes('meal preparation convenience')));
+ assert.ok(latePassage.evidence[0].detail.length<=6000);
+ const duplicateRows=[...latePassage.evidence,{...latePassage.evidence[0],id:'duplicate-area',research:{...latePassage.evidence[0].research!,category:'customer_interest' as const}}];
+ const projected=researchEvidenceContext(duplicateRows,c);assert.equal(projected.length,1);assert.equal(projected[0].areas.length,2);
+ const crowded=Array.from({length:22},(_,i)=>({...search.evidence[0],id:`market-${i}`,sourceRef:`https://www.abs.gov.au/statistics/market-${i}`,research:{...search.evidence[0].research!,category:'current_market' as const}}));
+ const channelSource={...search.evidence[0],id:'email-last',sourceRef:'https://www.abs.gov.au/statistics/email-last',research:{...search.evidence[0].research!,category:'channel' as const,channel:'email'}};
+ assert.ok(researchEvidenceContext([...crowded,channelSource],c).some(row=>row.areas.some(area=>area.channel==='email')),'later channel material must survive bounded context');
+ assert.equal(unreadResearchSources([...search.evidence,...search.evidence,{...search.evidence[0],id:'duplicate-snippet'}],c).length,1);
+ assert.equal(unreadResearchSources([...search.evidence,...latePassage.evidence],c).length,0);
+ pass('late-page passages reach model context, duplicate URLs share an excerpt, and already-read originals are not suggested again');
+ let trendsUrl='';const series=Array.from({length:52},(_,i)=>({date:`week ${i+1}`,timestamp:String(Date.UTC(2025,9,20+i*7)/1000),values:[{query:'chicken breast',extracted_value:i<40?0:60}]}));
+ globalThis.fetch=async(url)=>{trendsUrl=String(url);return Response.json({interest_over_time:{timeline_data:[...series,{date:'partial week',isPartial:true,values:[{extracted_value:100}]}]}});};
+ const completeSeries=await tool('web.search_trends').run({...chicken,args:{kind:'TIMESERIES',query:'chicken breast'}});
+ const seriesSummary=JSON.parse(completeSeries.evidence[0].detail).summary;
+ assert.equal(seriesSummary.periods,52);assert.equal(seriesSummary.nonZeroPeriods,12);assert.equal(seriesSummary.peak.value,60);assert.equal(seriesSummary.recentPeriods.length,8);
+ assert.equal(JSON.parse(researchModelResult(completeSeries).evidence[0].excerpt).summary.periods,52,'complete measured summary must reach the model intact');
+ assert.equal(new URL(trendsUrl).searchParams.get('q'),'chicken breast');assert.equal(new URL(trendsUrl).searchParams.get('date'),'2025-10-20 2026-10-20');
+ assert.ok(completeSeries.evidence[0].detail.length<2400);assert.match(completeSeries.evidence[0].detail,/not search volume/);
+ pass('Trends supplies a complete compact series summary and fixed dates, preserving zeros and excluding partial periods');
  globalThis.fetch=async()=>Response.json([{date:'2026-10-21',name:'Synthetic regional holiday',counties:['AU-NSW']},{date:'2026-12-25',name:'Outside scope'}]);
  const calendar=await tool('calendar.public_holidays').run({...base,args:{year:'2026'}});assert.equal((calendar.data as {holidays:unknown[]}).holidays.length,1);assert.equal((await tool('calendar.public_holidays').run({...base,args:{year:'2025'}})).status,'skipped');
+ assert.deepEqual(calendar.evidence[0].coverage,{start:c.startDate,end:c.endDate,location:'AU'});assert.equal(calendar.evidence[0].observedAt,null);
  pass('calendar respects campaign country/year/window and retains subdivision data');
  assert.deepEqual(parseCsv('TIME_PERIOD,OBS_VALUE,LABEL\n2026-08,12,"Food, retail"\n'),[['TIME_PERIOD','OBS_VALUE','LABEL'],['2026-08','12','Food, retail']]);
  let absCalls=0;globalThis.fetch=async()=>{absCalls++;return absCalls===1?new Response('<structure:Dataflow id="HSI_M" version="1.0"><common:Name>Household Spending</common:Name></structure:Dataflow><structure:Dimension id="MEASURE" position="1"><Ref id="CL_M" class="Codelist" /></structure:Dimension><structure:Codelist id="CL_M"><structure:Code id="1"><common:Name>Index</common:Name></structure:Code></structure:Codelist>'):new Response('TIME_PERIOD,OBS_VALUE,UNIT_MEASURE\n2026-08,12,INDEX\n');};
  const abs=await tool('stats.abs_spending').run({...base,args:{mode:'series',flow:'HSI_M',key:'1'}});assert.equal(abs.evidence.length,1);assert.equal(absCalls,2);assert.match(abs.evidence[0].detail,/INDEX/);
+ assert.equal(abs.evidence[0].observedAt,'2026-08-01');assert.deepEqual(abs.evidence[0].coverage,{start:'2026-08-01',end:'2026-08-31',location:'AU'});
  await assert.rejects(boundedResponse(new Response('x'.repeat(1_000_001))),/size cap/);
  pass('ABS verifies metadata before reading bounded CSV with units, and oversized data is rejected');
  for(const response of [null,{}, {data:{web:[]}}]){globalThis.fetch=async()=>Response.json(response);assert.equal((await tool('web.search').run({...base,args:{category:'current_market'}})).evidence.length,0);}
@@ -94,6 +130,27 @@ try{
  assert.equal(researchModelResult({...scraped,data:{duplicate:'x'.repeat(20000)}}).data,undefined);
  assert.equal(researchModelResult({status:'ok',summary:'metadata',data:{dimensions:'x'.repeat(5000)},evidence:[]}).metadataOmitted,true);
  pass('two scoped contexts use different tool plans; real LangChain loop feeds paired bounded tool results back to mock model');
+ {
+  const iterative=blankCampaign({name:'Iterative original research',product:'Chicken breast',category:'Grocery',targetAudience:'Adult shoppers',objective:'Awareness',budget:1000,channels:['web'],startDate:'2026-10-20',endDate:'2026-10-26',country:'AU',notes:''},defaultBrand,null,settings);
+  let turns=0;const originals:string[]=[];
+  const read=await createTrendResearch(undefined,{mode:'mock',complete:async req=>{
+    turns++;
+    if(turns<=3){
+      assert.ok(req.tools?.some(t=>t.name==='web.scrape_page'),'the same useful tool must stay available after preceding reads');
+      if(turns>1){assert.equal(req.toolChoice,'auto');assert.ok(req.tools?.some(t=>!t.name.includes('.')),'the model can finish when useful work is complete');assert.ok(req.lastTurnIsToolResult);}
+      return {...stubComplete(req,'MOCK ONLY'),status:'ok',text:null,toolCalls:[{id:`read-${turns}`,name:'web.scrape_page',args:{category:'purchase_preference',url:`https://www.abs.gov.au/statistics/original-${turns}`,question:'Chicken purchase convenience survey'}}]};
+    }
+    return {...stubComplete(req,'MOCK ONLY'),status:'ok',text:JSON.stringify(answer)};
+  }})({campaign:iterative,brand:defaultBrand,settings,at,allowed:async()=>true,onFailedUsage:()=>{},execute:async(name,args,override)=>{
+    if(override)return override;
+    if(name==='web.scrape_page'){originals.push(args.url);return {status:'ok',summary:'Original research inspected',data:null,evidence:[{...latePassage.evidence[0],id:`original-${originals.length}`,sourceRef:args.url}]};}
+    return {status:'empty',summary:'No result for this area',evidence:[],data:null};
+  }});
+  assert.ok(read);assert.equal(turns,4);assert.equal(originals.length,3);
+  assert.equal(iterative.researchAttempts?.filter(a=>a.phase==='agent'&&a.status==='ok').length,3);
+  assert.equal(new Set(iterative.researchAttempts?.filter(a=>a.phase==='mandatory').map(a=>a.category)).size,8);
+  pass('three sequential original reads use one tool type, inspect feedback, and then finish without an artificial tool-diversity gate');
+ }
  let turn=0,realTools=0;const runner=createTrendResearch(undefined,{mode:'mock',complete:async req=>{
   if(++turn===1)return {...stubComplete(req,'MOCK'),status:'ok',text:null,toolCalls:[{id:'1',name:'web.search',args:{category:'current_market'}},{id:'2',name:'web.search',args:{category:'current_market'}}]};
   return {...stubComplete(req,'MOCK'),status:'ok',text:JSON.stringify(answer)};

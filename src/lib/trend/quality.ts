@@ -16,14 +16,39 @@ export function trendsMeasurement(sourceName:string):boolean { return sourceName
 export function optionalResearchArea(category:string):boolean { return category==='historical_market'||category==='customer_interest'; }
 export function optionalFindingCategory(category:string):boolean { return category==='TREND'; }
 const normalized=(s:string)=>s.toLowerCase().replace(/\s+/g,' ').trim();
+/** These URLs are emitted by typed specialist tools, not arbitrary page reads.
+ * Keep their fixed query parameters so useful API results retain provenance. */
+export function specialistSource(e:Evidence):'calendar'|'abs'|'weather'|null {
+  try {
+    const u=new URL(e.sourceRef);
+    if(u.protocol!=='https:'||u.username||u.password||(u.port&&u.port!=='443')||u.hash)return null;
+    const keys=[...u.searchParams.keys()];
+    const exactly=(expected:string[])=>keys.length===expected.length&&new Set(keys).size===keys.length&&keys.every(k=>expected.includes(k));
+    if(e.sourceName==='Nager.Date'&&u.hostname==='nagerholidays.com'&&/^\/api\/v3\/publicholidays\/\d{4}\/[A-Z]{2}$/.test(u.pathname)&&!u.search)return 'calendar';
+    if(e.sourceName==='ABS Data API'&&u.hostname==='data.api.abs.gov.au'&&/^\/rest\/data\/ABS,[A-Z0-9_]+,[A-Za-z0-9._-]+\/[A-Za-z0-9_.-]+$/.test(u.pathname)
+      &&exactly(['lastNObservations','dimension_at_observation'])&&u.searchParams.get('lastNObservations')==='12'&&u.searchParams.get('dimension_at_observation')==='AllDimensions')return 'abs';
+    const coordinate=(key:string,limit:number)=>{const value=u.searchParams.get(key);return value!==null&&/^-?\d+(?:\.\d+)?$/.test(value)&&Math.abs(Number(value))<=limit;};
+    if(e.sourceName==='Open-Meteo Historical Weather'&&u.hostname==='archive-api.open-meteo.com'&&u.pathname==='/v1/archive'
+      &&exactly(['latitude','longitude','start_date','end_date','daily','timezone'])&&coordinate('latitude',90)&&coordinate('longitude',180)
+      &&u.searchParams.get('start_date')===e.coverage?.start&&u.searchParams.get('end_date')===e.coverage?.end
+      &&u.searchParams.get('daily')==='temperature_2m_max,temperature_2m_min,precipitation_sum'&&u.searchParams.get('timezone')==='auto')return 'weather';
+  }catch{/* An invalid provider ref cannot identify a typed source. */}
+  return null;
+}
+function usableCoverage(e:Evidence):boolean {
+  const validDate=(s:string|undefined)=>Boolean(s&&/^\d{4}-\d{2}-\d{2}$/.test(s)&&Number.isFinite(Date.parse(s))&&new Date(s).toISOString().slice(0,10)===s);
+  return Boolean(e.coverage&&validDate(e.coverage.start)&&validDate(e.coverage.end)&&e.coverage.start<=e.coverage.end&&e.coverage.location.trim());
+}
 export function sourceIdentity(e:Evidence):string {
   try {const u=new URL(e.sourceRef);return u.hostname.replace(/^www\./,'')+u.pathname.replace(/\/$/,'');}catch{return e.sourceRef;}
 }
 export function evidenceCurrency(e:Evidence,now:string,rules:QualityRules=configuredQualityRules()):EvidenceReview['currency'] {
-  if(!e.observedAt || !Number.isFinite(Date.parse(e.observedAt)))return 'unknown';
   if(e.status==='stale')return 'outdated';
+  const specialist=specialistSource(e),covered=Boolean(specialist&&usableCoverage(e));
+  if((!e.observedAt || !Number.isFinite(Date.parse(e.observedAt)))&&!covered)return 'unknown';
   const end=e.coverage?.end??e.observedAt;
-  if(e.research?.category==='historical_market')return Date.parse(end)<=Date.parse(now)?'historical':'unknown';
+  if(!end)return 'unknown';
+  if(e.research?.category==='historical_market'||specialist==='weather')return Date.parse(end)<=Date.parse(now)?'historical':'unknown';
   const age=(Date.parse(now)-Date.parse(end))/86400000;
   const window=e.research?.category==='cultural'?rules.culturalMaxAgeDays:rules.currentMaxAgeDays;
   return age < -2 ? (e.coverage?'current':'unknown') : age > window ? 'outdated' : 'current';
@@ -39,9 +64,10 @@ export function evaluateQuality(c:Campaign, raw:QualityAssessment|null, at:strin
     const semantic=matches.length===1?matches[0]:null;
     const currency=evidenceCurrency(e,at,rules), exclusions:string[]=[];
     if(!semantic)exclusions.push('No unique semantic review for this record.');
+    if(e.origin==='synthetic')exclusions.push('Synthetic demonstration data is not live campaign evidence.');
     const brandRetail=e.sourceKind==='internal_retail'&&e.sourceRef.startsWith('brand://retail-data');
     const trends=trendsMeasurement(e.sourceName);
-    if(!trends&&(e.sourceKind==='internal_retail'?!(c.internalDataAuthorised||brandRetail):e.sourceKind!=='external_public'||!publicSourceUrl(e.sourceRef)))exclusions.push('Unauthorised or non-public source.');
+    if(!trends&&(e.sourceKind==='internal_retail'?!(c.internalDataAuthorised||brandRetail):e.sourceKind!=='external_public'||!(publicSourceUrl(e.sourceRef)||specialistSource(e))))exclusions.push('Unauthorised or non-public source.');
     if(semantic?.sensitive)exclusions.push('Sensitive information excluded.');
     if(e.research?.permission!=='allowed')exclusions.push('No evidence access permission.');
     if(e.status!=='verified'&&e.status!=='conflicting')exclusions.push('Source is not usable.');
@@ -112,9 +138,10 @@ export function evaluateQuality(c:Campaign, raw:QualityAssessment|null, at:strin
     if(f.main&&!f.supported&&!optionalFindingCategory(f.category)&&!requests.some(r=>r.findingIds.includes(f.id)))add(`finding:${f.id}`,f.category,f.reasons.join(' '),[f.id]);
     else if(f.supported&&!optionalFindingCategory(f.category)&&(f.material&&f.limitation.trim()||f.conflict&&!f.conflict.explained))add(`limited:${f.id}:${decisionFingerprint([f.claim,f.supports,f.conflict,f.limitation,rules])}`,f.category,f.limitation||'Evidence conflicts; both accounts are retained.',[f.id],true);
   }
-  const passed=Boolean(assessment&&researchAreas.every(a=>a.supported||optionalResearchArea(a.category))&&requiredCategories.every(a=>a.supported||optionalFindingCategory(a.category))&&findings.filter(f=>f.main&&!optionalFindingCategory(f.category)).every(f=>f.supported)&&requests.every(r=>r.status==='resolved'));
+  const recoveryIncomplete=modelStatus.includes('partial_recovery:');
+  const passed=Boolean(assessment&&!recoveryIncomplete&&researchAreas.every(a=>a.supported||optionalResearchArea(a.category))&&requiredCategories.every(a=>a.supported||optionalFindingCategory(a.category))&&findings.filter(f=>f.main&&!optionalFindingCategory(f.category)).every(f=>f.supported)&&requests.every(r=>r.status==='resolved'));
   return {rules,version,contextVersion:ctx,runId,rulesVersion:QUALITY_RULES.version,assessedAt:at,status:passed?'COMPLETE':'INCOMPLETE',storedVersion:null,handedOffAt:null,continuedAt:null,resumeStep:12,evidence,findings,researchAreas,requiredCategories,
-    limitations:[...new Set([...findings.flatMap(f=>f.limitation?[f.limitation]:[]),...evidence.flatMap(e=>e.exclusions.map(reason=>`${e.id}: ${reason}`)),...continued.map(a=>`${a.reason} Trends is optional, so this gap does not stop the report.`)])],requests,replacementAttempts,assessment,modelStatus};
+    limitations:[...new Set([...(recoveryIncomplete?['Some response items could not be recovered; independently reviewed findings remain available.']:[]),...findings.flatMap(f=>f.limitation?[f.limitation]:[]),...evidence.flatMap(e=>e.exclusions.map(reason=>`${e.id}: ${reason}`)),...continued.map(a=>`${a.reason} Trends is optional, so this gap does not stop the report.`)])],requests,replacementAttempts,assessment,modelStatus};
 }
 export function recordStoredTrend(c:Campaign):void {
  const q=c.trendQuality;if(!q||q.contextVersion!==contextVersion(c))return;

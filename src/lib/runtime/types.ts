@@ -54,6 +54,9 @@ export type Evidence = {
   /** Public or documented locator. Empty for model inference. */
   sourceRef: string;
   sourceKind: SourceKind;
+  /** Preserve source provenance through retrieval, analysis and creative use. */
+  origin?: 'synthetic' | 'uploaded' | 'live_provider';
+  sourceNote?: string;
   /** ISO date the underlying information describes (not when we fetched it). */
   observedAt: string | null;
   /** Meaning of observedAt; null means the source supplied no information date. */

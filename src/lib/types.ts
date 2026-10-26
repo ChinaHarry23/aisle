@@ -144,7 +144,17 @@ export type Creative = {
   motif: "campus" | "produce" | "pantry" | "editorial";
   status: "draft" | "flagged" | "revised" | "approved" | "rejected";
   prompt: string;
+  /** The strategy snapshot and decisions the copywriter actually applied. */
+  strategyVersion?: number;
+  insightUses?: CreativeInsightUse[];
+  unusedInsightIds?: string[];
   generation?: MediaGeneration;
+};
+
+export type CreativeInsightUse = {
+  insightId: string;
+  application: "headline" | "visual" | "caption" | "cta";
+  rationale: string;
 };
 
 export type ComplianceFinding = {
@@ -249,6 +259,8 @@ export type SharedContext = {
 };
 
 export type Campaign = CampaignInput & {
+  /** Actionable research and creative direction, produced by the shared Trend runtime. */
+  strategy?: import('@/lib/trend/strategy').CampaignStrategy;
   id: string;
   status: CampaignStatus;
   /**

@@ -3,6 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "test:trend-strategy": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/trend-strategy-suite.ts",
+    "test:trend-strategy-report": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/trend-strategy-report-suite.ts",
+    "test:trend-quality-recovery": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/trend-quality-recovery-suite.ts",
+    "test:trend-creative": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/trend-creative-suite.ts",
     "test:document-review": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/document-review-suite.ts",
     "test:trend-connection": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/trend-connection-suite.ts",
     "demo:trend": "node --env-file-if-exists=.env.local --import ./scripts/service-loader.mjs --experimental-strip-types scripts/trend-example.ts",

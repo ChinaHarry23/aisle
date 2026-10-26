@@ -1,18 +1,22 @@
 import { formatDate } from '@/lib/ids';
 import type { Campaign } from '@/lib/types';
 import type { BriefCandidate } from '@/lib/trend/brief-contracts';
+import { contextVersion } from '@/lib/trend/quality-contracts';
+import { strategyReportMatches } from '@/lib/trend/strategy-report';
+import { currentStrategy } from '@/lib/trend/strategy';
 
 const titles:Record<BriefCandidate['sections'][number]['key'],string>={market_summary:'Market situation',current_trends:'Current market trends',historical_trends:'Historical trends',customer_interests:'Customer interests',purchasing_preferences:'Purchasing preferences',seasonal:'Seasonal influences',cultural:'Cultural influences',channel:'Channel insights',competitor:'Public competitor patterns',opportunities:'Campaign opportunities',risks:'Risks & sensitivities'};
 const areaKeys:Record<string,string>={market_summary:'current_market',current_trends:'current_market',historical_trends:'historical_market',customer_interests:'customer_interest',purchasing_preferences:'purchase_preference',seasonal:'seasonal',cultural:'cultural',channel:'channel',competitor:'competitor'};
 export function StructuredBrief({campaign:c}:{campaign:Campaign}){
  const report=c.structuredTrendBrief,b=report?.candidate;
  if(!report)return null;
- const current=report.contextVersion===c.trendQuality?.contextVersion&&report.qualityVersion===c.trendQuality?.version&&(report.status!=='COMPLETE'||c.trendQuality?.status==='COMPLETE');
- const trusted=report.validation==='passed'&&current;
+ const strategy=currentStrategy(c);
+ const current=report.contextVersion===contextVersion(c)&&report.runId===c.run?.id&&report.contextVersion===c.trendQuality?.contextVersion&&report.qualityVersion===c.trendQuality?.version&&(report.status!=='COMPLETE'||c.trendQuality?.status==='COMPLETE')&&(report.format!=='strategy-v1'||Boolean(strategy&&report.strategyVersion===strategy.version&&report.sourceFingerprint===strategy.sourceFingerprint));
+ const trusted=report.validation==='passed'&&current&&(report.format!=='strategy-v1'||strategyReportMatches(c,report));
  return <section className="hairline p-5 md:p-7" id="structured-brief" aria-label="Evidence-backed TrendBrief">
   <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs uppercase tracking-wider text-signal">Evidence-backed TrendBrief</p><h2 className="mt-2 font-serif text-2xl">The campaign research brief</h2></div><span className="status-chip status-wait">{!current?'Previous report · revalidation required':report.status==='COMPLETE'?'Complete report':trusted?'Partial report':'Report needs recovery'}</span></div>
   <p className="mt-3 text-sm text-mute">Version {report.version} · {formatDate(report.generatedAt)} · {c.channels.join(', ')} · {c.country}. Findings, interpretations and creative proposals are shown separately. Suggested claims still require advertising compliance and human approval.</p>
-  {!trusted&&<div role="status" className="mt-5 rounded-xl border border-line p-4"><p className="font-medium">The final report could not be validated</p><p className="mt-2 text-sm">Your collected research is retained below. Report completion and content generation are blocked.</p><ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-mute">{report.errors.map((e,i)=><li key={i}>{e}</li>)}</ul></div>}
+  {!trusted&&<div role="status" className="mt-5 rounded-xl border border-line p-4"><p className="font-medium">Some research could not be included</p><p className="mt-2 text-sm">The available research and campaign direction are retained. Your campaign can continue with the useful findings.</p><details className="mt-3"><summary className="cursor-pointer text-sm text-signal">Research details</summary><ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-mute">{report.errors.map((e,i)=><li key={i}>{e}</li>)}</ul></details></div>}
   {trusted&&b&&<>
    <nav aria-label="Brief contents" className="mt-5 flex flex-wrap gap-3 border-y border-line py-4 text-sm text-signal">{b.sections.map(s=><a key={s.key+':'+s.channel} href={'#brief-'+s.key+(s.channel?'-'+s.channel:'')}>{titles[s.key]}{s.channel?' · '+s.channel:''}</a>)}<a href="#brief-directions">Themes & visuals</a><a href="#brief-sources">Sources & limitations</a></nav>
    <div className="mt-6 space-y-6">{b.sections.map(s=>{

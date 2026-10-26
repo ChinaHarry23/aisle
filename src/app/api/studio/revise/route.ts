@@ -4,6 +4,7 @@ import { loadWorkspace, updateWorkspace } from "@/lib/auth/workspace";
 import { billingForSession } from "@/lib/billing/meter";
 import { renderCampaignPoster } from "@/lib/media/campaign-poster";
 import { readMedia } from "@/lib/media/store";
+import { withoutVisualInsightUses } from "@/lib/media/persistence";
 import { makeLlmRuntime, rewriteImagePrompts, takeUnbookedSeatCost } from "@/lib/runtime/decide";
 import { makeLog } from "@/lib/seed";
 import type { Campaign, Creative } from "@/lib/types";
@@ -82,7 +83,7 @@ export async function POST(request: Request) {
     }
     cost += generation.usage.costUsd ?? 0;
     revised.set(creative.id, {
-      ...creative,
+      ...withoutVisualInsightUses(creative),
       version: creative.version + 1,
       status: "revised",
       prompt: agentPrompt ?? creative.prompt,

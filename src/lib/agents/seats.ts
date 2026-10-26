@@ -87,6 +87,12 @@ export const copySchema = z.object({
         cta: z.string().describe("Call to action."),
         caption: z.string().describe("Social/catalogue caption."),
         prompt: z.string().describe("Image-generation prompt for the poster."),
+        insightUses: z.array(z.object({
+          insightId: z.string(),
+          application: z.enum(["headline", "visual", "caption", "cta"]),
+          rationale: z.string().describe("Explain the actual words or scene that apply this strategy insight."),
+        })).max(12).optional().describe("Only strategy insight IDs supplied in the campaign input; empty when none are used."),
+        unusedInsightIds: z.array(z.string()).max(12).optional(),
       }),
     )
     .describe("Exactly two variants, A and B."),

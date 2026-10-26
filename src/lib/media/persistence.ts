@@ -1,4 +1,4 @@
-import type { Campaign } from "../types";
+import type { Campaign, Creative } from "../types";
 import type { AdVideo, MediaGeneration } from "./pr2-types";
 import { WorkflowError } from "../workflow/commands";
 import { makeLog } from "../seed";
@@ -7,6 +7,14 @@ import { getModel } from "../pr2-shims";
 export type StudioMediaUpdate =
   | { kind: "image"; creativeId: string; expectedUrl?: string | null; generation: MediaGeneration }
   | { kind: "video"; sourceCreativeId: string; expectedUrl: string | null; video: AdVideo };
+
+/** Image edits preserve copy, but the previous scene's attribution no longer describes the new image. */
+export function withoutVisualInsightUses(creative: Creative): Creative {
+  if (!creative.insightUses?.some((use) => use.application === "visual")) return creative;
+  const ids = new Set([...(creative.unusedInsightIds ?? []), ...creative.insightUses.map((use) => use.insightId)]);
+  const insightUses = creative.insightUses.filter((use) => use.application !== "visual");
+  return { ...creative, insightUses, unusedInsightIds: [...ids].filter((id) => !insightUses.some((use) => use.insightId === id)) };
+}
 
 /** Only server-generated results enter here. Browser workspace PUT cannot call this. */
 export function applyStudioMedia(campaign: Campaign, update: StudioMediaUpdate): Campaign {
@@ -33,7 +41,11 @@ export function applyStudioMedia(campaign: Campaign, update: StudioMediaUpdate):
   if (!Number.isFinite(planningCost) || planningCost < 0) throw new WorkflowError("Invalid art-direction usage.");
   const next: Campaign = { ...campaign, updatedAt: at, studioBusy: null, spend: { ...campaign.spend, inferenceUsd: campaign.spend.inferenceUsd + planningCost, mediaUsd: campaign.spend.mediaUsd + generation.usage.costUsd } };
   if (update.kind === "image") {
-    next.creatives = campaign.creatives.map(c => c.id === source.id ? { ...c, generation, prompt: generation.artDirection?.prompt ?? c.prompt, status: "flagged" } : c);
+    next.creatives = campaign.creatives.map(c => {
+      if (c.id !== source.id) return c;
+      const prompt = generation.artDirection?.prompt ?? c.prompt;
+      return { ...(prompt === c.prompt ? c : withoutVisualInsightUses(c)), generation, prompt, status: "flagged" };
+    });
   } else {
     if (campaign.videos.some(v => v.id === update.video.id)) throw new WorkflowError("Video already attached.", 409);
     next.videos = [{ ...update.video, status: "ready" }, ...campaign.videos];

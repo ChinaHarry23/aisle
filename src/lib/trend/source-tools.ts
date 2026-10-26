@@ -5,9 +5,11 @@ import { uid } from '@/lib/ids';
 import type { Evidence } from '@/lib/runtime/types';
 import type { ToolDefinition, ToolInput, ToolOutcome } from '@/lib/runtime/tools';
 import { RESEARCH_CATEGORIES, sourcePermitted, unavailable, type ResearchCategory } from './contracts';
+import { relevantExcerpt, summarizeTrendSeries } from './retrieval-context';
 export const RESEARCH_TOOL_IDS = ['web.search', 'web.scrape_page', 'web.search_trends', 'stats.abs_spending', 'calendar.public_holidays', 'web.historical_weather', 'retail.specials', 'retail.price_stats'] as const;
 const categorySchema = z.enum(RESEARCH_CATEGORIES);
-const querySchema = z.object({ category: categorySchema, channel: z.string().max(40).optional() }).strict();
+const publicQuery = z.string().trim().min(3).max(240).describe('Public product/category research terms only. Refine the question after irrelevant results; exclude private notes, customer records, credentials and personal identifiers.');
+const querySchema = z.object({ category: categorySchema, channel: z.string().max(40).optional(), query: publicQuery.optional() }).strict();
 export const sourceHosts = ['abs.gov.au', 'aihw.gov.au', 'accc.gov.au', 'bom.gov.au', 'australia.com', 'visitnsw.com', 'nagerholidays.com', 'business.gov.au', 'thinkwithgoogle.com', 'business.instagram.com', 'facebook.com', 'meta.com', 'support.google.com', 'developers.google.com', 'mailchimp.com', 'coles.com.au', 'woolworths.com.au', 'aldi.com.au', 'iga.com.au', 'stats.govt.nz', 'ons.gov.uk', 'census.gov'];
 export function publicSourceUrl(raw: string): string | null {
   try { const url = new URL(raw); const hosts = [...sourceHosts, ...(process.env.TREND_SOURCE_DOMAINS ?? '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean)];
@@ -18,12 +20,31 @@ export function publicSourceUrl(raw: string): string | null {
 export function redact(text: string): string {
   return text.replace(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/g, '[email removed]').replace(/(?:bearer\s+\S+|(?:api[_-]?key|token|password|secret)\s*[:=]\s*\S+)/gi, '[credential removed]').replace(/\b(?:\+?\d[ ()-]?){9,15}\b/g, '[identifier removed]');
 }
-function safePublicTerm(value: string) { return redact(value).replace(/[^\p{L}\p{N}\s&'-]/gu, ' ').slice(0, 100); }
+function safePublicTerm(value: string, maximum = 100) { return redact(value).replace(/[^\p{L}\p{N}\s&'-]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, maximum); }
+/** Exact product naming helps find specifications, but overwhelms audience and channel searches. */
+export function publicProductTopic(input: ToolInput) {
+  const retailer = input.brand.retailerName.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const product = input.campaign.product.replace(new RegExp(`^${retailer}\\s+`, 'i'), '')
+    .replace(/\bRSPCA\s+Approved\b/gi, '').replace(/\b(?:approx|value pack|large pack)\b\.?/gi, '')
+    .replace(/\b\d+(?:\.\d+)?\s*(?:kg|g|ml|l|pack)\b/gi, '');
+  return safePublicTerm(product) || safePublicTerm(input.campaign.category);
+}
 export function queryFor(input: ToolInput, category: ResearchCategory, channel?: string) {
   const c = input.campaign;
-  const areas: Record<ResearchCategory,string> = {current_market:'current market report',historical_market:'historical market time series',customer_interest:'consumer interest survey methodology',purchase_preference:'consumer purchasing preferences survey sample methodology',seasonal:'seasonal retail demand',cultural:'local cultural events calendar',channel:'audience engagement research methodology',competitor:'retailer promotion price offer dates'};
+  if (input.args.query) return `${safePublicTerm(input.args.query, 240)} ${c.country}`;
+  const topic = publicProductTopic(input);
+  const areas: Record<ResearchCategory,string> = {
+    current_market:`${safePublicTerm(c.product)} official product details features ingredients origin`,
+    historical_market:`${topic} category demand market trends time series`,
+    customer_interest:`${topic} consumer needs use occasions interests survey`,
+    purchase_preference:`${topic} purchase drivers convenience value quality consumer survey methodology`,
+    seasonal:`${topic} ${c.startDate.slice(5,7)} seasonal use occasions retail demand research`,
+    cultural:`${topic} regional cultural occasions events ${c.startDate} ${c.endDate}`,
+    channel:`${topic} ${channel ?? ''} content formats audience engagement research examples`,
+    competitor:`${topic} comparable products retailers positioning offers pack price`,
+  };
   // Never transmit notes, uploads, audience free text, budgets or credentials to search.
-  return `${safePublicTerm(c.product)} ${safePublicTerm(c.category)} ${c.country} ${areas[category]} ${channel ?? ''} ${c.startDate.slice(0,4)} ${c.endDate.slice(0,4)}`;
+  return `${areas[category]} ${c.country} ${c.startDate.slice(0,4)}`;
 }
 export async function boundedResponse(response: Response, maximum = 1_000_000): Promise<string> {
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -38,7 +59,7 @@ async function json(url: string, init: RequestInit = {}): Promise<unknown> {
 function record(value: unknown): Record<string, unknown> { return value && typeof value==='object' && !Array.isArray(value) ? value as Record<string,unknown> : {}; }
 function date(value: unknown): string | null { return typeof value==='string' && /^\d{4}-\d{2}-\d{2}/.test(value) && Number.isFinite(Date.parse(value)) ? value.slice(0,10):null; }
 function item(input: ToolInput, category: ResearchCategory, name: string, url: string, excerpt: string, observedAt: string|null, extra: Partial<NonNullable<Evidence['research']>> = {}): Evidence {
-  return {id:uid('ev'), claim:`Retrieved ${category.replaceAll('_',' ')} material`, detail:redact(excerpt).slice(0,2400),sourceName:name,sourceRef:url,sourceKind:'external_public',observedAt,dateBasis:observedAt?'source_record':'unknown',fetchedAt:input.at,status:'verified',confidence:0,raisedBy:'trend',usedFor:'Source material only; not a validated conclusion.',research:{category,geography:input.campaign.country,queryScope:queryFor(input,category,input.args.channel),permission:'allowed',quality:'unassessed',...extra}};
+  return {id:uid('ev'), claim:`Retrieved ${category.replaceAll('_',' ')} material`, detail:redact(excerpt).slice(0,6000),sourceName:name,sourceRef:url,sourceKind:'external_public',observedAt,dateBasis:observedAt?'source_record':'unknown',fetchedAt:input.at,status:'verified',confidence:0,raisedBy:'trend',usedFor:'Source material only; not a validated conclusion.',research:{category,geography:input.campaign.country,queryScope:queryFor(input,category,input.args.channel),permission:'allowed',quality:'unassessed',...extra}};
 }
 function result(evidence: Evidence[], data: unknown, summary: string): ToolOutcome { return evidence.length ? {status:'ok',summary,evidence,data} : unavailable('No usable scoped records returned.'); }
 /** Runtime telemetry is separate from source evidence and model conclusions. */
@@ -67,7 +88,7 @@ async function cacheKey(name:string,input:ToolInput) {
   const provider=providerFor(name);if(!provider)return null;
   // Only public query scope is cached. Credential digest isolates provider accounts.
   const c=input.campaign;
-  return publicCacheKey({version:1,provider:provider.name,name,args:Object.entries(input.args).sort(),product:safePublicTerm(c.product),category:safePublicTerm(c.category),country:c.country,start:c.startDate,end:c.endDate,channels:c.channels,hosts:process.env.TREND_SOURCE_DOMAINS??''},provider.credential);
+  return publicCacheKey({version:2,provider:provider.name,name,args:Object.entries(input.args).sort(),product:safePublicTerm(c.product),category:safePublicTerm(c.category),country:c.country,start:c.startDate,end:c.endDate,channels:c.channels,hosts:process.env.TREND_SOURCE_DOMAINS??''},provider.credential);
 }
 function refreshCached(outcome:ToolOutcome,input:ToolInput) {
   for(const e of outcome.evidence){
@@ -105,12 +126,13 @@ const define=definePublicResearchTool;
 const searchTool=define('web.search','Scoped public search: Firecrawl or existing model-provider web search when configured',querySchema,async input=>{
   if(!process.env.FIRECRAWL_API_KEY)return unavailable('Firecrawl key is not configured.');
   const category=input.args.category as ResearchCategory;
-  const response=record(await json('https://api.firecrawl.dev/v2/search',{method:'POST',headers:{Authorization:`Bearer ${process.env.FIRECRAWL_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({query:queryFor(input,category,input.args.channel),limit:3,sources:['web'],country:input.campaign.country==='UK'?'GB':input.campaign.country,timeout:10000})}));
+  const response=record(await json('https://api.firecrawl.dev/v2/search',{method:'POST',headers:{Authorization:`Bearer ${process.env.FIRECRAWL_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({query:queryFor(input,category,input.args.channel),limit:5,sources:['web'],country:input.campaign.country==='UK'?'GB':input.campaign.country,timeout:10000})}));
   const data=record(response.data); const rows=Array.isArray(data.web)?data.web:[];
-  const evidence=rows.slice(0,3).flatMap(row=>{const r=record(row);const url=publicSourceUrl(String(r.url??''));const excerpt=typeof r.description==='string'?r.description:'';return url&&excerpt?[item(input,category,'Firecrawl Search',url,excerpt,null,{channel:input.args.channel,quality:'snippet'})]:[];});
+  const seen = new Set<string>();
+  const evidence=rows.slice(0,5).flatMap(row=>{const r=record(row);const url=publicSourceUrl(String(r.url??''));const excerpt=typeof r.description==='string'?r.description:'';if(!url||!excerpt||seen.has(url))return [];seen.add(url);return [item(input,category,'Firecrawl Search',url,excerpt,null,{channel:input.args.channel,quality:'snippet'})];});
   return {...result(evidence,{sources:evidence.map(e=>({id:e.id,url:e.sourceRef,excerpt:e.detail})),next:'Read original sources with web.scrape_page. Search snippets alone cannot satisfy coverage.'},'Public search results retrieved; snippets require original-source review.'),usage:providerUsage('firecrawl',response)};
 });
-const scrapeTool=define('web.scrape_page','Firecrawl read an allowlisted original public source',z.object({url:z.string().max(1200),category:categorySchema,channel:z.string().max(40).optional()}).strict(),async input=>{
+const scrapeTool=define('web.scrape_page','Read relevant passages from an original public source; use question to focus on the decision being researched',z.object({url:z.string().max(1200),category:categorySchema,channel:z.string().max(40).optional(),question:publicQuery.optional()}).strict(),async input=>{
   const url=publicSourceUrl(input.args.url);if(!url)return unavailable('URL is outside the public source allowlist (no credentials, query strings, IPs or private hosts).','skipped');
   if(!process.env.FIRECRAWL_API_KEY){
     const response=await fetch(url,{redirect:'error',cache:'no-store',signal:AbortSignal.timeout(12_000),headers:{Accept:'text/html, text/plain'}});
@@ -123,7 +145,8 @@ const scrapeTool=define('web.scrape_page','Firecrawl read an allowlisted origina
     const text=redact(body.replace(/<(script|style|noscript|nav|header|footer)\b[^>]*>[\s\S]*?<\/\1>/gi,' ').replace(/<[^>]+>/g,' ').replace(/&nbsp;|&#160;/g,' ').replace(/&amp;/g,'&').replace(/\s+/g,' ').trim());
     if(!text)return unavailable('No readable public text.');
     if(/incapsula incident id|request unsuccessful|access denied|verify (?:that )?you are (?:a )?human|enable javascript and cookies to continue/i.test(text.slice(0,1200)))return unavailable('Public source returned an access challenge, not research content.');
-    const evidence=[item(input,input.args.category as ResearchCategory,'Public source text',url,text,published,{channel:input.args.channel,transformation:'Bounded public main/article text; scripts/navigation removed. First 2400 characters only. Publication date from declared article metadata/JSON-LD when present; otherwise unknown.'})];
+    const question=input.args.question??queryFor(input,input.args.category as ResearchCategory,input.args.channel);
+    const evidence=[item(input,input.args.category as ResearchCategory,'Public source text',url,relevantExcerpt(text,question,6000),published,{channel:input.args.channel,transformation:'Relevant verbatim passages selected from bounded main/article text; […] separates passages. Scripts/navigation removed. Publication date from declared source metadata when present; otherwise unknown.'})];
     return result(evidence,{sources:evidence},'Public text retrieved directly; relevance and publication date require review.');
   }
   const response=record(await json('https://api.firecrawl.dev/v2/scrape',{method:'POST',headers:{Authorization:`Bearer ${process.env.FIRECRAWL_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({url,formats:['markdown'],onlyMainContent:true,timeout:10000})}));
@@ -131,22 +154,30 @@ const scrapeTool=define('web.scrape_page','Firecrawl read an allowlisted origina
   if(!finalUrl || new URL(finalUrl).hostname!==new URL(url).hostname)return unavailable('Redirected source rejected.','skipped');
   const content=typeof data.markdown==='string'?data.markdown:'';if(!content)return unavailable('Source has no readable content.');
   if(/incapsula incident id|request unsuccessful|access denied|verify (?:that )?you are (?:a )?human|enable javascript and cookies to continue/i.test(content.slice(0,1200)))return unavailable('Extractor returned an access challenge, not research content.');
-  const evidence=[item(input,input.args.category as ResearchCategory,'Firecrawl Scrape',finalUrl,content,date(metadata.publishedTime??metadata['article:published_time']),{channel:input.args.channel,transformation:'First 2400 characters; not the full report. Assess sampling and methodology.'})];
+  const question=input.args.question??queryFor(input,input.args.category as ResearchCategory,input.args.channel);
+  const evidence=[item(input,input.args.category as ResearchCategory,'Firecrawl Scrape',finalUrl,relevantExcerpt(content,question,6000),date(metadata.publishedTime??metadata['article:published_time']),{channel:input.args.channel,transformation:'Relevant verbatim passages selected from the original page; […] separates passages. Bounded to 6000 characters; not the full report.'})];
   return {...result(evidence,{sources:evidence},'Original public text retrieved; publication date remains unknown when absent.'),usage:providerUsage('firecrawl',response)};
 });
-const trendsTool=define('web.search_trends','Google Trends relative search interest; never sales volume',z.object({kind:z.enum(['TIMESERIES','RELATED_QUERIES'])}).strict(),async input=>{
+const trendsTool=define('web.search_trends','Google Trends relative search interest; use a public category/use-case query when the exact product is too sparse',z.object({kind:z.enum(['TIMESERIES','RELATED_QUERIES']),query:publicQuery.optional()}).strict(),async input=>{
   if(!process.env.SERPAPI_API_KEY)return unavailable('SerpApi key is not configured.');
-  const url=new URL('https://serpapi.com/search.json');const q=safePublicTerm(input.campaign.product);
-  for(const [k,v] of Object.entries({engine:'google_trends',q,geo:input.campaign.country==='UK'?'GB':input.campaign.country,date:'today 12-m',data_type:input.args.kind,api_key:process.env.SERPAPI_API_KEY}))url.searchParams.set(k,v);
+  const url=new URL('https://serpapi.com/search.json');const q=safePublicTerm(input.args.query??publicProductTopic(input));
+  const end=input.at.slice(0,10);const startDate=new Date(end+'T00:00:00Z');startDate.setUTCFullYear(startDate.getUTCFullYear()-1);const start=startDate.toISOString().slice(0,10);
+  const window=`${start} ${end}`;
+  for(const [k,v] of Object.entries({engine:'google_trends',q,geo:input.campaign.country==='UK'?'GB':input.campaign.country,date:window,data_type:input.args.kind,api_key:process.env.SERPAPI_API_KEY}))url.searchParams.set(k,v);
   const response=record(await json(url.href));if(response.error)return unavailable('Trends returned no usable series.');
   const timeline=record(response.interest_over_time).timeline_data;
   const related=record(response.related_queries);
   const data=input.args.kind==='TIMESERIES'?(Array.isArray(timeline)?timeline.slice(-60):[]):related;
   if(Array.isArray(data)?!data.length:!Object.keys(data).length)return unavailable('Trends returned empty data.');
   const category=input.args.kind==='TIMESERIES'?'historical_market':'customer_interest';
-  const ref=`https://trends.google.com/trends/explore?geo=${input.campaign.country==='UK'?'GB':input.campaign.country}&q=${encodeURIComponent(q)}&date=today%2012-m`;
-  const excerpt=JSON.stringify(data);
-  return {...result([item(input,category,'SerpApi Google Trends',ref,excerpt,null,{transformation:'Relative interest over trailing 12 months, not sales; partial periods may be incomplete.'})],{records:data},'Relative search interest retrieved. Search interest is not purchase preference.'),usage:providerUsage('serpapi',response)};
+  const ref=`https://trends.google.com/trends/explore?geo=${input.campaign.country==='UK'?'GB':input.campaign.country}&q=${encodeURIComponent(q)}&date=${encodeURIComponent(window)}`;
+  const summary=Array.isArray(data)?summarizeTrendSeries(data):null;
+  if(Array.isArray(data)&&!summary)return unavailable('Trends returned no complete numeric observations.');
+  const relatedQueries=Object.fromEntries(Object.entries(related).filter(([key])=>['top','rising'].includes(key)).map(([key,rows])=>[key,Array.isArray(rows)?rows.slice(0,10).map(value=>{const row=record(value);return {query:row.query,value:row.value,extractedValue:row.extracted_value};}):[]]));
+  const excerpt=JSON.stringify({query:q,window:{start,end},...(summary?{summary}:{relatedQueries}),meaning:'Relative search interest only; not sales, volume or purchase preference.'});
+  const evidence=item(input,category,'SerpApi Google Trends',ref,excerpt,summary?.latestInformationDate??null,{transformation:'Complete periods summarized deterministically: normalized mean, peak, non-zero density and adjacent-window index-point change. Full bounded records retained in tool result. Query and fixed requested dates are explicit.'});
+  evidence.coverage={start,end,location:input.campaign.country};
+  return {...result([evidence],{records:data,summary},'Relative search interest retrieved. Search interest is not purchase preference.'),usage:providerUsage('serpapi',response)};
 });
 const holidaysTool=define('calendar.public_holidays','Nager.Date public holidays in the campaign year and country',z.object({year:z.string().regex(/^\d{4}$/)}).strict(),async input=>{
   const {campaign:c}=input;if(![c.startDate.slice(0,4),c.endDate.slice(0,4)].includes(input.args.year))return unavailable('Year is outside the campaign.','skipped');
@@ -154,7 +185,9 @@ const holidaysTool=define('calendar.public_holidays','Nager.Date public holidays
   const rows=await json(url);if(!Array.isArray(rows))return unavailable('Invalid calendar response.');
   const data=rows.map(record).filter(r=>typeof r.date==='string'&&r.date>=c.startDate&&r.date<=c.endDate);
   const excerpt= data.length?JSON.stringify(data):'No public holidays in the requested campaign window. This does not mean there are no cultural events.';
-  return result([item(input,'cultural','Nager.Date',url,excerpt,null,{transformation:'National and subdivision calendar records; subdivision relevance and cultural significance require review.'})],{holidays:data},'Calendar retrieved; a holiday alone does not establish consumer preference.');
+  const evidence=item(input,'cultural','Nager.Date',url,excerpt,null,{transformation:'National and subdivision calendar records; subdivision relevance and cultural significance require review. Coverage is the requested event window, not a publication date.'});
+  evidence.coverage={start:c.startDate,end:c.endDate,location:c.country};
+  return result([evidence],{holidays:data},'Calendar retrieved; a holiday alone does not establish consumer preference.');
 });
 const cities:Record<string,[number,number,string]>={AU:[-33.87,151.21,'Sydney'],NZ:[-36.85,174.76,'Auckland'],UK:[51.51,-0.13,'London'],US:[40.71,-74.01,'New York']};
 const historicalWeather=define('web.historical_weather','Open-Meteo historical weather for the same calendar window one year earlier',z.object({}).strict(),async input=>{
@@ -169,6 +202,13 @@ const historicalWeather=define('web.historical_weather','Open-Meteo historical w
 export function parseCsv(text:string):string[][] {const rows:string[][]=[];let row:string[]=[],value='',quoted=false;for(let i=0;i<text.length;i++){const c=text[i];if(c==='"'){if(quoted&&text[i+1]==='"'){value+='"';i++;}else quoted=!quoted;}else if(c===','&&!quoted){row.push(value);value='';}else if(c==='\n'&&!quoted){row.push(value.replace(/\r$/,''));rows.push(row);row=[];value='';}else value+=c;}if(quoted)throw Error('Invalid CSV');if(value||row.length){row.push(value);rows.push(row);}return rows.filter(r=>r.some(Boolean));}
 function attribute(tag: string, key: string): string { return tag.match(new RegExp(`\\b${key}="([^"]*)"`))?.[1] ?? ''; }
 function xmlName(xml: string): string { return xml.match(/<common:Name[^>]*>([^<]*)<\/common:Name>/)?.[1]?.replaceAll('&amp;', '&') ?? ''; }
+function observationPeriod(value: string) {
+  const match=value.match(/^(\d{4})(?:-(\d{2})|-Q([1-4]))?$/);if(!match)return null;
+  const year=Number(match[1]),month=match[2]?Number(match[2]):match[3]?(Number(match[3])-1)*3+1:1;
+  if(month<1||month>12)return null;
+  const months=match[2]?1:match[3]?3:12;
+  return {start:new Date(Date.UTC(year,month-1,1)).toISOString().slice(0,10),end:new Date(Date.UTC(year,month-1+months,0)).toISOString().slice(0,10)};
+}
 export function absFlows(xml: string) {
   return [...xml.matchAll(/<structure:Dataflow\b([^>]*)>([\s\S]*?)<\/structure:Dataflow>/g)].map(m => ({id:attribute(m[1],'id'),version:attribute(m[1],'version'),name:xmlName(m[2]),nonProduction:/<common:AnnotationType>NonProductionDataflow<\/common:AnnotationType>\s*<common:AnnotationText[^>]*>true</.test(m[2])}));
 }
@@ -196,7 +236,10 @@ const absTool=define('stats.abs_spending','ABS spending: discover current datafl
  if(ti<0||vi<0||!rows.length||rows.some(r=>r.length!==header.length)||rows.length>100)return unavailable('Unexpected or too broad ABS series.');
  const data=rows.filter(r=>r[vi]!==''&&Number.isFinite(Number(r[vi]))).map(r=>Object.fromEntries(header.map((h,i)=>[h,r[i]])));if(!data.length)return unavailable('ABS series has no numeric observations.');
  const selection=dimensions.map((d,i)=>({dimension:d.id,code:keyParts[i],label:d.codes.find(c=>c.id===keyParts[i])!.name}));
- return result([item(input,'historical_market','ABS Data API',url,JSON.stringify({selection,records:data}),null,{transformation:`Production metadata-verified ${flow} v${selected.version}; codes, units and periods retained. Release date unknown. Macro spending is not individual preference.`})],{metadataUrl,flow,selection,records:data},'ABS observations retrieved with original labels; verify population, units and revisions.');
+ const periods=data.flatMap(row=>{const period=observationPeriod(row.TIME_PERIOD);return period?[period]:[];}).sort((a,b)=>a.start.localeCompare(b.start));
+ const evidence=item(input,'historical_market','ABS Data API',url,JSON.stringify({selection,records:data}),periods.at(-1)?.start??null,{transformation:`Production metadata-verified ${flow} v${selected.version}; codes, units and periods retained. Information date is the latest observation period start, not the unknown release date. Macro spending is not individual preference.`});
+ if(periods.length)evidence.coverage={start:periods[0].start,end:periods.at(-1)!.end,location:'AU'};
+ return result([evidence],{metadataUrl,flow,selection,records:data},'ABS observations retrieved with original labels; verify population, units and revisions.');
 });
 // Verified against WhichGrocer OpenAPI 2.7.0 on 21 October 2026.
 const productSchema=z.object({id:z.string(),name:z.string().nullable(),store:z.string().nullable(),price:z.number().finite().nullable(),currency:z.literal('AUD'),url:z.string().nullable().optional(),updated_at:z.string().nullable().optional(),last_seen_at:z.string().optional(),is_stale:z.boolean().optional(),weight:z.number().nullable().optional(),uom:z.string().nullable().optional(),unit_price:z.number().nullable().optional(),unit_measure:z.string().nullable().optional(),is_special:z.boolean().optional(),price_stats:z.object({average_30d:z.number().nullable().optional(),lowest_30d:z.number().nullable().optional(),highest_30d:z.number().nullable().optional(),is_below_average:z.boolean().optional(),discount_pct:z.number().nullable().optional()}).optional()});

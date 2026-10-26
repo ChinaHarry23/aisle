@@ -6,6 +6,8 @@ import { validateIntake } from './intake';
 import type { Campaign } from '@/lib/types';
 import type { ResearchCategory } from '@/lib/trend/contracts';
 import { assembleBrief,briefMatches } from '@/lib/trend/brief';
+import { currentStrategy } from '@/lib/trend/strategy';
+import { assembleStrategyReport } from '@/lib/trend/strategy-report';
 
 export async function runTrendQuality(w:Work,env:StepEnv):Promise<{message:string;blocked:boolean}> {
  const c=w.campaign;
@@ -65,9 +67,14 @@ export async function runTrendQuality(w:Work,env:StepEnv):Promise<{message:strin
      // retrieval. Shared per-run model/token/credit limits still apply.
      if(report.validation!=='passed'&&!q.requests.some(r=>r.status==='pending'))q.resumeStep=8;
    }
-   if(c.brief)c.brief={...c.brief,angle:report.validation==='passed'?report.candidate?.themes[0]?.text??'No supported theme available.':'Report synthesis needs review.',visualDirection:report.validation==='passed'?report.candidate?.visualDirections.map(v=>v.text).join(' ')||'Visual direction unavailable.':'Visual direction awaits a validated report.',claimsAllowed:report.status==='COMPLETE'?c.brief.claimsAllowed:[]};
-   for(const reason of report.errors)c.trendGaps.push({id:uid('gap'),kind:'low_confidence',detail:reason,effect:'Final report cannot be completed or handed off; retry within the shared run budget.',needsFounder:false});
-   addStep(w,'trend.brief','trend',report.validation==='passed'?'ok':'warn','Structured TrendBrief validated',report.errors.join(' ')||'All report sections, citations, scope rationales and semantic support checks validated.');
+   const strategy=currentStrategy(c);
+   if(c.brief)c.brief={...c.brief,
+     angle:strategy?.recommendedAngle??report.candidate?.themes[0]?.text??`${c.product} for ${c.targetAudience}`,
+     keyMessage:strategy?.keyMessage??c.brief.keyMessage,
+     visualDirection:strategy?.visualDirection??(report.candidate?.visualDirections.map(v=>v.text).join(' ')||`Show the exact ${c.product} in one clear use occasion for ${c.targetAudience}.`),
+     claimsAllowed:q.findings.filter(f=>f.main&&f.supported&&!['OPPORTUNITY','RISK'].includes(f.category)).map(f=>f.claim)};
+   for(const reason of report.errors)c.trendGaps.push({id:uid('gap'),kind:'low_confidence',detail:reason,effect:'Available findings remain in the campaign direction.',needsFounder:false});
+   addStep(w,'trend.brief','trend',report.validation==='passed'?'ok':'warn',strategy?'Campaign direction prepared':'Research report prepared',strategy?`${strategy.insights.filter(i=>i.evidenceIds.length).length} research-backed insights, two concepts and ${strategy.channels.length} channel approaches.`:report.errors.join(' ')||'Reviewed findings and source details saved.');
  }else if(c.trendBriefRequired){
    c.structuredTrendBrief=assembleBrief(c,null,null,w.now,'unavailable',['Structured brief runner unavailable.']);q.status='INCOMPLETE';
  }
@@ -79,6 +86,7 @@ export async function runTrendQuality(w:Work,env:StepEnv):Promise<{message:strin
    return {message:'Valid partial work saved; no content-generation handoff.',blocked:true};
  }
  if(q.status==='INCOMPLETE')releaseResearchWait(c,w.now);
+ if(c.structuredTrendBrief?.format==='strategy-v1')c.structuredTrendBrief=assembleStrategyReport(c,w.now);
  q.resumeStep=13;setRun(w,{status:'running',step:'trend.handoff',awaiting:null,awaitingDetail:null,haltedReason:null});
  return {message:q.status==='COMPLETE'?'Evidence sufficient. Save this version before handoff.':'Evidence gaps recorded. Save this version and continue to image generation.',blocked:false};
 }

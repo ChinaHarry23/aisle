@@ -56,8 +56,22 @@ const variant = {
     cta: { type: "string" },
     caption: { type: "string" },
     prompt: { type: "string" },
+    insightUses: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          insightId: { type: "string" },
+          application: { type: "string", enum: ["headline", "visual", "caption", "cta"] },
+          rationale: { type: "string" },
+        },
+        required: ["insightId", "application", "rationale"],
+      },
+    },
+    unusedInsightIds: { type: "array", items: { type: "string" } },
   },
-  required: ["variant", "kicker", "headline", "subhead", "cta", "caption", "prompt"],
+  required: ["variant", "kicker", "headline", "subhead", "cta", "caption", "prompt", "insightUses", "unusedInsightIds"],
 } as const;
 
 /** The two poster variants: lines of type plus the image prompt. */

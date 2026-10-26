@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { campaignMediaUrl } from "@/lib/media/url";
 import { useAisle } from "@/lib/store";
 import type { Campaign } from "@/lib/types";
+import { currentStrategy } from "@/lib/trend/strategy";
 
 /** Pictures produced by the campaign's image step, with a way to correct a bad one. */
 export function CampaignContent({ campaign }: { campaign: Campaign }) {
@@ -11,9 +12,10 @@ export function CampaignContent({ campaign }: { campaign: Campaign }) {
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const revising = campaign.studioBusy === "posters";
+  const strategy = currentStrategy(campaign);
   const images = campaign.creatives.flatMap((cr) => {
     const src = campaignMediaUrl(campaign.id, cr.id, cr.generation);
-    return src ? [{ id: cr.id, src, label: `${cr.headline} (${cr.variant})` }] : [];
+    return src ? [{ id: cr.id, src, label: `${cr.headline} (${cr.variant})`, creative: cr }] : [];
   });
   const reviewed = campaign.complianceReports.length > 0;
 
@@ -32,16 +34,38 @@ export function CampaignContent({ campaign }: { campaign: Campaign }) {
     return (
       <div className="flex flex-col gap-6">
         <div className="grid gap-4 sm:grid-cols-2">
-          {images.map((img) => (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img key={img.id} src={img.src} alt={img.label} className="w-full border border-line object-cover" />
-          ))}
+          {images.map((img) => {
+            const uses = strategy && img.creative.strategyVersion === strategy.version
+              ? img.creative.insightUses?.filter((use) => strategy.insights.some((insight) => insight.id === use.insightId)) ?? []
+              : [];
+            return (
+              <figure key={img.id} className="border border-line">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={img.src} alt={img.label} className="w-full object-cover" />
+                <figcaption className="p-4">
+                  <p className="text-xs uppercase tracking-wide text-signal">Concept {img.creative.variant}</p>
+                  <h3 className="mt-1 text-sm font-medium">{img.creative.headline}</h3>
+                  {uses.length ? (
+                    <details className="mt-3 text-sm">
+                      <summary className="cursor-pointer text-signal">How this uses your campaign strategy</summary>
+                      <ul className="mt-3 space-y-3">
+                        {uses.map((use, index) => {
+                          const insight = strategy!.insights.find((item) => item.id === use.insightId)!;
+                          return <li key={`${use.insightId}:${use.application}:${index}`}><p className="font-medium">{insight.title} <span className="font-normal text-mute">· {use.application}</span></p><p className="mt-1 text-xs leading-relaxed text-ink-soft">{use.rationale}</p>{insight.basis === "hypothesis" ? <p className="mt-1 text-xs text-mute">Creative idea to test</p> : null}</li>;
+                        })}
+                      </ul>
+                    </details>
+                  ) : null}
+                </figcaption>
+              </figure>
+            );
+          })}
         </div>
         <form onSubmit={(event) => void revise(event)} className="hairline max-w-2xl p-4">
           <label className="block">
-            <span className="text-sm font-medium">Fix these pictures</span>
+            <span className="text-sm font-medium">Refine the images</span>
             <span className="mt-1 block text-xs text-mute">
-              Describe what the image got wrong. The Image Generation agent rewrites that sentence into the revision prompt, then edits these posters.
+              Describe the scene or detail you want to change. Your saved campaign direction is reused when the posters are edited.
             </span>
             <textarea
               value={note}
@@ -49,7 +73,7 @@ export function CampaignContent({ campaign }: { campaign: Campaign }) {
               rows={3}
               maxLength={500}
               disabled={revising}
-              placeholder="The bottle is still closed while she drinks. Take the cap off."
+              placeholder="Make the scene feel like an everyday kitchen, with the product more prominent."
               className="mt-3 w-full border border-line bg-surface px-3 py-2.5 text-[15px] outline-none transition focus:border-signal focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--signal)_18%,transparent)] disabled:opacity-60"
             />
           </label>

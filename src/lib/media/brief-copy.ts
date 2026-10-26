@@ -1,4 +1,6 @@
-import type { Campaign } from "@/lib/types";
+import type { Campaign, CreativeInsightUse } from "@/lib/types";
+import { currentStrategy } from "@/lib/trend/strategy";
+import { creativeDirectionText } from "./prompts";
 
 /** The two poster variants the creative step can write without a live model. */
 export type BriefCopy = {
@@ -10,6 +12,9 @@ export type BriefCopy = {
   caption: string;
   /** Scene instruction for the image model, taken from this campaign's trend brief. */
   prompt: string;
+  strategyVersion?: number;
+  insightUses?: CreativeInsightUse[];
+  unusedInsightIds?: string[];
 };
 
 const SUPERLATIVES = [
@@ -64,6 +69,7 @@ export function copyFromBrief(
   notes: string[] = [],
 ): Record<"A" | "B", BriefCopy> {
   const brief = campaign.brief;
+  const strategy = currentStrategy(campaign);
   const product = campaign.product.trim();
   const short = product.split(/[|(]/)[0].trim() || product;
   const block = [...banned, ...noteTerms(notes), ...(brief?.claimsAvoid ?? [])];
@@ -71,21 +77,21 @@ export function copyFromBrief(
     .map((claim) => scrubClaims(claim, block))
     .filter((claim) => claim.length > 1)
     .slice(0, 3);
-  const angle = scrubClaims(brief?.angle || campaign.objective, block) || `For ${campaign.targetAudience}.`;
-  const rawKey = scrubClaims(brief?.keyMessage || short, block);
+  const angle = scrubClaims(creativeDirectionText(strategy?.recommendedAngle ?? brief?.angle) || campaign.objective, block) || `For ${campaign.targetAudience}.`;
+  const rawKey = scrubClaims(creativeDirectionText(strategy?.keyMessage ?? brief?.keyMessage) || short, block);
   const key = /without the theatre|no theatre/i.test(rawKey) ? short : rawKey || short;
-  const visual = scrubClaims(brief?.visualDirection || campaign.sharedContext.brandTone, block);
+  const visual = scrubClaims(creativeDirectionText(strategy?.visualDirection ?? brief?.visualDirection) || campaign.sharedContext.brandTone, block);
   const retailer = campaign.sharedContext.retailer;
   const facts = claims.length
     ? `Facts from the trend brief that may be shown: ${claims.join("; ")}.`
     : "Show no product claim beyond the lines of type.";
 
-  const scene = (headline: string) =>
+  const scene = (headline: string, index: number) =>
     [
       `This advertisement is only about ${product}.`,
       `Audience: ${campaign.targetAudience}.`,
-      `Angle from the trend brief: ${angle}.`,
-      visual ? `Visual direction from the trend brief: ${visual}.` : "",
+      `Angle from the trend brief: ${scrubClaims(strategy?.concepts[index]?.angle ?? angle, block)}.`,
+      visual ? `Visual direction from the trend brief: ${scrubClaims(strategy?.concepts[index]?.visualDirection ?? visual, block)}.` : "",
       facts,
       "Depict that angle for this product. Do not replace it with a generic category scene.",
       `The only headline to set in type is: ${headline}.`,
@@ -111,7 +117,7 @@ export function copyFromBrief(
       subhead: subheadA,
       cta: campaign.channels.includes("print") ? "See it in store" : "See the offer",
       caption: clip([short, claimA, retailer].filter(Boolean).join(". "), 200),
-      prompt: scene(headlineA),
+      prompt: scene(headlineA, 0),
     },
     B: {
       variant: "B",
@@ -120,7 +126,7 @@ export function copyFromBrief(
       subhead: subheadB,
       cta: "Shop",
       caption: clip(`${angle} ${retailer}.`, 200),
-      prompt: scene(headlineB),
+      prompt: scene(headlineB, 1),
     },
   };
 }
