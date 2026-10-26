@@ -66,3 +66,6 @@ next-env.d.ts
 # TA-05 local source/model transcripts and browser audit captures.
 /docs/TA-05-LIVE-*.json
 /docs/TA-05-*.png
+
+# Local TA-06 browser verification captures.
+/docs/TA-06-*.png

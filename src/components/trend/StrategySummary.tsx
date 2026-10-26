@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import type { Campaign } from "@/lib/types";
+import { RankingReview } from "./RankingReview";
 import { currentStrategy } from "@/lib/trend/strategy";
 import { creativeDirectionText } from "@/lib/media/prompts";
 import { useAisle } from "@/lib/store";
@@ -89,6 +90,8 @@ export function StrategySummary({ campaign }: { campaign: Campaign }) {
         </div>
         {strategy.status === "product_led" ? <p className="mt-5 text-xs text-mute">These concepts build on your product and audience brief. They are creative ideas to test, rather than established market preferences.</p> : null}
       </div>
+
+      <RankingReview campaign={campaign} />
 
       {strategy.insights.length ? (
         <div className="hairline p-5 md:p-7">

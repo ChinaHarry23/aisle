@@ -34,6 +34,8 @@ jobs:
           npm run test:trend-periods
           npm run test:trend-discovery
           npm run test:trend-handoff
+          npm run test:trend-ranking
+          npm run test:trend-delivery
           npm run test:trend-research
           npm run test:research-reliability
           npm run test:trend-quality

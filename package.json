@@ -61,7 +61,9 @@
     "test:trend-research-budget": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/trend-research-budget-suite.ts",
     "test:trend-periods": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/trend-periods-suite.ts",
     "test:trend-discovery": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/trend-discovery-suite.ts",
-    "test:trend-handoff": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/trend-handoff-suite.ts"
+    "test:trend-handoff": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/trend-handoff-suite.ts",
+    "test:trend-ranking": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/trend-ranking-suite.ts",
+    "test:trend-delivery": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/trend-delivery-suite.ts"
   },
   "dependencies": {
     "@langchain/core": "1.2.17",

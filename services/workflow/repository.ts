@@ -1,4 +1,5 @@
 import {recordStoredTrend} from '../../src/lib/trend/quality';
+import {markDeliveryStored} from '../../src/lib/trend/delivery';
 import { retailUploadSchema } from "../../src/lib/trend/internal-retail";
 import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
@@ -34,6 +35,8 @@ export class WorkflowRepository {
       create index if not exists workflow_queue on workflow_jobs(status,created_at);
       create unique index if not exists one_active_campaign on workflow_jobs(user_id,campaign_id) where status in ('queued','running');
       create table if not exists workflow_workers (id text primary key, seen integer not null);
+      create table if not exists workflow_recovery (job_id text primary key, revision integer not null, result text not null, complete integer not null);
+      create table if not exists trend_creative_inbox (user_id text not null, job_id text not null, started_at text not null, primary key(user_id,job_id));
     `);
   }
   close() { this.db.close(); }
@@ -173,15 +176,41 @@ export class WorkflowRepository {
   }
   pauseRequested(job: ClaimedJob) { return !!this.raw(job.user_id, job.id).pause_requested; }
   checkpoint(job: ClaimedJob, result: EngineResult, complete: boolean) {
+    const before=this.raw(job.user_id,job.id);
+    if(before.worker!==job.worker||before.status!=='running')throw new WorkflowError('Worker lease lost.',409);
+    // Outside the following transaction: a failed canonical commit leaves the
+    // accepted findings/result recoverable without calling any provider again.
+    this.db.prepare('insert into workflow_recovery(job_id,revision,result,complete) values(?,?,?,?) on conflict(job_id) do update set revision=excluded.revision,result=excluded.result,complete=excluded.complete')
+      .run(job.id,before.revision,JSON.stringify(result),complete?1:0);
+    const stored=structuredClone(result);
     this.transaction(() => {
       const row = this.raw(job.user_id, job.id);
       if (row.worker !== job.worker || row.status !== "running") throw new WorkflowError("Worker lease was lost; result was not committed.", 409);
-      recordStoredTrend(result.campaign);
+      if(row.revision!==before.revision)throw new WorkflowError('Checkpoint revision changed.',409);
+      const canonical=this.db.prepare('select revision from workflow_campaigns where user_id=? and campaign_id=?').get(job.user_id,job.campaign_id);
+      if(canonical?.revision!==row.revision)throw new WorkflowError('Campaign revision changed; stale checkpoint rejected.',409);
+      const current=this.campaign(job.user_id,job.campaign_id);
+      if(current?.run?.id&&['running','paused','awaiting_human'].includes(current.run.status)&&stored.campaign.run?.id!==current.run.id&&current.status!=='draft')throw new WorkflowError('Run changed.',409);
+      if(row.pause_requested&&stored.campaign.trendDelivery?.state==='ACKNOWLEDGED'&&!current?.trendDelivery?.acknowledgedAt)throw new WorkflowError('Pause prevents a new handoff.',409);
+      recordStoredTrend(stored.campaign);markDeliveryStored(stored.campaign);
       const revision = row.revision + 1;
-      this.db.prepare("update workflow_campaigns set snapshot=?,revision=? where user_id=? and campaign_id=?").run(JSON.stringify(result.campaign), revision, job.user_id, job.campaign_id);
+      this.db.prepare("update workflow_campaigns set snapshot=?,revision=? where user_id=? and campaign_id=?").run(JSON.stringify(stored.campaign), revision, job.user_id, job.campaign_id);
       this.db.prepare("update workflow_jobs set result=?,next_command=?,status=?,message=?,updated_at=?,revision=? where id=?")
-        .run(JSON.stringify(result), JSON.stringify({ type: "ADVANCE", actor: "system" }), complete ? "completed" : "running", result.message, new Date().toISOString(), revision, job.id);
+        .run(JSON.stringify(stored), JSON.stringify({ type: "ADVANCE", actor: "system" }), complete ? "completed" : "running", stored.message, new Date().toISOString(), revision, job.id);
+      this.db.prepare('delete from workflow_recovery where job_id=?').run(job.id);
     });
+    Object.assign(result,stored);
+  }
+  recoverCheckpoint(job:ClaimedJob):boolean {
+    const draft=this.db.prepare('select * from workflow_recovery where job_id=?').get(job.id);
+    if(!draft)return false;
+    const row=this.raw(job.user_id,job.id);
+    if(row.revision!==draft.revision||row.pause_requested)throw new WorkflowError('Recovery draft superseded or paused; no dispatch.',409);
+    this.checkpoint(job,JSON.parse(String(draft.result)),Boolean(draft.complete));return true;
+  }
+  claimCreativeJob(user:string,jobId:string):boolean {
+    return this.db.prepare('insert into trend_creative_inbox(user_id,job_id,started_at) values(?,?,?) on conflict(user_id,job_id) do nothing')
+      .run(user,jobId,new Date().toISOString()).changes===1;
   }
   fail(job: ClaimedJob, message: string) {
     this.db.prepare("update workflow_jobs set status='failed',message=?,updated_at=? where id=? and worker=? and status='running'").run(message.slice(0, 1000), new Date().toISOString(), job.id, job.worker!);

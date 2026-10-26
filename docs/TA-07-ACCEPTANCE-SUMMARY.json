@@ -1,0 +1,96 @@
+{
+  "date": "2026-10-26",
+  "baseMain": "7d00b61c9e46f59053b0bfd641c41919ccc72ed4",
+  "jira": "SCRUM-42",
+  "localOnly": false,
+  "providerCalls": 0,
+  "fixtures": "SYNTHETIC",
+  "acceptanceGroups": 10,
+  "checks": {
+    "handoff": {
+      "passed": true,
+      "log": "/private/tmp/ta07-handoff-final.log"
+    },
+    "workflow": {
+      "passed": true,
+      "log": "/private/tmp/ta07-workflow.log"
+    },
+    "graph": {
+      "passed": true,
+      "log": "/private/tmp/ta07-graph.log"
+    },
+    "studio": {
+      "passed": true,
+      "log": "/private/tmp/ta07-studio.log"
+    },
+    "trustBoundary": {
+      "passed": true,
+      "log": "/private/tmp/ta07-trust.log"
+    },
+    "ranking": {
+      "passed": true,
+      "log": "/private/tmp/ta07-ranking.log"
+    },
+    "strategy": {
+      "passed": true,
+      "log": "/private/tmp/ta07-strategy.log"
+    },
+    "strategyReport": {
+      "passed": true,
+      "log": "/private/tmp/ta07-report.log"
+    },
+    "brief": {
+      "passed": true,
+      "log": "/private/tmp/ta07-brief.log"
+    },
+    "quality": {
+      "passed": true,
+      "log": "/private/tmp/ta07-quality.log"
+    },
+    "researchReliability": {
+      "passed": true,
+      "log": "/private/tmp/ta07-reliability.log"
+    },
+    "creative": {
+      "passed": true,
+      "log": "/private/tmp/ta07-creative.log"
+    },
+    "bench": {
+      "passed": true,
+      "log": "/private/tmp/ta07-bench.log"
+    }
+  },
+  "typecheck": "PASS",
+  "eslint": "PASS",
+  "productionWebpackBuild": "PASS",
+  "diffCheck": "PASS",
+  "secretValueScan": "PASS",
+  "ui": {
+    "desktop": {
+      "width": 1280,
+      "passed": true
+    },
+    "mobile": {
+      "width": 390,
+      "documentWidth": 390,
+      "passed": true
+    },
+    "states": [
+      "PENDING",
+      "FAILED",
+      "ACKNOWLEDGED"
+    ],
+    "screenshot": "/private/tmp/ta07-delivery-preview.png"
+  },
+  "safetySemantics": [
+    "COMPLETE research remains distinct from limited product direction",
+    "ACKNOWLEDGED means accepted job, not completed creative or publication",
+    "Uncertain already-started provider calls require reconciliation; no automatic duplicate paid generation"
+  ],
+  "activePermissionRecheckedBeforeSave": true,
+  "publication": {
+    "branch": "codex/ta06-ta07-ranking-handoff",
+    "authorisedByUser": true,
+    "mergeToMain": false
+  }
+}

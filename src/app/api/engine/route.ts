@@ -1,5 +1,5 @@
 import {withWorkspaceLock,requestInlinePause,resumeInlineResearch,inlineResearchAllowed} from '@/lib/trend/inline-state';
-import {recordStoredTrend} from '@/lib/trend/quality';
+import {persistEngineResult,recoverEngineResult,claimCreativeJob} from '@/lib/trend/persistence';
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/current";
 import { demoWorkspace, loadWorkspace, updateWorkspace, type WorkspaceSnapshot } from "@/lib/auth/workspace";
@@ -122,6 +122,17 @@ async function handlePost(request: Request) {
   }
 
   const loaded = await loadWorkspaceStrict(user.id, user.role);
+  if(!loaded.readable)return NextResponse.json({error:'Workspace storage is unavailable. No agent work started; retry when storage recovers.'},{status:503});
+  if(command.type==='START'){
+    const prior=loaded.snapshot.campaigns.find(c=>c.id===body.campaign!.id);
+    if(prior?.status==='paused'&&!prior.trendRequests?.some(r=>r.status==='pending'))resumeInlineResearch(user.id,prior.id);
+  }
+  if(command.type==='ADVANCE'||command.type==='START'){
+    try{
+      const recovered=await recoverEngineResult(user.id,user.role,body.campaign.id,()=>!request.signal.aborted&&inlineResearchAllowed(user.id,body.campaign!.id));
+      if(recovered)return NextResponse.json({...recovered,message:'Recovered the saved draft without repeating research or generation.'});
+    }catch(error){return NextResponse.json({error:error instanceof Error?error.message:'Draft recovery unavailable.'},{status:503});}
+  }
   const stored = loaded.snapshot;
   let resolved: ReturnType<typeof resolveInlineEngine>;
   try {
@@ -189,7 +200,7 @@ async function handlePost(request: Request) {
     }
     if (resolved.command.type === "START" || resolved.command.type === "RESOLVE_TREND") resumeInlineResearch(user.id, target.id);
     const llm = createServerResearchRuntime(billing);
-    const result = await runEngine(
+    let result = await runEngine(
       { campaigns, now: new Date().toISOString() },
       target,
       resolved.command,
@@ -198,6 +209,7 @@ async function handlePost(request: Request) {
       {
         maxSteps,
         ownerUserId: user.id,
+        claimCreativeJob:jobId=>claimCreativeJob(user.id,jobId),
         billing,
         researchAllowed: () => !request.signal.aborted && inlineResearchAllowed(user.id, target.id),
         llm,
@@ -212,19 +224,13 @@ async function handlePost(request: Request) {
       },
     );
     try {
-      recordStoredTrend(result.campaign);
-      // A compare-and-set on the latest copy, so a concurrent save cannot undo this result.
-      const saved = await updateWorkspace(user.id, user.role, (latest) => ({
-        ...latest,
-        campaigns: [result.campaign, ...latest.campaigns.filter((item) => item.id !== result.campaign.id)],
-      }));
-      if (!saved) throw new Error("the workspace kept changing");
+      result=await persistEngineResult(user.id,user.role,result,stored.campaigns.find(c=>c.id===target.id),()=>['PAUSE','CANCEL_TREND'].includes(resolved.command.type)||!request.signal.aborted&&inlineResearchAllowed(user.id,target.id));
     } catch (error) {
       // PUT /api/workspace keeps agent results from the stored copy, so the browser
       // cannot save this result for us. Reporting it as done would leave the browser
       // ahead of the server; say it failed and leave the campaign as it was.
       console.error("[engine] result could not be saved", error instanceof Error ? error.message : error);
-      return NextResponse.json({ error: "The result could not be saved. Nothing changed; try again." }, { status: 503 });
+      return NextResponse.json({ error: error instanceof Error?error.message:'The result could not be saved. Retry storage before continuing.' }, { status: 503 });
     }
     return NextResponse.json({
       campaign: result.campaign,

@@ -18,7 +18,9 @@ export async function workOnce(repo: WorkflowRepository, workerId: string, optio
   let leaseValid = true;
   const heartbeat = setInterval(() => { try { leaseValid = repo.heartbeat(job); } catch { leaseValid = false; } }, 10_000);
   try {
-    let command = job.nextCommand;
+    const recovered=repo.recoverCheckpoint(job);
+    if(recovered&&repo.get(job.user_id,job.id).status==='completed')return true;
+    let command:Command = recovered?{type:'ADVANCE',actor:'system'}:job.nextCommand;
     for (let step = 0; step < 40; step++) {
       if (!leaseValid) throw new Error("Worker lost its lease. No further agent call was started.");
       const campaign = repo.campaign(job.user_id, job.campaign_id)!;
@@ -40,6 +42,7 @@ export async function workOnce(repo: WorkflowRepository, workerId: string, optio
         llm,
         maxSteps: 1,
         ownerUserId: job.user_id,
+        claimCreativeJob:options.claimCreativeJob??(jobId=>repo.claimCreativeJob(job.user_id,jobId)),
         researchAllowed: async () => leaseValid && !repo.pauseRequested(job) && (await options.researchAllowed?.() ?? true),
         renderPoster: options.renderPoster ?? ((input) => renderCampaignPoster({
           campaign: input.campaign,

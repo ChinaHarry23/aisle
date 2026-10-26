@@ -1,0 +1,258 @@
+{
+  "mode": "SYNTHETIC source/plan fixtures, deterministic local comparison; no real campaign uplift claim",
+  "rules": {
+    "version": "ta06-1",
+    "weights": {
+      "product": 12,
+      "audience": 14,
+      "objective": 12,
+      "timing": 10,
+      "country": 8,
+      "channels": 10,
+      "budget": 8,
+      "quality": 12,
+      "recency": 8,
+      "value": 6
+    },
+    "tieBreak": "Supported material risks first; supported before assumptions; score descending, then quality, recency, stable finding ID.",
+    "meaning": "0\u2013100 relative editorial priority, not confidence, probability, causation, forecast ROI or authority to spend.",
+    "confidence": "High/moderate/low are qualitative source-review judgements. High means accepted support without a recorded qualification; moderate retains qualifications/conflict; low is insufficient. They are not calibrated probabilities."
+  },
+  "checks": 14,
+  "pairs": [
+    {
+      "dimension": "audience",
+      "before": [
+        {
+          "id": "a",
+          "rank": 1,
+          "score": 37.23,
+          "points": 14
+        },
+        {
+          "id": "b",
+          "rank": 2,
+          "score": 23.23,
+          "points": 0
+        }
+      ],
+      "after": [
+        {
+          "id": "b",
+          "rank": 1,
+          "score": 37.23,
+          "points": 14
+        },
+        {
+          "id": "a",
+          "rank": 2,
+          "score": 23.23,
+          "points": 0
+        }
+      ]
+    },
+    {
+      "dimension": "timing",
+      "before": [
+        {
+          "id": "a",
+          "rank": 1,
+          "score": 33.23,
+          "points": 10
+        },
+        {
+          "id": "b",
+          "rank": 2,
+          "score": 23.23,
+          "points": 0
+        }
+      ],
+      "after": [
+        {
+          "id": "b",
+          "rank": 1,
+          "score": 33.23,
+          "points": 10
+        },
+        {
+          "id": "a",
+          "rank": 2,
+          "score": 23.23,
+          "points": 0
+        }
+      ]
+    },
+    {
+      "dimension": "country",
+      "before": [
+        {
+          "id": "a",
+          "rank": 1,
+          "score": 31.23,
+          "points": 8
+        },
+        {
+          "id": "b",
+          "rank": 2,
+          "score": 23.23,
+          "points": 0
+        }
+      ],
+      "after": [
+        {
+          "id": "b",
+          "rank": 1,
+          "score": 31.23,
+          "points": 8
+        },
+        {
+          "id": "a",
+          "rank": 2,
+          "score": 23.23,
+          "points": 0
+        }
+      ]
+    },
+    {
+      "dimension": "channel",
+      "before": [
+        {
+          "id": "a",
+          "rank": 1,
+          "score": 33.23,
+          "points": 10
+        },
+        {
+          "id": "b",
+          "rank": 2,
+          "score": 23.23,
+          "points": 0
+        }
+      ],
+      "after": [
+        {
+          "id": "b",
+          "rank": 1,
+          "score": 33.23,
+          "points": 10
+        },
+        {
+          "id": "a",
+          "rank": 2,
+          "score": 23.23,
+          "points": 0
+        }
+      ]
+    },
+    {
+      "dimension": "objective",
+      "before": [
+        {
+          "id": "a",
+          "rank": 1,
+          "score": 35.23,
+          "points": 12
+        },
+        {
+          "id": "b",
+          "rank": 2,
+          "score": 23.23,
+          "points": 0
+        }
+      ],
+      "after": [
+        {
+          "id": "b",
+          "rank": 1,
+          "score": 35.23,
+          "points": 12
+        },
+        {
+          "id": "a",
+          "rank": 2,
+          "score": 23.23,
+          "points": 0
+        }
+      ]
+    },
+    {
+      "dimension": "budget",
+      "before": [
+        {
+          "id": "a",
+          "rank": 1,
+          "score": 31.33,
+          "points": 8
+        },
+        {
+          "id": "b",
+          "rank": 2,
+          "score": 25.73,
+          "points": 0
+        }
+      ],
+      "after": [
+        {
+          "id": "b",
+          "rank": 1,
+          "score": 33.73,
+          "points": 8
+        },
+        {
+          "id": "a",
+          "rank": 2,
+          "score": 31.33,
+          "points": 8
+        }
+      ]
+    },
+    {
+      "dimension": "product",
+      "before": [
+        {
+          "id": "a",
+          "rank": 1,
+          "score": 35.23,
+          "points": 12
+        },
+        {
+          "id": "b",
+          "rank": 2,
+          "score": 23.23,
+          "points": 0
+        }
+      ],
+      "after": [
+        {
+          "id": "b",
+          "rank": 1,
+          "score": 35.23,
+          "points": 12
+        },
+        {
+          "id": "a",
+          "rank": 2,
+          "score": 23.23,
+          "points": 0
+        }
+      ]
+    }
+  ],
+  "baseMain": "7d00b61c9e46f59053b0bfd641c41919ccc72ed4",
+  "regressions": {
+    "strategy": 10,
+    "strategyReport": 6,
+    "brief": 14,
+    "quality": 17,
+    "researchReliability": 16,
+    "bench": 22,
+    "creativeConstraints": "passed"
+  },
+  "ui": {
+    "desktopWidth": 1280,
+    "narrowWidth": 390,
+    "narrowDocumentWidth": 390,
+    "counterEvidenceExpandable": true,
+    "mode": "SYNTHETIC paused local preview"
+  }
+}

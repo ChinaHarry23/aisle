@@ -2,6 +2,7 @@ import type { Campaign } from '@/lib/types';
 import { briefCandidateSchema, type BriefCandidate, type StructuredTrendBrief } from './brief-contracts';
 import { requiredBriefSections, sectionCategories, sectionResearch } from './brief-sections';
 import { contextVersion } from './quality-contracts';
+import { rankFindings } from './ranking';
 import { currentStrategy } from './strategy';
 
 const bounded = (value:string) => value.slice(0, 800);
@@ -34,7 +35,8 @@ export function assembleStrategyReport(c:Campaign, at:string):StructuredTrendBri
   for (const f of findings.filter(f => f.supported)) if (!substantiation.some(s => s.findingId === f.id)) errors.push(`Reviewed finding has no available exact source excerpt: ${f.id}.`);
   const supportedIds = new Set(findings.filter(f => f.supported && substantiation.some(s => s.findingId === f.id)).map(f => f.id));
   const insights = strategy?.insights.filter(i => i.basis !== 'hypothesis' && i.findingIds.length > 0 && i.findingIds.every(id => supportedIds.has(id))) ?? [];
-  const prioritisedFindingIds = [...new Set([...insights.flatMap(i => i.findingIds), ...findings.filter(f => f.supported).map(f => f.id), ...findings.map(f => f.id)])];
+  const ranking=strategy?.ranking??rankFindings(c);
+  const prioritisedFindingIds = ranking.rows.map(r=>r.findingId);
   const related = (id:string, area:string, channel:string|null) => findings.find(f => f.id === id)?.supports.some(s =>
     c.evidence.some(e => e.id === s.evidenceId && e.research?.category === area && (!channel || e.research.channel === channel)));
   const direction = (prefix:string, insight:typeof insights[number], text:string) => ({
@@ -61,7 +63,7 @@ export function assembleStrategyReport(c:Campaign, at:string):StructuredTrendBri
       country:bounded(`Campaign market: ${c.country}. ${f.limitation || 'Apply the finding within the geography assessed in the source review.'}`),
       channels:bounded(`Selected channels: ${c.channels.join(', ')}. Channel-specific observations are listed in the matching section.`),
       budget:bounded(`Campaign budget: ${c.budget}. This report does not infer advertising performance or change the budget.`),
-      priorityReason:bounded(insights.filter(i => i.findingIds.includes(f.id)).map(i => i.application).join(' ') || (f.supported ? f.relevance : f.reasons.join(' ') || 'Retained for transparency; not used as an established fact.')),
+      priorityReason:bounded((ranking.rows.find(r=>r.findingId===f.id)?.reason??'')+' '+insights.filter(i => i.findingIds.includes(f.id)).map(i => i.application).join(' ') || (f.supported ? f.relevance : f.reasons.join(' ') || 'Retained for transparency; not used as an established fact.')),
     })),
     inferences:insights.map(i => direction('inference', i, i.implication)),
     themes:insights.map(i => direction('theme', i, i.application)),
@@ -83,7 +85,7 @@ export function assembleStrategyReport(c:Campaign, at:string):StructuredTrendBri
   const limitations = [...new Set([...(q?.limitations ?? []), ...(strategy?.limitations ?? []), ...errors])];
   const previousAdvice = c.sharedContext.previousAdvice ?? null;
   return {
-    format:'strategy-v1', strategyVersion:strategy?.version, sourceFingerprint:strategy?.sourceFingerprint,
+    format:'strategy-v1', ranking, strategyVersion:strategy?.version, sourceFingerprint:strategy?.sourceFingerprint,
     briefId:c.id+':'+(c.run?.id ?? 'unlaunched')+':brief', campaignId:c.id, runId:c.run?.id ?? 'unlaunched',
     contextVersion:contextVersion(c), version:q?.version ?? 0, qualityVersion:q?.version ?? 0, generatedAt:at,
     status:!errors.length && q?.status === 'COMPLETE' ? 'COMPLETE' : 'INCOMPLETE',

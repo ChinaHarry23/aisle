@@ -25,9 +25,12 @@ export function operationNodeForStep(step: string | null | undefined): Operation
     case "intake.validate":
       return "intake";
     case "trend.receive":
+    case "trend.quality":
+    case "trend.handoff":
     case "trend.brief":
       return "trend";
     case "creative.receive":
+    case "creative.generate":
       return "creative";
     case "creative.revise":
       return "revise";
