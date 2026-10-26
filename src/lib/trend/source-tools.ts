@@ -2,6 +2,7 @@
 import { z } from 'zod';
 import { getPublicResearchCache, putPublicResearchCache, publicCacheKey } from './public-cache';
 import { uid } from '@/lib/ids';
+import { fetchPublicText } from '@/lib/net/public-fetch';
 import type { Evidence } from '@/lib/runtime/types';
 import type { ToolDefinition, ToolInput, ToolOutcome } from '@/lib/runtime/tools';
 import { RESEARCH_CATEGORIES, sourcePermitted, unavailable, type ResearchCategory } from './contracts';
@@ -10,10 +11,18 @@ export const RESEARCH_TOOL_IDS = ['web.search', 'web.scrape_page', 'web.search_t
 const categorySchema = z.enum(RESEARCH_CATEGORIES);
 const publicQuery = z.string().trim().min(3).max(240).describe('Public product/category research terms only. Refine the question after irrelevant results; exclude private notes, customer records, credentials and personal identifiers.');
 const querySchema = z.object({ category: categorySchema, channel: z.string().max(40).optional(), query: publicQuery.optional() }).strict();
-export const sourceHosts = ['abs.gov.au', 'aihw.gov.au', 'accc.gov.au', 'bom.gov.au', 'australia.com', 'visitnsw.com', 'nagerholidays.com', 'business.gov.au', 'thinkwithgoogle.com', 'business.instagram.com', 'facebook.com', 'meta.com', 'support.google.com', 'developers.google.com', 'mailchimp.com', 'coles.com.au', 'woolworths.com.au', 'aldi.com.au', 'iga.com.au', 'stats.govt.nz', 'ons.gov.uk', 'census.gov'];
+/** Helpful original publishers, used to rank candidates rather than hide the rest of the public web. */
+export const sourceHosts = ['abs.gov.au', 'aihw.gov.au', 'eatforhealth.gov.au', 'health.gov.au', 'csiro.au', 'awe.gov.au', 'accc.gov.au', 'bom.gov.au', 'australia.com', 'visitnsw.com', 'nagerholidays.com', 'business.gov.au', 'thinkwithgoogle.com', 'business.instagram.com', 'facebook.com', 'meta.com', 'support.google.com', 'developers.google.com', 'mailchimp.com', 'coles.com.au', 'woolworths.com.au', 'aldi.com.au', 'iga.com.au', 'stats.govt.nz', 'ons.gov.uk', 'census.gov'];
 export function publicSourceUrl(raw: string): string | null {
-  try { const url = new URL(raw); const hosts = [...sourceHosts, ...(process.env.TREND_SOURCE_DOMAINS ?? '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean)];
-    if (/^[\d.]+$/.test(url.hostname) || url.hostname.includes(':') || !url.hostname.includes('.') || /\.(local|localhost|internal|test)$/.test(url.hostname) || url.protocol !== 'https:' || url.username || url.password || (url.port && url.port !== '443') || url.search || url.hash || !hosts.some(h => url.hostname === h || url.hostname.endsWith('.'+h))) return null;
+  try {
+    const url = new URL(raw);
+    if (/^[\d.]+$/.test(url.hostname) || url.hostname.includes(':') || !url.hostname.includes('.') || /\.(local|localhost|internal|test|lan|home)$/.test(url.hostname) || url.protocol !== 'https:' || url.username || url.password || (url.port && url.port !== '443')) return null;
+    // Public report IDs and search parameters are meaningful; signed/account URLs are not public sources.
+    for (const [key,value] of [...url.searchParams]) {
+      if (/(?:token|auth|password|secret|credential|session|signature|api[_-]?key|email)|^(?:key|sig)$/i.test(key) || /^(?:Bearer\s|sk-[\w-]{8,})/i.test(value)) return null;
+      if (/^(?:utm_|fbclid$|gclid$|msclkid$)/i.test(key)) url.searchParams.delete(key);
+    }
+    url.hash = '';
     return url.href;
   } catch { return null; }
 }
@@ -29,22 +38,69 @@ export function publicProductTopic(input: ToolInput) {
     .replace(/\b\d+(?:\.\d+)?\s*(?:kg|g|ml|l|pack)\b/gi, '');
   return safePublicTerm(product) || safePublicTerm(input.campaign.category);
 }
+const countryNames:Record<string,string>={AU:'Australia',NZ:'New Zealand',UK:'United Kingdom',US:'United States'};
+function publicSearchQuery(value:string) {
+  // Keep site:, quoted phrases, exclusions and dotted domains intact for the search API.
+  return redact(value).replace(/[^\p{L}\p{N}\s&'".:()/-]/gu,' ').replace(/\s+/g,' ').trim().slice(0,240);
+}
+function discoveryContext(input:ToolInput) {
+  const c=input.campaign, topic=publicProductTopic(input);
+  const broad= /\bchicken\b/i.test(topic)?'chicken poultry':/\b(beef|pork|lamb|meat)\b/i.test(topic)?topic.replace(/\b(fillet|steak|cutlets?|roast)\b/gi,'').trim():topic;
+  const food=/\b(grocery|food|drinks?|beverages?|pantry|meat|poultry|chicken|beef|pork|lamb|juice)\b/i.test(c.category+' '+topic);
+  // Audience text is private input: only these broad, pre-defined needs may enter discovery queries.
+  const needs=[/health|healthy|balanced|nutrition/i.test(c.targetAudience)?(food?'healthy eating':'wellbeing'):null,/busy|convenien|quick|time.poor/i.test(c.targetAudience)?'convenience':null,/budget|afford|value/i.test(c.targetAudience)?'value for money':null].filter(Boolean).join(' ');
+  const monthNumber=Number(c.startDate.slice(5,7));
+  const month=Number.isInteger(monthNumber)&&monthNumber>=1&&monthNumber<=12?new Intl.DateTimeFormat('en',{month:'long',timeZone:'UTC'}).format(new Date(Date.UTC(2020,monthNumber-1,1))):'';
+  return {topic,broad,food,needs,month,country:countryNames[c.country]??safePublicTerm(c.country),year:c.startDate.slice(0,4)};
+}
 export function queryFor(input: ToolInput, category: ResearchCategory, channel?: string) {
-  const c = input.campaign;
-  if (input.args.query) return `${safePublicTerm(input.args.query, 240)} ${c.country}`;
-  const topic = publicProductTopic(input);
-  const areas: Record<ResearchCategory,string> = {
-    current_market:`${safePublicTerm(c.product)} official product details features ingredients origin`,
-    historical_market:`${topic} category demand market trends time series`,
-    customer_interest:`${topic} consumer needs use occasions interests survey`,
-    purchase_preference:`${topic} purchase drivers convenience value quality consumer survey methodology`,
-    seasonal:`${topic} ${c.startDate.slice(5,7)} seasonal use occasions retail demand research`,
-    cultural:`${topic} regional cultural occasions events ${c.startDate} ${c.endDate}`,
-    channel:`${topic} ${channel ?? ''} content formats audience engagement research examples`,
-    competitor:`${topic} comparable products retailers positioning offers pack price`,
+  const c=input.campaign,{topic,broad,food,needs,month,country,year}=discoveryContext(input);
+  if(input.args.query){const query=publicSearchQuery(input.args.query);return query.toLowerCase().includes(country.toLowerCase())?query:`${query} ${country}`.trim();}
+  const channelQuestions:Record<string,string>={
+    instagram:`Instagram Reels ${food?'food retail':'retail'} creative best practices official`,
+    email:`${food?'food retail':'retail'} email marketing content benchmarks best practices`,
+    web:`${food?'food retail recipe':'retail'} product page content customer experience research`,
+    facebook:`Facebook ${food?'food retail':'retail'} video creative best practices official`,
+    digital_signage:'retail digital signage message readability product advertising research',
   };
-  // Never transmit notes, uploads, audience free text, budgets or credentials to search.
-  return `${areas[category]} ${c.country} ${c.startDate.slice(0,4)}`;
+  const areas:Record<ResearchCategory,string>={
+    current_market:`${safePublicTerm(c.product)} official product ingredients origin ${country}`,
+    historical_market:`${broad} consumer demand market report ${country}`,
+    customer_interest:`${broad} ${food?'meal planning':''} ${needs} consumer needs survey ${country}`,
+    purchase_preference:`${broad} purchase drivers convenience price quality consumer survey ${country}`,
+    seasonal:`${broad} ${food?'meal ideas':''} ${month} seasonal occasions ${country}`,
+    cultural:`${month} ${year} ${food?'food':''} cultural events ${country}`,
+    channel:channelQuestions[channel??'']??`${safePublicTerm(channel??'retail')} content formats audience engagement research`,
+    competitor:`${topic} comparable products retailers pack price ${country}`,
+  };
+  return areas[category].replace(/\s+/g,' ').trim();
+}
+/** A second question broadens the failed decision, instead of paying to repeat its cached query. */
+export function replacementQueryFor(input:ToolInput,category:ResearchCategory,channel?:string) {
+  const {broad,food,month,country}=discoveryContext(input);
+  const questions:Record<ResearchCategory,string>={
+    current_market:`"${safePublicTerm(input.campaign.product)}" product specifications`,
+    historical_market:`${broad} household consumption annual statistics`,
+    customer_interest:`${broad} ${food?'balanced meals preparation guidance':'consumer use occasions'} research`,
+    purchase_preference:`${food?'meal preparation grocery':'retail shopping'} consumer choice survey convenience value`,
+    seasonal:`${month} ${food?'recipes seasonal eating':'shopping occasions'} ${broad}`,
+    cultural:`${month} community ${food?'food':''} festival calendar`,
+    channel:`${safePublicTerm(channel??'retail')} ${food?'food':'retail'} marketing case study audience engagement`,
+    competitor:`${broad} retailer product range comparison`,
+  };
+  return `${questions[category]} ${country}`.replace(/\s+/g,' ').trim();
+}
+/** Rank unread originals against the actual question; ranking does not establish claim support. */
+export function replacementSource(evidence:Evidence[],input:ToolInput,category:ResearchCategory,channel?:string) {
+  const query=replacementQueryFor(input,category,channel).toLowerCase();
+  const stop=new Set('the and for with research consumer australia united states kingdom new zealand'.split(' '));
+  const terms=[...new Set(query.match(/[\p{L}\p{N}]{3,}/gu)??[])].filter(t=>!stop.has(t));
+  const read=new Set(input.campaign.evidence.filter(e=>e.research&&e.research.quality!=='snippet').map(e=>publicSourceUrl(e.sourceRef)));
+  const preferred=[...sourceHosts,...(process.env.TREND_SOURCE_DOMAINS??'').split(',').map(s=>s.trim().toLowerCase()).filter(Boolean)];
+  return evidence.filter(e=>e.research?.category===category&&(!channel||e.research.channel===channel)&&publicSourceUrl(e.sourceRef)&&!read.has(publicSourceUrl(e.sourceRef)))
+    .map(e=>{const text=(e.detail+' '+e.sourceRef).toLowerCase();const matches=terms.filter(t=>text.includes(t)).length;const host=new URL(e.sourceRef).hostname;
+      return {e,matches,score:matches*3+Number(preferred.some(h=>host===h||host.endsWith('.'+h)))-(/seasonal adjustment|seasonally adjusted methodology/i.test(text)?8:0)};})
+    .filter(row=>row.matches>0&&row.score>0).sort((a,b)=>b.score-a.score)[0]?.e;
 }
 export async function boundedResponse(response: Response, maximum = 1_000_000): Promise<string> {
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -79,7 +135,7 @@ function eligible(name:string,schema:z.ZodType,input:ToolInput): ToolOutcome|nul
   if(!sourcePermitted(input.campaign,name,[...RESEARCH_TOOL_IDS,'web.shelf_prices']))return unavailable(`${name} excluded by DataAccessPolicy.`,'skipped');
   if(!schema.safeParse(input.args).success)return unavailable('Invalid tool arguments.','error');
   if(input.args.channel && !input.campaign.channels.includes(input.args.channel as never))return unavailable('Channel is outside the approved campaign.','skipped');
-  if(name==='web.scrape_page'&&!publicSourceUrl(input.args.url))return unavailable('URL is outside the public source allowlist.','skipped');
+  if(name==='web.scrape_page'&&!publicSourceUrl(input.args.url))return unavailable('Use an unauthenticated public HTTPS source URL.','skipped');
   if(name.startsWith('retail.')&&input.campaign.country!=='AU')return unavailable('WhichGrocer covers Australia only.','skipped');
   if(name==='retail.price_stats'&&!input.campaign.evidence.some(e=>e.sourceName==='WhichGrocer'&&e.research?.category==='competitor'&&e.detail.includes(`"id":"${input.args.productId}"`)))return unavailable('Select a product ID from this campaign’s retrieved WhichGrocer evidence first.','skipped');
   return null;
@@ -88,7 +144,7 @@ async function cacheKey(name:string,input:ToolInput) {
   const provider=providerFor(name);if(!provider)return null;
   // Only public query scope is cached. Credential digest isolates provider accounts.
   const c=input.campaign;
-  return publicCacheKey({version:2,provider:provider.name,name,args:Object.entries(input.args).sort(),product:safePublicTerm(c.product),category:safePublicTerm(c.category),country:c.country,start:c.startDate,end:c.endDate,channels:c.channels,hosts:process.env.TREND_SOURCE_DOMAINS??''},provider.credential);
+  return publicCacheKey({version:3,provider:provider.name,name,asOfDate:name==='web.search_trends'?input.at.slice(0,10):undefined,args:Object.entries(input.args).sort(),publicQuery:name==='web.search'?queryFor(input,input.args.category as ResearchCategory,input.args.channel):undefined,product:safePublicTerm(c.product),category:safePublicTerm(c.category),country:c.country,start:c.startDate,end:c.endDate,channels:c.channels,hosts:process.env.TREND_SOURCE_DOMAINS??''},provider.credential);
 }
 function refreshCached(outcome:ToolOutcome,input:ToolInput) {
   for(const e of outcome.evidence){
@@ -133,11 +189,13 @@ const searchTool=define('web.search','Scoped public search: Firecrawl or existin
   return {...result(evidence,{sources:evidence.map(e=>({id:e.id,url:e.sourceRef,excerpt:e.detail})),next:'Read original sources with web.scrape_page. Search snippets alone cannot satisfy coverage.'},'Public search results retrieved; snippets require original-source review.'),usage:providerUsage('firecrawl',response)};
 });
 const scrapeTool=define('web.scrape_page','Read relevant passages from an original public source; use question to focus on the decision being researched',z.object({url:z.string().max(1200),category:categorySchema,channel:z.string().max(40).optional(),question:publicQuery.optional()}).strict(),async input=>{
-  const url=publicSourceUrl(input.args.url);if(!url)return unavailable('URL is outside the public source allowlist (no credentials, query strings, IPs or private hosts).','skipped');
+  const url=publicSourceUrl(input.args.url);if(!url)return unavailable('Use an unauthenticated public HTTPS source URL.','skipped');
   if(!process.env.FIRECRAWL_API_KEY){
-    const response=await fetch(url,{redirect:'error',cache:'no-store',signal:AbortSignal.timeout(12_000),headers:{Accept:'text/html, text/plain'}});
-    if(!/text\/(html|plain)/i.test(response.headers.get('content-type') ?? '')) return unavailable('Public source is not readable HTML/plain text; configure extraction for this format.');
-    const raw=await boundedResponse(response);
+    const response=await fetchPublicText(new URL(url),{timeoutMs:12_000,maxBytes:1_000_000,maxRedirects:3,validateUrl:target=>Boolean(publicSourceUrl(target.href)),headers:{Accept:'text/html, text/plain'}});
+    if(response.status<200||response.status>=300)throw Error(`HTTP ${response.status}`);
+    if(!/text\/(html|plain)/i.test(response.contentType??'')) return unavailable('Public source is not readable HTML/plain text; configure extraction for this format.');
+    const finalUrl=publicSourceUrl(response.url.href);if(!finalUrl)return unavailable('Redirected source is not a public research page.','skipped');
+    const raw=response.text;
     // Read machine-declared publication dates; never substitute fetch time.
     const published=date(raw.match(/<meta[^>]+(?:property|name)=["']article:published_time["'][^>]+content=["']([^"']+)/i)?.[1]
       ?? raw.match(/["']datePublished["']\s*:\s*["']([^"']+)/i)?.[1]);
@@ -146,12 +204,12 @@ const scrapeTool=define('web.scrape_page','Read relevant passages from an origin
     if(!text)return unavailable('No readable public text.');
     if(/incapsula incident id|request unsuccessful|access denied|verify (?:that )?you are (?:a )?human|enable javascript and cookies to continue/i.test(text.slice(0,1200)))return unavailable('Public source returned an access challenge, not research content.');
     const question=input.args.question??queryFor(input,input.args.category as ResearchCategory,input.args.channel);
-    const evidence=[item(input,input.args.category as ResearchCategory,'Public source text',url,relevantExcerpt(text,question,6000),published,{channel:input.args.channel,transformation:'Relevant verbatim passages selected from bounded main/article text; […] separates passages. Scripts/navigation removed. Publication date from declared source metadata when present; otherwise unknown.'})];
+    const evidence=[item(input,input.args.category as ResearchCategory,'Public source text',finalUrl,relevantExcerpt(text,question,6000),published,{channel:input.args.channel,transformation:'Relevant verbatim passages selected from bounded main/article text; […] separates passages. Scripts/navigation removed. Publication date from declared source metadata when present; otherwise unknown.'})];
     return result(evidence,{sources:evidence},'Public text retrieved directly; relevance and publication date require review.');
   }
   const response=record(await json('https://api.firecrawl.dev/v2/scrape',{method:'POST',headers:{Authorization:`Bearer ${process.env.FIRECRAWL_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({url,formats:['markdown'],onlyMainContent:true,timeout:10000})}));
   const data=record(response.data),metadata=record(data.metadata);const finalUrl=publicSourceUrl(String(metadata.sourceURL??url));
-  if(!finalUrl || new URL(finalUrl).hostname!==new URL(url).hostname)return unavailable('Redirected source rejected.','skipped');
+  if(!finalUrl)return unavailable('Redirected source rejected.','skipped');
   const content=typeof data.markdown==='string'?data.markdown:'';if(!content)return unavailable('Source has no readable content.');
   if(/incapsula incident id|request unsuccessful|access denied|verify (?:that )?you are (?:a )?human|enable javascript and cookies to continue/i.test(content.slice(0,1200)))return unavailable('Extractor returned an access challenge, not research content.');
   const question=input.args.question??queryFor(input,input.args.category as ResearchCategory,input.args.channel);
@@ -171,11 +229,11 @@ const trendsTool=define('web.search_trends','Google Trends relative search inter
   if(Array.isArray(data)?!data.length:!Object.keys(data).length)return unavailable('Trends returned empty data.');
   const category=input.args.kind==='TIMESERIES'?'historical_market':'customer_interest';
   const ref=`https://trends.google.com/trends/explore?geo=${input.campaign.country==='UK'?'GB':input.campaign.country}&q=${encodeURIComponent(q)}&date=${encodeURIComponent(window)}`;
-  const summary=Array.isArray(data)?summarizeTrendSeries(data):null;
-  if(Array.isArray(data)&&!summary)return unavailable('Trends returned no complete numeric observations.');
+  const summary=Array.isArray(data)?summarizeTrendSeries(data,input.at):null;
+  if(Array.isArray(data)&&!summary)return unavailable('Trends returned no numeric observations with a confirmed completed period.');
   const relatedQueries=Object.fromEntries(Object.entries(related).filter(([key])=>['top','rising'].includes(key)).map(([key,rows])=>[key,Array.isArray(rows)?rows.slice(0,10).map(value=>{const row=record(value);return {query:row.query,value:row.value,extractedValue:row.extracted_value};}):[]]));
   const excerpt=JSON.stringify({query:q,window:{start,end},...(summary?{summary}:{relatedQueries}),meaning:'Relative search interest only; not sales, volume or purchase preference.'});
-  const evidence=item(input,category,'SerpApi Google Trends',ref,excerpt,summary?.latestInformationDate??null,{transformation:'Complete periods summarized deterministically: normalized mean, peak, non-zero density and adjacent-window index-point change. Full bounded records retained in tool result. Query and fixed requested dates are explicit.'});
+  const evidence=item(input,category,'SerpApi Google Trends',ref,excerpt,summary?.latestInformationDate??null,{transformation:'Only dated periods completed before the retrieval date are summarized deterministically: normalized mean, peak, non-zero density and adjacent-window index-point change. Full bounded records retained in tool result. Query and fixed requested dates are explicit.'});
   evidence.coverage={start,end,location:input.campaign.country};
   return {...result([evidence],{records:data,summary},'Relative search interest retrieved. Search interest is not purchase preference.'),usage:providerUsage('serpapi',response)};
 });

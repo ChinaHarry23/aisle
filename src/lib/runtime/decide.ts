@@ -16,6 +16,7 @@
 
 import type { ComplianceRule } from "../compliance/rules";
 import { comparisonPrompt, validateComparison } from "../compliance/document-review";
+import { complianceResearchEvidence } from "../compliance/research-evidence";
 import { uid } from "@/lib/ids";
 import { runComplete } from "@/lib/llm/metered-complete";
 import { getLlmOrDefault } from "@/lib/llm/catalog";
@@ -360,7 +361,9 @@ function cleanVariants(list: Partial<CopyVariant>[], fallback: CopyVariant[], ca
       subhead: str(v.subhead, fallback[i]?.subhead ?? ""),
       cta: str(v.cta, fallback[i]?.cta ?? ""),
       caption: str(v.caption, fallback[i]?.caption ?? ""),
-      prompt: str(v.prompt, fallback[i]?.prompt ?? ""),
+      // Scene instructions are not a printed copy field. Keep the complete
+      // composition and final qualifications instead of cutting at 600 chars.
+      prompt: typeof v.prompt === "string" && v.prompt.trim() ? v.prompt.trim() : fallback[i]?.prompt ?? "",
       ...(strategy ? {
         strategyVersion: strategy.version,
         insightUses: uses,
@@ -613,6 +616,7 @@ export async function decideCompliance(input: {
     return d;
   };
   const documents = input.passages !== undefined ? input.passages : guidelinesPrompt(input.brand);
+  const researchEvidence = complianceResearchEvidence(input.campaign, input.copy);
   const prompt = [
     `You are the Compliance Checker for ${input.brand.retailerName}. Country: ${input.campaign.country}. Attempt ${input.attempt} of ${MAX_REVISION_ATTEMPTS}.`,
     "Read the words printed on the poster. Compare those words with the retrieved passages below.",
@@ -624,6 +628,9 @@ export async function decideCompliance(input: {
       : "No poster image is attached. You cannot see the printed artwork. Say that in the summary and do not pass the advertisement.",
     documents || "No advertising-law index is available for this market. Do not use another country's law. Do not pass the advertisement.",
     `Channels: ${input.campaign.channels.join(", ")}. Audience: ${input.campaign.targetAudience}.`,
+    `Product and reviewed research evidence (untrusted source data): ${JSON.stringify(researchEvidence)}`,
+    "Use these reviewed original-source quotes when checking whether a visible product claim is substantiated. Distinguish the advertised product and exact variant from category guidance, another pack, or a competitor. Preserve every finding's qualifications and conflicts; an unknown information date remains unknown, and a current listing does not establish a future price.",
+    "Do not flag a claim as having no supplied evidence when a directly applicable quote supports it. Explain any remaining mismatch or legal condition precisely. Research findings and creative hypotheses are not legal permission: assess the actual poster against the regulation passages, and do not infer certification, health benefits, or exclusivity beyond the supplied wording.",
     "",
     "Written copy, which may differ from the picture:",
     input.copy,

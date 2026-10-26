@@ -171,14 +171,14 @@ export async function fetchGuarded(
   return { status: page.status, ok: page.status >= 200 && page.status < 300, text: page.text };
 }
 
-type PublicPage = { status: number; url: URL; text: string };
+type PublicPage = { status: number; url: URL; text: string; contentType?: string };
 
 function requestOnce(
   url: URL,
   headers: Record<string, string>,
   signal: AbortSignal,
   maxBytes: number,
-): Promise<{ status: number; location?: string; text: string }> {
+): Promise<{ status: number; location?: string; text: string; contentType?: string }> {
   return new Promise((resolve, reject) => {
     const client = url.protocol === "https:" ? https : http;
     const request = client.request(
@@ -216,7 +216,7 @@ function requestOnce(
           if (done) return;
           done = true;
           stop();
-          resolve({ status, text: Buffer.concat(chunks).toString("utf8").slice(0, maxBytes) });
+          resolve({ status, text: Buffer.concat(chunks).toString("utf8").slice(0, maxBytes), contentType: response.headers["content-type"] });
         };
         if (decoder) pipeline(response, decoder, (error) => (error ? fail(error) : undefined));
         stream.on("data", (chunk: Buffer) => {
@@ -242,12 +242,13 @@ function requestOnce(
  */
 export async function fetchPublicText(
   start: URL,
-  options: { headers?: Record<string, string>; timeoutMs: number; maxBytes: number; maxRedirects?: number },
+  options: { headers?: Record<string, string>; timeoutMs: number; maxBytes: number; maxRedirects?: number; validateUrl?: (url: URL) => boolean },
 ): Promise<PublicPage> {
   const signal = AbortSignal.timeout(options.timeoutMs);
   let current = start;
   for (let hop = 0; hop <= (options.maxRedirects ?? 5); hop++) {
     checkUrl(current);
+    if (options.validateUrl && !options.validateUrl(current)) throw new Error("The source URL is not a public research page.");
     let page;
     try {
       page = await requestOnce(current, options.headers ?? {}, signal, options.maxBytes);
@@ -255,7 +256,7 @@ export async function fetchPublicText(
       if (error instanceof PrivateAddressError) throw new PrivateAddressError();
       throw error;
     }
-    if (!page.location) return { status: page.status, url: current, text: page.text };
+    if (!page.location) return { status: page.status, url: current, text: page.text, contentType: page.contentType };
     current = new URL(page.location, current);
   }
   throw new Error("The website redirected too many times.");

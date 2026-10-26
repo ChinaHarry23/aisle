@@ -57,7 +57,11 @@
     "test:compliance-knowledge": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/compliance-knowledge-suite.ts",
     "test:trend-brief": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/trend-brief-suite.ts",
     "test:research-reliability": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/scrum124-suite.ts",
-    "verify:research-trace": "node --env-file-if-exists=.env.local --import ./scripts/service-loader.mjs --experimental-strip-types scripts/scrum124-trace.ts"
+    "verify:research-trace": "node --env-file-if-exists=.env.local --import ./scripts/service-loader.mjs --experimental-strip-types scripts/scrum124-trace.ts",
+    "test:trend-research-budget": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/trend-research-budget-suite.ts",
+    "test:trend-periods": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/trend-periods-suite.ts",
+    "test:trend-discovery": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/trend-discovery-suite.ts",
+    "test:trend-handoff": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/trend-handoff-suite.ts"
   },
   "dependencies": {
     "@langchain/core": "1.2.17",

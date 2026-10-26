@@ -28,6 +28,17 @@ jobs:
       - run: npm run typecheck
       - run: npm run auth
       - run: npm run bench
+      - name: Trend research and campaign handoff regressions
+        run: |
+          npm run test:trend-research-budget
+          npm run test:trend-periods
+          npm run test:trend-discovery
+          npm run test:trend-handoff
+          npm run test:trend-research
+          npm run test:research-reliability
+          npm run test:trend-quality
+          npm run test:trend-strategy
+          npm run test:trend-creative
       - run: npm run build
         env:
           NEXT_TELEMETRY_DISABLED: "1"

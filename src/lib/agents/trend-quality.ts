@@ -1,7 +1,7 @@
 /** TA-04 semantic review uses the team's shared metered transport and typed
  * tools. Deterministic acceptance remains in trend/quality.ts. */
 import { runSeatAgent } from './agent-runtime';
-import { reserveTrendRequest } from '@/lib/trend/request-budget';
+import { reserveTrendRequest, trendRequestSize } from '@/lib/trend/request-budget';
 import { runComplete } from '@/lib/llm/metered-complete';
 import { getLlmModel } from '@/lib/llm/catalog';
 import { searchWithModel } from '@/lib/llm/search';
@@ -9,10 +9,10 @@ import { holdCredits,settleHold,type BillingContext } from '@/lib/billing/meter'
 import { toolByName,DEFAULT_EXTERNAL_SOURCES,type ToolOutcome } from '@/lib/runtime/tools';
 import { toolSchema } from './agent-tools';
 import { sourcePermitted,unavailable,type ResearchCategory } from '@/lib/trend/contracts';
-import { queryFor,redact,publicSourceUrl,sourceHosts } from '@/lib/trend/source-tools';
+import { queryFor,redact,publicSourceUrl,replacementQueryFor,replacementSource } from '@/lib/trend/source-tools';
 import { uid } from '@/lib/ids';
 import { qualityAssessmentSchema,QUALITY_RULES,type QualityRunner,type QualityAssessment } from '@/lib/trend/quality-contracts';
-import { evaluateQuality, optionalResearchArea } from '@/lib/trend/quality';
+import { evaluateQuality } from '@/lib/trend/quality';
 import { coverageFor,attachResearchAnalysis } from '@/lib/trend/contracts';
 import { recoverQualityAssessment, mergeQualityRepair, type QualityRecovery } from '@/lib/trend/quality-recovery';
 import { evidenceExcerpt } from '@/lib/trend/retrieval-context';
@@ -26,11 +26,11 @@ export function createTrendQuality(billing?:BillingContext,test?:{mode:'mock';co
   const permitted=async()=>await input.allowed()&&Date.now()-started<120000;
   const complete:MeteredModelConfig['complete']=async(req,ctx)=>{
     if(!await permitted()||++modelCalls>2)throw Error('Quality review paused or model limit reached.');
-    const model=getLlmModel(req.modelId),bytes=Buffer.byteLength(JSON.stringify(req));
+    const model=getLlmModel(req.modelId),{bytes,inputTokens}=trendRequestSize(req);
     if(bytes>60000)throw Error('Quality input envelope exceeded.');
-    const estimate=(bytes*model.billing.inputPerM+8000*model.billing.outputPerM)/1e6;
+    const estimate=(inputTokens*model.billing.inputPerM+8000*model.billing.outputPerM)/1e6;
     if(!test&&(estimate>remaining()||model.providerId!=='local'&&billing?.kind!=='user'))throw Error('Quality review requires available campaign budget and authenticated billing.');
-    const sharedBudget=reserveTrendRequest(c,bytes,8000);
+    const sharedBudget=reserveTrendRequest(c,inputTokens,8000);
     const result=await(test?.complete??runComplete)(req,ctx);
     sharedBudget.tokens+=result.usage.totalTokens;sharedBudget.costUsd+=result.usage.costUsd;
     diagnostic=result.status;
@@ -64,15 +64,15 @@ export function createTrendQuality(billing?:BillingContext,test?:{mode:'mock';co
     toolSpend+=price;
     let override:ToolOutcome|undefined=cached??undefined;
     if(fallback&&!test){
-      const found=await searchWithModel(input.settings.agents.trend.modelId,queryFor({campaign:c,brand:input.brand,at:input.at,args},args.category as ResearchCategory,args.channel)+' original dated source '+input.at.slice(0,4),billing,price,sourceHosts);
+      const found=await searchWithModel(input.settings.agents.trend.modelId,queryFor({campaign:c,brand:input.brand,at:input.at,args},args.category as ResearchCategory,args.channel),billing,price);
       input.onFailedUsage(found.costUsd);
-      const evidence=found.citations.flatMap(row=>{const url=publicSourceUrl(row.url);return url&&row.snippet?[{id:uid('ev'),claim:'Replacement search candidate',detail:redact(row.snippet),sourceName:found.modelName+' web search',sourceRef:url,sourceKind:'external_public' as const,observedAt:null,fetchedAt:input.at,status:'verified' as const,confidence:0,raisedBy:'trend' as const,usedFor:args.category,research:{category:args.category as ResearchCategory,channel:args.channel,geography:c.country,queryScope:args.category,permission:'allowed' as const,quality:'snippet' as const}}]:[];});
-      override={status:evidence.length?'ok':'empty',summary:'Targeted replacement search; originals still require review.',evidence,data:null};
+      const evidence=found.citations.flatMap(row=>{const url=publicSourceUrl(row.url);return url&&(row.snippet||row.title)?[{id:uid('ev'),claim:'Replacement search candidate',detail:redact(row.snippet||`Source title only: ${row.title}`),sourceName:found.modelName+' web search',sourceRef:url,sourceKind:'external_public' as const,observedAt:null,fetchedAt:input.at,status:'verified' as const,confidence:0,raisedBy:'trend' as const,usedFor:args.category,research:{category:args.category as ResearchCategory,channel:args.channel,geography:c.country,queryScope:args.category,permission:'allowed' as const,quality:'snippet' as const}}]:[];});
+      override={status:evidence.length?'ok':'empty',summary:'Targeted replacement search; originals still require review.',evidence,data:null,usage:{provider:'model_search',cache:'miss',credits:null,creditsBasis:'unknown',estimatedCostUsd:found.costUsd}};
     }
     const hold=price&&!fallback?await holdCredits(billing,price):null;
     if(price&&!fallback&&!hold)return unavailable('Replacement credits unavailable.');
     let outcome:ToolOutcome;
-    try {outcome=await input.execute(name,args,override);}finally{if(hold){await settleHold(hold,price,{modelId:'research:'+name,note:'Bounded TA-04 replacement estimate.'});input.onFailedUsage(price);}}
+    try {outcome=await input.execute(name,args,override);if(outcome.usage&&!fallback)outcome.usage.estimatedCostUsd=outcome.usage.cache==='hit'?0:price;}finally{if(hold){await settleHold(hold,price,{modelId:'research:'+name,note:'Bounded TA-04 replacement estimate.'});input.onFailedUsage(price);}}
     (c.researchAttempts??=[]).push({category:args.category as ResearchCategory,channel:args.channel,tool:name,phase:'quality',status:outcome.status,summary:outcome.summary,evidenceIds:outcome.evidence.map(e=>e.id)});
     // Existing engine execute records the complete immutable provenance ledger.
     const analyses=c.researchCoverage?.flatMap(a=>a.analysis?[a.analysis]:[])??[];
@@ -80,7 +80,7 @@ export function createTrendQuality(billing?:BillingContext,test?:{mode:'mock';co
     attachResearchAnalysis(c.researchCoverage,analyses);
     return outcome;
   };
-  // Explicitly supplied public sources are read under existing allowlist/permission
+  // Explicitly supplied public sources are read under existing URL/permission
   // guards. Browser-provided text/claims are never accepted as evidence.
   if(c.trendQuality?.resumeStep===3&&c.internalDataAuthorised&&c.retailUpload){
     const outcome=await input.execute('retail.internal_signals',{category:c.category,country:c.country});
@@ -123,15 +123,18 @@ export function createTrendQuality(billing?:BillingContext,test?:{mode:'mock';co
   }
   if(assessment&&modelCalls<2&&await permitted()){
     const review=evaluateQuality(c,assessment,input.at,'reviewing');
-    const areas=review.researchAreas.filter(a=>!a.supported&&!optionalResearchArea(a.category));
-    // The semantic audit selects affected categories; the typed executor performs
-    // at most two same-category search + original-source replacement pairs.
+    const priority:Record<ResearchCategory,number>={current_market:0,purchase_preference:1,customer_interest:2,channel:3,competitor:4,seasonal:5,cultural:6,historical_market:7};
+    const areas=review.researchAreas.filter(a=>!a.supported&&a.category!=='historical_market').sort((a,b)=>priority[a.category]-priority[b.category]);
+    // Spend the existing replacement allowance on a changed question and an unread
+    // relevant original. Repeating the initial query only replays the same cache.
     for(const area of areas.slice(0,2)){
       if(toolCalls>=QUALITY_RULES.replacementCallLimit)break;
+      const scope={campaign:c,brand:input.brand,at:input.at,args:{}};
+      const query=replacementQueryFor(scope,area.category,area.channel);
       const args={category:area.category,...(area.channel?{channel:area.channel}:{})};
-      const found=await execute('web.search',args);
-      const candidate=found.evidence.find(e=>publicSourceUrl(e.sourceRef));
-      if(candidate&&toolCalls<QUALITY_RULES.replacementCallLimit)await execute('web.scrape_page',{...args,url:candidate.sourceRef});
+      const found=await execute('web.search',{...args,query});
+      const candidate=replacementSource(found.evidence,scope,area.category,area.channel);
+      if(candidate&&toolCalls<QUALITY_RULES.replacementCallLimit)await execute('web.scrape_page',{...args,url:candidate.sourceRef,question:query});
     }
     if(toolCalls&&await permitted()){const next=await assess();if(next)assessment=next;}
   }

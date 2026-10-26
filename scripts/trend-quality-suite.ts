@@ -1,5 +1,6 @@
 process.env.TREND_PUBLIC_CACHE_TTL_MS='0';
 import assert from 'node:assert/strict';
+import { installPublicPageFixture } from './public-page-fixture';
 import {mkdtempSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
@@ -134,12 +135,13 @@ pass('new authorised sources resume step3; storage-restored resume retries persi
 pass('pending request survives database reopen; founder decision survives a second reopen; browser scope tampering is discarded');
 {
  const previousFetch=globalThis.fetch,previousKey=process.env.FIRECRAWL_API_KEY;
+ const restorePublicPage=installPublicPageFixture(()=>({text:'<html><script type="application/ld+json">{"datePublished":"2026-10-12"}</script><nav>Unrelated navigation</nav><main>Published public observation: zero measured purchases in the sample.</main></html>'}));
  try{
    delete process.env.FIRECRAWL_API_KEY;
    globalThis.fetch=async()=>new Response('<html><script type="application/ld+json">{"datePublished":"2026-10-12"}</script><nav>Unrelated navigation</nav><main>Published public observation: zero measured purchases in the sample.</main></html>',{headers:{'content-type':'text/html'}});
    const result=await toolByName('web.scrape_page')!.run({campaign:base(),brand:defaultBrand,at,args:{url:'https://www.abs.gov.au/synthetic/date-test',category:'current_market'}});
    assert.equal(result.evidence[0].observedAt,'2026-10-12');assert.doesNotMatch(result.evidence[0].detail,/navigation/);assert.match(result.evidence[0].detail,/zero/);
- }finally{globalThis.fetch=previousFetch;if(previousKey===undefined)delete process.env.FIRECRAWL_API_KEY;else process.env.FIRECRAWL_API_KEY=previousKey;}
+ }finally{restorePublicPage();globalThis.fetch=previousFetch;if(previousKey===undefined)delete process.env.FIRECRAWL_API_KEY;else process.env.FIRECRAWL_API_KEY=previousKey;}
  const previous=process.env.TREND_CURRENT_MAX_AGE_DAYS;
  try{process.env.TREND_CURRENT_MAX_AGE_DAYS='5';const test=base(),q=evaluateQuality(test,assessment(test),at,'MOCK');assert.equal(q.rules.currentMaxAgeDays,5);assert.equal(q.status,'INCOMPLETE');}
  finally{if(previous===undefined)delete process.env.TREND_CURRENT_MAX_AGE_DAYS;else process.env.TREND_CURRENT_MAX_AGE_DAYS=previous;}

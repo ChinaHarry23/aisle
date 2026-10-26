@@ -9,7 +9,7 @@ import { evidenceExcerpt } from '@/lib/trend/retrieval-context';
 import { BRIEF_LIMITS, type BriefRunner } from '@/lib/trend/brief-contracts';
 import { assembleStrategy, currentStrategy, fallbackStrategy, strategyDraftSchema, strategyFindings, validateStrategy, type StrategyDraft } from '@/lib/trend/strategy';
 import { assembleStrategyReport } from '@/lib/trend/strategy-report';
-import { reserveTrendRequest } from '@/lib/trend/request-budget';
+import { reserveTrendRequest, trendRequestSize } from '@/lib/trend/request-budget';
 
 export function createCampaignStrategy(billing?: BillingContext, test?: { mode: 'mock'; complete: MeteredModelConfig['complete'] }): BriefRunner {
   return async input => {
@@ -21,11 +21,11 @@ export function createCampaignStrategy(billing?: BillingContext, test?: { mode: 
     let calls = 0, modelStatus = 'not_called';
     const complete: MeteredModelConfig['complete'] = async (req, ctx) => {
       if (!await input.allowed() || Date.now() - started >= BRIEF_LIMITS.elapsedMs || calls >= 2 || budget.calls >= BRIEF_LIMITS.callsPerRun) throw Error('Strategy synthesis unavailable within the remaining run allowance.');
-      const bytes = Buffer.byteLength(JSON.stringify(req)), model = getLlmModel(req.modelId);
-      if (bytes > BRIEF_LIMITS.inputBytes || budget.tokens + bytes + 3500 > BRIEF_LIMITS.tokensPerRun) throw Error('Strategy input allowance reached.');
-      const estimate = (bytes * model.billing.inputPerM + 3500 * model.billing.outputPerM) / 1e6;
+      const { bytes, inputTokens } = trendRequestSize(req), model = getLlmModel(req.modelId);
+      if (bytes > BRIEF_LIMITS.inputBytes || budget.tokens + inputTokens + 3500 > BRIEF_LIMITS.tokensPerRun) throw Error('Strategy input allowance reached.');
+      const estimate = (inputTokens * model.billing.inputPerM + 3500 * model.billing.outputPerM) / 1e6;
       if (!test && (estimate > c.spend.capUsd - c.spend.inferenceUsd - c.spend.mediaUsd || model.providerId !== 'local' && billing?.kind !== 'user')) throw Error('Strategy synthesis requires available campaign credits.');
-      const shared = reserveTrendRequest(c, bytes, 3500);
+      const shared = reserveTrendRequest(c, inputTokens, 3500);
       calls++; budget.calls++;
       const result = await (test?.complete ?? runComplete)(req, ctx);
       shared.tokens += result.usage.totalTokens; shared.costUsd += result.usage.costUsd;

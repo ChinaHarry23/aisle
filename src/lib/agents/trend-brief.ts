@@ -8,7 +8,7 @@ import { getLlmModel } from '@/lib/llm/catalog';
 import { redact } from '@/lib/trend/source-tools';
 import { briefCandidateSchema,briefAuditSchema,BRIEF_LIMITS,type BriefRunner,type BriefCandidate,type BriefAudit } from '@/lib/trend/brief-contracts';
 import { assembleBrief,validateBrief,requiredBriefSections,sectionCategories,applyBriefSupportAudit } from '@/lib/trend/brief';
-import { reserveTrendRequest } from '@/lib/trend/request-budget';
+import { reserveTrendRequest, trendRequestSize } from '@/lib/trend/request-budget';
 
 export function createTrendBrief(billing?:BillingContext,test?:{mode:'mock';complete:MeteredModelConfig['complete']}):BriefRunner{
  return async input=>{
@@ -20,12 +20,12 @@ export function createTrendBrief(billing?:BillingContext,test?:{mode:'mock';comp
   const allowed=async()=>await input.allowed()&&Date.now()-started<BRIEF_LIMITS.elapsedMs;
   const complete:MeteredModelConfig['complete']=async(req,ctx)=>{
    if(!await allowed()||calls>=BRIEF_LIMITS.callsPerAttempt||budget.calls>=BRIEF_LIMITS.callsPerRun)refuse('Brief generation paused or shared run request budget exhausted.');
-   const bytes=Buffer.byteLength(JSON.stringify(req)),model=getLlmModel(req.modelId);
-   if(bytes>BRIEF_LIMITS.inputBytes||budget.tokens+bytes+BRIEF_LIMITS.outputTokens>BRIEF_LIMITS.tokensPerRun)refuse('Brief input/token envelope exhausted.');
-   const estimate=(bytes*model.billing.inputPerM+BRIEF_LIMITS.outputTokens*model.billing.outputPerM)/1e6;
+   const {bytes,inputTokens}=trendRequestSize(req),model=getLlmModel(req.modelId);
+   if(bytes>BRIEF_LIMITS.inputBytes||budget.tokens+inputTokens+BRIEF_LIMITS.outputTokens>BRIEF_LIMITS.tokensPerRun)refuse('Brief input/token envelope exhausted.');
+   const estimate=(inputTokens*model.billing.inputPerM+BRIEF_LIMITS.outputTokens*model.billing.outputPerM)/1e6;
    if(!test&&(estimate>c.spend.capUsd-c.spend.inferenceUsd-c.spend.mediaUsd||model.providerId!=='local'&&billing?.kind!=='user'))refuse('Brief generation requires authenticated billing and available campaign credits.');
    calls++;budget.calls++;
-   const sharedBudget=(()=>{try{return reserveTrendRequest(c,bytes,BRIEF_LIMITS.outputTokens);}catch{return refuse('Shared Trend Analysis request/token budget exhausted.');}})();
+   const sharedBudget=(()=>{try{return reserveTrendRequest(c,inputTokens,BRIEF_LIMITS.outputTokens);}catch{return refuse('Shared Trend Analysis request/token budget exhausted.');}})();
    const result=await(test?.complete??runComplete)(req,ctx);
    sharedBudget.tokens+=result.usage.totalTokens;sharedBudget.costUsd+=result.usage.costUsd;
    budget.tokens+=result.usage.totalTokens;budget.costUsd+=result.usage.costUsd;input.onFailedUsage(result.usage.costUsd);

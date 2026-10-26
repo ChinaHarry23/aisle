@@ -1,5 +1,6 @@
 process.env.TREND_PUBLIC_CACHE_TTL_MS='0';
 import assert from 'node:assert/strict';
+import { installPublicPageFixture } from './public-page-fixture';
 import { importRetailCsv, internalRetailOutcome } from '../src/lib/trend/internal-retail';
 import { blankCampaign, defaultBrand } from '../src/lib/seed';
 import { defaultSettings } from '../src/lib/settings';
@@ -15,6 +16,8 @@ import { writeFileSync } from 'node:fs';
 const settings=defaultSettings(); settings.agents.trend={provider:'local',modelId:'local:custom'};
 const c=blankCampaign({name:'Synthetic research',product:'Apple juice',category:'Grocery',targetAudience:'Adult shoppers',objective:'Awareness',budget:1000,channels:['web','email'],startDate:'2026-10-20',endDate:'2026-10-26',country:'AU',notes:'private notes never searched'},defaultBrand,null,settings);
 const at='2026-10-20T10:00:00Z';const base={campaign:c,brand:defaultBrand,at,args:{}};
+let directPage='<main>SYNTHETIC direct original</main>';
+const restorePublicPage=installPublicPageFixture(()=>({text:directPage}));
 const oldFetch=globalThis.fetch;const oldEnv={...process.env};let checks=0;
 const pass=(s:string)=>{checks++;console.log('PASS '+s);};
 const tool=(name:string)=>researchTools.find(t=>t.name===name)!;
@@ -23,7 +26,7 @@ try{
  delete process.env.LANGSMITH_TRACING;delete process.env.LANGCHAIN_TRACING_V2;
  globalThis.fetch=async()=>{throw Error('Unexpected I/O');};
  for(const t of researchTools){assert.equal((await t.run({...base,campaign:{...c,dataAccessPolicy:{externalSources:[]}}})).status,'skipped');}
- for(const url of ['http://abs.gov.au/','https://127.0.0.1/','https://abs.gov.au.evil.com/','https://user:pass@abs.gov.au/','https://abs.gov.au/?token=private','https://localhost/','https://[::1]/'])assert.equal(publicSourceUrl(url),null);
+ for(const url of ['http://abs.gov.au/','https://127.0.0.1/','https://metadata.google.internal/','https://user:pass@abs.gov.au/','https://abs.gov.au/?token=private','https://localhost/','https://[::1]/'])assert.equal(publicSourceUrl(url),null);
  assert.ok(publicSourceUrl('https://www.abs.gov.au/statistics'));
  pass('policy denial and unsafe URLs fail before provider I/O');
  process.env.FIRECRAWL_API_KEY='synthetic-key';process.env.SERPAPI_API_KEY='synthetic-key';
@@ -38,15 +41,15 @@ try{
  assert.equal(scraped.evidence[0].observedAt,'2026-09-01');assert.equal(scraped.evidence[0].research?.quality,'unassessed');
  globalThis.fetch=async()=>Response.json({data:{markdown:'unsafe',metadata:{sourceURL:'http://127.0.0.1/'}}});assert.equal((await tool('web.scrape_page').run({...base,args:{url:'https://www.abs.gov.au/statistics/example',category:'purchase_preference'}})).status,'skipped');
  pass('scrape retains publication meaning and rejects redirected private destinations');
- globalThis.fetch=async()=>Response.json({interest_over_time:{timeline_data:[{date:'Oct 2026',values:[{extracted_value:42}]}]}});
+ globalThis.fetch=async()=>Response.json({interest_over_time:{timeline_data:[{date:'Sep 2026',values:[{extracted_value:42}]}]}});
  const trends=await tool('web.search_trends').run({...base,args:{kind:'TIMESERIES'}});assert.equal(trends.evidence[0].research?.category,'historical_market');assert.ok(!JSON.stringify(trends).includes('synthetic-key'));assert.match(trends.summary,/not purchase/);
  pass('Trends returns relative interest with no key in provenance');
  const chicken={...base,campaign:{...c,product:'Coles RSPCA Approved Chicken Breast Fillet',category:'Grocery'},brand:{...defaultBrand,retailerName:'Coles'}};
  assert.match(queryFor(chicken,'current_market'),/Coles RSPCA Approved Chicken Breast Fillet/);
  assert.doesNotMatch(queryFor(chicken,'purchase_preference'),/Coles|RSPCA|Approved/);
- assert.match(queryFor(chicken,'purchase_preference'),/Chicken Breast Fillet.*purchase drivers/);
- assert.match(queryFor(chicken,'channel','email'),/email content formats/);
- assert.match(queryFor({...chicken,args:{query:'chicken meal preparation Australian consumer survey'}},'customer_interest'),/^chicken meal preparation Australian consumer survey AU$/);
+ assert.match(queryFor(chicken,'purchase_preference'),/chicken poultry.*purchase drivers/);
+ assert.match(queryFor(chicken,'channel','email'),/email marketing content benchmarks/);
+ assert.match(queryFor({...chicken,args:{query:'chicken meal preparation Australian consumer survey'}},'customer_interest'),/^chicken meal preparation Australian consumer survey$/);
  let refined='';globalThis.fetch=async(_url,init)=>{refined=JSON.parse(String(init?.body)).query;return Response.json({data:{web:[]}});};
  await tool('web.search').run({...chicken,args:{category:'customer_interest',query:'chicken meal preparation consumer survey'}});
  assert.match(refined,/chicken meal preparation consumer survey/);
@@ -65,7 +68,7 @@ try{
  assert.equal(unreadResearchSources([...search.evidence,...search.evidence,{...search.evidence[0],id:'duplicate-snippet'}],c).length,1);
  assert.equal(unreadResearchSources([...search.evidence,...latePassage.evidence],c).length,0);
  pass('late-page passages reach model context, duplicate URLs share an excerpt, and already-read originals are not suggested again');
- let trendsUrl='';const series=Array.from({length:52},(_,i)=>({date:`week ${i+1}`,timestamp:String(Date.UTC(2025,9,20+i*7)/1000),values:[{query:'chicken breast',extracted_value:i<40?0:60}]}));
+ let trendsUrl='';const series=Array.from({length:52},(_,i)=>({date:`${new Date(Date.UTC(2025,9,20+i*7)).toISOString().slice(0,10)} - ${new Date(Date.UTC(2025,9,26+i*7)).toISOString().slice(0,10)}`,timestamp:String(Date.UTC(2025,9,20+i*7)/1000),values:[{query:'chicken breast',extracted_value:i<40?0:60}]}));
  globalThis.fetch=async(url)=>{trendsUrl=String(url);return Response.json({interest_over_time:{timeline_data:[...series,{date:'partial week',isPartial:true,values:[{extracted_value:100}]}]}});};
  const completeSeries=await tool('web.search_trends').run({...chicken,args:{kind:'TIMESERIES',query:'chicken breast'}});
  const seriesSummary=JSON.parse(completeSeries.evidence[0].detail).summary;
@@ -94,9 +97,9 @@ try{
  const internal=internalRetailOutcome({...c,retailUpload:upload,internalDataAuthorised:true},at);assert.equal(internal.evidence.length,1);assert.match(internal.evidence[0].detail,/"units":10/);assert.ok(!JSON.stringify(internal).includes('APPLE'));
  await assert.rejects(importRetailCsv('sku,category,week,units,email\nx,Grocery,2026-10-12,3,test@example.com',at));
  delete process.env.FIRECRAWL_API_KEY;
- globalThis.fetch=async()=>new Response('<html><script>unsafe()</script><p>Public retail survey</p></html>',{headers:{'Content-Type':'text/html'}});
+ directPage='<html><script>unsafe()</script><p>Public retail survey</p></html>';
  const direct=await tool('web.scrape_page').run({...base,args:{url:'https://www.abs.gov.au/statistics/example',category:'purchase_preference'}});
- globalThis.fetch=async()=>new Response('<html>Request unsuccessful. Incapsula incident ID: 1234</html>',{headers:{'Content-Type':'text/html'}});
+ directPage='<html>Request unsuccessful. Incapsula incident ID: 1234</html>';
  assert.equal((await tool('web.scrape_page').run({...base,args:{url:'https://www.coles.com.au/product/123',category:'competitor'}})).evidence.length,0);
  assert.equal(direct.status,'ok');assert.ok(!direct.evidence[0].detail.includes('unsafe'));assert.equal(direct.evidence[0].observedAt,null);
  process.env.FIRECRAWL_API_KEY='synthetic-key';
@@ -180,5 +183,5 @@ try{
  process.env.TA03_RESEARCH_ENABLED='0';assert.equal(researchEnabled(),false);assert.ok(createServerResearchRuntime().research);assert.equal(await createServerResearchRuntime().research!({campaign:c,brand:defaultBrand,settings,at,execute:async()=>{throw Error('disabled');},allowed:async()=>true,onFailedUsage:()=>{}}),null);
  pass('kill switch leaves a partial research path, never silently runs the fixed-source fallback');
  if(process.argv.includes('--record'))writeFileSync('docs/TA-03-MOCK-RESEARCH.json',JSON.stringify({mode:'MOCK ONLY, no provider calls',traces,checks},null,2)+'\n');
-}finally{globalThis.fetch=oldFetch;for(const key of Object.keys(process.env))if(!(key in oldEnv))delete process.env[key];Object.assign(process.env,oldEnv);}
+}finally{restorePublicPage();globalThis.fetch=oldFetch;for(const key of Object.keys(process.env))if(!(key in oldEnv))delete process.env[key];Object.assign(process.env,oldEnv);}
 console.log(`${checks} new research checks passed. All data/model responses are synthetic.`);

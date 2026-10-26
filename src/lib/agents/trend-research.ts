@@ -4,19 +4,19 @@ import { uid } from '@/lib/ids';
 import type { ResearchCategory } from '@/lib/trend/contracts';
 import { runSeatAgent } from './agent-runtime';
 import { reserveTrendRequest } from '@/lib/trend/request-budget';
+import { planResearchRequest, RESEARCH_MODEL_LIMITS } from '@/lib/trend/research-request';
 import { runComplete } from '@/lib/llm/metered-complete';
 import { holdCredits, settleHold, type BillingContext } from '@/lib/billing/meter';
 import { getLlmModel } from '@/lib/llm/catalog';
 import { toolByName, DEFAULT_EXTERNAL_SOURCES, type ToolOutcome } from '@/lib/runtime/tools';
 import { toolSchema } from './agent-tools';
 import { requiredResearchPlan, sourcePermitted, unavailable, type ResearchRunner } from '@/lib/trend/contracts';
-import { RESEARCH_TOOL_IDS, redact, queryFor, publicSourceUrl, sourceHosts } from '@/lib/trend/source-tools';
+import { RESEARCH_TOOL_IDS, redact, queryFor, publicSourceUrl } from '@/lib/trend/source-tools';
 import { campaignResearchQuestions, evidenceExcerpt, researchEvidenceContext, unreadResearchSources } from '@/lib/trend/retrieval-context';
 import type { TrendDecision } from '@/lib/runtime/decide';
 import type { MeteredModelConfig } from './metered-chat-model';
-// A second tool-result turn must fit as well as the initial collection. The byte
-// reservation below deliberately overestimates tokens; actual usage remains metered.
-const MAX_TOOLS = 32, MAX_MS = 180_000, MAX_TOTAL_TOKENS = 48_000, MAX_OUTPUT_TOKENS = 4000;
+const MAX_TOOLS = 32, MAX_MS = 180_000;
+const {tokens:MAX_TOTAL_TOKENS,outputTokens:MAX_OUTPUT_TOKENS}=RESEARCH_MODEL_LIMITS;
 const names = [...RESEARCH_TOOL_IDS, 'web.season_weather', 'web.shelf_prices', 'retail.internal_signals'];
 export function researchEnabled() { return process.env.TA03_RESEARCH_ENABLED !== '0'; }
 export function researchModelResult(outcome: ToolOutcome) {
@@ -41,10 +41,11 @@ export function createTrendResearch(billing?: BillingContext, test?: { mode:'moc
   // Serialise tool calls even when the model requests them together: policy, budget and pause cannot race.
   let queue:Promise<unknown>=Promise.resolve();
   const remaining=()=>Math.max(0, input.campaign.spend.capUsd-input.campaign.spend.inferenceUsd-input.campaign.spend.mediaUsd);
-  const execute=async(name:string,args:Record<string,string>)=>{
+  const execute=async(name:string,args:Record<string,string>,deadline=MAX_MS)=>{
     const perform=async()=>{
       const fail=(message:string,status:ToolOutcome['status']='skipped')=>input.execute(name,args,unavailable(message,status));
-      if(!await input.allowed()||Date.now()-started>=MAX_MS)return fail('Research paused or elapsed-time limit reached.');
+      if(!await input.allowed())return fail('Research paused.');
+      if(Date.now()-started>=deadline)return fail('Collection is complete; remaining time is reserved for analysis.');
       if(!names.includes(name))return fail('Tool is not exposed to this research agent.');
       const definition=toolByName(name)!;
       if(!toolSchema(definition).safeParse(args).success)return fail('Invalid arguments.','error');
@@ -67,7 +68,7 @@ export function createTrendResearch(billing?: BillingContext, test?: { mode:'moc
         if(!Number.isFinite(maximum)||price+toolSpend>maximum||price>remaining())return fail('Research credit envelope exhausted.');
       }
       if(providerSearch){
-        const result=await searchWithModel(assignment.modelId,queryFor({campaign:input.campaign,brand:input.brand,at:input.at,args},args.category as ResearchCategory,args.channel),billing,price,sourceHosts);
+        const result=await searchWithModel(assignment.modelId,queryFor({campaign:input.campaign,brand:input.brand,at:input.at,args},args.category as ResearchCategory,args.channel),billing,price);
         toolSpend+=result.costUsd;input.onFailedUsage(result.costUsd);
         const evidence=result.citations.flatMap(citation=>{const url=publicSourceUrl(citation.url);return url&&(citation.snippet||citation.title) ? [{id:uid('ev'),claim:'Provider search citation candidate',detail:redact(citation.snippet || `Source title only: ${citation.title}`),sourceName:result.modelName+' web search',sourceRef:url,sourceKind:'external_public' as const,observedAt:null,fetchedAt:input.at,status:'verified' as const,confidence:0,raisedBy:'trend' as const,usedFor:args.category,research:{category:args.category as ResearchCategory,channel:args.channel,geography:input.campaign.country,queryScope:args.category,permission:'allowed' as const,quality:'snippet' as const,transformation:'Provider citation snippet only; generated search answer excluded from evidence.'}}]:[];});
         const outcome:ToolOutcome=evidence.length?{status:'ok',summary:'Existing model-provider search returned citation snippets; original-source assessment required.',data:{sources:evidence},evidence}:unavailable(result.status==='ok'?'Provider search returned no allowlisted source excerpts.':result.summary,result.status==='ok'?'empty':result.status);
@@ -83,23 +84,22 @@ export function createTrendResearch(billing?: BillingContext, test?: { mode:'moc
     const result=queue.then(perform);queue=result.catch(()=>undefined);return result;
   };
   const complete:MeteredModelConfig['complete']=async(req,ctx)=>{
-    if(!await input.allowed()||Date.now()-started>=MAX_MS||++modelCalls>6||tokens>=MAX_TOTAL_TOKENS)throw Error('Research model-call/time/token cap or pause.');
+    if(!await input.allowed()||Date.now()-started>=MAX_MS||++modelCalls>RESEARCH_MODEL_LIMITS.calls||tokens>=MAX_TOTAL_TOKENS)throw Error('Research model-call/time/token cap or pause.');
     const model=getLlmModel(req.modelId);
     if(!test && model.providerId!=='local' && billing?.kind!=='user')throw Error('Authenticated billing identity required.');
     // Start with a useful follow-up, then let the model inspect results and read
     // more originals (including the same tool) or finish. Tool-name diversity
     // does not determine whether the research can answer a campaign decision.
-    const collecting=modelCalls===1;
-    const choices=req.tools?.filter(t=>names.includes(t.name as typeof names[number]) && t.name!=='retail.internal_signals');
-    const finalTools=req.tools?.filter(t=>!names.includes(t.name as typeof names[number]));
-    const request=collecting && choices?.length ? {...req,tools:choices,toolChoice:'required' as const}
-      : (enrichmentCalls>=6||modelCalls===6)&&finalTools?.length ? {...req,tools:finalTools,toolChoice:'auto' as const}
-      : {...req,tools:[...(choices??[]),...(finalTools??[])],toolChoice:'auto' as const};
-    const bytes=Buffer.byteLength(JSON.stringify(request));
-    const estimate=(bytes*model.billing.inputPerM+MAX_OUTPUT_TOKENS*model.billing.outputPerM)/1e6;
+    const {request,bytes,inputTokens}=planResearchRequest(req,{names,calls:modelCalls,tokens,enrichmentCalls,
+      finishSoon:Date.now()-started>=MAX_MS-45000,
+      finalContext:()=>redact(JSON.stringify({scope:context,questions:campaignResearchQuestions(input.campaign),
+        sources:researchEvidenceContext(collected.flatMap(o=>o.evidence),input.campaign),
+        execution:input.campaign.researchAttempts?.map(a=>({category:a.category,channel:a.channel,status:a.status,summary:a.summary.slice(0,300)})),
+        task:'Return researchAnalysis for each category and selected channel, citing retained evidence IDs. Explain the campaign angle, message, visual direction, opportunities and limitations. Separate observations from creative hypotheses.'}))});
+    const estimate=(inputTokens*model.billing.inputPerM+MAX_OUTPUT_TOKENS*model.billing.outputPerM)/1e6;
     if(!test&&estimate>remaining())throw Error('Campaign inference budget insufficient.');
-    if(bytes>60000 || tokens + bytes + MAX_OUTPUT_TOKENS > MAX_TOTAL_TOKENS)throw Error(`Research token envelope exceeded (${bytes} request bytes; ${tokens} tokens used).`);
-    const sharedBudget=reserveTrendRequest(input.campaign,bytes,MAX_OUTPUT_TOKENS);
+    if(bytes>RESEARCH_MODEL_LIMITS.inputBytes || tokens + inputTokens + MAX_OUTPUT_TOKENS > MAX_TOTAL_TOKENS)throw Error(`Research token envelope exceeded (${bytes} request bytes; ${inputTokens} estimated input tokens; ${tokens} tokens used).`);
+    const sharedBudget=reserveTrendRequest(input.campaign,inputTokens,MAX_OUTPUT_TOKENS);
     const result=await (test?.complete??runComplete)(request,ctx);tokens+=result.usage.totalTokens;
     sharedBudget.tokens+=result.usage.totalTokens;sharedBudget.costUsd+=result.usage.costUsd;
     // Book each completion exactly once, including calls preceding a failed run.
@@ -108,7 +108,7 @@ export function createTrendResearch(billing?: BillingContext, test?: { mode:'moc
       offeredTools:request.tools?.map(t=>t.name) ?? [],selectedTools:result.toolCalls?.map(t=>t.name) ?? [],
       status:result.status,modelId:result.modelId,tokens:result.usage.totalTokens});
     if(request.toolChoice==='required' && result.status==='ok' && !result.toolCalls?.length)throw Error('Research collection returned no tool call; no completed analysis.');
-    if(request.toolChoice==='required' && result.toolCalls?.some(call=>!request.tools?.some(t=>t.name===call.name)))throw Error('Research collection returned an unoffered tool; no completed analysis.');
+    if(result.toolCalls?.some(call=>!request.tools?.some(t=>t.name===call.name)))throw Error('Research returned an unoffered tool; no completed analysis.');
     // LangChain validates before agentTools.func runs. Normalise primitive
     // formatting here too (e.g. year:2026 -> "2026"), never objects/unknown keys.
     const toolCalls=result.toolCalls?.map(call=>{
@@ -158,8 +158,9 @@ export function createTrendResearch(billing?: BillingContext, test?: { mode:'moc
   const coverageContext = input.campaign.researchAttempts.map(a => ({category:a.category,channel:a.channel,tool:a.tool,status:a.status}));
   const candidates = unreadResearchSources(collected.flatMap(o=>o.evidence),input.campaign);
   const agentExecute: typeof execute = async(name,args) => {
-    const outcome=enrichmentCalls++<6 ? await execute(name,args)
+    const outcome=enrichmentCalls++<6 ? await execute(name,args,MAX_MS-45000)
       : await input.execute(name,args,unavailable('The focused follow-up pass is complete. Analyse the retained evidence and explain remaining gaps.','skipped'));
+    collected.push(outcome);
     const category = args.category && plan.some(a=>a.category===args.category) ? args.category as ResearchCategory
       : name==='calendar.public_holidays' ? 'cultural'
       : name==='stats.abs_spending'||(name==='web.search_trends'&&args.kind==='TIMESERIES') ? 'historical_market'

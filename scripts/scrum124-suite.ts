@@ -1,5 +1,6 @@
 /** Synthetic provider contract matrix. No live network, credentials or model spend. */
 import assert from 'node:assert/strict';
+import { installPublicPageFixture } from './public-page-fixture';
 import { writeFileSync } from 'node:fs';
 import { blankCampaign, defaultBrand } from '../src/lib/seed';
 import { defaultSettings } from '../src/lib/settings';
@@ -13,6 +14,7 @@ import { stubComplete } from '../src/lib/llm/stub';
 import { runSeatAgent } from '../src/lib/agents/agent-runtime';
 import { runEngine } from '../src/lib/runtime/engine';
 import type { ToolOutcome } from '../src/lib/runtime/tools';
+const restorePublicPage=installPublicPageFixture(()=>({text:'SYNTHETIC missing direct source',status:404}));
 const originalFetch=globalThis.fetch, originalEnv={...process.env};
 const at='2026-10-25T10:00:00Z', settings=defaultSettings();settings.agents.trend={provider:'local',modelId:'local:custom'};
 const campaign=()=>blankCampaign({name:'SYNTHETIC SCRUM-124',product:'Apple juice',category:'Grocery',country:'AU',targetAudience:'Adult shoppers',objective:'Awareness',budget:1000,channels:['web'],startDate:'2026-11-01',endDate:'2026-12-26',notes:'PRIVATE_NOTES_DO_NOT_CACHE'},defaultBrand,null,settings);
@@ -23,7 +25,7 @@ const keys:Record<string,string>={'web.search':'FIRECRAWL_API_KEY','web.scrape_p
 function fixture(name:string,url:string):Response {
  if(name==='web.search')return Response.json({creditsUsed:2,data:{web:[{url:'https://www.abs.gov.au/statistics/synthetic',description:'SYNTHETIC primary source snippet'}]}});
  if(name==='web.scrape_page')return Response.json({data:{markdown:'SYNTHETIC source observation.',metadata:{sourceURL:'https://www.abs.gov.au/statistics/synthetic',publishedTime:'2026-10-01',creditsUsed:1}}});
- if(name==='web.search_trends')return Response.json({interest_over_time:{timeline_data:[{date:'Oct 2026',values:[{query:'Apple juice',extracted_value:42}]}]}});
+ if(name==='web.search_trends')return Response.json({interest_over_time:{timeline_data:[{date:'Sep 2026',values:[{query:'Apple juice',extracted_value:42}]}]}});
  if(name==='calendar.public_holidays')return Response.json([{date:'2026-12-25',name:'Synthetic holiday',global:false,counties:['AU-NSW']}]);
  if(name==='stats.abs_spending')return url.includes('/dataflow/')?new Response(xml):new Response('TIME_PERIOD,OBS_VALUE,UNIT_MEASURE\n2026-08,12,INDEX\n');
  if(name.includes('weather'))return Response.json({daily:{time:[name==='web.season_weather'?'2026-11-02':'2025-11-02'],temperature_2m_max:[24],temperature_2m_min:[12],precipitation_sum:[0]},daily_units:{temperature_2m_max:'C'}});
@@ -97,4 +99,4 @@ try{
  pass('shared middleware enforces six model turns and twelve agent tool executions, including over-cap batches');
  if(process.argv.includes('--record'))writeFileSync('docs/SCRUM-124-TEST-SUMMARY.json',JSON.stringify({mode:'SYNTHETIC mocked HTTP/model; no live provider or hosted LangSmith claim',checks,matrix,localTrace:spans.map(s=>({name:s.name,id:s.id,parent:s.parent})),hostedTrace:'PENDING existing LangSmith configuration'},null,2)+'\n');
  console.log(`${checks} SCRUM-124 acceptance groups passed.`);
-}finally{globalThis.fetch=originalFetch;process.env=originalEnv;clearPublicResearchCache();}
+}finally{restorePublicPage();globalThis.fetch=originalFetch;process.env=originalEnv;clearPublicResearchCache();}
