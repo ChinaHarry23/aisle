@@ -1,15 +1,13 @@
 /**
  * The poster a campaign run actually renders.
- *
- * Studio's `runGeneration` stays a stub until `adapters.ts` is wired, which is
- * why a campaign used to record copy and then show no picture. This calls the
- * provider that is configured, keeps the founder's product photo as the
- * reference, and stores the bytes. The campaign keeps a short id, not the
- * picture, so the engine response can finish and the image step is saved.
+ * The brand's real logo is composited on the image afterwards, so the model does not have to try to draw it.
  */
 import { findUserById } from "@/lib/auth/users";
 import { billingFor } from "@/lib/billing/meter";
-import type { Campaign, Creative } from "@/lib/types";
+import type { BrandProfile, Campaign, Creative } from "@/lib/types";
+import type { BrandInputs } from "./brand-inputs";
+import { applyBrandLogo } from "./brand-overlay";
+import { ingestBrandCached, loadStoredBrand } from "./brand-resolve";
 import { getModel } from "./catalog";
 import { failMediaCredits, holdMediaCredits, settleMediaCredits, type MediaHold } from "./credits";
 import { runGeneration } from "./generate";
@@ -17,7 +15,7 @@ import { posterPrompt, posterRequest } from "./prompts";
 import { MEDIA_ADAPTERS, providerKeysSet } from "./providers";
 import { referenceImage } from "./providers/frame";
 import { rememberAsset } from "./library";
-import { putMedia } from "./store";
+import { putMedia, readMedia } from "./store";
 import { stubGenerate } from "./stub";
 import type { MediaGeneration } from "./types";
 
@@ -34,9 +32,25 @@ export async function renderCampaignPoster(input: {
   promptOverride?: string;
   /** The poster already on screen. When set, the provider edits this image instead of the product photo. */
   editFrom?: { bytes: Buffer; mime: string; sha256: string };
+  /** The brand to follow. When absent, the owner's stored workspace brand is used. */
+  brand?: BrandProfile;
 }): Promise<MediaGeneration> {
+  // A brand that cannot be read must never stop the render: it goes ahead unbranded and says so.
+  let brand: BrandInputs | null = null;
+  try {
+    const profile = input.brand ?? (await loadStoredBrand(input.ownerId));
+    if (profile) {
+      brand = await ingestBrandCached(input.ownerId, profile, {
+        readStored: (url) => readMedia(url, "image", input.ownerId),
+      });
+    }
+  } catch {
+    brand = null;
+  }
   const req = posterRequest(input.campaign, input.creative, input.modelId, {
     correction: input.correction,
+    // A revision edits a picture that already carries the brand; do not re-theme it.
+    brand: input.editFrom || input.promptOverride?.trim() ? null : brand,
   });
   if (input.promptOverride?.trim()) {
     req.prompt = input.promptOverride.trim();
@@ -79,17 +93,32 @@ export async function renderCampaignPoster(input: {
       throw error;
     }
     if (held) await settleMediaCredits(held, rendered.costUsd);
+    // The real logo goes on after the render. If it cannot be placed the picture is still
+    // kept, and the result says the logo is missing instead of pretending it is there.
+    let final: { bytes: Buffer; mime: string } = { bytes: rendered.bytes, mime: rendered.mime };
+    let logoApplied = false;
+    const gaps = (brand?.gaps ?? []).map((gap) => gap.reason);
+    if (brand?.logo) {
+      try {
+        const plate = brand.palette.entries.find((entry) => entry.role === "background")?.hex;
+        const branded = await applyBrandLogo(final, brand.logo, { plate });
+        final = { bytes: branded.bytes, mime: branded.mime };
+        logoApplied = true;
+      } catch (error) {
+        gaps.push(`The brand logo could not be placed on the image: ${error instanceof Error ? error.message : "unknown error"}`);
+      }
+    }
     const stored = await putMedia({
       ownerId: input.ownerId,
       kind: "image",
-      bytes: rendered.bytes,
-      mime: rendered.mime,
+      bytes: final.bytes,
+      mime: final.mime,
     });
     await rememberAsset({
       ownerId: input.ownerId,
       kind: "image",
       mediaUrl: stored.url,
-      mime: rendered.mime,
+      mime: final.mime,
       campaignId: input.campaign.id,
       campaignName: input.campaign.name,
       product: input.campaign.product,
@@ -110,11 +139,17 @@ export async function renderCampaignPoster(input: {
       ...quoted,
       status: "ok",
       url: stored.url,
-      note: input.editFrom
-        ? `Revised on ${model.name}.`
-        : input.campaign.productImageUrl
-          ? `Live ${model.name}. Built around the uploaded product photo.`
-          : `Live ${model.name}.`,
+      note: [
+        input.editFrom
+          ? `Revised on ${model.name}.`
+          : input.campaign.productImageUrl
+            ? `Live ${model.name}. Built around the uploaded product photo.`
+            : `Live ${model.name}.`,
+        logoApplied ? "Brand logo added." : brand ? "No brand logo on this image." : "",
+      ]
+        .filter(Boolean)
+        .join(" "),
+      brand: brand ? { logoApplied, gaps } : undefined,
       usage: {
         ...quoted.usage,
         costUsd: rendered.costUsd,

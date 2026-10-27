@@ -17,6 +17,8 @@
     "media:worker": "node --env-file-if-exists=.env.local --import ./scripts/service-loader.mjs --experimental-strip-types services/media/worker.ts --work",
     "test:story-ad": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/story-ad-suite.ts",
     "test:art-direction": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/art-direction-suite.ts",
+    "test:content-generation": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/content-generation-suite.ts",
+    "test:content-generation-render": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/content-generation-render-suite.ts",
     "test:workflow": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/workflow-suite.ts",
     "test:media": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/media-suite.ts",
     "test:media-progress": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/media-progress-suite.ts",

@@ -69,6 +69,12 @@ export type MediaGeneration = {
   url?: string | null;
   note: string;
   at: string;
+  /** Which brand assets reached this image. Absent on renders made before brand assets were used. */
+  brand?: {
+    logoApplied: boolean;
+    /** Brand assets that were missing or unusable, in plain words. */
+    gaps: string[];
+  };
 };
 
 export type AdVideo = {
