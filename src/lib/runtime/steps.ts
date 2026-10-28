@@ -19,6 +19,7 @@
 import { contextVersion } from '@/lib/trend/quality-contracts';
 import { currentStrategy, fallbackStrategy } from '@/lib/trend/strategy';
 import { assembleStrategyReport } from '@/lib/trend/strategy-report';
+import { acknowledgeDelivery,deliveryMatches } from '@/lib/trend/delivery';
 import { verifiedPreviousAdvice } from './defaults';
 import { evaluateQuality,trendReadyForHandoff } from '@/lib/trend/quality';
 import { validateIntake } from './intake';
@@ -93,6 +94,7 @@ import {
 } from "./types";
 
 export type Work = {
+  storageBase?: Campaign;
   campaign: Campaign;
   run: Campaign["run"];
   steps: RunStep[];
@@ -112,6 +114,9 @@ export type StepEnv = {
   ownerUserId?: string;
   /** Checked before and after research calls, and before handoff. */
   researchAllowed?: () => boolean | Promise<boolean>;
+  /** AHR-03 inbox availability. Pure acceptance check; no generation side effects. */
+  acceptTrend?: (job:import('@/lib/trend/delivery').TrendDelivery) => boolean | Promise<boolean>;
+  claimCreativeJob?: (jobId:string) => boolean | Promise<boolean>;
   /** Every campaign in the workspace, for cross-campaign scheduling checks. */
   allCampaigns: Campaign[];
   /**
@@ -323,6 +328,7 @@ export function buildCreatives(
       cta: v.cta,
       caption: v.caption,
       strategyVersion: v.strategyVersion,
+      ...(campaign.trendDelivery?.state==='ACKNOWLEDGED'?{trendBriefRef:{briefId:campaign.trendDelivery.briefId,version:campaign.trendDelivery.briefVersion,runId:campaign.trendDelivery.runId,contextVersion:campaign.trendDelivery.contextVersion,jobId:campaign.trendDelivery.jobId}}:{}),
       insightUses: v.insightUses,
       unusedInsightIds: v.unusedInsightIds,
       palette: pal[variant],
@@ -433,6 +439,7 @@ export async function runTrendResearch(
   env: StepEnv,
 ): Promise<{ message: string; blocked: boolean }> {
   const c = w.campaign;
+
   const contextProblems=validateIntake(c,env.brand);
   const previousAdvice=verifiedPreviousAdvice(c,env.allCampaigns);
   if(c.sharedContext.previousPerformanceNote&&!previousAdvice)addEvent(w,'trend','gap','Previous advice excluded','No matching accepted/edited platform decision and stored report; continuing without prior advice.');
@@ -903,6 +910,40 @@ export async function runCreativeGeneration(
   version: number,
 ): Promise<{ message: string; blocked: boolean }> {
   const c = w.campaign;
+  if(version===1&&c.trendBriefRequired&&c.structuredTrendBrief){
+    const d=c.trendDelivery;
+    const permitted=(!env.researchAllowed||await env.researchAllowed())&&c.run?.status==='running';
+    if(!permitted||!deliveryMatches(c)||!d?.persistedState||c.trendQuality?.storedVersion!==c.trendQuality?.version){
+      c.status='paused';c.running=false;
+      setRun(w,{status:'paused',step:'trend.handoff',haltedReason:'The saved report or permission changed before AHR-03 acceptance.'});
+      return {message:'Handoff stopped. Current report retained for review.',blocked:true};
+    }
+    if(d!.completedAt){
+      setRun(w,{step:'compliance.receive'});
+      return {message:'This report version already produced its creative job; reusing the saved result.',blocked:false};
+    }
+    if(w.run?.step!=='creative.generate'||d!.state!=='ACKNOWLEDGED'||d!.persistedState!=='ACKNOWLEDGED'){
+      let available=true;
+      try{if(env.acceptTrend)available=await env.acceptTrend(structuredClone(d!));}catch{available=false;}
+      if(!available){
+        d!.state='FAILED';d!.persistedState=null;d!.attempts++;d!.error='Content generation is unavailable. Your saved report is retained; retry the handoff only.';
+        c.status='paused';c.running=false;
+        setRun(w,{status:'paused',step:'creative.receive',haltedReason:d!.error});
+        addEvent(w,'creative','escalation','Report saved; handoff pending',d!.error);
+        return {message:d!.error,blocked:true};
+      }
+      acknowledgeDelivery(c,w.now);
+      setRun(w,{step:'creative.generate'});
+      addEvent(w,'creative','handoff','AHR-03 accepted the stored report',`Job ${d!.jobId}; ${d!.mode}. Acceptance must be saved before generation.`);
+      return {message:'Content generation accepted the report. Saving its acknowledgement before generation.',blocked:false};
+    }
+    if(env.claimCreativeJob&&!await env.claimCreativeJob(d!.jobId)){
+      d!.error='This creative job has already started. Its result is pending or needs reconciliation after an interruption; no duplicate generation was started.';
+      c.status='paused';c.running=false;setRun(w,{status:'paused',step:'creative.generate',haltedReason:d!.error});
+      addEvent(w,'creative','escalation','Creative result needs confirmation',d!.error);
+      return {message:d!.error,blocked:true};
+    }
+  }
   if(env.llm.brief&&c.trendQuality&&!c.trendBriefRequired){
     c.trendBriefRequired=true;c.trendQuality.status='INCOMPLETE';c.trendQuality.storedVersion=null;c.trendQuality.handedOffAt=null;c.trendQuality.resumeStep=8;
     setRun(w,{status:'running',step:'trend.quality'});
@@ -1054,6 +1095,7 @@ export async function runCreativeGeneration(
       : `The image step ran and no picture came back. ${withGen.find((cr) => cr.generation?.note)?.generation?.note ?? "Check the image model in Settings."}`,
   );
   // AHR-03 step 8: the draft goes to AHR-04 before anything else happens.
+  if(version===1&&c.trendDelivery)c.trendDelivery.completedAt=w.now;
   setRun(w, { status: "running", step: "compliance.receive" });
   return { message: `v${version} submitted for compliance.`, blocked: false };
 }

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ResearchDecisions } from "./ResearchDecisions";
 import { StructuredBrief } from "./StructuredBrief";
 import { StrategySummary } from "./StrategySummary";
+import { DeliveryStatus } from './DeliveryStatus';
 import type { Campaign } from "@/lib/types";
 import { coverageFor, type ResearchCategory } from "@/lib/trend/contracts";
 import { currentStrategy } from "@/lib/trend/strategy";
@@ -87,6 +88,7 @@ export function TrendReport({ campaign }: { campaign: Campaign }) {
 
   return (
     <div className="flex flex-col gap-6">
+      <DeliveryStatus campaign={campaign}/>
       <section className="hairline p-4 md:p-5" aria-label="Trend report overview">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>

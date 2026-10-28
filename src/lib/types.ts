@@ -146,6 +146,7 @@ export type Creative = {
   prompt: string;
   /** The strategy snapshot and decisions the copywriter actually applied. */
   strategyVersion?: number;
+  trendBriefRef?: {briefId:string;version:number;runId:string;contextVersion:string;jobId:string};
   insightUses?: CreativeInsightUse[];
   unusedInsightIds?: string[];
   generation?: MediaGeneration;
@@ -324,6 +325,8 @@ export type Campaign = CampaignInput & {
   trendBriefRequired?:boolean;
   trendRequestBudget?: import('@/lib/trend/brief-contracts').BriefBudget;
   trendQuality?: import('@/lib/trend/quality-contracts').TrendQuality;
+  trendDelivery?: import('@/lib/trend/delivery').TrendDelivery;
+  trendDeliveryHistory?: import('@/lib/trend/delivery').TrendDelivery[];
   trendRequests?: import('@/lib/trend/quality-contracts').ReviewRequest[];
   trendSupplementarySources?: {url:string;category:import('@/lib/trend/contracts').ResearchCategory;channel?:string}[];
   researchCoverage?: import('@/lib/trend/contracts').ResearchCoverage[];

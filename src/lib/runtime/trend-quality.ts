@@ -8,6 +8,7 @@ import type { ResearchCategory } from '@/lib/trend/contracts';
 import { assembleBrief,briefMatches } from '@/lib/trend/brief';
 import { currentStrategy } from '@/lib/trend/strategy';
 import { assembleStrategyReport } from '@/lib/trend/strategy-report';
+import { prepareDelivery,validDeliveryInput } from '@/lib/trend/delivery';
 
 export async function runTrendQuality(w:Work,env:StepEnv):Promise<{message:string;blocked:boolean}> {
  const c=w.campaign;
@@ -115,6 +116,14 @@ export async function handoffTrend(w:Work,env:StepEnv):Promise<{message:string;b
  }
  // AHR-03 receives the exact stored brief through the orchestrator on the next
  // step. Its handler records acknowledgement before any creative/model call.
+ if(c.structuredTrendBrief){
+   if(!validDeliveryInput(c)){
+     c.status='paused';c.running=false;
+     setRun(w,{status:'paused',step:'trend.handoff',haltedReason:'Report validation changed. Revalidate the retained report before dispatch.'});
+     return {message:'Invalid report retained; no content-generation dispatch.',blocked:true};
+   }
+   prepareDelivery(c,w.now);
+ }
  c.sharedContext={...c.sharedContext,approvedClaims:c.trendQuality!.findings.filter(f=>f.main&&f.supported&&!['OPPORTUNITY','RISK'].includes(f.category)).map(f=>f.claim)};
  c.trendQuality!.resumeStep=15;setRun(w,{status:'running',step:'creative.receive'});
  return {message:'Stored evidence-backed brief ready for content generation.',blocked:false};

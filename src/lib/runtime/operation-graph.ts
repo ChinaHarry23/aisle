@@ -107,6 +107,7 @@ export function stageFor(state: OpState): StageNode {
       return "trend";
     case "trend.brief":
     case "creative.receive":
+    case "creative.generate":
       return "creative";
     case "creative.revise":
       return "revise";
@@ -201,6 +202,7 @@ async function executeStep(w: Work, env: StepEnv): Promise<{ blocked: boolean; m
       return handoffTrend(w,env);
     case "trend.brief":
     case "creative.receive":
+    case "creative.generate":
       return runCreativeGeneration(w, env, 1);
     case "creative.revise":
       // `revisionCount` counts completed compliance attempts, so the next draft
@@ -266,7 +268,7 @@ export async function stageNode(state: OpState): Promise<Partial<OpState>> {
 
 export function afterStage(state: OpState): StageNode | typeof END {
   if (state.command.type !== "ADVANCE") return END;
-  if (state.taken >= state.maxSteps || state.blocked || state.work.run?.step === "trend.handoff") return END;
+  if (state.taken >= state.maxSteps || state.blocked || ['trend.handoff','creative.receive','creative.generate'].includes(state.work.run?.step ?? '')) return END;
   const run = state.work.run!;
   if (run.status !== "running" || FOUNDER_WAIT_STEPS.has(run.step)) return END;
   return stageFor(state);

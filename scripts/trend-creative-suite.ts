@@ -50,6 +50,9 @@ const copy = await decideCopy({ campaign: c, brand: defaultBrand, settings: defa
   return { ...stubComplete(req, "Offline fixture"), status: "ok", text: JSON.stringify({ variants: response }) };
 } } });
 assert.ok(copyRequest);
+assert.match(copyRequest.prompt, /riskConstraints/);
+assert.match(copyRequest.prompt, /f-RISK/, "risks not selected as an insight still reach creative as constraints");
+assert.match(copyRequest.prompt, /no new budget, channel, date, country or publication authority/);
 assert.match(copyRequest.prompt, /SYNTHETIC fixture: make the lunch table the hero/);
 assert.match(copyRequest.prompt, /f-OPPORTUNITY/, "the sixth quality finding survives into the actual creative request");
 assert.match(copyRequest.prompt, /https:\/\/www\.abs\.gov\.au\/synthetic\/current_market/, "source attribution reaches creative");

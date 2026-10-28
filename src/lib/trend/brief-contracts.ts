@@ -21,6 +21,7 @@ export const briefAuditSchema = z.object({
 }).strict();
 export type BriefAudit = z.infer<typeof briefAuditSchema>;
 export type StructuredTrendBrief = {
+  ranking?:import('./ranking').FindingRanking;
   format?:'strategy-v1';strategyVersion?:number;sourceFingerprint?:string;
   briefId:string;campaignId:string;runId:string;contextVersion:string;version:number;qualityVersion:number;generatedAt:string;
   status:'INCOMPLETE'|'COMPLETE';validation:'passed'|'failed'|'unavailable';errors:string[];modelStatus:string;

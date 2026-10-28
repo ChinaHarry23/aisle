@@ -34,6 +34,8 @@ export type EngineOptions = {
   billing?: BillingContext;
   /** Checked before and after research calls, and before handoff. */
   researchAllowed?: () => boolean | Promise<boolean>;
+  acceptTrend?: StepEnv['acceptTrend'];
+  claimCreativeJob?: StepEnv['claimCreativeJob'];
   /** Ad renderer. Defaults to the studio route; tests pass a stub. */
   renderPoster?: (input: {
     campaign: Campaign;
@@ -172,7 +174,7 @@ export function openStepEnv(
   options: EngineOptions = {},
 ): StepEnv {
   const llm = options.llm ?? makeLlmRuntime(options.billing);
-  return envFor(ctx, campaign, settings, brand, llm, options.renderPoster ?? defaultRenderPoster, options.ownerUserId, options.billing, options.researchAllowed);
+  return {...envFor(ctx, campaign, settings, brand, llm, options.renderPoster ?? defaultRenderPoster, options.ownerUserId, options.billing, options.researchAllowed),acceptTrend:options.acceptTrend,claimCreativeJob:options.claimCreativeJob};
 }
 
 export async function runEngine(

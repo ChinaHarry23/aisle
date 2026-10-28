@@ -186,6 +186,7 @@ async function hydrate(state: StudioState): Promise<Partial<StudioState>> {
   const loaded = await deps.load({
     campaignId: state.campaignId,
     userId: state.userId,
+    recover:!['PAUSE','CANCEL_TREND'].includes(state.command?.type??''),
   });
   envByRun.set(runKey(loaded.userId, loaded.work.campaign.id), loaded.env);
   return {

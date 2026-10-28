@@ -14,6 +14,7 @@ import { loadWorkspace, updateWorkspace, type WorkspaceSnapshot } from "@/lib/au
 import { createServerResearchRuntime } from "@/lib/agents/trend-server";
 import { renderCampaignPoster } from "@/lib/media/campaign-poster";
 import { isArchived } from "@/lib/campaign-lifecycle";
+import {persistEngineResult,recoverEngineResult,claimCreativeJob} from '@/lib/trend/persistence';
 import { withRuntimeDefaults } from "@/lib/runtime/defaults";
 import {
   openEngineWork,
@@ -112,6 +113,7 @@ async function resolveStudioSubject(hint: { userId?: string; campaignId?: string
 function engineOptions(userId: string, billing: BillingContext): EngineOptions {
   return {
     ownerUserId: userId,
+    claimCreativeJob:jobId=>claimCreativeJob(userId,jobId),
     billing,
     llm: createServerResearchRuntime(billing),
     renderPoster: (input) =>
@@ -125,12 +127,16 @@ function engineOptions(userId: string, billing: BillingContext): EngineOptions {
 }
 
 /** One bench command: same work and env the desk hands to the operation graph. */
-export async function loadStudioRun(input: { campaignId?: string; userId?: string }): Promise<{
+export async function loadStudioRun(input: { campaignId?: string; userId?: string; recover?:boolean }): Promise<{
   userId: string;
   work: Work;
   env: StepEnv;
 }> {
   const subject = await resolveStudioSubject(input);
+  if(input.recover!==false){
+    const recovered=await recoverEngineResult(subject.user.id,subject.user.role,subject.campaign.id);
+    if(recovered)subject.campaign=recovered.campaign;
+  }
   const now = new Date().toISOString();
   const { work, env } = prepareEngineInvocation(
     { campaigns: subject.snapshot.campaigns, now },
@@ -139,6 +145,7 @@ export async function loadStudioRun(input: { campaignId?: string; userId?: strin
     subject.brand,
     engineOptions(subject.user.id, subject.billing),
   );
+  work.storageBase=structuredClone((await loadWorkspace(subject.user.id,subject.user.role)).campaigns.find(c=>c.id===subject.campaign.id));
   return { userId: subject.user.id, work, env };
 }
 
@@ -182,10 +189,15 @@ export async function loadStudioSeat(input: { campaignId?: string; userId?: stri
 export async function saveStudioCampaign(userId: string, work: Work) {
   const user = await findUserById(userId);
   const campaign = sealEngineWork(work);
+  if(campaign.trendQuality&&work.storageBase&&campaign.run){
+    const result=await persistEngineResult(userId,user?.role??'dev',{campaign,run:campaign.run,events:work.events,runSteps:work.steps,policyDecisions:work.policy,canAdvance:campaign.run.status==='running',message:'Campaign checkpoint saved.'},work.storageBase);
+    Object.assign(work.campaign,result.campaign);work.run=work.campaign.run;work.storageBase=structuredClone(result.campaign);return;
+  }
   // A compare-and-set on the latest copy, so a concurrent save cannot undo this step.
   const saved = await updateWorkspace(userId, user?.role ?? "dev", (latest) => ({
     ...latest,
     campaigns: [campaign, ...latest.campaigns.filter((item) => item.id !== campaign.id)],
   }));
   if (!saved) throw new Error("The campaign could not be saved because the workspace kept changing.");
+  work.storageBase=structuredClone(campaign);
 }
