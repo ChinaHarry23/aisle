@@ -43,6 +43,7 @@ try{
  const c=fixture();let turn=0,booked=0;const outputs=[4211,5252,8059,2100];
  const answer={researchAnalysis:[{category:'current_market',summary:'Use the original product preparation instructions.',evidenceIds:['original-3'],limitation:'Preference not measured'}],priorities:[],angle:'Practical dinner',keyMessage:'Chicken and vegetables',claimsAllowed:[],claimsAvoid:['Unmeasured health benefits'],visualDirection:'Show the meal and pack',limitations:['No audience preference measurement']};
  const result=await createTrendResearch(undefined,{mode:'mock',complete:async request=>{
+   if(String(request.prompt??'').includes('Product seasonality judgement'))return {...stubComplete(request,'SYNTHETIC ONLY'),status:'ok',text:JSON.stringify({seasonal:true,reason:'This fixture product has a seasonal occasion worth checking.'})};
    turn++;
    const response={...stubComplete(request,'SYNTHETIC ONLY'),status:'ok' as const};
    response.usage={...response.usage,inputTokens:outputs[turn-1]-100,outputTokens:100,totalTokens:outputs[turn-1],costUsd:0.01};
@@ -65,6 +66,7 @@ try{
   Date.now=()=>clock;
   const queued=fixture();
   const completed=await createTrendResearch(undefined,{mode:'mock',complete:async request=>{
+   if(String(request.prompt??'').includes('Product seasonality judgement'))return {...stubComplete(request,'SYNTHETIC ONLY'),status:'ok',text:JSON.stringify({seasonal:true,reason:'This fixture product has a seasonal occasion worth checking.'})};
    const response={...stubComplete(request,'SYNTHETIC ONLY'),status:'ok' as const};
    if(++queuedTurns===1){clock=134000;return {...response,text:null,toolCalls:[1,2,3].map(i=>({id:`queued-${i}`,name:'web.scrape_page',args:{category:'current_market',url:`https://www.coles.com.au/product/queue-${i}`}}))};}
    assert.ok(request.tools?.every(t=>t.name!=='web.scrape_page'));

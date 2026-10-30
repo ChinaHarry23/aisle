@@ -112,6 +112,7 @@ function CampaignWorkspace() {
   const restoreCampaign = useAisle((s) => s.restoreCampaign);
   const deleteCampaign = useAisle((s) => s.deleteCampaign);
   const busy = useAisle((s) => s.busy[id] ?? false);
+  const activity = useAisle((s) => s.activity[id] ?? "");
   const launchLock = useRef(false);
   const router = useRouter();
   const setTab = (next: Tab) => router.replace(`/campaigns/${id}?tab=${next}`, { scroll: false });
@@ -169,6 +170,7 @@ function CampaignWorkspace() {
               {campaign.product} · {campaign.targetAudience} ·{" "}
               {campaign.country}
             </p>
+            {busy && activity ? <p className="mt-2 text-sm text-signal">{activity}</p> : null}
             {campaign.imageRevisionNote && campaign.complianceReports.length > 0 ? (
               <p className="mt-2 max-w-xl text-sm text-ink-soft">
                 The pictures were revised after the compliance report. Check the new images before approving.
@@ -412,7 +414,7 @@ function CampaignWorkspace() {
               </p>
             )}
             {campaign.running ? (
-              <p className="mt-6 text-sm text-signal">Agents are working this campaign now.</p>
+              <p className="mt-6 text-sm text-signal">{busy && activity ? activity : "Agents are working this campaign now."}</p>
             ) : null}
           </div>
         </section>

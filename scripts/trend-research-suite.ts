@@ -12,6 +12,7 @@ import { runEngine } from '../src/lib/runtime/engine';
 import { stubComplete } from '../src/lib/llm/stub';
 import { toolByName } from '../src/lib/runtime/tools';
 import { coverageFor, requiredResearchPlan, attachResearchAnalysis } from '../src/lib/trend/contracts';
+import { retrieveCulturalOccasion } from '../src/lib/trend/cultural-calendar';
 import { writeFileSync } from 'node:fs';
 const settings=defaultSettings(); settings.agents.trend={provider:'local',modelId:'local:custom'};
 const c=blankCampaign({name:'Synthetic research',product:'Apple juice',category:'Grocery',targetAudience:'Adult shoppers',objective:'Awareness',budget:1000,channels:['web','email'],startDate:'2026-10-20',endDate:'2026-10-26',country:'AU',notes:'private notes never searched'},defaultBrand,null,settings);
@@ -120,6 +121,7 @@ try{
   let turn=0;const selected:string[]=[];const toolResults:string[]=[];
   globalThis.fetch=async(url)=>String(url).includes('nagerholidays')?Response.json([]):Response.json({data:{web:Array.from({length:8},(_,i)=>({url:`https://www.abs.gov.au/statistics/example-${i}`,description:'Synthetic market report '.repeat(40)}))},related_queries:{top:[{query:'synthetic',value:100}]}});
   const runner=createTrendResearch(undefined,{mode:'mock',complete:async req=>{
+   if(String(req.prompt??'').includes('Product seasonality judgement'))return {...stubComplete(req,'MOCK'),status:'ok',text:JSON.stringify({seasonal:true,reason:'This product has a seasonal purchase or use occasion worth checking.'})};
    turn++;assert.ok(Buffer.byteLength(JSON.stringify(req)) < 40000, 'many retrieved records must fit the model request envelope');assert.equal(req.maxOutputTokens,4000);if(turn===1)assert.ok(req.tools?.some(t=>t.name==='web.search'));
    if(turn===1){assert.equal(req.toolChoice,'required');assert.ok(req.tools?.every(t=>t.name.includes('.')));const schema=req.tools!.find(t=>t.name==='web.search')!.parameters;assert.deepEqual(schema.required,['category']);assert.equal(schema.additionalProperties,false);assert.ok((schema.properties as {category:{enum:string[]}}).category.enum.includes('purchase_preference'));assert.ok(!('def' in schema));}
    if(turn===1)return {...stubComplete(req,'MOCK'),status:'ok',text:null,toolCalls:scenario==='grocery'?[{id:'c1',name:'web.search',args:{category:'purchase_preference'}},{id:'c2',name:'web.search_trends',args:{kind:'RELATED_QUERIES'}}]:[{id:'c1',name:'web.search',args:{category:'seasonal'}},{id:'c2',name:'calendar.public_holidays',args:{year:'2026'}}]};
@@ -128,7 +130,7 @@ try{
   }});
   const campaign={...c,...(scenario==='apparel'?{product:'Rain jacket',category:'Apparel'}:{})};
   const result=await runner({campaign,brand:defaultBrand,settings,at,allowed:async()=>true,onFailedUsage:()=>{},execute:async(name,args,override)=>{selected.push(name);return override??toolByName(name)!.run({...base,campaign,args});}});
-  assert.ok(result);assert.equal(result.trace.status,'stubbed');assert.equal(turn,2);assert.ok(selected.length >= 11);assert.equal((campaign.researchAttempts?.filter(a => a.tool !== 'calendar.public_holidays').length ?? 0) >= 9,true);assert.ok(toolResults.length);traces.push({scenario,mode:'MOCK ONLY',selected,turns:turn});
+  assert.ok(result);assert.equal(result.trace.status,'stubbed');assert.equal(turn,2);assert.ok(selected.length >= 10);assert.equal((campaign.researchAttempts?.filter(a => a.tool !== 'calendar.public_holidays').length ?? 0) >= 9,true);assert.equal(campaign.researchAttempts?.some(a=>a.category==='cultural'&&a.tool==='web.search'),false);assert.equal(campaign.researchAttempts?.some(a=>a.tool==='cultural.retrieve'),true);assert.ok(toolResults.length);traces.push({scenario,mode:'MOCK ONLY',selected,turns:turn});
  }
  assert.equal(researchModelResult({...scraped,data:{duplicate:'x'.repeat(20000)}}).data,undefined);
  assert.equal(researchModelResult({status:'ok',summary:'metadata',data:{dimensions:'x'.repeat(5000)},evidence:[]}).metadataOmitted,true);
@@ -137,6 +139,7 @@ try{
   const iterative=blankCampaign({name:'Iterative original research',product:'Chicken breast',category:'Grocery',targetAudience:'Adult shoppers',objective:'Awareness',budget:1000,channels:['web'],startDate:'2026-10-20',endDate:'2026-10-26',country:'AU',notes:''},defaultBrand,null,settings);
   let turns=0;const originals:string[]=[];
   const read=await createTrendResearch(undefined,{mode:'mock',complete:async req=>{
+    if(String(req.prompt??'').includes('Product seasonality judgement'))return {...stubComplete(req,'MOCK'),status:'ok',text:JSON.stringify({seasonal:false,reason:'Chicken breast is a year-round staple, so seasonal demand research does not apply.'})};
     turns++;
     if(turns<=3){
       assert.ok(req.tools?.some(t=>t.name==='web.scrape_page'),'the same useful tool must stay available after preceding reads');
@@ -152,15 +155,22 @@ try{
   assert.ok(read);assert.equal(turns,4);assert.equal(originals.length,3);
   assert.equal(iterative.researchAttempts?.filter(a=>a.phase==='agent'&&a.status==='ok').length,3);
   assert.equal(new Set(iterative.researchAttempts?.filter(a=>a.phase==='mandatory').map(a=>a.category)).size,8);
+  assert.equal(iterative.seasonalityJudgement?.seasonal,false);
+  assert.equal(iterative.researchAttempts?.some(a=>a.category==='seasonal'&&a.tool==='web.search'),false);
+  assert.equal(iterative.culturalMatch,null);
+  assert.equal(iterative.researchAttempts?.some(a=>a.category==='cultural'&&a.tool==='web.search'),false);
+  assert.match(iterative.researchAttempts?.find(a=>a.tool==='seasonality.judge')?.summary??'',/year-round staple/);
   pass('three sequential original reads use one tool type, inspect feedback, and then finish without an artificial tool-diversity gate');
  }
+ pass('a year-round product skips seasonal search and keeps the model explanation');
  let turn=0,realTools=0;const runner=createTrendResearch(undefined,{mode:'mock',complete:async req=>{
+  if(String(req.prompt??'').includes('Product seasonality judgement'))return {...stubComplete(req,'MOCK'),status:'ok',text:JSON.stringify({seasonal:true,reason:'This product has a seasonal purchase or use occasion worth checking.'})};
   if(++turn===1)return {...stubComplete(req,'MOCK'),status:'ok',text:null,toolCalls:[{id:'1',name:'web.search',args:{category:'current_market'}},{id:'2',name:'web.search',args:{category:'current_market'}}]};
   return {...stubComplete(req,'MOCK'),status:'ok',text:JSON.stringify(answer)};
  }});
  globalThis.fetch=async()=>{realTools++;return Response.json({data:{web:[]}});};
  const engine=await runEngine({campaigns:[c],now:at},c,{type:'START',actor:'founder'},settings,defaultBrand,{llm:{request:async()=>{throw Error('Duplicate decision');},research:runner},renderPoster:async()=>{throw Error('Unexpected handoff');}});
- assert.equal(realTools,11);assert.equal(engine.campaign.status,'paused');assert.ok(engine.campaign.trendFindings.every(f=>f.confidence===0),'unvalidated research must not inherit legacy confidence percentages');assert.equal(engine.campaign.researchCoverage?.length,9);assert.deepEqual(engine.campaign.sharedContext.approvedClaims,[]);assert.ok(engine.campaign.toolCalls.length >= 13);assert.match(engine.campaign.toolCalls.at(-1)!.summary,/cache/);assert.equal(engine.campaign.researchAttempts?.filter(a=>a.tool==='web.search'&&a.phase==='mandatory').length,9);assert.deepEqual(engine.campaign.channels,c.channels);assert.equal(engine.campaign.product,c.product);
+ assert.equal(realTools,10);assert.equal(engine.campaign.status,'paused');assert.ok(engine.campaign.trendFindings.every(f=>f.confidence===0),'unvalidated research must not inherit legacy confidence percentages');assert.equal(engine.campaign.researchCoverage?.length,9);assert.deepEqual(engine.campaign.sharedContext.approvedClaims,[]);assert.ok(engine.campaign.toolCalls.length >= 12);assert.match(engine.campaign.toolCalls.at(-1)!.summary,/cache/);assert.equal(engine.campaign.researchAttempts?.filter(a=>a.tool==='web.search'&&a.phase==='mandatory').length,8);assert.equal(engine.campaign.culturalMatch,null);assert.equal(engine.campaign.researchAttempts?.some(a=>a.tool==='cultural.retrieve'),true);assert.deepEqual(engine.campaign.channels,c.channels);assert.equal(engine.campaign.product,c.product);
  pass('same-run duplicate requests are cached; partial coverage blocks handoff without duplicate legacy tools or decision');
  const coverage=coverageFor(c,scraped.evidence);assert.equal(coverage.filter(x=>x.status==='retrieved').length,1);assert.equal(coverage.filter(x=>x.category==='channel'&&x.status==='missing').length,2);
  pass('coverage distinguishes every selected channel; one preference source cannot cover other areas');
@@ -173,6 +183,11 @@ try{
  await createTrendResearch(undefined,{mode:'mock',complete:async()=>{throw Error('Model unavailable');}})({campaign:blocked,brand:defaultBrand,settings,at,allowed:async()=>false,onFailedUsage:()=>{},execute:async(_name,_args,override)=>{if(!override)io++;return override!;}});
  assert.equal(io,0);assert.equal(new Set(blocked.researchAttempts?.map(a=>a.category)).size,8);assert.ok(blocked.researchAttempts?.every(a=>a.status==='skipped'));
  pass('all categories and selected channels are planned; pause prevents I/O and records each blocked area; fabricated citations rejected');
+ assert.equal(retrieveCulturalOccasion({...c,product:'Kent pumpkin'})?.name,'Halloween');
+ assert.equal(retrieveCulturalOccasion({...c,product:'Mooncake'})?.name,'Mid-Autumn Festival');
+ assert.equal(retrieveCulturalOccasion({...c,product:'Chicken breast'}),null);
+ assert.match(retrieveCulturalOccasion({...c,product:'Kent pumpkin'})?.scene??'',/pumpkin/);
+ pass('pumpkin retrieves Halloween from the compiled calendar, and a staple does not');
  delete process.env.OPENAI_API_KEY;delete process.env.ANTHROPIC_API_KEY;delete process.env.SERPAPI_API_KEY;delete process.env.FIRECRAWL_API_KEY;delete process.env.WHICHGROCER_API_KEY;delete process.env.LOCAL_LLM_BASE_URL;
  let noCredentialIo=0;globalThis.fetch=async()=>{noCredentialIo++;throw Error('No outbound I/O expected');};
  const cloudSettings=defaultSettings();cloudSettings.agents.trend={provider:'openai',modelId:'openai:gpt-6-luna'};cloudSettings.localBaseUrl='';

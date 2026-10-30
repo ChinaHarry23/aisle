@@ -27,9 +27,10 @@ export async function sendCommand(
   context: WorkspaceContext,
   campaign: Campaign,
   command: Command,
+  onProgress?: (detail: string) => void,
 ): Promise<EngineResponse> {
   try {
-    const headers = jsonHeadersWithKey(context.settings.imageModelId);
+    const headers = { ...jsonHeadersWithKey(context.settings.imageModelId), Accept: "text/event-stream" };
     const res = await fetch("/api/engine", {
       method: "POST",
       headers,
@@ -42,6 +43,9 @@ export async function sendCommand(
         settings: context.settings,
       }),
     });
+    if ((res.headers.get("content-type") ?? "").includes("text/event-stream")) {
+      return readEngineStream(res, campaign, onProgress);
+    }
     const json = (await res.json()) as EngineResponse & {job?:WorkflowJob};
     if (!res.ok) {
       return {
@@ -69,6 +73,46 @@ export async function sendCommand(
     const message = error instanceof Error ? error.message : "Engine route unavailable.";
     return { ...emptyResult(campaign), message, error: message };
   }
+}
+
+async function readEngineStream(
+  res: Response,
+  campaign: Campaign,
+  onProgress?: (detail: string) => void,
+): Promise<EngineResponse> {
+  if (!res.ok || !res.body) {
+    const json = (await res.json().catch(() => null)) as { error?: string } | null;
+    const message = json?.error ?? "The engine refused that command.";
+    return { ...emptyResult(campaign), message, error: message };
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let result: EngineResponse | null = null;
+  let failed = "";
+  while (true) {
+    const chunk = await reader.read();
+    if (chunk.done) break;
+    buffer += decoder.decode(chunk.value, { stream: true });
+    const frames = buffer.split("\n\n");
+    buffer = frames.pop() ?? "";
+    for (const frame of frames) {
+      const event = frame.match(/^event: (.+)$/m)?.[1] ?? "message";
+      const data = frame
+        .split("\n")
+        .filter((line) => line.startsWith("data:"))
+        .map((line) => line.slice(5).trim())
+        .join("\n");
+      if (!data) continue;
+      const payload = JSON.parse(data) as { detail?: string; error?: string };
+      if (event === "progress" && payload.detail) onProgress?.(payload.detail);
+      if (event === "error") failed = payload.error ?? "The engine failed.";
+      if (event === "result") result = payload as EngineResponse;
+    }
+  }
+  if (result) return result;
+  const message = failed || "The engine ended without a result.";
+  return { ...emptyResult(campaign), message, error: message };
 }
 
 function emptyResult(campaign: Campaign): EngineResult {

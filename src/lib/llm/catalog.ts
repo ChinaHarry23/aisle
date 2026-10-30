@@ -202,11 +202,11 @@ export const LLM_MODELS: LlmModel[] = [
   },
 ];
 
-export const DEFAULT_LLM = "openai:gpt-6-luna";
+export const DEFAULT_LLM = "openai:gpt-6.1-sol";
 
 export const PROVIDER_DEFAULT_MODEL: Record<LlmProviderId, string> = {
   local: "local:llama3.3",
-  openai: "openai:gpt-6-luna",
+  openai: "openai:gpt-6.1-sol",
   anthropic: "anthropic:claude-sonnet-5.5",
   cursor: "cursor:composer",
 };

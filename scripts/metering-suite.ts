@@ -119,9 +119,9 @@ try {
   /* ---------------------------------- Cindy's cloud LLM adapters are unwired */
   const free = PLAN.freeCredits * MILLI;
   assert.equal(await balanceMilli("beta-1"), free);
-  assert.equal(DEFAULT_LLM, "openai:gpt-6-luna");
-  assert.equal(PROVIDER_DEFAULT_MODEL.openai, "openai:gpt-6-luna");
-  assert.equal(getLlmOrDefault("openai:gpt-9-unknown").id, "openai:gpt-6-luna");
+  assert.equal(DEFAULT_LLM, "openai:gpt-6.1-sol");
+  assert.equal(PROVIDER_DEFAULT_MODEL.openai, "openai:gpt-6.1-sol");
+  assert.equal(getLlmOrDefault("openai:gpt-9-unknown").id, "openai:gpt-6.1-sol");
   const gpt = await runComplete(ask("openai:gpt-6-luna"), beta("beta-1"));
   assert.equal(gpt.status, "error", gpt.note);
   assert.match(gpt.note, /not wired yet/i);
@@ -135,7 +135,7 @@ try {
   pass("Cindy's OpenAI/Anthropic adapters stay unwired: cloud complete errors, holds release, nothing is charged");
 
   assert.equal(getLlmModel("anthropic:claude-haiku-5.5").id, "anthropic:claude-haiku-5.5");
-  pass("Claude Haiku 5.5 is in the catalog; the OpenAI default is GPT-6 Luna");
+  pass("Claude Haiku 5.5 is in the catalog; the OpenAI default is GPT-6.1 Sol");
 
   /* ----------------------------------------------- dev is free but still unwired */
   const devResult = await runComplete(ask("openai:gpt-6-luna"), { kind: "user", userId: "dev-1", role: "dev" });

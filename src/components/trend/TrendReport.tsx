@@ -62,6 +62,9 @@ export function TrendReport({ campaign }: { campaign: Campaign }) {
       : "No verified research run";
 
   function statusFor(area: Area) {
+    if (area.category === "seasonal" && campaign.seasonalityJudgement?.seasonal === false) return "Not seasonal";
+    if (area.category === "cultural" && campaign.culturalMatch) return campaign.culturalMatch.name;
+    if (area.category === "cultural" && campaign.culturalMatch === null) return "No occasion match";
     if (!quality) {
       if (area.analysis) return area.analysis.evidenceIds.length ? "Draft assessment" : "Evidence gap";
       if (area.evidenceIds.length) return "Sources retrieved";
@@ -73,7 +76,8 @@ export function TrendReport({ campaign }: { campaign: Campaign }) {
       : "Evidence gap";
   }
 
-  const firstGap = areas.find((area) => statusFor(area) !== "Supported") ?? areas[0];
+  const settled = (status: string) => status === "Supported" || status === "Not seasonal" || status === "No occasion match" || status === campaign.culturalMatch?.name;
+  const firstGap = areas.find((area) => !settled(statusFor(area))) ?? areas[0];
   const [view, setView] = useState<View>("strategy");
   const [selectedKey, setSelectedKey] = useState(firstGap ? areaKey(firstGap) : "");
   const selected = areas.find((area) => areaKey(area) === selectedKey) ?? firstGap;

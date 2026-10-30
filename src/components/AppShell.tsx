@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import {
   CalendarDays,
   LayoutDashboard,
@@ -21,7 +21,7 @@ import { UserMenu } from "@/components/UserMenu";
 import { BrandLogo } from "@/components/BrandLogo";
 import { WorkspaceSync } from "@/components/WorkspaceSync";
 import { cn } from "@/lib/cn";
-import { signOutAndReload } from "@/lib/auth/client";
+import { clearSignedInHint, rememberSignedIn, signOutAndReload } from "@/lib/auth/client";
 import type { PublicUser } from "@/lib/auth/types";
 import { isArchived } from "@/lib/campaign-lifecycle";
 import { useAisle } from "@/lib/store";
@@ -57,70 +57,33 @@ const navGroups: { label?: string; end?: boolean; items: NavItem[] }[] = [
   },
 ];
 
-function isAuthPath(pathname: string) {
-  return pathname === "/login" || pathname === "/signup";
-}
-
-export function AppShell({ children, signedIn }: { children: ReactNode; signedIn: boolean }) {
+export function AppShell({ children, user }: { children: ReactNode; user: PublicUser }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [user, setUser] = useState<PublicUser | null>(null);
   const campaigns = useAisle((s) => s.campaigns);
   const hydrated = useAisle((s) => s.hydrated);
 
   useEffect(() => {
-    if (isAuthPath(pathname)) return;
+    rememberSignedIn(user);
     let cancelled = false;
+    // The shell is already on screen. This only revokes a cookie the database no longer accepts.
     void fetch("/api/auth/me")
-      .then((res) => (res.ok ? res.json() : { user: null }))
-      .then((json: { user?: PublicUser | null }) => {
-        if (cancelled) return;
-        if (!json.user) {
-          // "/" is the public landing page when signed out.
-          if (pathname !== "/") router.replace("/login");
-          return;
-        }
-        setUser(json.user);
+      .then((res) => {
+        if (cancelled || res.status !== 401) return;
+        clearSignedInHint();
+        router.replace("/login");
       })
-      .catch(() => {
-        if (!cancelled) router.replace("/login");
-      });
+      .catch(() => undefined);
     return () => {
       cancelled = true;
     };
-  }, [pathname, router]);
-
-  // Auth pages and the signed-out landing page render straight away; every other route waits for /api/auth/me.
-  if (isAuthPath(pathname)) {
-    return (
-      <div className="flex min-h-screen flex-col">
-        {children}
-      </div>
-    );
-  }
-
-  if (pathname === "/" && !user && !signedIn) {
-    return <>{children}</>;
-  }
-
-  if (!user) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-paper text-mute">
-        Opening the studio…
-      </div>
-    );
-  }
+  }, [router, user.id, user.email, user.name, user.role]);
 
   const awaiting = campaigns.filter((c) => !isArchived(c) && c.status === "awaiting_approval").length;
 
   return (
     <WorkspaceSync user={user}>
-      {!hydrated ? (
-        <div className="flex min-h-screen items-center justify-center bg-paper text-mute">
-          Opening the studio…
-        </div>
-      ) : (
-        <div className="shell">
+      <div className="shell">
           <div className="shell-frame">
             <aside className="shell-aside">
               <div className="shell-head">
@@ -176,11 +139,16 @@ export function AppShell({ children, signedIn }: { children: ReactNode; signedIn
                 <CreditsBadge pathname={pathname} />
                 <UserMenu user={user} onSignOut={signOutAndReload} />
               </div>
-              <div className="shell-page !pt-4">{children}</div>
+              <div className="shell-page !pt-4">
+                {hydrated ? (
+                  children
+                ) : (
+                  <p className="text-sm text-mute">Loading your campaigns…</p>
+                )}
+              </div>
             </div>
           </div>
         </div>
-      )}
     </WorkspaceSync>
   );
 }

@@ -8,16 +8,18 @@ import type { ResearchCategory } from '@/lib/trend/contracts';
 import { assembleBrief,briefMatches } from '@/lib/trend/brief';
 import { currentStrategy } from '@/lib/trend/strategy';
 import { assembleStrategyReport } from '@/lib/trend/strategy-report';
+import { withCulturalScene } from '@/lib/trend/cultural-calendar';
 
 export async function runTrendQuality(w:Work,env:StepEnv):Promise<{message:string;blocked:boolean}> {
  const c=w.campaign;
  const permitted=async()=>env.researchAllowed?await env.researchAllowed():true;
  if(!await permitted()){c.status='paused';c.running=false;setRun(w,{status:'paused',step:'trend.quality',haltedReason:'Paused; evidence retained.'});return {message:'Quality review paused.',blocked:true};}
  c.status='analysing';c.running=true;
+ env.onProgress?.({phase:'trend.quality',detail:'Reviewing the evidence'});
  const saved=c.trendQuality;
  let result:Awaited<ReturnType<QualityRunner>>|null=saved?.resumeStep===8&&saved.assessment ? {assessment:saved.assessment,modelStatus:saved.modelStatus,replacementAttempts:0} : null;
  if(!result){
-   try { result=await env.llm.quality?.({campaign:c,brand:env.brand,settings:env.settings,at:w.now,allowed:permitted,
+   try { result=await env.llm.quality?.({campaign:c,brand:env.brand,settings:env.settings,at:w.now,allowed:permitted,onProgress:env.onProgress,
      execute:(name,args,override)=>callTool(w,'trend',name,args,env,override),onFailedUsage:cost=>{c.spend.inferenceUsd+=cost;}}) ?? null; }
    catch { result={assessment:null,modelStatus:'unavailable',replacementAttempts:0}; }
  }
@@ -45,7 +47,8 @@ export async function runTrendQuality(w:Work,env:StepEnv):Promise<{message:strin
    c.trendBriefRequired=true;
    if(c.structuredTrendBrief)(c.trendBriefHistory??=[]).push(structuredClone(c.structuredTrendBrief));
    let report;
-   try { report=await env.llm.brief({campaign:c,brand:env.brand,settings:env.settings,at:w.now,allowed:permitted,execute:async()=>{throw Error('Report synthesis has no retrieval or action tools.');},onFailedUsage:cost=>{c.spend.inferenceUsd+=cost;}}); }
+   env.onProgress?.({phase:'trend.brief',detail:'Writing the campaign direction'});
+   try { report=await env.llm.brief({campaign:c,brand:env.brand,settings:env.settings,at:w.now,allowed:permitted,onProgress:env.onProgress,execute:async()=>{throw Error('Report synthesis has no retrieval or action tools.');},onFailedUsage:cost=>{c.spend.inferenceUsd+=cost;}}); }
    catch (error) { report=assembleBrief(c,null,null,w.now,'unavailable',[error instanceof Error?error.message:'Report synthesis failed.']); }
    c.structuredTrendBrief=report;
    for(const request of q.requests)if(!c.trendRequests?.some(r=>r.id===request.id)){
@@ -71,7 +74,7 @@ export async function runTrendQuality(w:Work,env:StepEnv):Promise<{message:strin
    if(c.brief)c.brief={...c.brief,
      angle:strategy?.recommendedAngle??report.candidate?.themes[0]?.text??`${c.product} for ${c.targetAudience}`,
      keyMessage:strategy?.keyMessage??c.brief.keyMessage,
-     visualDirection:strategy?.visualDirection??(report.candidate?.visualDirections.map(v=>v.text).join(' ')||`Show the exact ${c.product} in one clear use occasion for ${c.targetAudience}.`),
+     visualDirection:withCulturalScene(strategy?.visualDirection??(report.candidate?.visualDirections.map(v=>v.text).join(' ')||`Show the exact ${c.product} in one clear use occasion for ${c.targetAudience}.`), c.culturalMatch),
      claimsAllowed:q.findings.filter(f=>f.main&&f.supported&&!['OPPORTUNITY','RISK'].includes(f.category)).map(f=>f.claim)};
    for(const reason of report.errors)c.trendGaps.push({id:uid('gap'),kind:'low_confidence',detail:reason,effect:'Available findings remain in the campaign direction.',needsFounder:false});
    addStep(w,'trend.brief','trend',report.validation==='passed'?'ok':'warn',strategy?'Campaign direction prepared':'Research report prepared',strategy?`${strategy.insights.filter(i=>i.evidenceIds.length).length} research-backed insights, two concepts and ${strategy.channels.length} channel approaches.`:report.errors.join(' ')||'Reviewed findings and source details saved.');

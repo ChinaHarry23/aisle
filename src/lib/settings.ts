@@ -34,12 +34,19 @@ export type WorkspaceSettings = {
   videoDurationSec: number;
   localBaseUrl: string;
   localModel: string;
+  /** Set once an account has been moved onto the current shipped text-model default. */
+  llmDefaultRevision?: number;
 };
 
 const openaiDefault: LlmAssignment = { provider: "openai", modelId: DEFAULT_LLM };
+const AGENT_SLOTS = ["trend", "creative", "compliance", "media"] as const;
+/** Accounts saved before Sol was the default still have Luna on every seat. */
+const PREVIOUS_OPENAI_DEFAULT = "openai:gpt-6-luna";
+const LLM_DEFAULT_REVISION = 2;
 
 export function defaultSettings(): WorkspaceSettings {
   return {
+    llmDefaultRevision: LLM_DEFAULT_REVISION,
     agents: {
       trend: { ...openaiDefault },
       creative: { ...openaiDefault },
@@ -58,10 +65,16 @@ export function defaultSettings(): WorkspaceSettings {
 export function withSettingsDefaults(partial?: Partial<WorkspaceSettings> | null): WorkspaceSettings {
   const base = defaultSettings();
   if (!partial) return base;
+  const stillOnPreviousDefault = (partial.llmDefaultRevision ?? 0) < LLM_DEFAULT_REVISION
+    && AGENT_SLOTS.every((slot) => {
+      const saved = partial.agents?.[slot];
+      return !saved || (saved.provider === "openai" && saved.modelId === PREVIOUS_OPENAI_DEFAULT);
+    });
   return {
     ...base,
     ...partial,
-    agents: {
+    llmDefaultRevision: LLM_DEFAULT_REVISION,
+    agents: stillOnPreviousDefault ? base.agents : {
       ...base.agents,
       ...partial.agents,
     },

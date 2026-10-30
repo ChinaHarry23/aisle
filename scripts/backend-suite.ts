@@ -14,7 +14,7 @@ import {
   getLlmOrDefault,
 } from "../src/lib/llm/catalog";
 import { runComplete } from "../src/lib/llm/metered-complete";
-import { defaultSettings, type WorkspaceSettings } from "../src/lib/settings";
+import { defaultSettings, withSettingsDefaults, type WorkspaceSettings } from "../src/lib/settings";
 import { LOCAL_DEFAULT_LLM } from "../src/lib/pr2-shims";
 
 let checks = 0;
@@ -45,11 +45,24 @@ pass("every provider default is a model of that provider");
 
 assert.deepEqual(LLM_PROVIDERS.map((p) => p.id), ["local", "openai", "anthropic", "cursor"]);
 assert(LLM_MODELS.some((m) => m.id.startsWith("cursor:")));
-assert.equal(DEFAULT_LLM, "openai:gpt-6-luna");
-assert.equal(PROVIDER_DEFAULT_MODEL.openai, "openai:gpt-6-luna");
+assert.equal(DEFAULT_LLM, "openai:gpt-6.1-sol");
+assert.equal(PROVIDER_DEFAULT_MODEL.openai, "openai:gpt-6.1-sol");
 assert.equal(PROVIDER_DEFAULT_MODEL.anthropic, "anthropic:claude-sonnet-5.5");
 assert.equal(getLlmOrDefault("missing-model").id, DEFAULT_LLM);
-pass("catalog keeps Cindy's Cursor seats and GPT-6 Luna as the OpenAI default; an unknown id falls back to it");
+pass("catalog keeps Cindy's Cursor seats and GPT-6.1 Sol as the OpenAI default; an unknown id falls back to it");
+const legacy = withSettingsDefaults({
+  agents: {
+    trend: { provider: "openai", modelId: "openai:gpt-6-luna" },
+    creative: { provider: "openai", modelId: "openai:gpt-6-luna" },
+    compliance: { provider: "openai", modelId: "openai:gpt-6-luna" },
+    media: { provider: "openai", modelId: "openai:gpt-6-luna" },
+  },
+});
+assert(seats(legacy).every((seat) => seat.modelId === DEFAULT_LLM));
+const chosen = withSettingsDefaults({ ...legacy, agents: { ...legacy.agents, trend: { provider: "openai", modelId: "openai:gpt-6-luna" } } });
+assert.equal(chosen.agents.trend.modelId, "openai:gpt-6-luna");
+assert.equal(chosen.agents.creative.modelId, DEFAULT_LLM);
+pass("saved Luna defaults move to Sol once; a later explicit Luna choice stays");
 
 const luna = buildLlmBody(getLlmModel("openai:gpt-6-luna"), {
   agent: "trend",

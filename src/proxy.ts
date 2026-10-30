@@ -38,5 +38,23 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  // "/" is omitted so the static landing page is served from the edge without
+  // invoking this function. Every signed-in route and API stays here.
+  matcher: [
+    "/campaigns/:path*",
+    "/account/:path*",
+    "/performance",
+    "/library/:path*",
+    "/studio/:path*",
+    "/billing/:path*",
+    "/schedule",
+    "/trends",
+    "/approvals",
+    "/settings",
+    "/brand",
+    "/operations",
+    "/login",
+    "/signup",
+    "/api/:path*",
+  ],
 };

@@ -23,6 +23,21 @@ export function WorkspaceSync({
     useAisle.persist.setOptions({ name: `aisle-ws-${user.id}` });
 
     async function load() {
+      const cacheKey = `aisle-ws-${user.id}`;
+      let hadCache = false;
+      try {
+        hadCache = localStorage.getItem(cacheKey) !== null;
+      } catch {
+        hadCache = false;
+      }
+      if (hadCache) {
+        try {
+          await useAisle.persist.rehydrate();
+          if (!cancelled) useAisle.getState().setHydrated();
+        } catch {
+          hadCache = false;
+        }
+      }
       try {
         const res = await fetch("/api/workspace");
         if (!res.ok) throw new Error("workspace");
@@ -35,8 +50,10 @@ export function WorkspaceSync({
         hydrateFromServer(data);
       } catch {
         if (cancelled) return;
-        await useAisle.persist.rehydrate();
-        useAisle.getState().setHydrated();
+        if (!hadCache) {
+          await useAisle.persist.rehydrate();
+          useAisle.getState().setHydrated();
+        }
         void useAisle.getState().resumeRunning();
       } finally {
         skipSave.current = false;

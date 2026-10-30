@@ -34,6 +34,8 @@ export type EngineOptions = {
   billing?: BillingContext;
   /** Checked before and after research calls, and before handoff. */
   researchAllowed?: () => boolean | Promise<boolean>;
+  /** Progress lines for the HTTP request that is waiting on this command. */
+  onProgress?: (event: { phase: string; detail: string }) => void;
   /** Ad renderer. Defaults to the studio route; tests pass a stub. */
   renderPoster?: (input: {
     campaign: Campaign;
@@ -114,6 +116,7 @@ function envFor(
   ownerUserId?: string,
   billing?: BillingContext,
   researchAllowed?: EngineOptions["researchAllowed"],
+  onProgress?: EngineOptions["onProgress"],
 ): StepEnv {
   return {
     now: ctx.now,
@@ -124,6 +127,7 @@ function envFor(
       : llm,
     ownerUserId,
     researchAllowed,
+    onProgress,
     allCampaigns: ctx.campaigns.map((c) => (c.id === campaign.id ? campaign : c)),
     renderPoster,
   };
@@ -172,7 +176,7 @@ export function openStepEnv(
   options: EngineOptions = {},
 ): StepEnv {
   const llm = options.llm ?? makeLlmRuntime(options.billing);
-  return envFor(ctx, campaign, settings, brand, llm, options.renderPoster ?? defaultRenderPoster, options.ownerUserId, options.billing, options.researchAllowed);
+  return envFor(ctx, campaign, settings, brand, llm, options.renderPoster ?? defaultRenderPoster, options.ownerUserId, options.billing, options.researchAllowed, options.onProgress);
 }
 
 export async function runEngine(

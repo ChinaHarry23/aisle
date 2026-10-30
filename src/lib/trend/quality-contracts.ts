@@ -7,6 +7,7 @@ export const qualityAssessmentSchema = z.object({
   evidence: z.array(z.object({
     id:z.string(), sensitive:z.boolean(), relevant:z.boolean(), geography:z.enum(['matches','transferable','mismatch','unknown']),
     temporal:z.enum(['fits','outdated','unknown']), reliability:z.enum(['primary','credible','uncertain']),
+    constructive:z.boolean().default(false).describe('True only when this record can support a constructive campaign suggestion. A web search snippet counts as useful evidence only when this is true.'),
     originEvidenceId:z.string().nullable().default(null).describe('ID of the original record if this is copied/syndicated; null if no shared origin is established.'),
     reason:z.string().min(1).max(650),
   }).strict()).max(100),
@@ -48,7 +49,7 @@ export type TrendResolution = {
 export type QualityRunner = (input:ResearchInput) => Promise<{assessment:QualityAssessment|null;modelStatus:string;replacementAttempts:number}>;
 /** Named, versioned implementation rules; no numeric threshold is attributed to Stage 1. */
 export const QUALITY_RULES = {
-  version:'ta04-2', currentMaxAgeDays:120, culturalMaxAgeDays:730, replacementCallLimit:4,
+  version:'ta04-3', currentMaxAgeDays:120, culturalMaxAgeDays:730, replacementCallLimit:4,
   minIndependentSources:1, materialMinIndependentSources:2,
 };
 export type QualityRules=typeof QUALITY_RULES;

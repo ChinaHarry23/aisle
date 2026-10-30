@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth/current";
 import { researchBrand } from "@/lib/brand/research";
 import { runComplete } from "@/lib/llm/metered-complete";
 import { billingForSession } from "@/lib/billing/meter";
+import { DEFAULT_LLM } from "@/lib/llm/catalog";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -19,7 +20,7 @@ export async function POST(request: Request) {
     const suggestion = await researchBrand({
       name: body.name,
       website: body.website,
-      modelId: body.modelId?.trim() || "openai:gpt-6-luna",
+      modelId: body.modelId?.trim() || DEFAULT_LLM,
       complete: (req) => runComplete(req, billing),
     });
     return NextResponse.json(suggestion);

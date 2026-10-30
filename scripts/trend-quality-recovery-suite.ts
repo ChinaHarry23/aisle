@@ -156,7 +156,7 @@ pass('a malformed response envelope can be rebuilt once from the same saved evid
   // Even an otherwise favourable semantic review cannot promote a demo record.
   c.evidence = [{ ...result.evidence[0], status: 'verified' }];
   c.researchCoverage = coverageFor(c, c.evidence);
-  const reviewed: QualityAssessment = { evidence: [{ id: c.evidence[0].id, sensitive: false, relevant: true, geography: 'matches', temporal: 'fits', reliability: 'primary', originEvidenceId: null, reason: 'SYNTHETIC favourable model response.' }], areas: [], findings: [] };
+  const reviewed: QualityAssessment = { evidence: [{ id: c.evidence[0].id, sensitive: false, relevant: true, geography: 'matches', temporal: 'fits', reliability: 'primary', constructive: false, originEvidenceId: null, reason: 'SYNTHETIC favourable model response.' }], areas: [], findings: [] };
   assert.match(evaluateQuality(c, reviewed, fixtureAt, 'MOCK').evidence[0].exclusions.join(' '), /Synthetic demonstration/);
 }
 pass('the bundled Coles dataset retains its demo provenance and never substantiates a live campaign');

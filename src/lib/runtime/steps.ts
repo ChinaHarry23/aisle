@@ -24,6 +24,8 @@ import { evaluateQuality,trendReadyForHandoff } from '@/lib/trend/quality';
 import { validateIntake } from './intake';
 import { redact } from "@/lib/trend/source-tools";
 import { attachResearchAnalysis, coverageFor, unavailable } from "@/lib/trend/contracts";
+import { applySeasonalityWaiver } from "@/lib/trend/seasonality";
+import { applyCulturalCalendar, withCulturalScene } from "@/lib/trend/cultural-calendar";
 import { buildReport } from "../compliance/report";
 import { currentRuleSelection } from "../compliance/rules";
 import { checkSubmission } from "../compliance/checks";
@@ -124,6 +126,8 @@ export type StepEnv = {
     creative: Creative;
     modelId: string;
   }) => Promise<MediaGeneration>;
+  /** Progress for the request that is waiting on this step. */
+  onProgress?: (event: { phase: string; detail: string }) => void;
 };
 
 function stamp() {
@@ -201,6 +205,24 @@ function recordPolicy(w: Work, decision: PolicyDecision) {
   }
 }
 
+function toolActivity(name: string, args: Record<string, string>): string {
+  const area = args.category?.replaceAll("_", " ");
+  const base =
+    name === "web.scrape_page" ? "Reading a source page"
+    : name === "web.search" ? "Searching public sources"
+    : name === "web.search_trends" ? "Checking search trends"
+    : name === "web.season_weather" ? "Checking seasonal weather"
+    : name === "web.shelf_prices" ? "Comparing shelf prices"
+    : name === "web.market_context" ? "Reading market context"
+    : name === "calendar.public_holidays" ? "Checking the public calendar"
+    : name === "stats.abs_spending" ? "Reading spending statistics"
+    : name === "retail.internal_signals" ? "Reading authorised retail data"
+    : name === "retail.specials" ? "Checking retail specials"
+    : name === "retail.price_stats" ? "Checking price history"
+    : "Working on the campaign";
+  return area ? `${base} · ${area}` : base;
+}
+
 /** Run one registered tool and record the call plus the evidence it raised. */
 export async function callTool(
   w: Work,
@@ -227,6 +249,7 @@ export async function callTool(
   if (agent === "trend" && env.researchAllowed && !await env.researchAllowed()) {
     return { status: "skipped", summary: "Research paused; no new request started.", evidence: [], data: null };
   }
+  env.onProgress?.({ phase: name, detail: toolActivity(name, args) });
   const outcome = override ?? await tool.run({
     campaign: w.campaign,
     brand: env.brand,
@@ -477,9 +500,11 @@ export async function runTrendResearch(
   let shelf = unavailable('No shelf prices selected.');
   let retail = unavailable('Internal signals not selected.', 'skipped');
   c.researchMode = env.llm.research ? 'agent' : 'legacy';
+  env.onProgress?.({ phase: "trend.research", detail: "Gathering sources for this campaign" });
   if (env.llm.research) {
     agentDecision = await env.llm.research({
       campaign: c, brand: env.brand, settings: env.settings, at: w.now,
+      onProgress: env.onProgress,
       allowed: async () => env.researchAllowed ? await env.researchAllowed() : true,
       execute: async (name, args, override) => {
         const outcome = await callTool(w, 'trend', name, args, env, override);
@@ -639,9 +664,15 @@ export async function runTrendResearch(
   // Previous runs remain auditable but cannot satisfy this retrieval's readiness.
   const currentEvidence = toolResults.flatMap(result => result.evidence);
   c.researchCoverage = coverageFor(c, currentEvidence);
+  applySeasonalityWaiver(c);
+  applyCulturalCalendar(c);
   if (env.llm.research) {
-    for (const area of c.researchCoverage) gaps.push({id:uid('gap'),kind:area.status === 'missing' ? 'missing_source' : 'low_confidence',
+    for (const area of c.researchCoverage) {
+    if (c.seasonalityJudgement?.seasonal === false && area.category === 'seasonal') continue;
+    if (c.culturalMatch !== undefined && area.category === 'cultural') continue;
+    gaps.push({id:uid('gap'),kind:area.status === 'missing' ? 'missing_source' : 'low_confidence',
       detail:`${area.category}${area.channel ? ' / '+area.channel : ''}: ${area.limitation}`,effect:'Check relevance, recency and support for each finding before the brief can be handed on.',needsFounder:true});
+    }
     // Retrieval does not certify all Stage 1 research conclusions. TA-04 owns that assessment.
   }
   const evidenceLines = currentEvidence.map(evidenceLine);
@@ -660,6 +691,8 @@ export async function runTrendResearch(
   }));
   const decision = recommended ? pinClearance(decided.decision, recommended) : decided.decision;
   attachResearchAnalysis(c.researchCoverage ?? [], decided.decision.researchAnalysis);
+  applySeasonalityWaiver(c);
+  applyCulturalCalendar(c);
   const trace = decided.trace;
   addTrace(w, trace, "trend", "Brief prioritisation", env.llm);
   for (const l of decision.limitations) {
@@ -822,7 +855,7 @@ export async function runTrendResearch(
     keyMessage: decision.keyMessage,
     claimsAllowed: decision.claimsAllowed,
     claimsAvoid: decision.claimsAvoid,
-    visualDirection: decision.visualDirection,
+    visualDirection: withCulturalScene(decision.visualDirection, c.culturalMatch),
   };
 
   c.trends = trends;
@@ -917,6 +950,7 @@ export async function runCreativeGeneration(
     if(!c.trendQuality!.handedOffAt){c.trendQuality!.handedOffAt=w.now;addEvent(w,'creative','handoff','Stored trend brief accepted',`Accepted research version ${c.trendQuality!.version} for context ${c.trendQuality!.contextVersion}.`);}
   }
   if (!c.brief) return { message: "No brief to work from.", blocked: true };
+  env.onProgress?.({ phase: "creative", detail: "Writing the ads" });
   c.status = version === 1 ? "generating" : "revising";
   c.running = true;
 
@@ -933,7 +967,7 @@ export async function runCreativeGeneration(
     c.sharedContext.structuredTrendBrief = structuredClone(c.structuredTrendBrief);
     const strategy = currentStrategy(c);
     if (strategy) {
-      c.brief = { ...c.brief, angle: strategy.recommendedAngle, keyMessage: strategy.keyMessage, visualDirection: strategy.visualDirection };
+      c.brief = { ...c.brief, angle: strategy.recommendedAngle, keyMessage: strategy.keyMessage, visualDirection: withCulturalScene(strategy.visualDirection, c.culturalMatch) };
       addEvent(w, 'trend', 'output', 'Campaign direction refined', 'Reused the saved findings and sources to apply your feedback.');
     }
   }
@@ -1008,6 +1042,7 @@ export async function runCreativeGeneration(
 
   const withGen: Creative[] = [];
   for (const cr of creatives) {
+    env.onProgress?.({ phase: "creative", detail: `Creating the ${cr.variant} image` });
     const generation = await env.renderPoster({ campaign: c, creative: cr, modelId });
     withGen.push({ ...cr, createdAt: w.now, generation });
   }
@@ -1083,6 +1118,7 @@ export async function runComplianceReview(
   env: StepEnv,
 ): Promise<{ message: string; blocked: boolean }> {
   const c = w.campaign;
+  env.onProgress?.({ phase: "compliance", detail: "Checking the ads against the brand rules" });
   assertReviewPermission(c);
   const submitted = submissionFor(c, env.brand);
   const reviewRun = c.complianceReviewRuns?.find(r => r.pipelineRunId === c.run?.id && r.advertisementVersionId === submitted.advertisementVersionId && r.status === "UNDER_REVIEW");
@@ -1522,6 +1558,7 @@ export async function runMediaAdaptation(
   env: StepEnv,
 ): Promise<{ message: string; blocked: boolean }> {
   const c = w.campaign;
+  env.onProgress?.({ phase: "media", detail: "Preparing each channel" });
   const hero = c.creatives.find((x) => x.variant === "A") ?? c.creatives[0];
   if (!hero) return { message: "No approved creative to adapt.", blocked: true };
 

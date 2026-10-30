@@ -205,6 +205,7 @@ export function Landing() {
               alt="Two supermarket staff stocking fruit and vegetable displays"
               width={2000}
               height={1096}
+              priority
               sizes="(min-width: 1152px) 1104px, 100vw"
               className="h-[22rem] w-full object-cover md:h-[30rem]"
             />
