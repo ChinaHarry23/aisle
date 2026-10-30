@@ -79,9 +79,27 @@ export async function POST(request:Request){
  const owner=await getCurrentUser();if(!owner)return NextResponse.json({error:'Sign in first.'},{status:401});
  const preview=await request.clone().json().catch(()=>null);
  if(['PAUSE','CANCEL_TREND'].includes(preview?.command?.type)&&typeof preview?.campaign?.id==='string')requestInlinePause(owner.id,preview.campaign.id);
- return withWorkspaceLock(owner.id,()=>handlePost(request));
+ const wantsStream=request.headers.get('accept')?.includes('text/event-stream')&&!workflowEnabled();
+ if(!wantsStream)return withWorkspaceLock(owner.id,()=>handlePost(request));
+ const encoder=new TextEncoder();
+ const body=new ReadableStream({
+  async start(controller){
+   const send=(event:string,data:unknown)=>{controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));};
+   try{
+    await withWorkspaceLock(owner.id,async()=>{
+     const response=await handlePost(request,(progress)=>send('progress',progress));
+     const payload=await response.json() as {error?:string};
+     if(!response.ok)send('error',{error:payload.error??'The engine failed.'});
+     else send('result',payload);
+    });
+   }catch(error){
+    send('error',{error:error instanceof Error?error.message:'The engine failed.'});
+   }finally{controller.close();}
+  },
+ });
+ return new Response(body,{headers:{'Content-Type':'text/event-stream; charset=utf-8','Cache-Control':'no-cache, no-transform'}});
 }
-async function handlePost(request: Request) {
+async function handlePost(request: Request, onProgress?: (event: { phase: string; detail: string }) => void) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
 
@@ -162,6 +180,7 @@ async function handlePost(request: Request) {
         // The graph hydrates from the workspace. If that write fails, run here instead.
       }
       if (savedInput) {
+        onProgress?.({ phase: "engine", detail: "Running this step" });
         const outcome = await invokeOperationGraph({
           url: graphUrl,
           campaignId: target.id,
@@ -188,6 +207,7 @@ async function handlePost(request: Request) {
       }
     }
     if (resolved.command.type === "START" || resolved.command.type === "RESOLVE_TREND") resumeInlineResearch(user.id, target.id);
+    onProgress?.({ phase: resolved.command.type, detail: "Starting this step" });
     const llm = createServerResearchRuntime(billing);
     const result = await runEngine(
       { campaigns, now: new Date().toISOString() },
@@ -200,6 +220,7 @@ async function handlePost(request: Request) {
         ownerUserId: user.id,
         billing,
         researchAllowed: () => !request.signal.aborted && inlineResearchAllowed(user.id, target.id),
+        onProgress,
         llm,
         renderPoster: (input) =>
           renderCampaignPoster({

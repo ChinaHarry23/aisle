@@ -328,6 +328,13 @@ export type Campaign = CampaignInput & {
   trendSupplementarySources?: {url:string;category:import('@/lib/trend/contracts').ResearchCategory;channel?:string}[];
   researchCoverage?: import('@/lib/trend/contracts').ResearchCoverage[];
   researchMode?: 'agent' | 'legacy';
+  /** Whether this product needs seasonal trend research. A false judgement skips that search. */
+  seasonalityJudgement?: { seasonal: boolean; reason: string };
+  /**
+   * Result of the one-time cultural calendar lookup.
+   * Undefined means the lookup has not run. Null means it ran and nothing matched.
+   */
+  culturalMatch?: import('@/lib/trend/cultural-calendar').CulturalMatch | null;
   /** Every version submitted to AHR-04, kept for audit. */
   complianceAttempts: ComplianceAttempt[];
   complianceReviewRuns?: ComplianceReviewRun[];

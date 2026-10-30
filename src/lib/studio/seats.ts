@@ -34,7 +34,7 @@ const studioContextSchema = z.object({
     .string()
     .default("")
     .describe("Workspace owner id or email. Blank uses AISLE_STUDIO_USER_ID, then the dev-alex desk."),
-  modelId: z.string().default("").describe("Override the workspace model, for example openai:gpt-6-luna."),
+  modelId: z.string().default("").describe("Override the workspace model, for example openai:gpt-6.1-sol."),
 });
 
 const INTAKE_PATCH = ["name", "product", "category", "targetAudience", "objective", "notes"] as const;

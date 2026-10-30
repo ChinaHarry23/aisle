@@ -7,6 +7,7 @@ import path from 'node:path';
 import {blankCampaign,defaultBrand} from '../src/lib/seed';
 import {defaultSettings} from '../src/lib/settings';
 import {coverageFor,RESEARCH_CATEGORIES} from '../src/lib/trend/contracts';
+import {retrieveCulturalOccasion} from '../src/lib/trend/cultural-calendar';
 import {evaluateQuality,recordStoredTrend,trendReadyForHandoff} from '../src/lib/trend/quality';
 import {FINDING_CATEGORIES,contextVersion,type QualityAssessment,type TrendResolution} from '../src/lib/trend/quality-contracts';
 import {parseCommand,assertTransition} from '../src/lib/workflow/commands';
@@ -30,7 +31,7 @@ const base=()=>{
  c.brief={product:c.product,angle:'Synthetic evidence-backed theme',audience:c.targetAudience,channels:c.channels,keyMessage:'Synthetic draft',claimsAllowed:[],claimsAvoid:['best'],visualDirection:'Authorised product imagery'};
  return c;
 };
-const assessment=(c:Campaign):QualityAssessment=>({evidence:c.evidence.map(e=>({id:e.id,sensitive:false,relevant:true,geography:'matches',temporal:'fits',reliability:'primary',originEvidenceId:null,reason:'SYNTHETIC: directly applicable dated original.'})),
+const assessment=(c:Campaign):QualityAssessment=>({evidence:c.evidence.map(e=>({id:e.id,sensitive:false,relevant:true,geography:'matches',temporal:'fits',reliability:'primary',constructive:false,originEvidenceId:null,reason:'SYNTHETIC: directly applicable dated original.'})),
  areas:c.evidence.map(e=>({category:e.research!.category,channel:e.research!.channel??null,summary:e.detail,supports:[{evidenceId:e.id,quote:e.detail}],limitation:''})),
  findings:FINDING_CATEGORIES.map((category,i)=>{const index=[0,1,2,4,7,0,0][i],e=c.evidence[index];return {id:`f${i}`,category,claim:`${category}: ${e.detail}`,main:true,confidence:'high',supports:[{evidenceId:e.id,quote:e.detail}],relevance:'SYNTHETIC fixture relevance to product, adult AU audience, awareness objective, campaign timing, web channel and budget.',conflict:null,limitation:'',material:false};})});
 let checks=0;const pass=(s:string)=>{checks++;console.log('PASS '+s);};
@@ -43,7 +44,58 @@ for(const mutation of ['stale','missing-date','irrelevant','geography','sensitiv
  switch(mutation){case 'stale':test.evidence[0].observedAt='2020-01-01';break;case 'missing-date':test.evidence[0].observedAt=null;break;case 'irrelevant':a.evidence[0].relevant=false;break;case 'geography':a.evidence[0].geography='mismatch';break;case 'sensitive':a.evidence[0].sensitive=true;break;case 'snippet':test.evidence[0].research!.quality='snippet';break;case 'missing':a.areas=a.areas.filter(v=>v.category!=='channel');break;case 'forged-quote':a.findings[0].supports[0].quote='This quote does not occur in the source.';break;case 'missing-category':a.findings=a.findings.filter(f=>f.category!=='RISK');break;case 'low-confidence':a.findings[0].confidence='low';break;}
  assert.equal(evaluateQuality(test,a,at,'MOCK').status,'INCOMPLETE',mutation);
 }
-pass('stale, unknown dates, irrelevant, geography mismatch, sensitive, snippet, missing area/output, forged quotes and low confidence block completion');
+pass('stale, unknown dates, irrelevant, geography mismatch, sensitive, unendorsed snippet, missing area/output, forged quotes and low confidence block completion');
+{
+ const test=base(),a=assessment(test);
+ test.evidence[0].research!.quality='snippet';test.evidence[0].observedAt=null;
+ a.evidence[0].constructive=true;a.evidence[0].reliability='credible';a.evidence[0].temporal='unknown';
+ for(const f of a.findings)if(f.supports.some(s=>s.evidenceId==='e0')){f.material=true;f.limitation='Search snippet only; not a measured outcome.';}
+ const q=evaluateQuality(test,a,at,'MOCK');
+ assert.equal(q.evidence.find(e=>e.id==='e0')!.accepted,true,q.evidence.find(e=>e.id==='e0')!.exclusions.join(' '));
+ assert.equal(q.status,'COMPLETE');
+ assert.match(q.limitations.join(' '),/constructive suggestion/);
+ assert.equal(q.requests.filter(r=>r.status==='pending').length,0);
+ a.evidence[0].relevant=false;
+ assert.equal(evaluateQuality(test,a,at,'MOCK').evidence.find(e=>e.id==='e0')!.accepted,false);
+ const stale=base(),staleReview=assessment(stale);
+ stale.evidence[0].research!.quality='snippet';stale.evidence[0].observedAt='2020-01-01';
+ staleReview.evidence[0].constructive=true;
+ assert.equal(evaluateQuality(stale,staleReview,at,'MOCK').evidence.find(e=>e.id==='e0')!.accepted,false);
+}
+pass('a web search snippet is useful when the review says it can support a constructive suggestion');
+{
+ const test=base(),a=assessment(test);
+ test.seasonalityJudgement={seasonal:false,reason:'Chicken breast is a year-round staple, so seasonal demand research was skipped.'};
+ test.evidence=test.evidence.filter(e=>e.research?.category!=='seasonal');
+ test.researchCoverage=coverageFor(test,test.evidence);
+ const q=evaluateQuality(test,a,at,'MOCK');
+ assert.equal(q.researchAreas.find(area=>area.category==='seasonal')!.supported,true);
+ assert.match(q.researchAreas.find(area=>area.category==='seasonal')!.reason,/year-round staple/);
+ assert.equal(q.requiredCategories.find(item=>item.category==='SEASONAL_CULTURAL')!.supported,true);
+ assert.equal(q.status,'COMPLETE');
+}
+pass('a non-seasonal product keeps the explanation and does not need seasonal source evidence');
+{
+ const test=base(),a=assessment(test);
+ test.product='Kent pumpkin';
+ test.culturalMatch=retrieveCulturalOccasion(test);
+ test.evidence=test.evidence.filter(e=>e.research?.category!=='cultural');
+ test.researchCoverage=coverageFor(test,test.evidence);
+ const q=evaluateQuality(test,a,at,'MOCK');
+ assert.equal(test.culturalMatch?.name,'Halloween');
+ assert.equal(q.researchAreas.find(area=>area.category==='cultural')!.supported,true);
+ assert.match(q.researchAreas.find(area=>area.category==='cultural')!.reason,/Halloween/);
+ assert.equal(q.status,'COMPLETE');
+ const plain=base(),plainReview=assessment(plain);
+ plain.culturalMatch=null;
+ plain.evidence=plain.evidence.filter(e=>e.research?.category!=='cultural');
+ plain.researchCoverage=coverageFor(plain,plain.evidence);
+ const skipped=evaluateQuality(plain,plainReview,at,'MOCK');
+ assert.equal(skipped.researchAreas.find(area=>area.category==='cultural')!.supported,true);
+ assert.match(skipped.researchAreas.find(area=>area.category==='cultural')!.reason,/cultural holiday search was not run/);
+ assert.equal(skipped.status,'COMPLETE');
+}
+pass('a compiled cultural occasion supports the cultural area, and a product with no occasion does not need a holiday search');
 {
  const test=base(),a=assessment(test);const original={...test.evidence[0],id:'syndicated',sourceRef:'https://www.abs.gov.au/synthetic/reprint'};test.evidence.push(original);test.researchCoverage=coverageFor(test,test.evidence);a.evidence.push({...a.evidence[0],id:original.id,originEvidenceId:'e0',reliability:'credible'});a.evidence[0].reliability='credible';a.findings[0].material=true;a.findings[0].supports.push({evidenceId:original.id,quote:original.detail});
  const q=evaluateQuality(test,a,at,'MOCK');assert.equal(q.findings[0].independentSources,1);assert.equal(q.findings[0].supported,false);assert.equal(q.evidence.length,9);

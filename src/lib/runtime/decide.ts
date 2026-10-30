@@ -26,6 +26,7 @@ import type { AgentSlot } from "@/lib/llm/types";
 import type { CompleteRequest } from "@/lib/llm/types";
 import { guidelinesPrompt } from "@/lib/guidelines";
 import { creativeDirectionText, posterPrompt, productScene } from "@/lib/media/prompts";
+import { culturalDirection } from "@/lib/trend/cultural-calendar";
 import { currentStrategy } from "@/lib/trend/strategy";
 import type { BriefCopy } from "@/lib/media/brief-copy";
 import { ruleTrace, runSeatAgent, type AgentAnswer } from "@/lib/agents/agent-runtime";
@@ -417,6 +418,7 @@ export async function decideCopy(input: {
     strategy ? "Use the first campaign concept for A and the alternative for B when supplied. Make the concepts visibly different in message or scene, not just two phrasings of the same headline." : "",
     creativeDirectionText(strategy?.recommendedAngle ?? brief?.angle) ? `Angle: ${creativeDirectionText(strategy?.recommendedAngle ?? brief?.angle)}. Key message: ${strategy?.keyMessage ?? brief?.keyMessage ?? input.campaign.product}.` : "",
     visualDirection ? `Visual direction: ${visualDirection}.` : "",
+    culturalDirection(input.campaign.culturalMatch) ? `The image prompt must include this occasion and show it in the scene: ${culturalDirection(input.campaign.culturalMatch)}` : "",
     brief ? `Claims allowed: ${brief.claimsAllowed.join(", ") || "none recorded"}.` : "",
     brief?.claimsAvoid.length ? `Claims to avoid: ${brief.claimsAvoid.join(", ")}.` : "",
     !strategy && findings.length ? `Supported findings: ${JSON.stringify(findings)}` : "",

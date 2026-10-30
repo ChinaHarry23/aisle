@@ -56,6 +56,7 @@ function StrategyRefinement({ campaign }: { campaign: Campaign }) {
 
 export function StrategySummary({ campaign }: { campaign: Campaign }) {
   const strategy = currentStrategy(campaign);
+  const activity = useAisle((state) => state.activity[campaign.id] ?? "");
   if (!strategy) {
     const working = campaign.running && campaign.run?.step.startsWith("trend.");
     const angle = creativeDirectionText(campaign.brief?.angle);
@@ -66,7 +67,7 @@ export function StrategySummary({ campaign }: { campaign: Campaign }) {
         <h3 className="mt-2 font-serif text-2xl">{working ? "Connecting the research to your next campaign" : angle || "A direction for your campaign"}</h3>
         <p className="mt-3 max-w-3xl text-sm leading-relaxed text-ink-soft">
           {working
-            ? "Exploring your audience, relevant market activity and useful creative approaches. Your recommendation will appear here as part of this run."
+            ? activity || "Exploring your audience, relevant market activity and useful creative approaches. Your recommendation will appear here as part of this run."
             : campaign.strategy
               ? "The campaign details or research have changed. The next run will update the campaign direction for your revised brief."
               : campaign.brief?.keyMessage || "Launch the campaign to explore its audience, develop a message and create two distinct concepts."}
@@ -85,7 +86,7 @@ export function StrategySummary({ campaign }: { campaign: Campaign }) {
         <p className="mt-4 max-w-3xl text-sm leading-relaxed text-ink-soft">{strategy.audienceMotivation}</p>
         <div className="mt-5 grid gap-5 border-t border-line pt-5 md:grid-cols-2">
           <div><h4 className="text-sm font-medium">The message to land</h4><p className="mt-2 text-sm leading-relaxed text-ink-soft">{strategy.keyMessage}</p></div>
-          <div><h4 className="text-sm font-medium">What to show</h4><p className="mt-2 text-sm leading-relaxed text-ink-soft">{strategy.visualDirection}</p></div>
+          <div><h4 className="text-sm font-medium">What to show</h4><p className="mt-2 text-sm leading-relaxed text-ink-soft">{strategy.visualDirection}</p>{campaign.culturalMatch ? <p className="mt-2 text-sm leading-relaxed text-ink-soft"><span className="font-medium text-ink">Cultural occasion: </span>{campaign.culturalMatch.name} ({campaign.culturalMatch.dateLabel}). {campaign.culturalMatch.scene}</p> : null}</div>
         </div>
         {strategy.status === "product_led" ? <p className="mt-5 text-xs text-mute">These concepts build on your product and audience brief. They are creative ideas to test, rather than established market preferences.</p> : null}
       </div>

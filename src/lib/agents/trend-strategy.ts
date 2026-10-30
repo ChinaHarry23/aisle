@@ -27,6 +27,7 @@ export function createCampaignStrategy(billing?: BillingContext, test?: { mode: 
       if (!test && (estimate > c.spend.capUsd - c.spend.inferenceUsd - c.spend.mediaUsd || model.providerId !== 'local' && billing?.kind !== 'user')) throw Error('Strategy synthesis requires available campaign credits.');
       const shared = reserveTrendRequest(c, inputTokens, 3500);
       calls++; budget.calls++;
+      input.onProgress?.({ phase: 'strategy', detail: calls <= 1 ? 'Writing the campaign direction' : 'Revising the campaign direction' });
       const result = await (test?.complete ?? runComplete)(req, ctx);
       shared.tokens += result.usage.totalTokens; shared.costUsd += result.usage.costUsd;
       budget.tokens += result.usage.totalTokens; budget.costUsd += result.usage.costUsd;

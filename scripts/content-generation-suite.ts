@@ -162,6 +162,25 @@ await check("a legacy campaign missing its audience or retailer still gets the b
   assert.ok(prompt.includes("#008446") && prompt.includes("top-left corner"));
 });
 
+await check("a retrieved Halloween occasion is written into the image prompt", () => {
+  const prompt = posterPrompt({
+    ...campaign,
+    product: "Kent pumpkin",
+    culturalMatch: {
+      occasionId: "halloween",
+      name: "Halloween",
+      dateLabel: "31 Oct",
+      scene: "Show the pumpkin as the hero of a Halloween grocery display.",
+      reason: "Kent pumpkin matches Halloween.",
+      listedOnCalendar: false,
+      sourceUrl: "https://www.homeaffairs.gov.au/about-us/our-portfolios/multicultural-affairs/about-multicultural-affairs/calendar-of-cultural-and-religious-dates",
+      sourceNote: "Halloween is not named on the calendar.",
+    },
+  }, creative);
+  assert.match(prompt, /Cultural occasion for this product: Halloween \(31 Oct\)/);
+  assert.match(prompt, /Halloween grocery display/);
+});
+
 await check("banned wording is Compliance's check, not this agent's: the prompt is not filtered", () => {
   const prompt = posterPrompt({ ...campaign, product: "bargain bananas" }, creative, { brand });
   assert.ok(prompt.includes("bargain bananas"));

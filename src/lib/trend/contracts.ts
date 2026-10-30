@@ -13,6 +13,8 @@ export type ResearchInput = {
   allowed: () => Promise<boolean>;
   execute: (name: string, args: Record<string, string>, override?: ToolOutcome) => Promise<ToolOutcome>;
   onFailedUsage: (cost: number) => void;
+  /** Spoken progress for the open request. Omitted by tests. */
+  onProgress?: (event: { phase: string; detail: string }) => void;
 };
 export type ResearchRunner = (input: ResearchInput) => Promise<{ decision: TrendDecision; trace: DecisionTrace } | null>;
 export function unavailable(detail: string, status: ToolOutcome['status'] = 'empty'): ToolOutcome {

@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { BrandLogo } from "@/components/BrandLogo";
+import { rememberSignedIn } from "@/lib/auth/client";
 import { safeNextPath } from "@/lib/auth/next-path";
+import type { PublicUser } from "@/lib/auth/types";
 
 type Mode = "login" | "signup";
 
@@ -38,11 +40,12 @@ export function AuthForm({ mode }: { mode: Mode }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(mode === "login" ? { email, password } : { name, email, password }),
       });
-      const json = (await res.json().catch(() => null)) as { error?: string } | null;
+      const json = (await res.json().catch(() => null)) as { error?: string; user?: PublicUser } | null;
       if (!res.ok) {
         setError(json?.error ?? "Something went wrong.");
         return;
       }
+      if (json?.user) rememberSignedIn(json.user);
       router.replace(next);
       router.refresh();
     } catch {
