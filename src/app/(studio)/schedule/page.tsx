@@ -5,9 +5,10 @@ import { FaFacebook, FaInstagram, FaLinkedin } from "react-icons/fa6";
 import { Globe, Image, LayoutTemplate, MessageSquare, PanelTop, Plus } from "lucide-react";
 import Link from "next/link";
 import { Empty, PageHeader, StatusBadge } from "@/components/ui";
+import { approvalsHref } from "@/lib/approvals/queue";
 import { channelLabel } from "@/lib/status";
 import { formatDate } from "@/lib/ids";
-import { useActiveCampaigns, useAisle } from "@/lib/store";
+import { useActiveCampaigns } from "@/lib/store";
 
 const SOCIALS: { name: string; icon: ComponentType<{ size?: number }>; tile: string }[] = [
   {
@@ -28,7 +29,6 @@ const WEBSITE_ACTIONS: { label: string; icon: ComponentType<{ size?: number; cla
 export default function SchedulePage() {
   const [notice, setNotice] = useState<string | null>(null);
   const campaigns = useActiveCampaigns();
-  const resolveConflict = useAisle((s) => s.resolveConflict);
   const items = campaigns
     .flatMap((c) => c.schedule.map((s) => ({ ...s, campaign: c.name, campaignId: c.id, cStatus: c.status })))
     .sort((a, b) => a.at.localeCompare(b.at));
@@ -122,15 +122,12 @@ export default function SchedulePage() {
                 </div>
                 <p className="mt-1 text-ink-soft">{conflict.detail}</p>
                 {!conflict.resolved ? (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      void resolveConflict(campaign.id, conflict.id, "Accepted by the founder.")
-                    }
-                    className="mt-2 rounded-full border border-line px-3 py-1.5 text-xs font-medium hover:border-signal hover:bg-signal-soft hover:text-signal"
+                  <Link
+                    href={approvalsHref("channels")}
+                    className="mt-2 inline-block rounded-full border border-line px-3 py-1.5 text-xs font-medium hover:border-signal hover:bg-signal-soft hover:text-signal"
                   >
-                    Accept and continue
-                  </button>
+                    Decide in Approvals
+                  </Link>
                 ) : null}
               </li>
             ))}

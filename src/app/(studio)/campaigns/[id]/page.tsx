@@ -6,8 +6,8 @@ import { Suspense, useRef, useState, type ReactNode } from "react";
 import { AgentLog } from "@/components/AgentLog";
 import { AgentWork } from "@/components/AgentWork";
 import { OperationGraph } from "@/components/OperationGraph";
-import { ChecksPanel } from "@/components/ChecksPanel";
 import { ComplianceCheckerPanel } from "@/components/ComplianceCheckerPanel";
+import { ReviewQueue } from "@/components/approvals/ReviewQueue";
 import { ChannelIcon } from "@/components/ChannelIcon";
 import { InstagramPost } from "@/components/InstagramPost";
 import { CampaignContent } from "@/components/studio/CampaignContent";
@@ -26,6 +26,7 @@ import { isArchived } from "@/lib/campaign-lifecycle";
 import type { AgentActivityLine } from "@/lib/runtime/activity";
 import { campaignCanAdvance, pausedCampaignCanResume } from "@/lib/runtime/resume";
 import { useDeveloperView } from "@/components/DeveloperView";
+import { reviewQueue } from "@/lib/approvals/queue";
 import { TrendReport } from '@/components/trend/TrendReport';
 import { SaveInsightsPanel } from "@/components/insights/FeedbackInsights";
 import { useAisle } from "@/lib/store";
@@ -105,13 +106,9 @@ function CampaignWorkspace() {
   const continueAgents = useAisle((s) => s.continueAgents);
   const engineError = useAisle((s) => s.engineError);
   const pause = useAisle((s) => s.pause);
-  const approve = useAisle((s) => s.approve);
-  const reject = useAisle((s) => s.reject);
-  const requestChanges = useAisle((s) => s.requestChanges);
   const publish = useAisle((s) => s.publish);
   const collectFeedback = useAisle((s) => s.collectFeedback);
   const decideRecommendation = useAisle((s) => s.decideRecommendation);
-  const resolveConflict = useAisle((s) => s.resolveConflict);
   const attemptBlocked = useAisle((s) => s.attemptBlocked);
   const archiveCampaign = useAisle((s) => s.archiveCampaign);
   const restoreCampaign = useAisle((s) => s.restoreCampaign);
@@ -124,7 +121,6 @@ function CampaignWorkspace() {
   const setTab = (next: Tab) => router.replace(`/campaigns/${id}?tab=${next}`, { scroll: false });
   const { developer } = useDeveloperView();
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [note, setNote] = useState("");
   const [recommendationDraft, setRecommendationDraft] = useState<string | null>(null);
   const [boundaryResult, setBoundaryResult] = useState<string | null>(null);
 
@@ -152,11 +148,16 @@ function CampaignWorkspace() {
   const archived = isArchived(campaign);
   const canLaunch = !archived && (campaign.status === "draft" || campaign.status === "rejected" || pausedCampaignCanResume(campaign));
   const requestedTab = searchParams.get("tab");
-  const researchPending = campaign.trendRequests?.some((request) => request.status === "pending") ?? false;
-  const fallbackTab: Tab = researchPending ? "research" : campaign.status === "awaiting_approval" ? "compliance" : "brief";
+  const reviewItems = reviewQueue([campaign]);
+  const needsYou = reviewItems.length > 0;
+  const blocking = reviewItems.some((item) => {
+    if (item.type === "compliance" || item.type === "channels") return true;
+    if (item.type === "trends") return item.pending > 0 || Boolean(item.pausedDetail);
+    return item.kind === "brief";
+  });
+  const fallbackTab: Tab = blocking ? "approvals" : "brief";
   const visibleTabs = tabs.filter((item) => developer || (item !== "runtime" && item !== "log"));
   const tab: Tab = visibleTabs.includes(requestedTab as Tab) ? (requestedTab as Tab) : fallbackTab;
-  const needsYou = campaign.status === "awaiting_approval";
   const canPublish = campaign.status === "scheduled";
 
   return (
@@ -326,7 +327,9 @@ function CampaignWorkspace() {
           >
             {tabLabels[t]}
             {t === "approvals" && needsYou ? (
-              <span className="status-chip status-wait ml-2">Needs your approval</span>
+              <span className="status-chip status-wait ml-2">
+                {reviewItems.length === 1 ? "Needs you" : `${reviewItems.length} need you`}
+              </span>
             ) : null}
           </button>
         ))}
@@ -453,17 +456,7 @@ function CampaignWorkspace() {
 
       {tab === "compliance" ? <ComplianceCheckerPanel campaign={campaign} /> : null}
 
-      {tab === "approvals" ? (
-        <ChecksPanel
-          busy={busy}
-          campaign={campaign}
-          note={note}
-          onNote={setNote}
-          onApprove={() => void approve(campaign.id, note)}
-          onRequestChanges={() => void requestChanges(campaign.id, note || "Please revise to founder notes.")}
-          onReject={() => void reject(campaign.id, note || "Killed by founder.")}
-        />
-      ) : null}
+      {tab === "approvals" ? <ReviewQueue campaigns={[campaign]} includeSettledCompliance /> : null}
 
       {tab === "channels" ? (
         <section className="flex flex-col gap-4">
@@ -628,16 +621,10 @@ function CampaignWorkspace() {
                     {!c.resolved ? (
                       <button
                         type="button"
-                        onClick={() =>
-                          void resolveConflict(
-                            campaign.id,
-                            c.id,
-                            note || "Accepted as-is by the founder.",
-                          )
-                        }
+                        onClick={() => setTab("approvals")}
                         className="mt-2 rounded-full border border-line font-medium hover:bg-paper-2 px-3 py-1 text-xs"
                       >
-                        Accept and continue
+                        Decide in Approvals
                       </button>
                     ) : null}
                   </li>

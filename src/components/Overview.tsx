@@ -18,6 +18,8 @@ import { useDeveloperView } from "@/components/DeveloperView";
 import { cn } from "@/lib/cn";
 import { getLlmOrDefault } from "@/lib/llm/catalog";
 import type { AgentSlot } from "@/lib/llm/types";
+import { reviewQueue } from "@/lib/approvals/queue";
+import { plural, reviewSummary } from "@/components/approvals/ReviewQueue";
 import { useActiveCampaigns, useAisle } from "@/lib/store";
 import type { CampaignStatus } from "@/lib/types";
 
@@ -60,7 +62,7 @@ const stages: Stage[] = [
   {
     id: "founder",
     name: "Approvals",
-    does: "You sign off anything medium or high risk.",
+    does: "You decide anything the agents cannot settle.",
     icon: ShieldAlert,
     statuses: ["awaiting_approval"],
     href: "/approvals",
@@ -98,8 +100,6 @@ export function Overview() {
   const campaigns = useActiveCampaigns();
   const brand = useAisle((s) => s.brand);
   const settings = useAisle((s) => s.settings);
-  const collectFeedback = useAisle((s) => s.collectFeedback);
-  const busy = useAisle((s) => s.busy);
   const [firstName, setFirstName] = useState<string | null>(null);
 
   useEffect(() => {
@@ -116,12 +116,10 @@ export function Overview() {
     };
   }, []);
 
-  const awaiting = campaigns.filter((c) => c.status === "awaiting_approval");
-  const toCollect = campaigns.filter((c) => c.status === "published" && !c.performanceReport);
-  const conflicts = campaigns.reduce(
-    (n, c) => n + c.scheduleConflicts.filter((x) => !x.resolved).length,
-    0,
-  );
+  const waiting = reviewQueue(campaigns);
+  const attention = reviewSummary(campaigns);
+  const toCollect = waiting.filter((item) => item.type === "other" && item.kind === "collect").length;
+  const conflicts = waiting.filter((item) => item.type === "channels").length;
   const published = campaigns.filter((c) => c.status === "published").length;
   const countIn = (statuses: CampaignStatus[]) =>
     campaigns.filter((c) => statuses.includes(c.status)).length;
@@ -140,24 +138,24 @@ export function Overview() {
     },
     {
       label: "Awaiting approval",
-      value: awaiting.length,
-      hint: awaiting.length > 0 ? "ready for your review" : "nothing waiting",
+      value: waiting.length,
+      hint: waiting.length > 0 ? "ready for your review" : "nothing waiting",
       href: "/approvals",
       icon: ShieldAlert,
-      hot: awaiting.length > 0,
+      hot: waiting.length > 0,
     },
     {
       label: "Published",
       value: published,
-      hint: toCollect.length > 0 ? `${toCollect.length} awaiting results` : "campaigns live",
+      hint: toCollect > 0 ? `${toCollect} awaiting results` : "campaigns live",
       href: "/performance",
       icon: LineChart,
     },
     {
-      label: "Schedule conflicts",
+      label: "Channel decisions",
       value: conflicts,
-      hint: conflicts > 0 ? "need resolving" : "all clear",
-      href: "/schedule",
+      hint: conflicts > 0 ? "in Approvals" : "all clear",
+      href: "/approvals?type=channels",
       icon: CalendarDays,
       hot: conflicts > 0,
     },
@@ -193,74 +191,25 @@ export function Overview() {
       />
 
       {/* What needs the user */}
-      {awaiting.length > 0 || toCollect.length > 0 || conflicts > 0 ? (
+      {attention.length > 0 ? (
         <section aria-label="Needs your attention" className="flex flex-col gap-3">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-signal">
             Needs your attention
           </h2>
           <ul className="flex flex-col gap-2">
-            {awaiting.map((c) => {
-              const manual = c.complianceAttempts.at(-1)?.outcome === "manual_review";
-              return (
-                <li key={c.id}>
-                  <Link
-                    href={`/campaigns/${c.id}`}
-                    className="hairline flex items-center justify-between gap-4 p-4 hairline-hover"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate font-medium">
-                        {c.name}
-                        {manual ? (
-                          <span className="ml-2 status-chip risk-high">manual review</span>
-                        ) : null}
-                      </p>
-                      <p className="mt-0.5 truncate text-sm text-ink-soft">
-                        {c.complianceReports.at(-1)?.summary ?? "Ready for your sign-off."}
-                      </p>
-                    </div>
-                    <span className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-signal">
-                      Review <ArrowRight size={14} />
-                    </span>
-                  </Link>
-                </li>
-              );
-            })}
-            {toCollect.map((c) => (
-              <li
-                key={c.id}
-                className="hairline flex items-center justify-between gap-4 p-4"
-              >
-                <div className="min-w-0">
-                  <p className="truncate font-medium">{c.name}</p>
-                  <p className="mt-0.5 text-sm text-ink-soft">
-                    Live. Pull in results from your channels.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  disabled={busy[c.id]}
-                  onClick={() => void collectFeedback(c.id)}
-                  className="shrink-0 rounded-full border border-line px-4 py-1.5 text-sm font-medium hover:bg-paper-2 disabled:opacity-50"
-                >
-                  {busy[c.id] ? "Collecting…" : "Collect results"}
-                </button>
-              </li>
-            ))}
-            {conflicts > 0 ? (
-              <li>
+            {attention.map((item) => (
+              <li key={item.id}>
                 <Link
-                  href="/schedule"
+                  href={item.href}
                   className="hairline flex items-center justify-between gap-4 p-4 hairline-hover"
                 >
-                  <p className="font-medium">
-                    {conflicts} schedule conflict{conflicts === 1 ? "" : "s"} to resolve
-                  </p>
+                  <p className="font-medium">{plural(item.count, item.noun)}</p>
                   <span className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-signal">
-                    Open schedule <ArrowRight size={14} />
+                    Open Approvals <ArrowRight size={14} />
                   </span>
                 </Link>
               </li>
-            ) : null}
+            ))}
           </ul>
         </section>
       ) : null}

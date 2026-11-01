@@ -25,9 +25,8 @@ import { WorkspaceSync } from "@/components/WorkspaceSync";
 import { cn } from "@/lib/cn";
 import { clearSignedInHint, rememberSignedIn, signOutAndReload } from "@/lib/auth/client";
 import type { PublicUser } from "@/lib/auth/types";
-import { isArchived } from "@/lib/campaign-lifecycle";
+import { reviewQueue } from "@/lib/approvals/queue";
 import { useAisle } from "@/lib/store";
-import { researchNotice } from "@/lib/trend/notice";
 
 type NavItem = { href: string; label: string; icon: typeof LayoutDashboard };
 
@@ -83,8 +82,7 @@ export function AppShell({ children, user }: { children: ReactNode; user: Public
     };
   }, [router, user]);
 
-  const awaiting = campaigns.filter((c) => !isArchived(c) && c.status === "awaiting_approval").length;
-  const researchNotices = campaigns.filter((c) => researchNotice(c)).length;
+  const awaiting = reviewQueue(campaigns).length;
 
   return (
     <DeveloperViewProvider>
@@ -129,11 +127,6 @@ export function AppShell({ children, user }: { children: ReactNode; user: Public
                               {item.href === "/approvals" && awaiting > 0 ? (
                                 <span className="ml-auto rounded-full bg-signal px-1.5 text-[10px] font-semibold text-white">
                                   {awaiting}
-                                </span>
-                              ) : null}
-                              {item.href === "/trends" && researchNotices > 0 ? (
-                                <span className="ml-auto rounded-full bg-signal px-1.5 text-[10px] font-semibold text-white">
-                                  {researchNotices}
                                 </span>
                               ) : null}
                             </Link>
