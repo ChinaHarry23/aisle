@@ -17,7 +17,11 @@ import { RESEARCH_TOOL_IDS, redact, queryFor, publicSourceUrl } from '@/lib/tren
 import { campaignResearchQuestions, evidenceExcerpt, researchEvidenceContext, unreadResearchSources } from '@/lib/trend/retrieval-context';
 import type { TrendDecision } from '@/lib/runtime/decide';
 import type { MeteredModelConfig } from './metered-chat-model';
-const MAX_TOOLS = 32, MAX_MS = 180_000, RESEARCH_CONCURRENCY = 3;
+/** Whole research run. Long enough for several slow mtplx turns. */
+export const RESEARCH_RUN_MS = 8_888_888;
+/** Stop collecting before the run ends so the last call can write the analysis. */
+export const SYNTHESIS_RESERVE_MS = 45_000;
+const MAX_TOOLS = 32, MAX_MS = RESEARCH_RUN_MS, RESEARCH_CONCURRENCY = 3;
 const {tokens:MAX_TOTAL_TOKENS,outputTokens:MAX_OUTPUT_TOKENS}=RESEARCH_MODEL_LIMITS;
 const names = [...RESEARCH_TOOL_IDS, 'web.season_weather', 'web.shelf_prices', 'retail.internal_signals'];
 
@@ -161,7 +165,7 @@ export function createTrendResearch(billing?: BillingContext, test?: { mode:'moc
     // more originals (including the same tool) or finish. Tool-name diversity
     // does not determine whether the research can answer a campaign decision.
     const {request,bytes,inputTokens}=planResearchRequest(req,{names,calls:modelCalls,tokens,enrichmentCalls,
-      finishSoon:Date.now()-started>=MAX_MS-45000,
+      finishSoon:Date.now()-started>=MAX_MS-SYNTHESIS_RESERVE_MS,
       finalContext:()=>redact(JSON.stringify({scope:context,questions:campaignResearchQuestions(input.campaign),
         sources:researchEvidenceContext(collected.flatMap(o=>o.evidence),input.campaign),
         execution:input.campaign.researchAttempts?.map(a=>({category:a.category,channel:a.channel,status:a.status,summary:a.summary.slice(0,300)})),
@@ -286,7 +290,7 @@ export function createTrendResearch(billing?: BillingContext, test?: { mode:'moc
       input.campaign.researchAttempts!.push({ category: 'seasonal', channel: args.channel, tool: name, phase: 'agent', status: outcome.status, summary: outcome.summary, evidenceIds: [] });
       return outcome;
     }
-    const outcome=enrichmentCalls++<6 ? await perform(name,args,MAX_MS-45000)
+    const outcome=enrichmentCalls++<6 ? await perform(name,args,MAX_MS-SYNTHESIS_RESERVE_MS)
       : await input.execute(name,args,unavailable('The focused follow-up pass is complete. Analyse the retained evidence and explain remaining gaps.','skipped'));
     collected.push(outcome);
     const category = args.category && plan.some(a=>a.category===args.category) ? args.category as ResearchCategory

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { trendRequestSize, reserveTrendRequest, TREND_REQUEST_LIMITS } from '../src/lib/trend/request-budget';
 import { planResearchRequest } from '../src/lib/trend/research-request';
-import { createTrendResearch } from '../src/lib/agents/trend-research';
+import { createTrendResearch, RESEARCH_RUN_MS, SYNTHESIS_RESERVE_MS } from '../src/lib/agents/trend-research';
 import { defaultBrand, blankCampaign } from '../src/lib/seed';
 import { defaultSettings } from '../src/lib/settings';
 import { stubComplete } from '../src/lib/llm/stub';
@@ -72,7 +72,7 @@ try{
   const completed=await createTrendResearch(undefined,{mode:'mock',complete:async request=>{
    if(String(request.prompt??'').includes('Product seasonality judgement'))return {...stubComplete(request,'SYNTHETIC ONLY'),status:'ok',text:JSON.stringify({seasonal:true,reason:'This fixture product has a seasonal occasion worth checking.'})};
    const response={...stubComplete(request,'SYNTHETIC ONLY'),status:'ok' as const};
-   if(++queuedTurns===1){clock=134000;return {...response,text:null,toolCalls:[1,2,3].map(i=>({id:`queued-${i}`,name:'web.scrape_page',args:{category:'current_market',url:`https://www.coles.com.au/product/queue-${i}`}}))};}
+   if(++queuedTurns===1){clock=RESEARCH_RUN_MS-SYNTHESIS_RESERVE_MS-1000;return {...response,text:null,toolCalls:[1,2,3].map(i=>({id:`queued-${i}`,name:'web.scrape_page',args:{category:'current_market',url:`https://www.coles.com.au/product/queue-${i}`}}))};}
    assert.ok(request.tools?.every(t=>t.name!=='web.scrape_page'));
    return {...response,text:JSON.stringify(answer)};
   }})({campaign:queued,brand:defaultBrand,settings,at,allowed:async()=>true,onFailedUsage:()=>{},execute:async(name,_args,override)=>{
