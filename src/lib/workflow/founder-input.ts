@@ -44,6 +44,7 @@ export function founderInput(raw: Campaign): CampaignInput {
     imageModelId: raw.imageModelId,
     videoModelId: raw.videoModelId,
     spendCapUsd: raw.spendCapUsd,
+    demoComplianceRevision: raw.demoComplianceRevision === true,
   };
 }
 

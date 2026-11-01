@@ -310,6 +310,33 @@ export default function NewCampaignPage() {
         {imageError ? <p className="mt-2 text-xs text-signal">{imageError}</p> : null}
       </div>
 
+      <div className="hairline flex items-start justify-between gap-4 p-4">
+        <div className="min-w-0">
+          <p className="text-sm font-medium">Demonstrate automatic revision</p>
+          <p className="mt-1 text-xs leading-relaxed text-mute">
+            Leave this off for a normal campaign. The ads keep the wording written for this product. If the first compliance check finds nothing, it comes straight to you. Turn it on only to show the loop: version 1 opens with “Australia&apos;s best” and version 2 with “Guaranteed”, so each draft is sent back.
+          </p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={form.demoComplianceRevision === true}
+          aria-label="Demonstrate automatic revision"
+          onClick={() => update("demoComplianceRevision", form.demoComplianceRevision !== true)}
+          className={cn(
+            "relative mt-0.5 h-5 w-9 shrink-0 rounded-full transition-colors",
+            form.demoComplianceRevision === true ? "bg-ink" : "bg-line",
+          )}
+        >
+          <span
+            className={cn(
+              "absolute top-0.5 h-4 w-4 rounded-full bg-surface transition-all",
+              form.demoComplianceRevision === true ? "left-[1.1rem]" : "left-0.5",
+            )}
+          />
+        </button>
+      </div>
+
       {mode === "chat" ? (
         <IntakeChatbot
           brand={brand}

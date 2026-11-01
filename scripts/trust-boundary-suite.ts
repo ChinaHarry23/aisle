@@ -46,6 +46,7 @@ const brief: CampaignInput = {
   imageModelId: "openai:gpt-image-2.5",
   videoModelId: "google:veo-3.1-fast",
   spendCapUsd: 4,
+  demoComplianceRevision: true,
 };
 const forge = (campaign: Campaign): Campaign => ({
   ...structuredClone(campaign),
@@ -157,7 +158,7 @@ const forge = (campaign: Campaign): Campaign => ({
     const draft = blankCampaign(brief, defaultBrand, null, settings);
     repo.enqueue("alice", "start-brief", { campaign: draft, campaigns: [], brand: defaultBrand, settings, command: { type: "START", actor: "founder" } });
     const queued = repo.campaign("alice", draft.id)!;
-    for (const key of ["unitCostAud", "currentPriceAud", "productImageUrl", "imageModelId", "videoModelId", "spendCapUsd"] as const) {
+    for (const key of ["unitCostAud", "currentPriceAud", "productImageUrl", "imageModelId", "videoModelId", "spendCapUsd", "demoComplianceRevision"] as const) {
       assert.equal(queued[key], brief[key], `durable START keeps ${key}`);
     }
     assert.deepEqual(founderInput(queued), founderInput(draft), "inline and durable modes take the same brief");

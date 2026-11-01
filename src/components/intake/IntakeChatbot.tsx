@@ -178,6 +178,7 @@ export function IntakeChatbot({
       unitCostAud: form.unitCostAud ?? null,
       currentPriceAud: form.currentPriceAud ?? null,
       productImageUrl: form.productImageUrl ?? null,
+      demoComplianceRevision: form.demoComplianceRevision === true,
     });
   }
 

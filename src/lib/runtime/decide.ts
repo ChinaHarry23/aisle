@@ -452,7 +452,7 @@ export async function decideCopy(input: {
     task: prompt,
   });
   if (seatedCopy?.answer.variants && seatedCopy.answer.variants.length >= 2) {
-    const cleaned = openWithDemoClaim(cleanVariants(seatedCopy.answer.variants, input.fallback, input.campaign), input.brand, input.version);
+    const cleaned = openWithDemoClaim(cleanVariants(seatedCopy.answer.variants, input.fallback, input.campaign), input.campaign, input.brand, input.version);
     return { variants: cleaned, trace: traceFromSeat("creative", seatedCopy) };
   }
 
@@ -467,18 +467,20 @@ export async function decideCopy(input: {
   const parsed = extractJson<{ variants?: CopyVariant[] }>(result.text);
   const variants = parsed?.variants?.filter((v) => v && typeof v.headline === "string");
   if (result.status === "ok" && variants && variants.length >= 2) {
-    const cleaned = openWithDemoClaim(cleanVariants(variants, input.fallback, input.campaign), input.brand, input.version);
+    const cleaned = openWithDemoClaim(cleanVariants(variants, input.fallback, input.campaign), input.campaign, input.brand, input.version);
     return { variants: cleaned, trace: traceFor("creative", assignment, result, true) };
   }
-  return { variants: openWithDemoClaim(input.fallback, input.brand, input.version), trace: traceFor("creative", assignment, result, false) };
+  return { variants: openWithDemoClaim(input.fallback, input.campaign, input.brand, input.version), trace: traceFor("creative", assignment, result, false) };
 }
 
 /**
- * The agent writes the poster lines. For the revision demo, variant A of v1 and
- * v2 then opens with a different brand-banned term, so compliance sends each
- * draft back. v3 is left as the agent wrote it.
+ * Optional revision demo. When the founder turns it on, variant A of v1 opens
+ * with “Australia's best” and v2 with “Guaranteed”, so compliance sends each
+ * draft back. v3 is left as written. Off, the model's lines are kept: a first
+ * check with no flags goes to the founder instead of another rewrite.
  */
-function openWithDemoClaim(variants: CopyVariant[], brand: BrandProfile, version: number): CopyVariant[] {
+function openWithDemoClaim(variants: CopyVariant[], campaign: Campaign, brand: BrandProfile, version: number): CopyVariant[] {
+  if (campaign.demoComplianceRevision !== true) return variants;
   const term = demoOpener(brand.bannedTerms, version);
   if (!term) return variants;
   return variants.map((variant, index) => {
@@ -489,12 +491,10 @@ function openWithDemoClaim(variants: CopyVariant[], brand: BrandProfile, version
 
 function demoOpener(banned: string[], version: number): string | null {
   if (version !== 1 && version !== 2) return null;
-  const terms = [...banned].map((item) => item.trim()).filter((item) => item.length > 1);
   const preferred = version === 1 ? "australia's best" : "guaranteed";
-  const named = terms.find((item) => item.toLowerCase() === preferred);
+  const named = banned.map((item) => item.trim()).find((item) => item.toLowerCase() === preferred);
   if (named) return named;
-  const ranked = [...terms].sort((a, b) => Number(/best/i.test(b)) - Number(/best/i.test(a)));
-  return ranked[version - 1] ?? null;
+  return version === 1 ? "Australia's best" : "Guaranteed";
 }
 
 /**

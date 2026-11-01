@@ -39,6 +39,7 @@ const draft: StrategyDraft = {
   limitations: ["Offline synthetic test data only."],
 };
 c.strategy = assembleStrategy(c, draft, fixtureAt, "MOCK ONLY");
+c.demoComplianceRevision = true;
 const fallback: CopyVariant[] = ["A", "B"].map(variant => ({ variant: variant as "A" | "B", kicker: "", headline: "Fixture product", subhead: c.product, cta: "Explore", caption: "Fixture caption", prompt: "Fixture pack" }));
 const response = [
   { ...fallback[0], headline: "A place at your lunch table", prompt: draft.visualDirection, insightUses: [{ insightId: "lunch-scene", application: "visual", rationale: "The glass and lunch-table scene make the serving occasion explicit." }, { insightId: "invented", application: "headline", rationale: "This ID was never supplied." }] },
@@ -68,6 +69,12 @@ assert.match(revised.variants[0].headline, /^guaranteed\./);
 assert.doesNotMatch(revised.variants[0].headline, /Australia's best/);
 const cleared = await decideCopy({ campaign: c, brand: defaultBrand, settings: defaultSettings(), version: 3, complianceNotes: [], fallback, llm: { request: async req => ({ ...stubComplete(req, "Offline fixture"), status: "ok", text: JSON.stringify({ variants: response }) }) } });
 assert.equal(cleared.variants[0].headline, "A place at your lunch table");
+const plain = { ...c, demoComplianceRevision: false };
+const untouched = await decideCopy({ campaign: plain, brand: defaultBrand, settings: defaultSettings(), version: 1, complianceNotes: [], fallback, llm: { request: async req => ({ ...stubComplete(req, "Offline fixture"), status: "ok", text: JSON.stringify({ variants: response }) }) } });
+assert.equal(untouched.variants[0].headline, "A place at your lunch table");
+const untouchedRevision = await decideCopy({ campaign: plain, brand: defaultBrand, settings: defaultSettings(), version: 2, complianceNotes: [], fallback, llm: { request: async req => ({ ...stubComplete(req, "Offline fixture"), status: "ok", text: JSON.stringify({ variants: response }) }) } });
+assert.equal(untouchedRevision.variants[0].headline, "A place at your lunch table");
+assert.doesNotMatch(untouchedRevision.variants[0].headline, /guaranteed/i);
 console.log("PASS actual creative request retains selected findings, evidence, applications and limitations; distinct concepts and valid adoption survive");
 
 const storedCreatives = buildCreatives(c, copy.variants, 1);

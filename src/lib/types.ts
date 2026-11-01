@@ -71,6 +71,12 @@ export type CampaignInput = {
   videoModelId?: string;
   /** Ceiling the founder sets on automated spend for this campaign. */
   spendCapUsd?: number;
+  /**
+   * Demo only. Version 1 is prefixed with “Australia's best” and version 2 with
+   * “Guaranteed”, so compliance sends each draft back. Off leaves the model's
+   * own wording, and a first check with no flags goes straight to the founder.
+   */
+  demoComplianceRevision?: boolean;
 };
 
 export type Trend = {

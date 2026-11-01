@@ -57,6 +57,7 @@ export function withRuntimeDefaults(campaign: Campaign): Campaign {
       typeof campaign.productImageUrl === "string" && campaign.productImageUrl.startsWith("data:image/")
         ? campaign.productImageUrl
         : null,
+    demoComplianceRevision: campaign.demoComplianceRevision === true,
     policyDecisions,
     runSteps,
     toolCalls,
