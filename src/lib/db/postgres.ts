@@ -25,6 +25,29 @@ function connect(url: string): Pool {
   return pool;
 }
 
+/** A one-off connection for DDL. Closed by the caller. Not the process pool. */
+export async function createEphemeralPostgresDatabase(url: string): Promise<Database & { close(): Promise<void> }> {
+  const client = new Pool({
+    connectionString: url,
+    max: 1,
+    connectionTimeoutMillis: 8_000,
+  });
+  try {
+    await client.query("select 1");
+  } catch (error) {
+    await client.end().catch(() => undefined);
+    throw new DatabaseUnavailableError(
+      `could not reach Postgres (${error instanceof Error ? error.message : "unknown error"})`,
+    );
+  }
+  return {
+    ...databaseFrom(client, url),
+    async close() {
+      await client.end();
+    },
+  };
+}
+
 export async function createPostgresDatabase(url: string): Promise<Database> {
   let client: Pool;
   try {
@@ -39,6 +62,10 @@ export async function createPostgresDatabase(url: string): Promise<Database> {
     );
   }
 
+  return databaseFrom(client, url);
+}
+
+function databaseFrom(client: Pool, url: string): Database {
   let host = "postgres";
   try {
     host = new URL(url).host || host;

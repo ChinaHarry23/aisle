@@ -6,6 +6,7 @@ import type { LedgerEntry } from "@/lib/billing/ledger";
 import type { BillingSummary } from "@/lib/billing/summary";
 import { CREDIT_PACK, formatCredits, milliForCost } from "@/lib/billing/plan";
 import { formatDate, formatUsd } from "@/lib/ids";
+import { useDeveloperView } from "@/components/DeveloperView";
 import { BuyCreditsButton } from "./BuyCreditsButton";
 import { BILLING_CHANGED } from "./events";
 
@@ -75,7 +76,7 @@ export function UsageView({ checkout }: { checkout: "success" | "cancel" | null 
         description={
           summary?.unlimited
             ? "This desk is not charged. Every cloud call is still written here in credits, so you can see what it would have cost."
-            : "Cloud agents, posters and videos spend the credits on this account. A local model does not."
+            : "OpenAI and Claude agents, posters and videos spend the credits on this account. Aisle's mtplx endpoint does not."
         }
       />
 
@@ -166,6 +167,7 @@ function UsageTable({
   loading: boolean;
   unlimited: boolean;
 }) {
+  const { developer } = useDeveloperView();
   if (loading) return <p className="mt-3 text-sm text-ink">Loading…</p>;
   if (!entries.length) return <p className="mt-3 text-sm text-ink">Nothing yet. Cloud calls show up here as they run.</p>;
   return (
@@ -183,14 +185,13 @@ function UsageTable({
           {entries.map((entry) => {
             const milli = spentMilli(entry);
             const spend = entry.reason === "usage" || entry.reason === "dev_usage";
+            const detail = [entry.note, developer ? entry.modelId : null, developer && entry.costUsd != null ? formatUsd(entry.costUsd) : null].filter(Boolean).join(" · ");
             return (
               <tr key={entry.id} className="border-b border-line last:border-0">
                 <td className="whitespace-nowrap px-4 py-3">{formatDate(entry.createdAt, true)}</td>
                 <td className="px-4 py-3">
                   <p>{REASON[entry.reason] ?? entry.reason}</p>
-                  <p className="text-xs text-ink">
-                    {[entry.note, entry.modelId, entry.costUsd != null ? formatUsd(entry.costUsd) : null].filter(Boolean).join(" · ")}
-                  </p>
+                  {detail ? <p className="text-xs text-ink">{detail}</p> : null}
                 </td>
                 <td className="px-4 py-3 text-right tabular-nums">
                   {milli === 0 ? "0" : `${milli > 0 ? "+" : "−"}${formatCredits(Math.abs(milli))}`}

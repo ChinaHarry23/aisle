@@ -297,14 +297,19 @@ async function approveAndAdvance(s: ReturnType<typeof session>, note: string) {
 
 /* CC-03: missing trusted policy must stop the automatic revision chain. */
 {
-  // The bundled registry has binding AU law, so its copyright, ethics, brand
-  // and platform gaps are reported as limitations, not as missing policy.
+  // The bundled registry has binding AU law, and the copyright, ethics, brand
+  // and website policies added for Australia. A web-only campaign does not
+  // require the Instagram or email platform rules.
   const bundled = await startAndAdvance({ channels: ["web"] });
   const selection = bundled.campaign.complianceReviewRuns?.[0].ruleSelection;
   assert.equal(selection?.problems.length, 0, "binding AU advertising and consumer law are present");
-  assert.ok(selection?.limitations?.some((line) => line.includes("copyright")));
-  assert.ok(bundled.campaign.complianceReviewRuns?.[0].report?.limitations.some((line) => line.includes("copyright")), "gaps reach the report");
-  pass("CC-03 — coverage gaps are reported, not treated as missing law", `${selection?.limitations?.length ?? 0} limitation(s)`);
+  assert.ok(selection?.rules.some((rule) => rule.id === "au-copyright-act-1968"));
+  assert.ok(selection?.rules.some((rule) => rule.id === "au-aana-code-of-ethics"));
+  assert.ok(selection?.rules.some((rule) => rule.id === "au-stored-brand-profile"));
+  assert.ok(selection?.rules.some((rule) => rule.id === "au-web-aana-code"));
+  assert.ok(!selection?.limitations?.some((line) => /copyright|ethics|brand|web platform/i.test(line)));
+  assert.ok(bundled.campaign.complianceReviewRuns?.[0].report?.limitations.every((line) => !line.includes("No copyright policy")));
+  pass("CC-03 — copyright, ethics, brand and web policies are in the registry", `${selection?.rules.length ?? 0} rule(s)`);
 }
 const bundledRules = process.env.AISLE_COMPLIANCE_RULES_FILE;
 process.env.AISLE_COMPLIANCE_RULES_FILE = path.join(root, "data", "no-such-policy-registry.json");

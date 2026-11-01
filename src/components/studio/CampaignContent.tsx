@@ -18,6 +18,7 @@ export function CampaignContent({ campaign }: { campaign: Campaign }) {
     return src ? [{ id: cr.id, src, label: `${cr.headline} (${cr.variant})`, creative: cr }] : [];
   });
   const reviewed = campaign.complianceReports.length > 0;
+  const occasion = campaign.culturalMatch;
 
   async function revise(event: FormEvent) {
     event.preventDefault();
@@ -30,9 +31,17 @@ export function CampaignContent({ campaign }: { campaign: Campaign }) {
     setNote("");
   }
 
+  const occasionNote = occasion ? (
+    <p className="text-sm leading-relaxed text-ink-soft">
+      <span className="font-medium text-ink">Occasion passed to these images: </span>
+      {occasion.name} ({occasion.dateLabel}). {occasion.scene}
+    </p>
+  ) : null;
+
   if (images.length > 0) {
     return (
       <div className="flex flex-col gap-6">
+        {occasionNote}
         <div className="grid gap-4 sm:grid-cols-2">
           {images.map((img) => {
             const uses = strategy && img.creative.strategyVersion === strategy.version
@@ -110,12 +119,20 @@ export function CampaignContent({ campaign }: { campaign: Campaign }) {
   }
 
   if (campaign.status === "generating" || campaign.run?.step === "creative.receive") {
-    return <p className="text-sm text-ink-soft">Image generation is running for this campaign.</p>;
+    return (
+      <div className="flex flex-col gap-3">
+        {occasionNote}
+        <p className="text-sm text-ink-soft">Image generation is running for this campaign.</p>
+      </div>
+    );
   }
 
   return (
-    <p className="text-sm text-ink-soft">
-      No image yet. Launch the agents and the image step renders the posters, using a product photo when you uploaded one.
-    </p>
+    <div className="flex flex-col gap-3">
+      {occasionNote}
+      <p className="text-sm text-ink-soft">
+        No image yet. Launch the agents and the image step renders the posters, using a product photo when you uploaded one.
+      </p>
+    </div>
   );
 }

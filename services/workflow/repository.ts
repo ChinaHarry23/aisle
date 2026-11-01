@@ -1,5 +1,4 @@
 import {recordStoredTrend} from '../../src/lib/trend/quality';
-import { retailUploadSchema } from "../../src/lib/trend/internal-retail";
 import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
@@ -104,8 +103,6 @@ export class WorkflowRepository {
         // Only founder inputs cross the trust boundary. Never accept browser approvals, logs or results.
         const raw = input.campaign;
         const fields = founderInput(raw);
-        const retail = raw.internalDataAuthorised === true && raw.retailUpload !== undefined ? retailUploadSchema.safeParse(raw.retailUpload) : null;
-        if (retail && !retail.success) throw new WorkflowError("Invalid aggregate retail upload.");
         const fresh = {
           ...applySelectedFeedback(
             blankCampaign(fields, input.brand, null, input.settings, null),
@@ -114,8 +111,6 @@ export class WorkflowRepository {
             input.campaigns,
           ),
           id: raw.id,
-          internalDataAuthorised: raw.internalDataAuthorised === true,
-          ...(retail?.success ? { retailUpload: retail.data } : {}),
           ...(raw.dataAccessPolicy === undefined ? {} : { dataAccessPolicy: { externalSources: Array.isArray(raw.dataAccessPolicy?.externalSources) ? raw.dataAccessPolicy.externalSources.filter((name: unknown): name is string => typeof name === "string") : [] } }),
         };
         if (current) { fresh.log = current.log; fresh.createdAt = current.createdAt; }
@@ -123,19 +118,6 @@ export class WorkflowRepository {
         this.db.prepare("insert into workflow_campaigns(user_id,campaign_id,snapshot) values(?,?,?) on conflict(user_id,campaign_id) do update set snapshot=excluded.snapshot").run(user, current.id, JSON.stringify(current));
       }
       // These are explicit founder-controlled settings, never generated results or approvals.
-      // A paused research job can receive a new aggregate export on explicit
-      // START. Preserve the durable scope/results; import only validated inputs.
-      if ((command.type === 'START' || command.type === 'RESOLVE_TREND' && command.action === 'provide_data') && current.status === 'paused') {
-        if (input.campaign.internalDataAuthorised === true && input.campaign.retailUpload !== undefined) {
-          const retail=retailUploadSchema.safeParse(input.campaign.retailUpload);
-          if(!retail.success)throw new WorkflowError('Invalid aggregate retail upload.');
-          current.retailUpload=retail.data;
-          current.internalDataAuthorised=true;
-        } else if (input.campaign.internalDataAuthorised === false) {
-          current.internalDataAuthorised=false;
-          current.retailUpload=undefined;
-        }
-      }
       if (Number.isFinite(input.campaign.spendCapUsd) && input.campaign.spendCapUsd! > 0) current.spendCapUsd = input.campaign.spendCapUsd;
       if (command.type === "COLLECT_FEEDBACK") current.collectorOverrides = founderCollectorOverrides(current, input.campaign.collectorOverrides);
       assertTransition(current, command);

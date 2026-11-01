@@ -23,6 +23,7 @@ import { formatDate, formatNumber } from "@/lib/ids";
 import { channelLabel } from "@/lib/status";
 import { isArchived } from "@/lib/campaign-lifecycle";
 import { campaignCanAdvance } from "@/lib/runtime/resume";
+import { useDeveloperView } from "@/components/DeveloperView";
 import { TrendReport } from '@/components/trend/TrendReport';
 import { SaveInsightsPanel } from "@/components/insights/FeedbackInsights";
 import { useAisle } from "@/lib/store";
@@ -112,12 +113,11 @@ function CampaignWorkspace() {
   const restoreCampaign = useAisle((s) => s.restoreCampaign);
   const deleteCampaign = useAisle((s) => s.deleteCampaign);
   const busy = useAisle((s) => s.busy[id] ?? false);
+  const activity = useAisle((s) => s.activity[id] ?? "");
   const launchLock = useRef(false);
   const router = useRouter();
   const setTab = (next: Tab) => router.replace(`/campaigns/${id}?tab=${next}`, { scroll: false });
-  const attachRetailUpload = useAisle((s) => s.attachRetailUpload);
-  const [retailConsent, setRetailConsent] = useState(false);
-  const [retailImportMessage, setRetailImportMessage] = useState("");
+  const { developer } = useDeveloperView();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [note, setNote] = useState("");
   const [recommendationDraft, setRecommendationDraft] = useState<string | null>(null);
@@ -149,7 +149,8 @@ function CampaignWorkspace() {
   const requestedTab = searchParams.get("tab");
   const researchPending = campaign.trendRequests?.some((request) => request.status === "pending") ?? false;
   const fallbackTab: Tab = researchPending ? "research" : campaign.status === "awaiting_approval" ? "compliance" : "brief";
-  const tab: Tab = tabs.includes(requestedTab as Tab) ? (requestedTab as Tab) : fallbackTab;
+  const visibleTabs = tabs.filter((item) => developer || (item !== "runtime" && item !== "log"));
+  const tab: Tab = visibleTabs.includes(requestedTab as Tab) ? (requestedTab as Tab) : fallbackTab;
   const needsYou = campaign.status === "awaiting_approval";
   const canPublish = campaign.status === "scheduled";
 
@@ -169,6 +170,7 @@ function CampaignWorkspace() {
               {campaign.product} · {campaign.targetAudience} ·{" "}
               {campaign.country}
             </p>
+            {busy && activity ? <p className="mt-2 text-sm text-signal">{activity}</p> : null}
             {campaign.imageRevisionNote && campaign.complianceReports.length > 0 ? (
               <p className="mt-2 max-w-xl text-sm text-ink-soft">
                 The pictures were revised after the compliance report. Check the new images before approving.
@@ -276,18 +278,18 @@ function CampaignWorkspace() {
         {engineError && campaignCanAdvance(campaign) ? (
           <p className="mt-3 text-sm text-signal">{engineError}</p>
         ) : null}
-        {run?.status === "running" || campaign.spend.blockedAttempts > 0 ? (
+        {run?.status === "running" ? (
+          <p className="mt-3 text-xs text-mute">Agents are working on this now.</p>
+        ) : null}
+        {developer && campaign.spend.blockedAttempts > 0 ? (
           <p className="mt-3 text-xs text-mute">
-            {run?.status === "running" ? "Agents are working on this now. " : ""}
-            {campaign.spend.blockedAttempts > 0 ? (
-              <button
-                type="button"
-                onClick={() => setTab("runtime")}
-                className="text-signal hover:underline"
-              >
-                {campaign.spend.blockedAttempts} action(s) blocked by safety rules
-              </button>
-            ) : null}
+            <button
+              type="button"
+              onClick={() => setTab("runtime")}
+              className="text-signal hover:underline"
+            >
+              {campaign.spend.blockedAttempts} action(s) blocked by safety rules
+            </button>
           </p>
         ) : null}
         {campaign.validationProblems.length > 0 ? (
@@ -303,7 +305,7 @@ function CampaignWorkspace() {
       </div>
 
       <div className="-mt-2 flex gap-1 overflow-x-auto border-b border-line">
-        {tabs.map((t) => (
+        {visibleTabs.map((t) => (
           <button
             key={t}
             type="button"
@@ -326,7 +328,10 @@ function CampaignWorkspace() {
       {tab === "brief" ? (
         <section className="grid gap-6 lg:grid-cols-2">
           <div className="hairline p-4">
-            <SectionTitle kicker="Shared context" title="What every agent can see" />
+            <SectionTitle
+              kicker={developer ? "Shared context" : "Campaign"}
+              title={developer ? "What every agent can see" : "What this campaign is about"}
+            />
             <dl className="mt-4 grid gap-3 text-sm">
               <Row k="Retailer" v={campaign.sharedContext.retailer} />
               <Row k="Product" v={campaign.sharedContext.product} />
@@ -408,11 +413,13 @@ function CampaignWorkspace() {
               </div>
             ) : (
               <p className="mt-4 text-sm text-ink-soft">
-                Launch agents to produce a structured brief the creative agent can actually use.
+                {developer
+                  ? "Launch agents to produce a structured brief the creative agent can actually use."
+                  : "Launch the campaign and the brief will be written here."}
               </p>
             )}
             {campaign.running ? (
-              <p className="mt-6 text-sm text-signal">Agents are working this campaign now.</p>
+              <p className="mt-6 text-sm text-signal">{busy && activity ? activity : "Agents are working this campaign now."}</p>
             ) : null}
           </div>
         </section>
@@ -423,25 +430,9 @@ function CampaignWorkspace() {
           <TrendReport campaign={campaign} />
           {campaign.status === 'paused' && campaign.run?.step === 'trend.receive' && <div className="hairline p-5">
             <h3 className="font-medium">Continue the research</h3>
-            <p className="mt-2 text-sm text-mute">After resolving source access or attaching an authorised export, run research again for the same campaign scope. Existing evidence remains in the audit history. Another run may use model and research credits; it cannot approve unsupported findings.</p>
+            <p className="mt-2 text-sm text-mute">{developer ? "After resolving source access, run research again for the same campaign scope. Existing evidence remains in the audit history. Another run may use model and research credits; it cannot approve unsupported findings." : "Add a source or correct the brief, then run the research again. Earlier findings stay on this campaign."}</p>
             <button disabled={busy} className="mt-4 rounded-full bg-signal px-5 py-2 text-sm text-white disabled:opacity-50" onClick={()=>void launch(campaign.id)}>Run research again</button>
           </div>}
-          <div id="retail-data">
-          <Details title="Optional authorised retail data">
-            <p className="text-sm">Upload aggregate sales only, using CSV columns sku,category,week,units. Week dates must use YYYY-MM-DD. No customer-level data or extra columns. The analysis receives category totals by week; raw SKU rows are excluded from model and search requests.</p>
-            <label className="text-sm"><input type="checkbox" checked={retailConsent} onChange={e=>setRetailConsent(e.target.checked)} disabled={busy || campaign.running} /> I authorise this aggregate retail data to be used for this campaign.</label>
-            <input aria-label="Aggregate retail CSV" type="file" accept=".csv" disabled={!retailConsent || busy || campaign.running} onChange={async e=>{
-              const file=e.target.files?.[0];if(!file)return;
-              const form=new FormData();form.set('file',file);form.set('authorised','true');
-              setRetailImportMessage('Validating aggregate CSV…');
-              try {const response=await fetch('/api/retail/import',{method:'POST',body:form});const body=await response.json();
-                if(!response.ok)throw Error(body.error ?? 'Import failed.');
-                attachRetailUpload(id,body.upload);setRetailImportMessage('Aggregate export attached. It will be used on the next permitted research run.');
-              } catch(error) {setRetailImportMessage(error instanceof Error ? error.message : 'Import failed.');}
-            }} />
-            <p className="text-sm" role="status">{retailImportMessage || (campaign.retailUpload ? `Export attached: ${campaign.retailUpload.rows.length} aggregate rows.` : 'External-only research is available without an upload.')}</p>
-          </Details>
-          </div>
         </section>
       ) : null}
 

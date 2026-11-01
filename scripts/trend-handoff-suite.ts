@@ -25,7 +25,7 @@ c.evidence = [{ ...original, id: 'product-source', detail: `${productQuote}\n${v
 c.researchAttempts = [{ category: 'current_market', tool: 'web.scrape_page', phase: 'mandatory', status: 'ok', summary: 'Offline source fixture', evidenceIds: ['product-source'] }];
 c.researchCoverage = coverageFor(c, c.evidence);
 const assessment: QualityAssessment = {
-  evidence: [{ id: 'product-source', sensitive: false, relevant: true, geography: 'matches', temporal: 'unknown', reliability: 'primary', originEvidenceId: null, reason: 'Offline original-page fixture.' }],
+  evidence: [{ id: 'product-source', sensitive: false, relevant: true, geography: 'matches', temporal: 'unknown', reliability: 'primary', constructive: false, originEvidenceId: null, reason: 'Offline original-page fixture.' }],
   areas: [{ category: 'current_market', channel: null, summary: 'Offline product identity fixture.', supports: [{ evidenceId: 'product-source', quote: productQuote }], limitation: 'Different weights must be checked.' }],
   findings: [
     { id: 'product-identity', category: 'MARKET', claim: 'The listing identifies the named chicken product and Australian origin.', main: true, confidence: 'high', supports: [{ evidenceId: 'product-source', quote: productQuote }], relevance: 'Verify the visible product wording.', conflict: null, limitation: 'The source is a 1.4kg pack; verify the depicted pack. No future price or nutrition claim established.', material: true },

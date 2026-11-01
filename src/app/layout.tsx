@@ -1,10 +1,7 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
 import { Geist, Geist_Mono } from "next/font/google";
-import { AppShell } from "@/components/AppShell";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
-import { readSession, SESSION_COOKIE } from "@/lib/auth/session";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -23,9 +20,7 @@ export const metadata: Metadata = {
     "AI agents that plan, create, check and publish your retail promotions, with you approving anything risky.",
 };
 
-export default async function RootLayout({ children }: LayoutProps<"/">) {
-  const token = (await cookies()).get(SESSION_COOKIE)?.value;
-  const signedIn = token ? (await readSession(token)) !== null : false;
+export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en-AU"
@@ -33,7 +28,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-paper font-sans text-ink">
-        <AppShell signedIn={signedIn}>{children}</AppShell>
+        {children}
         <Analytics />
         <SpeedInsights />
       </body>

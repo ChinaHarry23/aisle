@@ -109,6 +109,25 @@ pass('a failed recovery request cannot erase the valid first response');
 pass('an unavailable envelope repair retains validated items without claiming recovery succeeded');
 
 {
+  const { assessment } = briefFixture();
+  const reply = structuredClone(assessment);
+  const channel = { ...assessment.findings[0], id: 'raw-5', category: 'CHANNEL', claim: 'Use Instagram Reels for the protein occasion. '.repeat(2) };
+  const seasonal = { ...assessment.findings[0], id: 'raw-6', category: 'seasonal', claim: 'Do not build a November seasonal hook. '.repeat(2) };
+  const typo = { ...assessment.findings[0], id: 'raw-8', support: assessment.findings[0].supports };
+  delete (typo as { supports?: unknown }).supports;
+  reply.findings = [...assessment.findings, ...( [channel, seasonal, typo] as unknown as typeof assessment.findings )];
+  const recovered = recoverQualityAssessment(reply);
+  assert.equal(recovered.issues.length, 0);
+  assert.equal(recovered.assessment?.findings.find(f => f.id === 'raw-5')?.category, 'OPPORTUNITY');
+  assert.equal(recovered.assessment?.findings.find(f => f.id === 'raw-6')?.category, 'SEASONAL_CULTURAL');
+  const renamed = recovered.assessment?.findings.find(f => f.id === 'raw-8');
+  assert.equal(renamed?.category, assessment.findings[0].category);
+  assert.deepEqual(renamed?.supports, assessment.findings[0].supports);
+  assert.equal(qualityAssessmentSchema.safeParse(recovered.assessment).success, true);
+}
+pass('a channel or seasonal label is filed under the report categories, and support is read as supports');
+
+{
   const { assessment, invalid } = fixture();
   const before = recoverQualityAssessment(invalid);
   const altered = structuredClone(assessment.findings[2]);
@@ -156,7 +175,7 @@ pass('a malformed response envelope can be rebuilt once from the same saved evid
   // Even an otherwise favourable semantic review cannot promote a demo record.
   c.evidence = [{ ...result.evidence[0], status: 'verified' }];
   c.researchCoverage = coverageFor(c, c.evidence);
-  const reviewed: QualityAssessment = { evidence: [{ id: c.evidence[0].id, sensitive: false, relevant: true, geography: 'matches', temporal: 'fits', reliability: 'primary', originEvidenceId: null, reason: 'SYNTHETIC favourable model response.' }], areas: [], findings: [] };
+  const reviewed: QualityAssessment = { evidence: [{ id: c.evidence[0].id, sensitive: false, relevant: true, geography: 'matches', temporal: 'fits', reliability: 'primary', constructive: false, originEvidenceId: null, reason: 'SYNTHETIC favourable model response.' }], areas: [], findings: [] };
   assert.match(evaluateQuality(c, reviewed, fixtureAt, 'MOCK').evidence[0].exclusions.join(' '), /Synthetic demonstration/);
 }
 pass('the bundled Coles dataset retains its demo provenance and never substantiates a live campaign');

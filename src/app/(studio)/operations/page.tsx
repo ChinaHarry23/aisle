@@ -2,14 +2,17 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useDeveloperView } from "@/components/DeveloperView";
 import type { WorkflowJob } from "@/lib/workflow/types";
 
 type Snapshot = { enabled: boolean; jobs: WorkflowJob[]; worker: { online: boolean; lastSeen: string | null } };
 export default function OperationsPage() {
+  const { developer } = useDeveloperView();
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [error, setError] = useState("");
   const [retrying, setRetrying] = useState<string | null>(null);
   useEffect(() => {
+    if (!developer) return;
     let cancelled = false, loading = false;
     const refresh = async () => {
       if (loading) return;
@@ -25,7 +28,7 @@ export default function OperationsPage() {
     void refresh();
     const timer = setInterval(refresh, 2000);
     return () => { cancelled = true; clearInterval(timer); };
-  }, []);
+  }, [developer]);
   async function retry(id: string) {
     if (!window.confirm("A provider call may have completed before the worker stopped. Check provider usage first. Retry from the last saved checkpoint?")) return;
     setRetrying(id);
@@ -36,6 +39,16 @@ export default function OperationsPage() {
       setError("");
     } catch (e) { setError(e instanceof Error ? e.message : "Retry failed."); }
     finally { setRetrying(null); }
+  }
+  if (!developer) {
+    return (
+      <div className="flex flex-col gap-3">
+        <h1 className="font-serif text-4xl">Workflow status</h1>
+        <p className="max-w-xl text-sm text-ink-soft">
+          Job checkpoints, the worker heartbeat and retry controls are debugging tools. Switch to Developer view in the top bar to see them.
+        </p>
+      </div>
+    );
   }
   return <div className="flex flex-col gap-6">
     <header><p className="text-xs uppercase tracking-widest text-signal">AHR 01-06 / service operations</p><h1 className="mt-2 font-serif text-4xl">Work continues off-screen.</h1><p className="mt-3 max-w-3xl text-sm text-ink-soft">The web app submits a durable job. A separate agent worker performs the hand-offs, saves each completed step and stops for your approval. Closing the browser does not cancel the job.</p></header>

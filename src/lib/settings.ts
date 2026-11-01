@@ -1,8 +1,8 @@
 import { DEFAULT_IMAGE_MODEL, DEFAULT_VIDEO_MODEL, getModelOrDefault } from "./media/catalog";
-import { DEFAULT_LLM } from "./llm/catalog";
+import { canonicalLlmId, canonicalLocalTag, DEFAULT_LLM } from "./llm/catalog";
 import type { AgentSlot, LlmAssignment } from "./llm/types";
 
-/** Ollama's OpenAI-compatible endpoint, the shipped Local default. */
+/** MTPLX on the studio Mac. The public site reaches it through the ngrok address saved in Settings. */
 export const DEFAULT_LOCAL_BASE_URL = "http://127.0.0.1:11434/v1";
 
 export type TrendSourceKind = "url" | "feed" | "document" | "keyword";
@@ -34,12 +34,32 @@ export type WorkspaceSettings = {
   videoDurationSec: number;
   localBaseUrl: string;
   localModel: string;
+  /** Set once an account has been moved onto the current shipped text-model default. */
+  llmDefaultRevision?: number;
 };
 
 const openaiDefault: LlmAssignment = { provider: "openai", modelId: DEFAULT_LLM };
+const AGENT_SLOTS = ["trend", "creative", "compliance", "media"] as const;
+/** Accounts saved before Sol was the default still have Luna on every seat. */
+const PREVIOUS_OPENAI_DEFAULT = "openai:gpt-6-luna";
+const LLM_DEFAULT_REVISION = 2;
+
+function migrateAgents(
+  base: WorkspaceSettings["agents"],
+  saved: Partial<WorkspaceSettings["agents"]> | undefined,
+): WorkspaceSettings["agents"] {
+  const agents = { ...base, ...saved };
+  for (const slot of AGENT_SLOTS) {
+    const seat = agents[slot];
+    const modelId = canonicalLlmId(seat.modelId);
+    if (modelId !== seat.modelId) agents[slot] = { provider: "local", modelId };
+  }
+  return agents;
+}
 
 export function defaultSettings(): WorkspaceSettings {
   return {
+    llmDefaultRevision: LLM_DEFAULT_REVISION,
     agents: {
       trend: { ...openaiDefault },
       creative: { ...openaiDefault },
@@ -51,20 +71,24 @@ export function defaultSettings(): WorkspaceSettings {
     videoModelId: DEFAULT_VIDEO_MODEL,
     videoDurationSec: 8,
     localBaseUrl: DEFAULT_LOCAL_BASE_URL,
-    localModel: "llama3.1",
+    localModel: canonicalLocalTag(undefined),
   };
 }
 
 export function withSettingsDefaults(partial?: Partial<WorkspaceSettings> | null): WorkspaceSettings {
   const base = defaultSettings();
   if (!partial) return base;
+  const stillOnPreviousDefault = (partial.llmDefaultRevision ?? 0) < LLM_DEFAULT_REVISION
+    && AGENT_SLOTS.every((slot) => {
+      const saved = partial.agents?.[slot];
+      return !saved || (saved.provider === "openai" && saved.modelId === PREVIOUS_OPENAI_DEFAULT);
+    });
   return {
     ...base,
     ...partial,
-    agents: {
-      ...base.agents,
-      ...partial.agents,
-    },
+    llmDefaultRevision: LLM_DEFAULT_REVISION,
+    agents: stillOnPreviousDefault ? base.agents : migrateAgents(base.agents, partial.agents),
+    localModel: canonicalLocalTag(partial.localModel ?? base.localModel),
     trendSources: partial.trendSources ?? base.trendSources,
     imageModelId: getModelOrDefault(partial.imageModelId, "image").id,
     videoModelId: getModelOrDefault(partial.videoModelId, "video").id,

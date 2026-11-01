@@ -11,7 +11,6 @@ import { applySelectedFeedback, type SavedInsight } from "@/lib/insights";
 import { withRuntimeDefaults } from "@/lib/runtime/defaults";
 import { blankCampaign } from "@/lib/seed";
 import type { WorkspaceSettings } from "@/lib/settings";
-import { retailUploadSchema } from "@/lib/trend/internal-retail";
 import type { BrandProfile, Campaign } from "@/lib/types";
 import { assertTransition, parseCommand, WorkflowError } from "./commands";
 import { founderInput } from "./founder-input";
@@ -42,10 +41,6 @@ function founderDataAccess(raw: Campaign): Pick<Campaign, "dataAccessPolicy"> {
 }
 
 function freshDraft(submitted: Campaign, stored: StoredWorkspace, prior: Campaign | undefined): Campaign {
-  const retail = submitted.internalDataAuthorised === true && submitted.retailUpload !== undefined
-    ? retailUploadSchema.safeParse(submitted.retailUpload)
-    : null;
-  if (retail && !retail.success) throw new WorkflowError("Invalid aggregate retail upload.");
   const fresh = {
     ...applySelectedFeedback(
       blankCampaign(founderInput(submitted), stored.brand, null, stored.settings, null),
@@ -54,8 +49,6 @@ function freshDraft(submitted: Campaign, stored: StoredWorkspace, prior: Campaig
       stored.campaigns,
     ),
     id: submitted.id,
-    internalDataAuthorised: submitted.internalDataAuthorised === true,
-    ...(retail?.success ? { retailUpload: retail.data } : {}),
     ...founderDataAccess(submitted),
   };
   if (prior) {
@@ -102,18 +95,6 @@ export function resolveInlineEngine(stored: StoredWorkspace, body: InlineBody): 
     campaign = withRuntimeDefaults(structuredClone(prior));
     if (Number.isFinite(body.campaign.spendCapUsd) && body.campaign.spendCapUsd! > 0) {
       campaign.spendCapUsd = body.campaign.spendCapUsd;
-    }
-    if (
-      (prior.trendQuality || prior.researchMode === "agent") &&
-      command.type === "RESOLVE_TREND" &&
-      command.action === "provide_data" &&
-      body.campaign.internalDataAuthorised &&
-      body.campaign.retailUpload
-    ) {
-      const retail = retailUploadSchema.safeParse(body.campaign.retailUpload);
-      if (!retail.success) throw new WorkflowError("Invalid aggregate retail upload.");
-      campaign.retailUpload = retail.data;
-      campaign.internalDataAuthorised = true;
     }
     if (command.type === "COLLECT_FEEDBACK") {
       const valid = ["ok", "no_data", "not_authorised", "late", "incomplete", "excluded"];

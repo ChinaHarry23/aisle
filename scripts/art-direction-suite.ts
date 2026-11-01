@@ -73,7 +73,7 @@ assert.match(JSON.parse(another.prompt).styleReferencePolicy, /not binding requi
 assert.notEqual(another.prompt, req.prompt);
 console.log("PASS product-specific context, actual system role, optional reference data and honest renderer capabilities");
 
-for (const id of ["local:custom", "openai:gpt-6-luna", "anthropic:claude-sonnet-5.5"]) {
+for (const id of ["local:mtplx", "openai:gpt-6-luna", "anthropic:claude-sonnet-5.5"]) {
   const model = getLlmOrDefault(id);
   assert.equal(model.id, id);
   const body = buildLlmBody(model, req);
@@ -87,8 +87,8 @@ for (const id of ["local:custom", "openai:gpt-6-luna", "anthropic:claude-sonnet-
     else assert.equal(body.temperature, 0.4);
   }
 }
-assert.equal(estimateLlmUsage(getLlmOrDefault("local:custom"), { agent: "creative", prompt: "1234".repeat(100) }).inputTokens, 100);
-assert.throws(() => outputCap(getLlmOrDefault("local:custom"), { maxOutputTokens: 8001 }), /Invalid/);
+assert.equal(estimateLlmUsage(getLlmOrDefault("local:mtplx"), { agent: "creative", prompt: "1234".repeat(100) }).inputTokens, 100);
+assert.throws(() => outputCap(getLlmOrDefault("local:mtplx"), { maxOutputTokens: 8001 }), /Invalid/);
 assert.equal(existsSync("src/app/api/agents/complete/route.ts"), false, "Cindy deleted the public completion route");
 console.log("PASS adapter system messages (caller system for OpenAI-compatible, seat system for Anthropic); public completion route stays deleted");
 

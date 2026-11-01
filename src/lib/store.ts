@@ -35,6 +35,8 @@ type Store = {
   /** Set when a command failed to reach the bench. Cleared by the next success. */
   engineError: string | null;
   busy: Record<string, boolean>;
+  /** What the open engine request is doing, so the desk is not a blank spinner. */
+  activity: Record<string, string>;
   setHydrated: () => void;
   hydrateFromServer: (data: {
     brand: BrandProfile;
@@ -92,7 +94,6 @@ type Store = {
   ) => void;
   /** Show the founder what the policy layer does with an out-of-bounds attempt. */
   attemptBlocked: (id: string, action: GuardedAction, note?: string) => Promise<string>;
-  attachRetailUpload: (id: string, upload: NonNullable<Campaign['retailUpload']>) => void;
   /** Edit the posters already generated, using the founder's description of the mistake. */
   revisePosters: (id: string, note: string) => Promise<{ ok: true; message: string } | { ok: false; error: string }>;
 };
@@ -150,6 +151,10 @@ export const useAisle = create<Store>()(
        */
       const pumping = new Set<string>();
 
+      function note(id: string, detail: string) {
+        set((s) => ({ activity: { ...s.activity, [id]: detail } }));
+      }
+
       async function pump(id: string) {
         if (pumping.has(id)) return;
         pumping.add(id);
@@ -164,8 +169,9 @@ export const useAisle = create<Store>()(
               { campaigns: state.campaigns, brand: state.brand, settings: state.settings },
               campaign,
               { type: "ADVANCE", actor: "founder" } satisfies Command,
+              (detail) => note(id, detail),
             );
-            set((s) => ({ ...applyResult(s, result), busy: { ...s.busy, [id]: false } }));
+            set((s) => ({ ...applyResult(s, result), busy: { ...s.busy, [id]: false }, activity: { ...s.activity, [id]: "" } }));
             if (!result.error) {
               failures = 0;
               if (!result.canAdvance) return;
@@ -220,8 +226,9 @@ export const useAisle = create<Store>()(
           { campaigns: state.campaigns, brand: state.brand, settings: state.settings },
           campaign,
           cmd,
+          (detail) => note(id, detail),
         );
-        set((s) => ({ ...applyResult(s, result), busy: { ...s.busy, [id]: false } }));
+        set((s) => ({ ...applyResult(s, result), busy: { ...s.busy, [id]: false }, activity: { ...s.activity, [id]: "" } }));
         if (options.pumpAfter !== false && result.canAdvance) await pump(id);
       }
 
@@ -234,6 +241,7 @@ export const useAisle = create<Store>()(
         settings: defaultSettings(),
         engineError: null,
         busy: {},
+        activity: {},
         setHydrated: () => set({ hydrated: true }),
         hydrateFromServer: (data) => {
           const state = get();
@@ -428,8 +436,6 @@ export const useAisle = create<Store>()(
           set((s) => applyResult(s, result));
           return result.message;
         },
-
-        attachRetailUpload: (id, upload) => set(s => ({campaigns:s.campaigns.map(c => c.id === id && !c.running ? {...c,retailUpload:upload,internalDataAuthorised:true,updatedAt:new Date().toISOString()} : c)})),
 
         revisePosters: async (id, note) => {
           const campaign = get().campaigns.find((c) => c.id === id);

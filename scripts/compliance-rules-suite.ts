@@ -48,6 +48,7 @@ assert.equal(resolveReviewOutcome({ ...gate, agentOutcome: "pass", issueCount: 1
 assert.equal(resolveReviewOutcome({ ...gate, agentOutcome: "pass", policyProblems: ["missing"] }), "manual_review");
 assert.equal(resolveReviewOutcome({ ...gate, agentOutcome: null }), "manual_review");
 assert.equal(resolveReviewOutcome({ ...gate, agentOutcome: "changes_required", issueCount: 1 }), "changes_required");
-assert.equal(resolveReviewOutcome({ ...gate, agentOutcome: "changes_required", issueCount: 1, attempt: 3 }), "manual_review");
+assert.equal(resolveReviewOutcome({ ...gate, agentOutcome: "changes_required", issueCount: 1, attempt: 3 }), "changes_required");
+assert.equal(resolveReviewOutcome({ ...gate, agentOutcome: "changes_required", issueCount: 1, attempt: 4 }), "manual_review");
 assert.equal(resolveReviewOutcome({ ...gate, agentOutcome: "changes_required" }), "manual_review");
 console.log("PASS CC-03/04: source authorisation, coverage, dates, conflicts, jurisdiction/platform/audience selection, no content scan, and outcome guard rails.");

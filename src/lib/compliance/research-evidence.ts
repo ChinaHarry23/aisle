@@ -20,7 +20,7 @@ export function complianceResearchEvidence(c: Campaign, copy: string) {
     const supports = finding.supports.filter(support => {
       const source = c.evidence.find(e => e.id === support.evidenceId);
       return source && finding.usableEvidenceIds.includes(source.id)
-        && source.origin !== 'synthetic' && source.research?.quality !== 'snippet'
+        && source.origin !== 'synthetic' && source.research?.quality !== 'snippet' // suggestions may use a reviewed snippet; ad claims still need the original page
         && (source.status === 'verified' || source.status === 'conflicting')
         && normalized(source.detail).includes(normalized(support.quote));
     });

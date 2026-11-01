@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRef, useState } from "react";
-import { ChevronDown, LogOut, Receipt, SlidersHorizontal } from "lucide-react";
+import { ChevronDown, CreditCard, LogOut, Receipt, SlidersHorizontal } from "lucide-react";
 import { useDismiss } from "@/components/useDismiss";
 import type { PublicUser } from "@/lib/auth/types";
 
@@ -47,6 +47,15 @@ export function UserMenu({
             <p className="truncate text-xs text-mute">{user.email}</p>
           </div>
           <div className="my-1 h-px bg-line" />
+          <Link
+            href="/billing"
+            role="menuitem"
+            onClick={() => setOpen(false)}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-ink hover:bg-paper-2"
+          >
+            <CreditCard size={14} />
+            Billing
+          </Link>
           <Link
             href="/account/usage"
             role="menuitem"

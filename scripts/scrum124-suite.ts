@@ -83,7 +83,10 @@ try{
  assert.equal(actual,3);assert.ok(seen.some(o=>o.summary.includes('cap reached')));pass('combined collection/enrichment executor cap blocks I/O before dispatch');
  const answer={priorities:[],angle:'SYNTHETIC partial',keyMessage:'Review',claimsAllowed:[],claimsAvoid:[],visualDirection:'Product only',limitations:['SYNTHETIC gaps']};
  const spans:{id:string;parent?:string;name:string}[]=[];let turns=0;
- const traced=createTrendResearch(undefined,{mode:'mock',complete:async req=>++turns===1?{...stubComplete(req,'MOCK'),status:'ok',text:null,toolCalls:[{id:'one',name:'web.scrape_page',args:args['web.scrape_page']},{id:'two',name:'calendar.public_holidays',args:args['calendar.public_holidays']}]}:{...stubComplete(req,'MOCK'),status:'ok',text:JSON.stringify(answer)}});
+ const traced=createTrendResearch(undefined,{mode:'mock',complete:async req=>{
+  if(String(req.prompt??'').includes('Product seasonality judgement'))return {...stubComplete(req,'MOCK'),status:'ok',text:JSON.stringify({seasonal:true,reason:'This fixture product has a seasonal occasion worth checking.'})};
+  return ++turns===1?{...stubComplete(req,'MOCK'),status:'ok',text:null,toolCalls:[{id:'one',name:'web.scrape_page',args:args['web.scrape_page']},{id:'two',name:'calendar.public_holidays',args:args['calendar.public_holidays']}]}:{...stubComplete(req,'MOCK'),status:'ok',text:JSON.stringify(answer)};
+ }});
  globalThis.fetch=async url=>String(url).includes('nager')?fixture('calendar.public_holidays',String(url)):new Response('<main>SYNTHETIC original source</main>',{headers:{'Content-Type':'text/html'}});delete process.env.FIRECRAWL_API_KEY;
  const c=campaign();await runEngine({campaigns:[c],now:at},c,{type:'START',actor:'founder'},settings,defaultBrand,{llm:{request:async()=>{throw Error('Unexpected separate decision');},research:traced},traceConfig:{callbacks:[{name:'SCRUM124LocalObserver',handleChainStart(_chain:unknown,_inputs:unknown,id:string,parent?:string,_tags?:string[],_metadata?:unknown,_type?:string,name?:string){spans.push({id,parent,name:name??''});}}]},renderPoster:async()=>{throw Error('No handoff');}});
  const root=spans.find(s=>s.name.startsWith('aisle.operation.START')),trend=spans.find(s=>s.name==='trend'),seat=spans.find(s=>s.name==='aisle_trend');assert.ok(root&&trend&&seat,JSON.stringify(spans));

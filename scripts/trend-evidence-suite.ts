@@ -18,9 +18,8 @@ try {
     const result = await tool.run({ ...input, campaign: { ...campaign, dataAccessPolicy: { externalSources: [] } } });
     assert.equal(result.status, "skipped"); assert.equal(result.evidence.length, 0);
   }
-  assert.equal(campaign.internalDataAuthorised, false);
-  assert.equal((await internalRetailTool.run({ ...input, campaign: { ...campaign, internalDataAuthorised: true } })).evidence.length, 0);
-  pass("policy denies every public adapter before I/O; explicit internal consent never invents POS data");
+  assert.equal((await internalRetailTool.run(input)).evidence.length, 0);
+  pass("policy denies every public adapter before I/O; a campaign without a Brand file gets no POS rows");
   globalThis.fetch = async () => Response.json({ title: "Apple juice", extract: "Synthetic product context" });
   const unknown = await marketContextTool.run(input);
   assert.equal(unknown.evidence[0].observedAt, null); assert.equal(unknown.evidence[0].dateBasis, "unknown");

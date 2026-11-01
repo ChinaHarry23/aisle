@@ -219,8 +219,8 @@ async function executeStep(w: Work, env: StepEnv): Promise<{ blocked: boolean; m
         // AHR-03; mirror it on the campaign so the desk can show the cycle count.
         c.running = true;
         c.revisionCount = attempt.attempt;
-        if (attempt.attempt >= MAX_REVISION_ATTEMPTS) {
-          // Defensive only: the review itself escalates once the limit is spent.
+        if (attempt.attempt > MAX_REVISION_ATTEMPTS) {
+          // The third revised draft has been reviewed and still failed.
           c.status = "awaiting_approval";
           c.running = false;
           setRun(w, { status: "awaiting_human", awaiting: "approval", step: "founder.gate" });

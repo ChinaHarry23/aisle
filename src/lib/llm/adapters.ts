@@ -31,8 +31,13 @@ export function systemFor(agent: CompleteRequest["agent"]) {
   return role[agent];
 }
 
+/** Tag sent to the local server. A saved tag wins; otherwise the catalog tag (mtplx). */
+export function localApiModel(model: LlmModel, localModel?: string) {
+  return localModel?.trim() || model.apiModel;
+}
+
 export function buildLlmBody(model: LlmModel, req: CompleteRequest): Record<string, unknown> {
-  const apiModel = model.id === "local:custom" ? req.localModel || "llama3.1" : model.apiModel;
+  const apiModel = model.providerId === "local" ? localApiModel(model, req.localModel) : model.apiModel;
   const userContent = req.images?.length
     ? [{ type: "text", text: req.prompt }, ...req.images.map((url) => ({ type: "image_url", image_url: { url } }))]
     : req.prompt;
@@ -53,6 +58,15 @@ export function buildLlmBody(model: LlmModel, req: CompleteRequest): Record<stri
       model: apiModel,
       messages,
       reasoning_effort: model.effort ?? "low",
+    };
+  }
+  if (model.providerId === "local") {
+    return {
+      model: apiModel,
+      temperature: 0.4,
+      messages,
+      // Hidden reasoning otherwise consumes the whole output budget.
+      chat_template_kwargs: { enable_thinking: false },
     };
   }
   return {
@@ -90,13 +104,14 @@ export async function callLlm(
       body: JSON.stringify(buildLlmBody(model, req)),
     });
     if (!res.ok) {
-      throw new Error(`Local LLM ${res.status}: ${res.text.slice(0, 240)}`);
+      throw new Error(`Aisle endpoint ${res.status}: ${res.text.slice(0, 240)}`);
     }
     const json = JSON.parse(res.text) as {
       choices?: { message?: { content?: string } }[];
       usage?: { prompt_tokens?: number; completion_tokens?: number };
     };
-    const text = json.choices?.[0]?.message?.content ?? "";
+    const message = json.choices?.[0]?.message;
+    const text = message?.content || (message as { reasoning_content?: string } | undefined)?.reasoning_content || "";
     return {
       text,
       inputTokens: json.usage?.prompt_tokens,

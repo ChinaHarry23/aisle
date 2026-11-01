@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/ui";
+import { useDeveloperView } from "@/components/DeveloperView";
 import { cn } from "@/lib/cn";
 import { formatDate } from "@/lib/ids";
 import type { AssetReview as Review, LibraryAsset } from "@/lib/media/library";
@@ -40,6 +41,7 @@ function costLine(asset: Asset) {
 }
 
 export default function LibraryPage() {
+  const { developer } = useDeveloperView();
   const [assets, setAssets] = useState<Asset[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
@@ -127,9 +129,13 @@ export default function LibraryPage() {
       <PageHeader
         eyebrow="Your account"
         title="Library"
-        description="Grouped by campaign. Each poster keeps whether it was approved, sent back, or rejected, and what the image provider billed for that call."
+        description={
+          developer
+            ? "Grouped by campaign. Each poster keeps whether it was approved, sent back, or rejected, and what the image provider billed for that call."
+            : "Grouped by campaign. Each poster keeps whether it was approved, sent back, or rejected."
+        }
       />
-      {assets && assets.length > 0 ? (
+      {developer && assets && assets.length > 0 ? (
         <p className="text-sm text-ink-soft">
           {assets.length} saved. Provider usage {money(billedTotal)}
           {estimatedTotal > 0 ? ` · ${money(estimatedTotal)} still an estimate` : ""}.
@@ -186,7 +192,8 @@ export default function LibraryPage() {
                 ) : null}
               </span>
               <span className="text-xs text-mute">
-                {group.assets.length} · {cost > 0 ? money(cost) : "no bill yet"} · {expanded ? "Hide" : "Show"}
+                {group.assets.length}
+                {developer ? ` · ${cost > 0 ? money(cost) : "no bill yet"}` : ""} · {expanded ? "Hide" : "Show"}
               </span>
             </button>
             {expanded ? (
@@ -227,9 +234,9 @@ export default function LibraryPage() {
                         ) : null}
                         <p className="text-xs text-mute">
                           {formatDate(asset.createdAt)}
-                          {asset.modelName ? ` · ${asset.modelName}` : ""}
+                          {developer && asset.modelName ? ` · ${asset.modelName}` : ""}
                         </p>
-                        <p className="text-xs text-ink-soft">{costLine(asset)}</p>
+                        {developer ? <p className="text-xs text-ink-soft">{costLine(asset)}</p> : null}
                         <div className="mt-auto flex items-center justify-between gap-3 pt-1">
                           {asset.campaignId ? (
                             <Link href={`/campaigns/${asset.campaignId}`} className="text-xs text-signal hover:underline">

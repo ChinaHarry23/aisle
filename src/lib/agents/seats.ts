@@ -373,20 +373,21 @@ export function buildAgent<T>(options: SeatOptions<T>): BuiltAgent<T> {
       // before agents existed. Accepting only the first silently downgraded every
       // such run to the deterministic rules.
       const structured = (result as { structuredResponse?: unknown }).structuredResponse;
-      if (structured !== undefined) {
-        return options.schema.parse(structured) as T;
-      }
-
       const messages = (result as { messages?: BaseMessage[] }).messages ?? [];
       const last = [...messages].reverse().find((message) => message.getType() === "ai");
       const text = typeof last?.content === "string" ? last.content : null;
-      const parsed = parseJsonObject(text);
-      if (parsed === null) {
+      const candidate = structured !== undefined ? structured : parseJsonObject(text);
+      if (candidate === null) {
         throw new Error(`The ${options.seat} agent finished without a structured answer.`);
       }
       // Validated against the same schema either way, so a text answer is held to
       // exactly the standard a tool call is.
-      return options.schema.parse(parsed) as T;
+      const parsed = options.schema.safeParse(candidate);
+      if (!parsed.success) {
+        const reason = parsed.error.issues.slice(0, 3).map((issue) => `${issue.path.join(".") || "response"}: ${issue.message}`).join("; ");
+        throw new Error(`The ${options.seat} agent returned a schema mismatch. ${reason}`);
+      }
+      return parsed.data;
     },
   };
 }

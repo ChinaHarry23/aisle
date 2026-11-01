@@ -2,7 +2,7 @@ import { blankCampaign, defaultBrand } from "../src/lib/seed";
 import { defaultSettings } from "../src/lib/settings";
 import { decideTrendBrief, type TrendDecision } from "../src/lib/runtime/decide";
 import { createTrendAgentRuntime } from "../src/lib/agents/trend-runtime";
-import { getLlmModel } from "../src/lib/llm/catalog";
+import { getLlmModel, PROVIDER_DEFAULT_MODEL } from "../src/lib/llm/catalog";
 import { stubComplete } from "../src/lib/llm/stub";
 
 const mock = process.argv.includes("--mock");
@@ -17,7 +17,7 @@ const fallback: TrendDecision = {
 
 async function main() {
   if (mock === live) throw new Error("Choose exactly one of --mock or --live.");
-  const id = mock ? "local:custom" : process.env.TA02_MODEL_ID;
+  const id = mock ? PROVIDER_DEFAULT_MODEL.local : process.env.TA02_MODEL_ID;
   if (!id) throw new Error("Set TA02_MODEL_ID to a team-approved text model ID. No request was sent.");
   const model = getLlmModel(id);
   // This snapshot's shared tool adapter implements local and OpenAI only.
@@ -29,9 +29,6 @@ async function main() {
   }
   if (!mock && !model.envKeys.every((key) => Boolean(process.env[key]?.trim()))) {
     throw new Error(`Missing configuration. Set ${model.envKeys.join(", ")} locally. Do not send keys in chat.`);
-  }
-  if (!mock && id === "local:custom" && !process.env.TA02_LOCAL_MODEL) {
-    throw new Error("Set TA02_LOCAL_MODEL to the installed local text model name.");
   }
   const settings = defaultSettings();
   settings.agents.trend = { provider: model.providerId, modelId: id };

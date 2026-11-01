@@ -2,6 +2,7 @@ import type { Campaign, Creative } from "@/lib/types";
 import type { BrandInputs, PaletteRole } from "./brand-inputs";
 import type { AspectRatio, GenerateRequest } from "./types";
 import { currentStrategy } from "@/lib/trend/strategy";
+import { culturalDirection } from "@/lib/trend/cultural-calendar";
 
 /** Older runs stored workflow placeholders in the same fields as art direction. */
 export function creativeDirectionText(value: string | null | undefined): string {
@@ -140,6 +141,7 @@ export function posterPrompt(
     `Brand: ${campaign.sharedContext.retailer}.`,
     `Product: ${campaign.product}.`,
     scene,
+    scene.includes("Cultural occasion for this product:") ? "" : culturalDirection(campaign.culturalMatch),
     brandText,
     `Set only these words in type. Headline: “${creative.headline}”.`,
     creative.subhead ? `Supporting line: “${creative.subhead}”.` : "",

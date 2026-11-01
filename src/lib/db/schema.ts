@@ -14,6 +14,9 @@
 
 import type { Database } from "./types";
 
+/** Bump when TABLES or ADDITIVE change, so a new instance can skip DDL it already applied. */
+export const SCHEMA_VERSION = 1;
+
 const TABLES = `
 create table if not exists users (
   id            text primary key,
@@ -138,6 +141,11 @@ create table if not exists account_assets (
 );
 
 create index if not exists account_assets_owner_idx on account_assets (owner_user_id, created_at);
+
+create table if not exists schema_meta (
+  id      integer primary key,
+  version integer not null
+);
 `;
 
 /** Columns added after the first release. Duplicates are expected and ignored. */
@@ -165,7 +173,26 @@ const ADDITIVE = [
   "alter table account_assets add column output_tokens integer",
 ];
 
+function missingSchemaMeta(error: unknown): boolean {
+  const code = error && typeof error === "object" && "code" in error ? String((error as { code?: unknown }).code) : "";
+  if (code === "42P01") return true;
+  const message = error instanceof Error ? error.message : "";
+  return /no such table/i.test(message) || (/schema_meta/i.test(message) && /does not exist/i.test(message));
+}
+
+/** True when this database already has the DDL this build expects. */
+export async function schemaIsCurrent(db: Database): Promise<boolean> {
+  try {
+    const rows = await db.query<{ version: number | string }>("select version from schema_meta where id = 1");
+    return Number(rows[0]?.version) === SCHEMA_VERSION;
+  } catch (error) {
+    if (missingSchemaMeta(error)) return false;
+    throw error;
+  }
+}
+
 export async function migrate(db: Database) {
+  if (await schemaIsCurrent(db)) return;
   // Each statement is issued separately: `exec`-style multi-statement calls are
   // not portable between the two drivers.
   for (const statement of TABLES.split(";").map((s) => s.trim()).filter(Boolean)) {
@@ -178,4 +205,9 @@ export async function migrate(db: Database) {
       // Column already exists.
     }
   }
+  await db.execute(
+    `insert into schema_meta (id, version) values (1, $1)
+     on conflict (id) do update set version = excluded.version`,
+    [SCHEMA_VERSION],
+  );
 }

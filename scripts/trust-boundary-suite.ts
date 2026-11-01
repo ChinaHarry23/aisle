@@ -101,31 +101,17 @@ const forge = (campaign: Campaign): Campaign => ({
   pass("workspace save keeps agent results from the stored copy and takes only founder controls");
 }
 
-/* -------------------------------------------- retail export through the save */
+/* -------------------------------------------- campaign CSV uploads are ignored */
 {
   const upload = { sha256: "a".repeat(64), importedAt: "2026-10-01T00:00:00.000Z", rows: [{ sku: "OIL-1", category: "Pantry", week: "2026-09-28", units: 40 }] };
   const stored = blankCampaign(brief, defaultBrand, null, settings);
   const doc = { brand: defaultBrand, settings, campaigns: [stored] };
-  const attached = { ...stored, retailUpload: upload, internalDataAuthorised: true };
-
+  const attached = Object.assign(structuredClone(stored), { retailUpload: upload, internalDataAuthorised: true });
   const [kept] = acceptWorkspaceCampaigns(doc, [attached]);
-  assert.deepEqual(kept.retailUpload, upload, "a stored draft keeps the export attached in the browser");
-  assert.equal(kept.internalDataAuthorised, true);
-
-  const [unauthorised] = acceptWorkspaceCampaigns(doc, [{ ...attached, internalDataAuthorised: false }]);
-  assert.equal(unauthorised.retailUpload, undefined, "an export the founder did not authorise is dropped");
-  const withEmail = { ...upload, rows: [{ ...upload.rows[0], email: "shopper@example.com" }] };
-  const [invalid] = acceptWorkspaceCampaigns(doc, [{ ...attached, retailUpload: withEmail as never }]);
-  assert.equal(invalid.retailUpload, undefined, "an export with a personal-data column is refused");
-  const [running] = acceptWorkspaceCampaigns({ ...doc, campaigns: [{ ...stored, running: true }] }, [attached]);
-  assert.equal(running.retailUpload, undefined, "a running campaign does not take one");
-  const researched = { ...stored, status: "paused" as const, researchMode: "agent" as const };
-  const [held] = acceptWorkspaceCampaigns({ ...doc, campaigns: [researched] }, [{ ...researched, retailUpload: upload, internalDataAuthorised: true }]);
-  assert.equal(held.retailUpload, undefined, "nor does one whose research the server holds; that goes through RESOLVE_TREND");
-
-  const [fresh] = acceptWorkspaceCampaigns(doc, [{ ...blankCampaign(brief, defaultBrand, null, settings), retailUpload: upload, internalDataAuthorised: true }]);
-  assert.deepEqual(fresh.retailUpload, upload, "a new draft keeps it too");
-  pass("workspace save keeps an authorised, valid retail export on a campaign that is not running or researched");
+  assert.equal((kept as { retailUpload?: unknown }).retailUpload, undefined);
+  const [fresh] = acceptWorkspaceCampaigns(doc, [Object.assign(blankCampaign(brief, defaultBrand, null, settings), { retailUpload: upload, internalDataAuthorised: true })]);
+  assert.equal((fresh as { retailUpload?: unknown }).retailUpload, undefined);
+  pass("workspace save ignores a campaign aggregate CSV");
 }
 
 /* ------------------------------------------------- engine command, both modes */

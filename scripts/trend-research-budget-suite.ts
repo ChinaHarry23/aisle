@@ -27,6 +27,10 @@ assert.match(compact.request.prompt,/ev-original/);assert.match(compact.request.
 pass('oversized history becomes a complete source-ledger synthesis request without orphaned tool messages');
 const closing=planResearchRequest({...req,prompt:'short'},{names:['web.scrape_page'],calls:2,tokens:2000,enrichmentCalls:1,finishSoon:true,finalContext:()=>''});
 assert.equal(closing.final,true);assert.ok(!closing.request.tools?.some(t=>t.name==='web.scrape_page'));
+const withTranscript=planResearchRequest({...req,prompt:'tool result',history:[{role:'user',content:'Research chicken.'},{role:'assistant',content:'',toolCalls:[{id:'read',name:'web.scrape_page',args:{}}]}],lastTurnIsToolResult:true,toolCallId:'read'},{names:['web.scrape_page'],calls:2,tokens:2000,enrichmentCalls:1,finishSoon:true,finalContext:()=>'Ledger: chicken breast is a year-round staple.'});
+assert.equal(withTranscript.request.history,undefined);
+assert.equal(withTranscript.request.lastTurnIsToolResult,undefined);
+assert.match(withTranscript.request.prompt,/year-round staple/);
 const first=planResearchRequest({...req,prompt:'short'},{names:['web.scrape_page'],calls:1,tokens:0,enrichmentCalls:0,finishSoon:false,finalContext:()=>''});
 assert.equal(first.request.toolChoice,'required');assert.deepEqual(first.request.tools?.map(t=>t.name),['web.scrape_page']);
 pass('time allowance closes with analysis while an ordinary first turn still collects original evidence');
@@ -43,6 +47,7 @@ try{
  const c=fixture();let turn=0,booked=0;const outputs=[4211,5252,8059,2100];
  const answer={researchAnalysis:[{category:'current_market',summary:'Use the original product preparation instructions.',evidenceIds:['original-3'],limitation:'Preference not measured'}],priorities:[],angle:'Practical dinner',keyMessage:'Chicken and vegetables',claimsAllowed:[],claimsAvoid:['Unmeasured health benefits'],visualDirection:'Show the meal and pack',limitations:['No audience preference measurement']};
  const result=await createTrendResearch(undefined,{mode:'mock',complete:async request=>{
+   if(String(request.prompt??'').includes('Product seasonality judgement'))return {...stubComplete(request,'SYNTHETIC ONLY'),status:'ok',text:JSON.stringify({seasonal:true,reason:'This fixture product has a seasonal occasion worth checking.'})};
    turn++;
    const response={...stubComplete(request,'SYNTHETIC ONLY'),status:'ok' as const};
    response.usage={...response.usage,inputTokens:outputs[turn-1]-100,outputTokens:100,totalTokens:outputs[turn-1],costUsd:0.01};
@@ -65,6 +70,7 @@ try{
   Date.now=()=>clock;
   const queued=fixture();
   const completed=await createTrendResearch(undefined,{mode:'mock',complete:async request=>{
+   if(String(request.prompt??'').includes('Product seasonality judgement'))return {...stubComplete(request,'SYNTHETIC ONLY'),status:'ok',text:JSON.stringify({seasonal:true,reason:'This fixture product has a seasonal occasion worth checking.'})};
    const response={...stubComplete(request,'SYNTHETIC ONLY'),status:'ok' as const};
    if(++queuedTurns===1){clock=134000;return {...response,text:null,toolCalls:[1,2,3].map(i=>({id:`queued-${i}`,name:'web.scrape_page',args:{category:'current_market',url:`https://www.coles.com.au/product/queue-${i}`}}))};}
    assert.ok(request.tools?.every(t=>t.name!=='web.scrape_page'));

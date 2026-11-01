@@ -14,8 +14,9 @@
  */
 
 import { POSTGRES_URL_VARS, databaseUrl } from "./env";
-import { migrate } from "./schema";
-import { createPostgresDatabase } from "./postgres";
+import { preferPooledPostgresUrl } from "./pool-url";
+import { migrate, schemaIsCurrent } from "./schema";
+import { createEphemeralPostgresDatabase, createPostgresDatabase } from "./postgres";
 import { createSqliteDatabase, defaultSqliteFile } from "./sqlite";
 import type { Database, DatabaseKind } from "./types";
 import { DatabaseUnavailableError } from "./types";
@@ -59,9 +60,29 @@ async function open(): Promise<Database> {
     }
     // `createPostgresDatabase` reports its own connection failures as
     // DatabaseUnavailableError, so there is nothing to translate here.
-    return createPostgresDatabase(found.url);
+    return createPostgresDatabase(preferPooledPostgresUrl(found.url));
   }
   return createSqliteDatabase(defaultSqliteFile());
+}
+
+/**
+ * Apply DDL only when this build's schema version is missing.
+ * On Neon the runtime pool is the pooler, and the direct host is used for that
+ * one-time DDL so a transaction pooler does not have to run it.
+ */
+async function ensureSchema(db: Database) {
+  if (await schemaIsCurrent(db)) return;
+  const found = databaseUrl();
+  if (found && db.kind === "postgres" && preferPooledPostgresUrl(found.url) !== found.url) {
+    const direct = await createEphemeralPostgresDatabase(found.url);
+    try {
+      await migrate(direct);
+    } finally {
+      await direct.close();
+    }
+    return;
+  }
+  await migrate(db);
 }
 
 /**
@@ -76,7 +97,7 @@ export async function getDatabase(): Promise<Database> {
   if (!opening) {
     opening = (async () => {
       const db = await open();
-      await migrate(db);
+      await ensureSchema(db);
       cached = db;
       return db;
     })();

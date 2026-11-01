@@ -301,12 +301,8 @@ export type Campaign = CampaignInput & {
   } | null;
 
   /* ---- agent runtime (AHR-01 … AHR-06) ---- */
-  /**
-   * UC-02 ext 4.b: internal retail data (POS, catalogue history) is only read
-   * when the retailer has authorised it. Defaults to false; permission must be explicit.
-   */
-  internalDataAuthorised: boolean;
-  retailUpload?: import('@/lib/trend/internal-retail').RetailUpload;
+  /** Leftover from the removed campaign CSV upload. Ignored. */
+  internalDataAuthorised?: boolean;
   /** Optional campaign override of the fixed public-source policy. Empty denies all external research. */
   dataAccessPolicy?: { externalSources: string[] };
   /** Every factual claim the bench used, with its source and date. */
@@ -328,6 +324,13 @@ export type Campaign = CampaignInput & {
   trendSupplementarySources?: {url:string;category:import('@/lib/trend/contracts').ResearchCategory;channel?:string}[];
   researchCoverage?: import('@/lib/trend/contracts').ResearchCoverage[];
   researchMode?: 'agent' | 'legacy';
+  /** Whether this product needs seasonal trend research. A false judgement skips that search. */
+  seasonalityJudgement?: { seasonal: boolean; reason: string };
+  /**
+   * Result of the one-time cultural calendar lookup.
+   * Undefined means the lookup has not run. Null means it ran and nothing matched.
+   */
+  culturalMatch?: import('@/lib/trend/cultural-calendar').CulturalMatch | null;
   /** Every version submitted to AHR-04, kept for audit. */
   complianceAttempts: ComplianceAttempt[];
   complianceReviewRuns?: ComplianceReviewRun[];

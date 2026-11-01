@@ -5,6 +5,7 @@ import { modelsOf } from "@/lib/media/catalog";
 import { requestGenerate } from "@/lib/media/client";
 import type { AspectRatio, MediaGeneration } from "@/lib/media/types";
 import { useAisle } from "@/lib/store";
+import { useDeveloperView } from "@/components/DeveloperView";
 import { useDismiss } from "@/components/useDismiss";
 import { useRef, useState } from "react";
 
@@ -120,6 +121,7 @@ export function AdWorkbench({
   /** Product photo from the campaign. Generation builds the scene around it. */
   referenceImages?: string[];
 }) {
+  const { developer } = useDeveloperView();
   const settings = useAisle((s) => s.settings);
   const logo = useAisle((s) => s.brand.logoUrl) || null;
   const brandName = useAisle((s) => s.brand.retailerName) || "the brand";
@@ -188,12 +190,14 @@ export function AdWorkbench({
 
       <div className="fixed inset-x-0 bottom-5 z-20 flex justify-center px-4">
         <div className="flex max-w-full items-center gap-1.5 rounded-full border border-line bg-[var(--bar-bg)] p-1.5 shadow-[var(--shadow-lift)] backdrop-blur-md">
+          {developer ? (
           <DockMenu
             label="Model"
             value={modelId}
             onChange={(v) => updateSettings({ imageModelId: v })}
             options={models.map((m) => ({ value: m.id, label: m.name }))}
           />
+          ) : null}
           <DockMenu
             label="Size"
             value={aspect}
@@ -318,6 +322,7 @@ function StepCard({
   onGenerate: () => void;
   onRemove?: () => void;
 }) {
+  const { developer } = useDeveloperView();
   const fileRef = useRef<HTMLInputElement>(null);
   const [showCompare, setShowCompare] = useState(false);
 
@@ -470,8 +475,9 @@ function StepCard({
                     ))}
                   </div>
                 ) : null}
+                {(developer || step.images[0]) ? (
                 <div className="mt-3 flex items-center justify-between text-xs text-mute">
-                  <span>{step.outputs[step.pick].modelName}</span>
+                  {developer ? <span>{step.outputs[step.pick].modelName}</span> : <span />}
                   {step.images[0] ? (
                     <label className="flex items-center gap-2">
                       Compare
@@ -483,6 +489,7 @@ function StepCard({
                     </label>
                   ) : null}
                 </div>
+                ) : null}
                 {showCompare && step.images[0] ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={step.images[0]} alt="Context" className="mt-3 w-full rounded-xl border border-line" />

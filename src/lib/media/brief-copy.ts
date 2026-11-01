@@ -1,6 +1,7 @@
 import type { Campaign, CreativeInsightUse } from "@/lib/types";
 import { currentStrategy } from "@/lib/trend/strategy";
 import { creativeDirectionText } from "./prompts";
+import { culturalDirection } from "@/lib/trend/cultural-calendar";
 
 /** The two poster variants the creative step can write without a live model. */
 export type BriefCopy = {
@@ -92,6 +93,7 @@ export function copyFromBrief(
       `Audience: ${campaign.targetAudience}.`,
       `Angle from the trend brief: ${scrubClaims(strategy?.concepts[index]?.angle ?? angle, block)}.`,
       visual ? `Visual direction from the trend brief: ${scrubClaims(strategy?.concepts[index]?.visualDirection ?? visual, block)}.` : "",
+      culturalDirection(campaign.culturalMatch),
       facts,
       "Depict that angle for this product. Do not replace it with a generic category scene.",
       `The only headline to set in type is: ${headline}.`,
