@@ -80,7 +80,7 @@ export function AppShell({ children, user }: { children: ReactNode; user: Public
     return () => {
       cancelled = true;
     };
-  }, [router, user.id, user.email, user.name, user.role]);
+  }, [router, user]);
 
   const awaiting = campaigns.filter((c) => !isArchived(c) && c.status === "awaiting_approval").length;
 

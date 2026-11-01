@@ -1,9 +1,10 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useSyncExternalStore, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
 
 const STORAGE_KEY = "aisle-developer-view";
+const CHANGE_EVENT = "aisle-developer-view-change";
 
 type DeveloperViewValue = {
   /** Model ids, traces, tool calls and other debugging detail. */
@@ -16,16 +17,32 @@ const DeveloperViewContext = createContext<DeveloperViewValue>({
   setDeveloper: () => {},
 });
 
-export function DeveloperViewProvider({ children }: { children: ReactNode }) {
-  const [developer, setDeveloperState] = useState(false);
+function subscribe(onStoreChange: () => void) {
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === STORAGE_KEY) onStoreChange();
+  };
+  window.addEventListener("storage", onStorage);
+  window.addEventListener(CHANGE_EVENT, onStoreChange);
+  return () => {
+    window.removeEventListener("storage", onStorage);
+    window.removeEventListener(CHANGE_EVENT, onStoreChange);
+  };
+}
 
-  useEffect(() => {
-    setDeveloperState(window.localStorage.getItem(STORAGE_KEY) === "1");
-  }, []);
+function readDeveloper() {
+  try {
+    return window.localStorage.getItem(STORAGE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function DeveloperViewProvider({ children }: { children: ReactNode }) {
+  const developer = useSyncExternalStore(subscribe, readDeveloper, () => false);
 
   const setDeveloper = (value: boolean) => {
-    setDeveloperState(value);
     window.localStorage.setItem(STORAGE_KEY, value ? "1" : "0");
+    window.dispatchEvent(new Event(CHANGE_EVENT));
   };
 
   return (
