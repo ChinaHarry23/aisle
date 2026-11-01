@@ -126,7 +126,7 @@ function Mockup() {
         </div>
       </div>
 
-      <div className="lp-float absolute -left-4 top-24 hidden items-center gap-2 rounded-xl bg-surface px-3 py-2 text-xs font-medium shadow-lg ring-1 ring-line sm:flex lg:-left-12">
+      <div className="lp-float absolute top-24 right-[calc(100%-0.75rem)] hidden items-center gap-2 rounded-xl bg-surface px-3 py-2 text-xs font-medium shadow-lg ring-1 ring-line sm:flex">
         <ShieldCheck size={14} className="text-signal" /> Claim cleared
       </div>
       <div className="lp-float absolute -right-3 bottom-16 hidden items-center gap-2 rounded-xl bg-surface px-3 py-2 text-xs font-medium shadow-lg ring-1 ring-line [animation-delay:1.5s] sm:flex lg:-right-10">
