@@ -151,6 +151,7 @@ export function ChecksPanel({
   onRequestChanges,
   onReject,
   inline = false,
+  busy = false,
 }: {
   campaign: Campaign;
   note: string;
@@ -160,6 +161,7 @@ export function ChecksPanel({
   onReject: () => void;
   /** Inside a list (the Approvals queue): the decision bar scrolls with the card. */
   inline?: boolean;
+  busy?: boolean;
 }) {
   const [noteOpen, setNoteOpen] = useState(false);
   const { developer } = useDeveloperView();
@@ -377,7 +379,8 @@ export function ChecksPanel({
               className="mb-3 w-full border border-line px-3 py-2 text-sm outline-none focus:border-signal"
             />
           ) : null}
-          <div className="flex flex-wrap items-center gap-3">
+          {busy ? <p role="status" className="mb-3 text-sm text-ink-soft">Saving your decision…</p> : null}
+          <div aria-busy={busy} className="flex flex-wrap items-center gap-3">
             <p className="min-w-[12rem] flex-1 text-sm text-ink-soft">
               <span className="font-medium text-ink">Your decision.</span>{" "}
               {problems > 0
@@ -393,6 +396,7 @@ export function ChecksPanel({
             </button>
             <button
               type="button"
+              disabled={busy}
               onClick={onReject}
               className="rounded-full border border-[var(--danger)] px-4 py-2 text-sm text-[var(--danger)]"
             >
@@ -400,6 +404,7 @@ export function ChecksPanel({
             </button>
             <button
               type="button"
+              disabled={busy}
               onClick={onRequestChanges}
               className="rounded-full border border-line px-4 py-2 text-sm font-medium hover:bg-paper-2"
             >
@@ -407,6 +412,7 @@ export function ChecksPanel({
             </button>
             <button
               type="button"
+              disabled={busy}
               onClick={onApprove}
               title={`Releases the wording to: ${channelNames}`}
               className="rounded-full btn-primary px-5 py-2 text-sm font-medium"
