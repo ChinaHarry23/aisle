@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import { Trash2, Upload } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { formatDate } from "@/lib/ids";
@@ -200,10 +200,6 @@ export default function TrendsPage() {
   });
   const [dragging, setDragging] = useState(false);
   const [openReport, setOpenReport] = useState<string | null>(null);
-  useEffect(() => {
-    const hash = window.location.hash;
-    if (hash.startsWith("#report-")) setOpenReport(decodeURIComponent(hash.slice("#report-".length)));
-  }, []);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const listed = useMemo(() => campaigns.filter((c) => !isArchived(c)), [campaigns]);
