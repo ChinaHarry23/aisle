@@ -38,6 +38,7 @@ export function founderInput(raw: Campaign): CampaignInput {
     country: raw.country,
     notes: typeof raw.notes === "string" ? raw.notes : "",
     unitCostAud: raw.unitCostAud,
+    usualCostAud: raw.usualCostAud,
     currentPriceAud: raw.currentPriceAud,
     productImageUrl: raw.productImageUrl,
     imageModelId: raw.imageModelId,

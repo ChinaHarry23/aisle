@@ -44,6 +44,10 @@ export function withRuntimeDefaults(campaign: Campaign): Campaign {
     performanceReport: campaign.performanceReport ?? null,
     recommendationDecision: campaign.recommendationDecision ?? null,
     unitCostAud: typeof campaign.unitCostAud === "number" && Number.isFinite(campaign.unitCostAud) ? campaign.unitCostAud : null,
+    usualCostAud:
+      typeof campaign.usualCostAud === "number" && Number.isFinite(campaign.usualCostAud) && campaign.usualCostAud >= 0
+        ? campaign.usualCostAud
+        : null,
     currentPriceAud:
       typeof campaign.currentPriceAud === "number" && Number.isFinite(campaign.currentPriceAud)
         ? campaign.currentPriceAud

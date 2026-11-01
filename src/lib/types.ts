@@ -61,6 +61,8 @@ export type CampaignInput = {
   notes: string;
   /** What one unit costs the founder, in AUD. Used when recommending a clearance discount. */
   unitCostAud?: number | null;
+  /** Rough AUD the founder used to pay to produce a campaign like this, before Aisle. */
+  usualCostAud?: number | null;
   /** What the founder currently sells one unit for, in AUD. */
   currentPriceAud?: number | null;
   /** Product photo (a compressed data URL) the ad should feature, not invent. */

@@ -119,6 +119,7 @@ function CampaignWorkspace() {
   const busy = useAisle((s) => s.busy[id] ?? false);
   const activityLog = useAisle((s) => s.activityLog?.[id] ?? EMPTY_ACTIVITY);
   const launchLock = useRef(false);
+  const [pausing, setPausing] = useState(false);
   const router = useRouter();
   const setTab = (next: Tab) => router.replace(`/campaigns/${id}?tab=${next}`, { scroll: false });
   const { developer } = useDeveloperView();
@@ -200,11 +201,14 @@ function CampaignWorkspace() {
             {!archived && campaign.running ? (
               <button
                 type="button"
-                disabled={busy}
-                onClick={() => void pause(campaign.id)}
+                disabled={pausing}
+                onClick={() => {
+                  setPausing(true);
+                  void pause(campaign.id).finally(() => setPausing(false));
+                }}
                 className="rounded-full border border-line px-4 py-2 text-sm font-medium hover:bg-paper-2 disabled:opacity-50"
               >
-                {busy ? "Pausing…" : "Pause"}
+                {pausing ? "Pausing…" : "Pause"}
               </button>
             ) : null}
             {engineError && campaignCanAdvance(campaign) ? (
@@ -280,6 +284,9 @@ function CampaignWorkspace() {
           <AgentPipeline status={campaign.status} />
           <AgentWork lines={activityLog} busy={busy || campaign.running} />
         </div>
+        {campaign.usualCostAud != null ? (
+          <CampaignSaving usualAud={campaign.usualCostAud} aisleUsd={(campaign.spend?.inferenceUsd ?? 0) + (campaign.spend?.mediaUsd ?? 0)} />
+        ) : null}
         {engineError ? <p className="mt-3 text-sm text-signal">{engineError}</p> : null}
         {developer && campaign.spend.blockedAttempts > 0 ? (
           <p className="mt-3 text-xs text-mute">
@@ -344,6 +351,10 @@ function CampaignWorkspace() {
               ) : null}
               <Row k="Audience" v={campaign.sharedContext.audience} />
               <Row k="Objective" v={campaign.sharedContext.objective} />
+              <Row
+                k="Used to cost"
+                v={campaign.usualCostAud != null ? moneyAud(campaign.usualCostAud) : "Not entered"}
+              />
               <Row
                 k="Your cost"
                 v={campaign.unitCostAud != null ? `$${campaign.unitCostAud.toFixed(2)}` : "Not entered"}
@@ -1041,6 +1052,33 @@ function CampaignWorkspace() {
           </div>
         </section>
       ) : null}
+    </div>
+  );
+}
+
+function moneyAud(amount: number) {
+  return amount.toLocaleString("en-AU", {
+    style: "currency",
+    currency: "AUD",
+    maximumFractionDigits: amount >= 100 ? 0 : 2,
+  });
+}
+
+function moneyUsd(amount: number) {
+  return amount.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function CampaignSaving({ usualAud, aisleUsd }: { usualAud: number; aisleUsd: number }) {
+  const kept = usualAud - aisleUsd;
+  return (
+    <div className="mt-4 grid gap-3 sm:grid-cols-3">
+      <Stat label="Used to cost" value={moneyAud(usualAud)} hint="what you used to pay, AUD" />
+      <Stat label="This run" value={moneyUsd(aisleUsd)} hint="models and images so far, USD" />
+      <Stat
+        label={kept >= 0 ? "Still with you" : "Over the old cost"}
+        value={kept >= 0 ? moneyAud(kept) : moneyUsd(aisleUsd - usualAud)}
+        hint="Your AUD figure, minus this run's US-dollar cost. A rough comparison, not a converted rate."
+      />
     </div>
   );
 }

@@ -113,6 +113,7 @@ export default function NewCampaignPage() {
   const [form, setForm] = useState<CampaignInput>(emptyBrief);
   const [costText, setCostText] = useState("");
   const [priceText, setPriceText] = useState("");
+  const [usualCostText, setUsualCostText] = useState("");
   const [imageError, setImageError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [attempted, setAttempted] = useState(false);
@@ -169,11 +170,13 @@ export default function NewCampaignPage() {
 
   const costParsed = parseMoneyInput(costText);
   const priceParsed = parseMoneyInput(priceText);
+  const usualParsed = parseMoneyInput(usualCostText);
   /** The name is optional: it falls back to the product, so most people never type it. */
   const brief: CampaignInput = {
     ...form,
     name: form.name.trim() || (form.product.trim() ? `${form.product.trim()} campaign` : ""),
     unitCostAud: typeof costParsed === "number" ? costParsed : null,
+    usualCostAud: typeof usualParsed === "number" ? usualParsed : null,
     currentPriceAud: typeof priceParsed === "number" ? priceParsed : null,
   };
 
@@ -185,10 +188,14 @@ export default function NewCampaignPage() {
     ...(priceParsed === "invalid"
       ? [{ field: "currentPriceAud", message: "Enter the selling price in dollars, such as 3.50.", clause: "Clearance price" }]
       : []),
+    ...(usualParsed === "invalid"
+      ? [{ field: "usualCostAud", message: "Enter a rough campaign cost in dollars, such as 4500.", clause: "Usual cost" }]
+      : []),
     ...validateIntake(brief, brand).filter(
       (problem) =>
         !(problem.field === "unitCostAud" && costParsed === "invalid") &&
-        !(problem.field === "currentPriceAud" && priceParsed === "invalid"),
+        !(problem.field === "currentPriceAud" && priceParsed === "invalid") &&
+        !(problem.field === "usualCostAud" && usualParsed === "invalid"),
     ),
   ];
   const errorFor = (...fields: string[]) =>
@@ -426,6 +433,19 @@ export default function NewCampaignPage() {
               </p>
             ) : null}
           </fieldset>
+          <Field label="What a campaign like this used to cost" hint="Optional, rough AUD" error={errorFor("usualCostAud")}>
+            <input
+              inputMode="decimal"
+              value={usualCostText}
+              onChange={(e) => setUsualCostText(e.target.value)}
+              placeholder="4500"
+              data-invalid={errorFor("usualCostAud") ? "" : undefined}
+              className={input}
+            />
+          </Field>
+          <p className="-mt-3 text-xs text-mute">
+            Agency, design or media you used to pay for a campaign like this. We compare it with what this run spends on models and images.
+          </p>
         </section>
 
         <section className="hairline">
