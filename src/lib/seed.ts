@@ -168,8 +168,24 @@ export function blankCampaign(
   });
 }
 
+/** The two published campaigns every account is given. */
+export const SAMPLE_CAMPAIGN_IDS = ["cmp_0746alsscv", "cmp_a64b30ipxy"];
+
+const SAMPLE_SUFFIX = " (Sample)";
+
+/** Campaign titles shown on the board and in the library. */
+export function sampleCampaignName(name: string) {
+  const trimmed = name.trim();
+  return trimmed.endsWith(SAMPLE_SUFFIX) ? trimmed : `${trimmed}${SAMPLE_SUFFIX}`;
+}
+
 export function seedCampaigns(_brand: BrandProfile): Campaign[] {
   // The sample is a frozen copy of two published campaigns. Cloning keeps one
   // account's edits from changing the copy the next account receives.
-  return sampleCampaigns.map((campaign) => withRuntimeDefaults(structuredClone(campaign)));
+  return sampleCampaigns.map((campaign) =>
+    withRuntimeDefaults({
+      ...structuredClone(campaign),
+      name: sampleCampaignName(campaign.name),
+    }),
+  );
 }

@@ -6,10 +6,13 @@
  * Removing an item hides it here. The file is deleted only when no campaign
  * still points at it.
  */
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import type { Campaign } from "@/lib/types";
 import type { ComplianceAttempt, ComplianceIssue } from "@/lib/runtime/types";
 import { getDatabase } from "@/lib/db";
-import { deleteStoredMedia, isStoredMediaUrl, STORED_PREFIX } from "./store";
+import { SAMPLE_CAMPAIGN_IDS, sampleCampaignName } from "@/lib/seed";
+import { deleteStoredMedia, isStoredMediaUrl, MediaNotFoundError, readMedia, STORED_PREFIX } from "./store";
 
 export type AssetReview = "approved" | "rejected" | "sent_back" | "needs_review" | "earlier" | "unlinked";
 
@@ -109,6 +112,24 @@ function shaOf(url: string): string | null {
   return /^[a-f0-9]{64}$/.test(sha) ? sha : null;
 }
 
+/** Shared poster files shipped with the sample campaigns. Not an account's private media. */
+const SAMPLE_FILE = /^\/samples\/([a-z0-9][a-z0-9.-]*\.(?:jpe?g|png|webp|mp4))$/i;
+
+function sampleFileName(url: string): string | null {
+  const match = SAMPLE_FILE.exec(url);
+  const name = match?.[1];
+  if (!name || name.includes("..")) return null;
+  return name;
+}
+
+function sampleMime(name: string) {
+  const lower = name.toLowerCase();
+  if (lower.endsWith(".png")) return "image/png";
+  if (lower.endsWith(".webp")) return "image/webp";
+  if (lower.endsWith(".mp4")) return "video/mp4";
+  return "image/jpeg";
+}
+
 function assetId(creativeId: string, sha: string) {
   return `gen:${creativeId}:${sha.slice(0, 16)}`;
 }
@@ -137,7 +158,8 @@ export async function rememberAsset(input: {
   outputTokens?: number | null;
 }) {
   const sha = shaOf(input.mediaUrl);
-  if (!sha || !input.ownerId) return;
+  const sampleName = sampleFileName(input.mediaUrl);
+  if ((!sha && !sampleName) || !input.ownerId) return;
   await ensureTable();
   const db = await getDatabase();
   await db.execute(
@@ -152,11 +174,14 @@ export async function rememberAsset(input: {
       input_tokens = coalesce(account_assets.input_tokens, excluded.input_tokens),
       output_tokens = coalesce(account_assets.output_tokens, excluded.output_tokens),
       campaign_id = coalesce(account_assets.campaign_id, excluded.campaign_id),
-      campaign_name = coalesce(account_assets.campaign_name, excluded.campaign_name),
+      campaign_name = case
+        when excluded.media_url like '/samples/%' then coalesce(excluded.campaign_name, account_assets.campaign_name)
+        else coalesce(account_assets.campaign_name, excluded.campaign_name)
+      end,
       product = coalesce(account_assets.product, excluded.product),
       label = case when account_assets.label in ('Saved image', 'Saved video') then excluded.label else account_assets.label end`,
     [
-      assetId(input.creativeId, sha),
+      sha ? assetId(input.creativeId, sha) : `sample:${input.creativeId}:${sampleName}`,
       input.ownerId,
       input.kind,
       input.mediaUrl,
@@ -190,6 +215,19 @@ async function insertKept(ownerId: string, sha: string, kind: string, mime: stri
   );
 }
 
+/** Bytes for a catalogue row. Sample posters are shared files; everything else belongs to this account. */
+export async function readOwnedMedia(ownerId: string, mediaUrl: string, kind: "image" | "video") {
+  const name = sampleFileName(mediaUrl);
+  if (!name) return readMedia(mediaUrl, kind, ownerId);
+  const root = path.resolve(process.cwd(), "public", "samples");
+  const file = path.resolve(root, name);
+  if (!file.startsWith(root + path.sep)) throw new MediaNotFoundError();
+  const bytes = await readFile(file).catch(() => {
+    throw new MediaNotFoundError();
+  });
+  return { bytes, mime: sampleMime(name) };
+}
+
 /** Pull posters already on this account's campaigns, and any stored file not yet catalogued. */
 export async function indexAccountAssets(ownerId: string, campaigns: Campaign[]) {
   await ensureTable();
@@ -211,15 +249,16 @@ export async function indexAccountAssets(ownerId: string, campaigns: Campaign[])
     ];
     for (const shot of shots) {
       const url = shot.generation?.status === "ok" ? shot.generation.url : null;
-      const sha = url ? shaOf(url) : null;
-      if (!sha || !url) continue;
+      const sampleName = url ? sampleFileName(url) : null;
+      if (!url || (!shaOf(url) && !sampleName)) continue;
+      const sample = (SAMPLE_CAMPAIGN_IDS as readonly string[]).includes(campaign.id);
       await rememberAsset({
         ownerId,
         kind: shot.kind,
         mediaUrl: url,
-        mime: shot.kind === "video" ? "video/mp4" : "image/jpeg",
+        mime: sampleName ? sampleMime(sampleName) : shot.kind === "video" ? "video/mp4" : "image/jpeg",
         campaignId: campaign.id,
-        campaignName: campaign.name,
+        campaignName: sample ? sampleCampaignName(campaign.name) : campaign.name,
         product: campaign.product,
         label: shot.label,
         modelId: shot.generation?.modelId,

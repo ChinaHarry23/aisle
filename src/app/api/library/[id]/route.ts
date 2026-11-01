@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/current";
 import { mediaResponse } from "@/lib/media/assets";
-import { readAsset, removeAsset } from "@/lib/media/library";
-import { MediaNotFoundError, readMedia } from "@/lib/media/store";
+import { readAsset, readOwnedMedia, removeAsset } from "@/lib/media/library";
+import { MediaNotFoundError } from "@/lib/media/store";
 import { accountCampaigns } from "@/lib/workflow/gateway";
 
 export const runtime = "nodejs";
@@ -16,7 +16,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   try {
     const asset = await readAsset(user.id, id);
     if (!asset) return NextResponse.json({ error: "Not found." }, { status: 404 });
-    const { bytes, mime } = await readMedia(asset.mediaUrl, asset.kind, user.id);
+    const { bytes, mime } = await readOwnedMedia(user.id, asset.mediaUrl, asset.kind);
     return mediaResponse(bytes, mime, request.headers.get("range"));
   } catch (error) {
     if (error instanceof MediaNotFoundError) return NextResponse.json({ error: "Not found." }, { status: 404 });

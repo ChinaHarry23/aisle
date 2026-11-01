@@ -2,7 +2,7 @@ import { retainCampaignLifecycle } from "@/lib/campaign-lifecycle";
 import { withNotedTrendNotice } from "@/lib/trend/notice";
 import { normaliseSavedInsights, type SavedInsight } from "@/lib/insights";
 import { normaliseActiveBrandId, normaliseSavedBrands, type SavedBrand } from "@/lib/brand/library";
-import { defaultBrand, migrateLegacyBrand, seedCampaigns } from "@/lib/seed";
+import { SAMPLE_CAMPAIGN_IDS, defaultBrand, migrateLegacyBrand, sampleCampaignName, seedCampaigns } from "@/lib/seed";
 import { defaultSettings, withSettingsDefaults, type WorkspaceSettings } from "@/lib/settings";
 import type { BrandProfile, Campaign } from "@/lib/types";
 import { kvGet, kvGetRaw, kvSet, kvSetIfUnchanged } from "@/lib/db/kv";
@@ -53,9 +53,15 @@ export function demoWorkspace(): WorkspaceSnapshot {
 }
 
 /** Samples added after a workspace was first saved are prepended once, so older accounts see them too. */
-const LATE_SAMPLE_IDS = ["cmp_0746alsscv", "cmp_a64b30ipxy"];
+const LATE_SAMPLE_IDS: readonly string[] = SAMPLE_CAMPAIGN_IDS;
 
 const RETIRED_SAMPLE_IDS = new Set(["cmp_parka", "cmp_stonefruit", "cmp_spring_produce"]);
+
+function labelSample(campaign: Campaign): Campaign {
+  if (!LATE_SAMPLE_IDS.includes(campaign.id)) return campaign;
+  const name = sampleCampaignName(campaign.name);
+  return name === campaign.name ? campaign : { ...campaign, name };
+}
 
 function withSampleCampaigns(all: Campaign[], retired: readonly string[]): Campaign[] {
   const gone = new Set(retired);
@@ -64,7 +70,7 @@ function withSampleCampaigns(all: Campaign[], retired: readonly string[]): Campa
   const missing = seedCampaigns(defaultBrand).filter(
     (c) => LATE_SAMPLE_IDS.includes(c.id) && !have.has(c.id) && !gone.has(c.id),
   );
-  return missing.length ? [...missing, ...campaigns] : campaigns;
+  return (missing.length ? [...missing, ...campaigns] : campaigns).map(labelSample);
 }
 
 function normalizeWorkspace(raw: Partial<WorkspaceSnapshot> | null): WorkspaceSnapshot {
