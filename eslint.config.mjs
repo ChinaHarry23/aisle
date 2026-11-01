@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Git-ignored local experiments:
     "codex/**",
+    // Frozen campaign snapshot. One generated line, not hand-written source.
+    "src/lib/sample-campaigns.ts",
   ]),
 ]);
 

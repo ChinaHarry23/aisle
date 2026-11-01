@@ -33,8 +33,8 @@ function emptyWorkspace(): WorkspaceSnapshot {
       retailerName: "Your shop",
       tagline: "Set this on Brand to make it yours.",
     },
-    // Every new account starts with the sample campaign so the flow is
-    // visible straight away: it is waiting for approval.
+    // Every new account starts with the sample campaigns, replacing the
+    // previous spring-produce sample.
     campaigns: seedCampaigns(defaultBrand),
     settings: defaultSettings(),
     retiredCampaignIds: [],
@@ -53,23 +53,13 @@ export function demoWorkspace(): WorkspaceSnapshot {
 }
 
 /** Samples added after a workspace was first saved are prepended once, so older accounts see them too. */
-const LATE_SAMPLE_IDS = ["cmp_spring_produce"];
+const LATE_SAMPLE_IDS = ["cmp_0746alsscv", "cmp_a64b30ipxy"];
 
-/** createdAt stamps of earlier drafts of the produce sample (scheduled, then published). */
-const OLD_PRODUCE_VERSIONS = ["2026-10-12T22:30", "2026-09-28T22:30"];
-
-const RETIRED_SAMPLE_IDS = new Set(["cmp_parka", "cmp_stonefruit"]);
+const RETIRED_SAMPLE_IDS = new Set(["cmp_parka", "cmp_stonefruit", "cmp_spring_produce"]);
 
 function withSampleCampaigns(all: Campaign[], retired: readonly string[]): Campaign[] {
   const gone = new Set(retired);
-  // The first version of the produce sample was four-channel and scheduled; swap an
-  // untouched copy of it for the current one.
-  const campaigns = all.filter(
-    (c) =>
-      !gone.has(c.id) &&
-      !RETIRED_SAMPLE_IDS.has(c.id) &&
-      !(c.id === "cmp_spring_produce" && OLD_PRODUCE_VERSIONS.some((v) => c.createdAt.startsWith(v))),
-  );
+  const campaigns = all.filter((c) => !gone.has(c.id) && !RETIRED_SAMPLE_IDS.has(c.id));
   const have = new Set(campaigns.map((c) => c.id));
   const missing = seedCampaigns(defaultBrand).filter(
     (c) => LATE_SAMPLE_IDS.includes(c.id) && !have.has(c.id) && !gone.has(c.id),
