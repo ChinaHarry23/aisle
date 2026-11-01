@@ -106,11 +106,11 @@ const forge = (campaign: Campaign): Campaign => ({
   const upload = { sha256: "a".repeat(64), importedAt: "2026-10-01T00:00:00.000Z", rows: [{ sku: "OIL-1", category: "Pantry", week: "2026-09-28", units: 40 }] };
   const stored = blankCampaign(brief, defaultBrand, null, settings);
   const doc = { brand: defaultBrand, settings, campaigns: [stored] };
-  const attached = { ...stored, retailUpload: upload, internalDataAuthorised: true };
+  const attached = Object.assign(structuredClone(stored), { retailUpload: upload, internalDataAuthorised: true });
   const [kept] = acceptWorkspaceCampaigns(doc, [attached]);
-  assert.equal(kept.retailUpload, undefined);
-  const [fresh] = acceptWorkspaceCampaigns(doc, [{ ...blankCampaign(brief, defaultBrand, null, settings), retailUpload: upload, internalDataAuthorised: true }]);
-  assert.equal(fresh.retailUpload, undefined);
+  assert.equal((kept as { retailUpload?: unknown }).retailUpload, undefined);
+  const [fresh] = acceptWorkspaceCampaigns(doc, [Object.assign(blankCampaign(brief, defaultBrand, null, settings), { retailUpload: upload, internalDataAuthorised: true })]);
+  assert.equal((fresh as { retailUpload?: unknown }).retailUpload, undefined);
   pass("workspace save ignores a campaign aggregate CSV");
 }
 

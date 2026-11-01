@@ -392,7 +392,8 @@ async function callProviderTools(
     }[];
     usage?: { prompt_tokens?: number; completion_tokens?: number };
   };
-  const message = json.choices?.[0]?.message as { content?: string | null; reasoning_content?: string; tool_calls?: { id?: string; function?: { name?: string; arguments?: string } }[] } | undefined;
+  const raw = json.choices?.[0]?.message as { content?: string | null; reasoning_content?: string; tool_calls?: { id?: string; function?: { name?: string; arguments?: string } }[] } | undefined;
+  const message = raw ? { ...raw, content: raw.content ?? undefined } : undefined;
   const toolCalls = toolCallsFromChat(message);
   return {
     text: message?.content || (!toolCalls.length ? message?.reasoning_content ?? "" : ""),

@@ -50,10 +50,9 @@ if (process.argv.includes("--fixture-worker") || process.argv.includes("--fixtur
   const upload = { sha256: "a".repeat(64), importedAt: "2026-10-21T00:00:00.000Z", rows: [{ sku: "OIL", category: "Pantry", week: "2026-10-01", units: 12 }] };
   const submission = structuredClone(input);
   submission.campaign.id = "upload-ignored";
-  submission.campaign.internalDataAuthorised = true;
-  submission.campaign.retailUpload = upload;
+  Object.assign(submission.campaign, { internalDataAuthorised: true, retailUpload: upload });
   uploadRepo.enqueue("upload-user", "upload-ignored", submission);
-  assert.equal(uploadRepo.campaign("upload-user", submission.campaign.id)?.retailUpload, undefined);
+  assert.equal((uploadRepo.campaign("upload-user", submission.campaign.id) as { retailUpload?: unknown } | null)?.retailUpload, undefined);
   pass("a campaign aggregate CSV is not stored on the workflow");
   uploadRepo.close();
   const resumeFile=path.join(dir,'resume.db');
@@ -63,11 +62,11 @@ if (process.argv.includes("--fixture-worker") || process.argv.includes("--fixtur
   const leased=resumeRepo.claim('research-fixture-worker')!;
   const paused=await runEngine({campaigns:[],now:'2026-10-20T12:00:00Z'},leased.input.campaign,{type:'PAUSE',actor:'founder'},settings,defaultBrand,offline);
   resumeRepo.checkpoint(leased,paused,true);
-  const rerun=structuredClone(resumeInput);rerun.campaign={...paused.campaign,product:'FORGED SCOPE',internalDataAuthorised:true,retailUpload:upload};
+  const rerun=structuredClone(resumeInput);rerun.campaign={...paused.campaign,product:'FORGED SCOPE',internalDataAuthorised:true};Object.assign(rerun.campaign,{retailUpload:upload});
   resumeRepo.enqueue('research-owner','explicit-rerun',rerun);
   assert.equal(resumeRepo.campaign('research-owner',resumeInput.campaign.id)?.product,campaign.product);
   resumeRepo.close();resumeRepo=new WorkflowRepository(resumeFile);
-  assert.equal(resumeRepo.campaign('research-owner',resumeInput.campaign.id)?.retailUpload,undefined);
+  assert.equal((resumeRepo.campaign('research-owner',resumeInput.campaign.id) as {retailUpload?:unknown}|null)?.retailUpload,undefined);
   assert.equal(resumeRepo.campaign('research-owner',resumeInput.campaign.id)?.founderDecision,null);
   resumeRepo.close();
   pass('an explicit rerun keeps the stored product, drops a campaign CSV, and rejects browser approval changes');

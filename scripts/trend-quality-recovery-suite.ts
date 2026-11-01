@@ -115,7 +115,7 @@ pass('an unavailable envelope repair retains validated items without claiming re
   const seasonal = { ...assessment.findings[0], id: 'raw-6', category: 'seasonal', claim: 'Do not build a November seasonal hook. '.repeat(2) };
   const typo = { ...assessment.findings[0], id: 'raw-8', support: assessment.findings[0].supports };
   delete (typo as { supports?: unknown }).supports;
-  reply.findings = [...assessment.findings, channel, seasonal, typo];
+  reply.findings = [...assessment.findings, ...( [channel, seasonal, typo] as unknown as typeof assessment.findings )];
   const recovered = recoverQualityAssessment(reply);
   assert.equal(recovered.issues.length, 0);
   assert.equal(recovered.assessment?.findings.find(f => f.id === 'raw-5')?.category, 'OPPORTUNITY');
