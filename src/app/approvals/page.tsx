@@ -116,6 +116,7 @@ export default function ApprovalsPage() {
 
                     <ChecksPanel
                       campaign={c}
+                      busy={busy[c.id]}
                       inline
                       note={note}
                       onNote={(v) => setNotes((n) => ({ ...n, [c.id]: v }))}

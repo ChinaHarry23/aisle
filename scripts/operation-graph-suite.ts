@@ -101,3 +101,28 @@ const booked = await runEngine(
 assert.equal(booked.campaign.spend.inferenceUsd, 0.25, "the failed run's charge is booked once");
 assert.equal(carried.meta.unbookedUsd, 0, "and cleared so it is not booked twice");
 console.log("PASS a failed seat run's charge is booked with the next decision");
+
+// Founder decisions must checkpoint without invoking revision/media tools.
+// ADVANCE (or the durable worker) owns the subsequent expensive work.
+for (const type of ["APPROVE", "REQUEST_CHANGES", "REJECT"] as const) {
+  const awaiting = structuredClone(started.campaign);
+  awaiting.status = "awaiting_approval";
+  awaiting.running = false;
+  awaiting.run = { ...started.run, status: "awaiting_human", step: "founder.gate", awaiting: "approval" };
+  let calls = 0;
+  const result = await runEngine(
+    { campaigns: [awaiting], now: "2026-10-17T01:00:00.000Z" }, awaiting,
+    { type, actor: "founder", note: "Decision latency regression" }, settings, defaultBrand,
+    {
+      llm: { request: async () => { calls++; throw Error("Decision must not call a model"); } },
+      renderPoster: async () => { calls++; throw Error("Decision must not render"); },
+      maxSteps: 1,
+    },
+  );
+  assert.equal(calls, 0);
+  assert.equal(result.campaign.founderDecision?.action, type === "APPROVE" ? "approve" : type === "REJECT" ? "reject" : "changes");
+  assert.equal(result.campaign.status, type === "APPROVE" ? "scheduling" : type === "REJECT" ? "rejected" : "revising");
+  assert.equal(result.canAdvance, type !== "REJECT");
+  if (type !== "REJECT") assert.equal(result.run.step, type === "APPROVE" ? "media.receive" : "creative.revise");
+}
+console.log("PASS all three founder decisions return before model/media work, with resumable follow-up steps");

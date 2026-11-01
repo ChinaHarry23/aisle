@@ -148,7 +148,10 @@ async function handlePost(request: Request) {
 
   try {
     const billing = await billingForSession(user);
-    const graphUrl = loaded.readable ? await reachableOperationGraph() : null;
+    // Human decisions are local transitions, not agent work. Avoid a Studio
+    // round trip (and its extra workspace writes) before acknowledging them.
+    const decision = ["APPROVE", "REQUEST_CHANGES", "REJECT"].includes(resolved.command.type);
+    const graphUrl = loaded.readable && !decision ? await reachableOperationGraph() : null;
     if (graphUrl) {
       let savedInput = false;
       try {

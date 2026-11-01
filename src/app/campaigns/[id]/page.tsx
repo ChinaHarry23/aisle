@@ -451,6 +451,7 @@ function CampaignWorkspace() {
 
       {tab === "approvals" ? (
         <ChecksPanel
+          busy={busy}
           campaign={campaign}
           note={note}
           onNote={setNote}

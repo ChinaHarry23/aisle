@@ -370,7 +370,9 @@ export async function approveNode(state: OpState): Promise<Partial<OpState>> {
     state.command.note || "Founder signed off. Media Manager may adapt and schedule; it still may not publish.",
   );
   setRun(w, { status: "running", step: "media.receive", awaiting: null, awaitingDetail: null });
-  return { work: w, stop: false };
+  c.status = "scheduling";
+  c.running = true;
+  return { work: w, stop: false, canAdvance: true, message: "Approved. Scheduling will continue." };
 }
 
 export async function requestChangesNode(state: OpState): Promise<Partial<OpState>> {
@@ -392,8 +394,9 @@ export async function requestChangesNode(state: OpState): Promise<Partial<OpStat
     return { work: w, stop: true, canAdvance: false, message: "Revision limit reached." };
   }
   setRun(w, { status: "running", step: "creative.revise", revisionAttempts: nextVersion - 1, awaiting: null, awaitingDetail: null });
+  c.status = "revising";
   c.running = true;
-  return { work: w, stop: false };
+  return { work: w, stop: false, canAdvance: true, message: "Changes requested. Revision will continue." };
 }
 
 export async function rejectNode(state: OpState): Promise<Partial<OpState>> {
@@ -620,8 +623,8 @@ function buildOperationGraph() {
     .addConditionalEdges("route", routeCommand, [...COMMAND_DESTINATIONS])
     .addConditionalEdges("intake", (state) => (state.stop ? END : stageFor(state)), stageDestinations)
     .addConditionalEdges("advance", (state) => (state.stop ? END : stageFor(state)), stageDestinations)
-    .addEdge("approve", "media")
-    .addConditionalEdges("request_changes", (state) => (state.stop ? END : "revise"), reviseDestinations);
+    .addEdge("approve", END)
+    .addEdge("request_changes", END);
 
   for (const name of STAGE_NODES) {
     graph.addConditionalEdges(name, afterStage, stageDestinations);

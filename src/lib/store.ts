@@ -214,6 +214,7 @@ export const useAisle = create<Store>()(
         const state = get();
         const campaign = state.campaigns.find((c) => c.id === id);
         if (!campaign) return;
+        if (state.busy[id] && ["APPROVE", "REQUEST_CHANGES", "REJECT"].includes(cmd.type)) return;
         set((s) => ({ busy: { ...s.busy, [id]: true } }));
         const result = await sendCommand(
           { campaigns: state.campaigns, brand: state.brand, settings: state.settings },

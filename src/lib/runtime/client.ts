@@ -3,10 +3,8 @@
 /**
  * Browser side of the agent bench.
  *
- * The store hands the whole workspace plus one command to the engine route and
- * applies whatever comes back. Because the whole document is round-tripped, the
- * server stays stateless and the founder's workspace remains the single source of
- * truth — the same document the workspace API persists.
+ * Sends the target campaign and command. The server loads authoritative workspace
+ * context; unrelated campaigns, brand and settings need not be uploaded.
  */
 
 import { jsonHeadersWithKey } from "@/lib/media/byo-key";
@@ -37,9 +35,6 @@ export async function sendCommand(
         campaign,
         command,
         requestId:crypto.randomUUID(),
-        campaigns: context.campaigns,
-        brand: context.brand,
-        settings: context.settings,
       }),
     });
     const json = (await res.json()) as EngineResponse & {job?:WorkflowJob};
@@ -60,6 +55,12 @@ export async function sendCommand(
         const response=await fetch(`/api/engine/jobs/${encodeURIComponent(job.id)}`,{cache:'no-store'});
         if(!response.ok)throw Error('The saved job could not be read. Open Workflow operations; do not relaunch it.');
         job=await response.json() as WorkflowJob;
+        // The worker checkpoints the decision before running expensive follow-up
+        // stages. Acknowledge it now; the independent worker owns continuation.
+        if (job.status === 'running' && job.result &&
+            ['APPROVE', 'REQUEST_CHANGES', 'REJECT'].includes(command.type)) {
+          return { ...job.result, canAdvance: false, message: job.message };
+        }
       }
       if(job.result)return {...job.result,canAdvance:false,...(job.status==='failed'||job.status==='interrupted'?{error:job.message}:{}),message:job.message};
       throw Error(job.message||'Workflow saved. Check Workflow operations for progress.');
