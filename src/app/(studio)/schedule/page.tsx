@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { ChannelIcon } from "@/components/ChannelIcon";
@@ -50,10 +50,6 @@ export default function SchedulePage() {
   const count = stack.length;
   const current = count === 0 ? 0 : Math.min(index, count - 1);
   const front = stack[current];
-
-  useEffect(() => {
-    if (index !== current) setIndex(current);
-  }, [current, index]);
 
   function step(delta: number) {
     if (count < 2) return;
