@@ -31,7 +31,7 @@ import { currentRuleSelection } from "../compliance/rules";
 import { checkSubmission } from "../compliance/checks";
 import { resolveReviewOutcome } from "../compliance/outcome";
 import { posterImages } from "../compliance/posters";
-import { formatLawPassages, marketLaw, retrieveAdvertisingLaw } from "../advertising-law/index";
+import { formatLawPassages, marketLaw, retrieveAdvertisingLaw, storedBrandPolicy } from "../advertising-law/index";
 import { beginReview, submissionFor, assertReviewPermission, ComplianceSubmissionError } from "../compliance/service";
 import { uid } from "@/lib/ids";
 import { copyFromBrief } from "@/lib/media/brief-copy";
@@ -552,24 +552,6 @@ export async function runTrendResearch(
 
   }
 
-  // A campaign CSV still needs its own consent. The Brand POS file does not.
-  if (retail.status === "skipped" && !env.brand.retailData) {
-    const outcome = evaluateGuard(
-      {
-        actor: "trend",
-        action: "READ_INTERNAL_DATA",
-        campaign: c,
-        target: "POS and catalogue history",
-        triggeredBy: "trend.research",
-      },
-      w.now,
-    );
-    recordPolicy(w, outcome.decision);
-    addEvent(w, "trend", "policy", "Internal retail data excluded", outcome.reason, {
-      policyDecisionId: outcome.decision.id,
-    });
-  }
-
   for (const outcome of toolResults) {
     addEvent(w, "trend", "tool", outcome.summary, outcome.evidence.map((e) => e.sourceName).join(" · ") || "no evidence raised");
   }
@@ -1071,12 +1053,17 @@ export async function runCreativeGeneration(
 
   const pictures = withGen.filter((cr) => cr.generation?.url).length;
   const photo = c.productImageUrl ? " The uploaded product photo was the reference." : "";
+  const opening = version === 1
+    ? env.brand.bannedTerms.some((term) => withGen[0]?.headline.toLowerCase().includes(term.trim().toLowerCase()))
+      ? " The first headline includes one brand-forbidden claim so the compliance model can send it back."
+      : ""
+    : "";
   addEvent(
     w,
     "creative",
     "output",
     `v${version} generated — variants A and B`,
-    `${withGen.map((cr) => `${cr.variant}: “${cr.headline}”`).join(" · ")} · ${modelId} · ${pictures} picture(s) · est. $${mediaCost.toFixed(3)}.${photo} Logged with inputs and creation date; not published.`,
+    `${withGen.map((cr) => `${cr.variant}: “${cr.headline}”`).join(" · ")} · ${modelId} · ${pictures} picture(s) · est. $${mediaCost.toFixed(3)}.${photo}${opening} Logged with inputs and creation date; not published.`,
   );
   addStep(
     w,
@@ -1134,7 +1121,7 @@ export async function runComplianceReview(
     w,
     "compliance",
     "handoff",
-    `Reviewing v${c.creatives[0]?.version ?? 1} (attempt ${attemptNo}/${MAX_REVISION_ATTEMPTS})`,
+    `Reviewing v${c.creatives[0]?.version ?? 1}. Automatic rewrites so far: ${Math.max(0, attemptNo - 1)} of ${MAX_REVISION_ATTEMPTS}.`,
     `${env.brand.countryRules[c.country]} Advertisement remains unpublished while under review.`,
   );
   addStep(w, "compliance.receive", "compliance", "ok", "Submission received", `Input digest recorded. Attempt ${attemptNo}.`);
@@ -1144,12 +1131,16 @@ export async function runComplianceReview(
   const checked = checkSubmission(reviewRun.submission, selection);
   const images = await posterImages(c, env.ownerUserId);
   const law = marketLaw(c.country);
-  const passages = law.ready
+  const lawText = law.ready
     ? formatLawPassages(c.country, retrieveAdvertisingLaw(c.country, copyBlob))
-    : `No advertising-law index is built for ${law.label} (${c.country}). Do not use another country's law. Do not pass the advertisement.`;
+    : "";
+  const passages = [
+    lawText || `No advertising-law index is built for ${law.label} (${c.country}). Do not use another country's law. Do not pass the advertisement.`,
+    storedBrandPolicy(env.brand),
+  ].join("\n\n");
   const documentProblems = !law.ready
     ? [`No advertising-law index is built for ${law.label}, so poster words cannot be checked against that market's law.`]
-    : passages
+    : lawText
       ? []
       : [`The ${law.label} advertising-law index returned no passage for this poster.`];
   const imageProblems = images.length
@@ -1170,10 +1161,11 @@ export async function runComplianceReview(
   });
   addTrace(w, trace, "compliance", "Policy review", env.llm);
 
+  const blocksPass = [...selection.problems, ...documentProblems, ...imageProblems];
   const outcome = resolveReviewOutcome({
     agentOutcome: decision.outcome,
     issueCount: decision.issues.length,
-    policyProblems: [...selection.problems, ...documentProblems, ...imageProblems],
+    policyProblems: decision.outcome === "changes_required" ? selection.problems : blocksPass,
     attempt: attemptNo,
     maxAttempts: MAX_REVISION_ATTEMPTS,
   });
@@ -1305,7 +1297,7 @@ export async function runComplianceReview(
     "compliance",
     "revision",
     "Changes Required — returned to Image Generation",
-    `${decision.issues.map((i) => i.recommendedCorrection).join(" ")} Attempt ${attemptNo} of ${MAX_REVISION_ATTEMPTS}.`,
+    `${decision.issues.map((i) => i.recommendedCorrection).join(" ")} Automatic rewrite ${attemptNo} of ${MAX_REVISION_ATTEMPTS}.`,
   );
   setRun(w, { status: "running", step: "creative.revise", revisionAttempts: attemptNo });
   return { message: "Changes required; returning to Image Generation.", blocked: false };

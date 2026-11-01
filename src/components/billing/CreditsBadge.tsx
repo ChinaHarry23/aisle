@@ -41,7 +41,7 @@ export function CreditsBadge({ pathname }: { pathname: string }) {
   if (brief.unlimited) {
     const logged = Math.max(0, brief.spentMilli ?? 0);
     return (
-      <Link href="/account/usage" title="Usage" className="flex flex-col items-end gap-0.5 text-ink">
+      <Link href="/billing" title="Billing" className="flex flex-col items-end gap-0.5 text-ink">
         <span className="text-[11px] uppercase tracking-[0.14em]">Unlimited</span>
         <span className="text-[10px] tabular-nums text-ink">{formatCredits(logged)} logged</span>
       </Link>
@@ -54,7 +54,7 @@ export function CreditsBadge({ pathname }: { pathname: string }) {
   const remaining = Math.round((left / allowance) * 100);
 
   return (
-    <Link href="/account/usage" title="Usage" className="flex w-44 flex-col gap-1 text-ink">
+    <Link href="/billing" title="Billing" className="flex w-44 flex-col gap-1 text-ink">
       <span className="flex justify-between text-[10px] uppercase tracking-wider tabular-nums">
         <span>{formatCredits(spent)} used</span>
         <span>{formatCredits(left)} left</span>

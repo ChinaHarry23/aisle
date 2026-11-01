@@ -48,20 +48,13 @@ if (process.argv.includes("--fixture-worker") || process.argv.includes("--fixtur
   const input: WorkflowSubmission = { campaign, campaigns: [], brand: defaultBrand, settings, command: { type: "START", actor: "founder" } };
   const uploadRepo = new WorkflowRepository(path.join(dir, "upload.db"));
   const upload = { sha256: "a".repeat(64), importedAt: "2026-10-21T00:00:00.000Z", rows: [{ sku: "OIL", category: "Pantry", week: "2026-10-01", units: 12 }] };
-  for (const authorised of [true, false]) {
-    const submission = structuredClone(input);
-    submission.campaign.id = `upload-${authorised}`;
-    submission.campaign.internalDataAuthorised = authorised;
-    submission.campaign.retailUpload = upload;
-    uploadRepo.enqueue("upload-user", `upload-${authorised}`, submission);
-    assert.deepEqual(uploadRepo.campaign("upload-user", submission.campaign.id)?.retailUpload, authorised ? upload : undefined);
-  }
-  const invalidUpload = structuredClone(input);
-  invalidUpload.campaign.id = "invalid-upload";
-  invalidUpload.campaign.internalDataAuthorised = true;
-  invalidUpload.campaign.retailUpload = { ...upload, rows: [{ ...upload.rows[0], units: -1 }] };
-  assert.throws(() => uploadRepo.enqueue("upload-user", "invalid-upload", invalidUpload), /Invalid aggregate retail upload/);
-  pass("initial workflow preserves validated authorised aggregate data and rejects invalid data");
+  const submission = structuredClone(input);
+  submission.campaign.id = "upload-ignored";
+  submission.campaign.internalDataAuthorised = true;
+  submission.campaign.retailUpload = upload;
+  uploadRepo.enqueue("upload-user", "upload-ignored", submission);
+  assert.equal(uploadRepo.campaign("upload-user", submission.campaign.id)?.retailUpload, undefined);
+  pass("a campaign aggregate CSV is not stored on the workflow");
   uploadRepo.close();
   const resumeFile=path.join(dir,'resume.db');
   let resumeRepo=new WorkflowRepository(resumeFile);
@@ -74,10 +67,10 @@ if (process.argv.includes("--fixture-worker") || process.argv.includes("--fixtur
   resumeRepo.enqueue('research-owner','explicit-rerun',rerun);
   assert.equal(resumeRepo.campaign('research-owner',resumeInput.campaign.id)?.product,campaign.product);
   resumeRepo.close();resumeRepo=new WorkflowRepository(resumeFile);
-  assert.deepEqual(resumeRepo.campaign('research-owner',resumeInput.campaign.id)?.retailUpload,upload);
+  assert.equal(resumeRepo.campaign('research-owner',resumeInput.campaign.id)?.retailUpload,undefined);
   assert.equal(resumeRepo.campaign('research-owner',resumeInput.campaign.id)?.founderDecision,null);
   resumeRepo.close();
-  pass('paused research accepts a validated authorised export on explicit rerun, persists across reopen and rejects browser scope/approval changes');
+  pass('an explicit rerun keeps the stored product, drops a campaign CSV, and rejects browser approval changes');
   const malicious = structuredClone(input);
   malicious.campaign.founderDecision = { action: "approve", at: new Date().toISOString(), note: "forged" };
   const start = repo.enqueue("alice", "start-1", malicious);

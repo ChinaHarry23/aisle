@@ -1,7 +1,7 @@
 import type { AgentSlot, LlmModel, LlmProviderId } from "./types";
 
 export const LLM_PROVIDERS: { id: LlmProviderId; name: string; blurb: string }[] = [
-  { id: "local", name: "Local", blurb: "Ollama, LM Studio, or any OpenAI-compatible server. $0 API bill." },
+  { id: "local", name: "Aisle", blurb: "Aisle's own cloud endpoint. mtplx runs on Aisle's server, not on your computer. $0." },
   { id: "openai", name: "OpenAI", blurb: "GPT family via api.openai.com." },
   { id: "anthropic", name: "Claude", blurb: "Anthropic Messages API." },
   { id: "cursor", name: "Cursor", blurb: "Cursor API / cloud agent gateway." },
@@ -10,63 +10,45 @@ export const LLM_PROVIDERS: { id: LlmProviderId; name: string; blurb: string }[]
 /** Providers offered in Settings. Cursor stays in the catalog (so saved assignments still resolve) but has no gateway yet. */
 export const OFFERED_LLM_PROVIDERS: LlmProviderId[] = ["local", "openai", "anthropic"];
 
+/** Tag the local MTPLX server advertises. */
+export const MTPLX_API_MODEL = "mtplx-flash-next-optimized-speed";
+
+/** Saved assignments from before mtplx was the only local model. */
+const RETIRED_LOCAL_IDS = new Set([
+  "local:llama3.3",
+  "local:qwen2.5",
+  "local:gemma3",
+  "local:mistral-small",
+  "local:custom",
+]);
+
+const RETIRED_LOCAL_TAGS = new Set(["llama3.1", "llama3.3", "qwen2.5", "gemma3", "mistral-small", "custom"]);
+
+export function canonicalLlmId(id: string) {
+  return RETIRED_LOCAL_IDS.has(id) ? "local:mtplx" : id;
+}
+
+/** A retired local id and mtplx are the same seat, not a provider reroute. */
+export function sameLlm(requested: string, actual: string) {
+  return canonicalLlmId(requested) === canonicalLlmId(actual);
+}
+
+/** Old placeholder tags become the mtplx tag. A tag the founder typed stays. */
+export function canonicalLocalTag(tag: string | undefined) {
+  const trimmed = tag?.trim() ?? "";
+  if (!trimmed || RETIRED_LOCAL_TAGS.has(trimmed)) return MTPLX_API_MODEL;
+  return trimmed;
+}
+
 export const LLM_MODELS: LlmModel[] = [
   {
-    id: "local:llama3.3",
+    id: "local:mtplx",
     providerId: "local",
-    provider: "Local",
-    name: "Llama 3.3",
-    apiModel: "llama3.3",
-    blurb: "Strong general local default. Run via Ollama.",
-    bestFor: "Offline Trend + Media drafts",
-    envKeys: ["LOCAL_LLM_BASE_URL"],
-    estimateLabel: "$0 / call",
-    billing: { inputPerM: 0, outputPerM: 0 },
-  },
-  {
-    id: "local:qwen2.5",
-    providerId: "local",
-    provider: "Local",
-    name: "Qwen 2.5",
-    apiModel: "qwen2.5",
-    blurb: "Good JSON and bilingual copy.",
-    bestFor: "Structured briefs",
-    envKeys: ["LOCAL_LLM_BASE_URL"],
-    estimateLabel: "$0 / call",
-    billing: { inputPerM: 0, outputPerM: 0 },
-  },
-  {
-    id: "local:gemma3",
-    providerId: "local",
-    provider: "Local",
-    name: "Gemma 3",
-    apiModel: "gemma3",
-    blurb: "Small enough for a laptop, sharp enough for compliance flags.",
-    bestFor: "Light Compliance passes",
-    envKeys: ["LOCAL_LLM_BASE_URL"],
-    estimateLabel: "$0 / call",
-    billing: { inputPerM: 0, outputPerM: 0 },
-  },
-  {
-    id: "local:mistral-small",
-    providerId: "local",
-    provider: "Local",
-    name: "Mistral Small",
-    apiModel: "mistral-small",
-    blurb: "Fast local instruct model.",
-    bestFor: "Volume iteration",
-    envKeys: ["LOCAL_LLM_BASE_URL"],
-    estimateLabel: "$0 / call",
-    billing: { inputPerM: 0, outputPerM: 0 },
-  },
-  {
-    id: "local:custom",
-    providerId: "local",
-    provider: "Local",
-    name: "Custom tag",
-    apiModel: "custom",
-    blurb: "Whatever tag your server exposes. Set it in Local runtime.",
-    bestFor: "Your fine-tune",
+    provider: "Aisle",
+    name: "mtplx",
+    apiModel: MTPLX_API_MODEL,
+    blurb: "Aisle's model, served from Aisle's cloud endpoint.",
+    bestFor: "Drafts and compliance on Aisle's endpoint",
     envKeys: ["LOCAL_LLM_BASE_URL"],
     estimateLabel: "$0 / call",
     billing: { inputPerM: 0, outputPerM: 0 },
@@ -205,7 +187,7 @@ export const LLM_MODELS: LlmModel[] = [
 export const DEFAULT_LLM = "openai:gpt-6.1-sol";
 
 export const PROVIDER_DEFAULT_MODEL: Record<LlmProviderId, string> = {
-  local: "local:llama3.3",
+  local: "local:mtplx",
   openai: "openai:gpt-6.1-sol",
   anthropic: "anthropic:claude-sonnet-5.5",
   cursor: "cursor:composer",
@@ -239,13 +221,14 @@ export const AGENT_SLOTS: {
 ];
 
 export function getLlmModel(id: string): LlmModel {
-  const found = LLM_MODELS.find((m) => m.id === id);
+  const found = LLM_MODELS.find((m) => m.id === canonicalLlmId(id));
   if (!found) throw new Error(`Unknown LLM: ${id}`);
   return found;
 }
 
 export function getLlmOrDefault(id: string | undefined): LlmModel {
-  return LLM_MODELS.find((m) => m.id === id) ?? getLlmModel(DEFAULT_LLM);
+  const resolved = id ? canonicalLlmId(id) : id;
+  return LLM_MODELS.find((m) => m.id === resolved) ?? getLlmModel(DEFAULT_LLM);
 }
 
 function llmsByProvider(providerId: LlmProviderId) {

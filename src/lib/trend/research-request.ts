@@ -21,9 +21,11 @@ export function planResearchRequest(req:CompleteRequest, state:{
   if(final){
     request={...req,tools:finalTools,toolChoice:'auto',system:`${req.system??''}\nCollection is complete. Synthesize the retained observations into the structured campaign analysis now. Explain useful decisions and remaining gaps; do not request more research.`};
     size=trendRequestSize(request);
-    if(size.bytes>RESEARCH_MODEL_LIMITS.inputBytes||state.tokens+size.inputTokens+RESEARCH_MODEL_LIMITS.outputTokens>RESEARCH_MODEL_LIMITS.tokens){
-      // Rebuild from the retained source ledger, keeping IDs and originals,
-      // instead of truncating a tool result or breaking call/result pairs.
+    const toolTranscript=Boolean(request.lastTurnIsToolResult||request.history?.some(turn=>turn.role==='tool'||turn.toolCalls?.length));
+    if(toolTranscript||size.bytes>RESEARCH_MODEL_LIMITS.inputBytes||state.tokens+size.inputTokens+RESEARCH_MODEL_LIMITS.outputTokens>RESEARCH_MODEL_LIMITS.tokens){
+      // The local server rejects a tool transcript once the retrieval tools are
+      // removed ("No user query found"). Rebuild from the retained ledger instead
+      // of leaving those calls in the history.
       request={...request,prompt:state.finalContext(),history:undefined,lastTurnIsToolResult:undefined,toolCallId:undefined};
       size=trendRequestSize(request);
     }

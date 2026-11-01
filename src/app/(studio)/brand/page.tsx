@@ -279,11 +279,11 @@ export default function BrandPage() {
               onClick={() => void research()}
               className="rounded-full border border-line px-4 py-2 text-sm font-medium text-ink hover:bg-paper-2 disabled:opacity-50"
             >
-              {researching ? "Reading the site…" : "Research brand"}
+              {researching ? "Looking up the brand…" : "Research brand"}
             </button>
           </div>
           <p className="mt-2 text-sm text-ink">
-            Name and website are all you enter. Research reads the site for the logo, colours and about text, then suggests a tone and a visual style you can edit.
+            Name and website are all you enter. Research asks Brandfetch for the logo, colours and description. A brand Brandfetch does not list is read from its website, and the model then suggests a tone and a visual style you can edit.
           </p>
           {researchNote ? <p className="mt-2 text-sm text-ink">{researchNote}</p> : null}
           {researchError ? <p className="mt-2 text-sm text-ink">{researchError}</p> : null}

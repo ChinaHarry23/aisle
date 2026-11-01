@@ -28,7 +28,15 @@ const llama = getLlmModel(LOCAL_DEFAULT_LLM);
 assert.equal(llama.providerId, "local");
 assert.equal(PROVIDER_DEFAULT_MODEL.local, LOCAL_DEFAULT_LLM);
 assert.deepEqual(assignmentFor("local"), { provider: "local", modelId: LOCAL_DEFAULT_LLM });
-pass("Local default is Cindy's llama3.3");
+assert.deepEqual(
+  LLM_MODELS.filter((m) => m.providerId === "local").map((m) => [m.id, m.name, m.apiModel]),
+  [["local:mtplx", "mtplx", "mtplx-flash-next-optimized-speed"]],
+);
+assert.equal(getLlmModel("local:custom").id, "local:mtplx");
+assert.equal(getLlmModel("local:llama3.3").id, "local:mtplx");
+assert.equal(LLM_PROVIDERS.find((p) => p.id === "local")?.name, "Aisle");
+assert.equal(llama.provider, "Aisle");
+pass("Aisle's endpoint is mtplx, and retired local ids resolve to it");
 
 const fresh = defaultSettings();
 assert(seats(fresh).every((seat) => seat.provider === "openai" && seat.modelId === DEFAULT_LLM));
@@ -64,6 +72,21 @@ assert.equal(chosen.agents.trend.modelId, "openai:gpt-6-luna");
 assert.equal(chosen.agents.creative.modelId, DEFAULT_LLM);
 pass("saved Luna defaults move to Sol once; a later explicit Luna choice stays");
 
+const retiredLocal = withSettingsDefaults({
+  localModel: "llama3.1",
+  agents: {
+    trend: { provider: "local", modelId: "local:llama3.3" },
+    creative: { provider: "local", modelId: "local:qwen2.5" },
+    compliance: { provider: "local", modelId: "local:gemma3" },
+    media: { provider: "local", modelId: "local:mistral-small" },
+  },
+});
+assert(seats(retiredLocal).every((seat) => seat.provider === "local" && seat.modelId === "local:mtplx"));
+assert.equal(retiredLocal.localModel, "mtplx-flash-next-optimized-speed");
+const keptTag = withSettingsDefaults({ localModel: "mtplx-flash-next-optimized-speed" });
+assert.equal(keptTag.localModel, "mtplx-flash-next-optimized-speed");
+pass("saved Llama, Qwen, Gemma, Mistral and Custom tag seats become mtplx");
+
 const luna = buildLlmBody(getLlmModel("openai:gpt-6-luna"), {
   agent: "trend",
   modelId: "openai:gpt-6-luna",
@@ -72,7 +95,7 @@ const luna = buildLlmBody(getLlmModel("openai:gpt-6-luna"), {
 assert.equal(luna.model, "gpt-6-luna");
 assert.equal(luna.reasoning_effort, "low");
 assert.equal("temperature" in luna, false);
-const customSeat = getLlmModel("local:custom");
+const customSeat = getLlmModel("local:mtplx");
 assert.equal(isLlmConfigured(customSeat, "http://127.0.0.1:11434/v1"), true);
 assert.equal(isLlmConfigured(getLlmModel("openai:gpt-6-luna")), false);
 pass("GPT-6 Luna omits temperature; local is configured when a base URL is set");

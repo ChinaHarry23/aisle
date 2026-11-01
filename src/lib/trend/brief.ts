@@ -25,7 +25,7 @@ export function applyBriefSupportAudit(c:Campaign,audit:BriefAudit,at:string):vo
  q.requiredCategories.forEach(category=>{category.supported=q.findings.some(f=>f.category===category.category&&f.main&&f.supported);});
 }
 function supportFingerprint(c:Campaign,b:BriefCandidate|null,audit:BriefAudit|null){
- const text=JSON.stringify([c.id,c.run?.id,contextVersion(c),c.internalDataAuthorised,c.retailUpload?.sha256,c.trendQuality?.version,c.trendQuality?.findings,b,audit,c.evidence.filter(e=>c.trendQuality?.evidence.some(r=>r.id===e.id&&r.accepted)),c.sharedContext.previousAdvice]);
+ const text=JSON.stringify([c.id,c.run?.id,contextVersion(c),c.trendQuality?.version,c.trendQuality?.findings,b,audit,c.evidence.filter(e=>c.trendQuality?.evidence.some(r=>r.id===e.id&&r.accepted)),c.sharedContext.previousAdvice]);
  let h=2166136261;for(let i=0;i<text.length;i++)h=Math.imul(h^text.charCodeAt(i),16777619);return (h>>>0).toString(16);
 }
 

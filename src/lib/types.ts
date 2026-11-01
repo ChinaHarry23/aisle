@@ -301,12 +301,8 @@ export type Campaign = CampaignInput & {
   } | null;
 
   /* ---- agent runtime (AHR-01 … AHR-06) ---- */
-  /**
-   * UC-02 ext 4.b: internal retail data (POS, catalogue history) is only read
-   * when the retailer has authorised it. Defaults to false; permission must be explicit.
-   */
-  internalDataAuthorised: boolean;
-  retailUpload?: import('@/lib/trend/internal-retail').RetailUpload;
+  /** Leftover from the removed campaign CSV upload. Ignored. */
+  internalDataAuthorised?: boolean;
   /** Optional campaign override of the fixed public-source policy. Empty denies all external research. */
   dataAccessPolicy?: { externalSources: string[] };
   /** Every factual claim the bench used, with its source and date. */

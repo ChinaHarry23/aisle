@@ -1,6 +1,6 @@
 import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
-import type { Country } from "@/lib/types";
+import type { BrandProfile, Country } from "@/lib/types";
 
 const ROOT = path.join(process.cwd(), "services/knowledge/law");
 
@@ -32,6 +32,21 @@ const AU_DOCUMENTS = [
     file: "country-of-origin-food-labelling-information-standard-2016.txt",
     title: "Country of Origin Food Labelling Information Standard 2016, Compilation No. 2 (12 August 2017)",
     url: "https://www.legislation.gov.au/F2016L00528/latest",
+  },
+  {
+    file: "copyright-act-1968-compilation-65.txt",
+    title: "Copyright Act 1968, Compilation No. 65 (2 April 2026)",
+    url: "https://www.legislation.gov.au/C1968A00063/2026-04-02/2026-04-02/text/original/pdf",
+  },
+  {
+    file: "spam-act-2003-compilation-10.txt",
+    title: "Spam Act 2003, Compilation No. 10 (10 March 2016)",
+    url: "https://www.legislation.gov.au/C2004A01214/2016-03-10/2016-03-10/text/original/pdf",
+  },
+  {
+    file: "aana-code-of-ethics-2021.txt",
+    title: "AANA Code of Ethics (effective 1 February 2021)",
+    url: "https://aana.com.au/code-of-ethics/",
   },
 ] as const;
 
@@ -157,13 +172,22 @@ function scoreQuery(index: LawIndex, chunks: Chunk[], query: string, k: number):
   return out;
 }
 
+const CORE_QUERIES: { title: string; query: string; limit: number }[] = [
+  { title: "Competition and Consumer Act", query: "misleading or deceptive conduct false or misleading representation goods services", limit: 2 },
+  { title: "Copyright Act 1968", query: "copyright infringement reproduction artistic literary musical work", limit: 2 },
+  { title: "Spam Act 2003", query: "commercial electronic message consent unsubscribe", limit: 2 },
+  { title: "AANA Code of Ethics", query: "internet social media discrimination violence sex language health safety", limit: 2 },
+];
+
 /** Search only that market's index. A missing market returns nothing. */
 export function retrieveAdvertisingLaw(country: Country, copy: string): LawPassage[] {
   const index = indexFor(country);
   if (!index) return [];
-  const poster = scoreQuery(index, index.chunks, copy, 5);
-  const act = index.chunks.filter((chunk) => chunk.title.startsWith("Competition and Consumer Act"));
-  const core = scoreQuery(index, act, "misleading or deceptive conduct false or misleading representation goods services", 2);
+  const poster = scoreQuery(index, index.chunks, copy, 4);
+  const core = CORE_QUERIES.flatMap((item) => {
+    const chunks = index.chunks.filter((chunk) => chunk.title.startsWith(item.title));
+    return scoreQuery(index, chunks, item.query, item.limit);
+  });
   const merged: LawPassage[] = [];
   const seen = new Set<string>();
   for (const passage of [...poster, ...core]) {
@@ -172,7 +196,22 @@ export function retrieveAdvertisingLaw(country: Country, copy: string): LawPassa
     seen.add(key);
     merged.push(passage);
   }
-  return merged.slice(0, 8);
+  return merged.slice(0, 12);
+}
+
+/** The retailer's saved profile. It is the brand policy for this review, not a statute. */
+export function storedBrandPolicy(brand: BrandProfile): string {
+  const countries = Object.entries(brand.countryRules ?? {})
+    .map(([country, rule]) => `${country}: ${rule}`)
+    .join("\n");
+  return [
+    `Retailer brand profile stored for ${brand.retailerName}. Apply this profile to the advertisement. It is the brand's own instruction, not a statute.`,
+    `Tone: ${brand.tone}`,
+    brand.visualStyle ? `Visual style: ${brand.visualStyle}` : "",
+    `Approved terms: ${brand.approvedTerms.join(", ") || "none recorded"}.`,
+    `Banned terms: ${brand.bannedTerms.join(", ") || "none recorded"}.`,
+    countries ? `Country notes stored with the brand:\n${countries}` : "",
+  ].filter(Boolean).join("\n");
 }
 
 export function formatLawPassages(country: Country, passages: LawPassage[]): string {

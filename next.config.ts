@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  experimental: {
+    // Stay on security patches. `next dev` uses this when it checks for advisories.
+    agentUpgrade: "security",
+  },
   // Docker image runs `.next/standalone/server.js`; Vercel builds its own serverless output.
   ...(process.env.VERCEL ? {} : { output: "standalone" }),
   images: {

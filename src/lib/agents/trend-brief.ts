@@ -4,7 +4,7 @@ import { runSeatAgent } from './agent-runtime';
 import type { MeteredModelConfig } from './metered-chat-model';
 import type { BillingContext } from '@/lib/billing/meter';
 import { runComplete } from '@/lib/llm/metered-complete';
-import { getLlmModel } from '@/lib/llm/catalog';
+import { getLlmModel, sameLlm } from '@/lib/llm/catalog';
 import { redact } from '@/lib/trend/source-tools';
 import { briefCandidateSchema,briefAuditSchema,BRIEF_LIMITS,type BriefRunner,type BriefCandidate,type BriefAudit } from '@/lib/trend/brief-contracts';
 import { assembleBrief,validateBrief,requiredBriefSections,sectionCategories,applyBriefSupportAudit } from '@/lib/trend/brief';
@@ -31,7 +31,7 @@ export function createTrendBrief(billing?:BillingContext,test?:{mode:'mock';comp
    budget.tokens+=result.usage.totalTokens;budget.costUsd+=result.usage.costUsd;input.onFailedUsage(result.usage.costUsd);
    modelStatus=result.status;
    (c.researchModelTurns??=[]).push({turn:c.researchModelTurns!.length+1,phase:'brief',offeredTools:req.tools?.map(t=>t.name)??[],selectedTools:result.toolCalls?.map(t=>t.name)??[],status:result.status,modelId:result.modelId,tokens:result.usage.totalTokens});
-   if(result.modelId!==req.modelId)refuse('The selected brief model did not answer.');
+   if(!sameLlm(req.modelId, result.modelId))refuse('The selected brief model did not answer.');
    if((result.toolCalls?.length??0)>1||result.toolCalls?.some(call=>!req.tools?.some(tool=>tool.name===call.name)))refuse('The brief model requested an unoffered or extra tool; response rejected without execution.');
    return result;
   };

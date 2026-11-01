@@ -27,6 +27,10 @@ assert.match(compact.request.prompt,/ev-original/);assert.match(compact.request.
 pass('oversized history becomes a complete source-ledger synthesis request without orphaned tool messages');
 const closing=planResearchRequest({...req,prompt:'short'},{names:['web.scrape_page'],calls:2,tokens:2000,enrichmentCalls:1,finishSoon:true,finalContext:()=>''});
 assert.equal(closing.final,true);assert.ok(!closing.request.tools?.some(t=>t.name==='web.scrape_page'));
+const withTranscript=planResearchRequest({...req,prompt:'tool result',history:[{role:'user',content:'Research chicken.'},{role:'assistant',content:'',toolCalls:[{id:'read',name:'web.scrape_page',args:{}}]}],lastTurnIsToolResult:true,toolCallId:'read'},{names:['web.scrape_page'],calls:2,tokens:2000,enrichmentCalls:1,finishSoon:true,finalContext:()=>'Ledger: chicken breast is a year-round staple.'});
+assert.equal(withTranscript.request.history,undefined);
+assert.equal(withTranscript.request.lastTurnIsToolResult,undefined);
+assert.match(withTranscript.request.prompt,/year-round staple/);
 const first=planResearchRequest({...req,prompt:'short'},{names:['web.scrape_page'],calls:1,tokens:0,enrichmentCalls:0,finishSoon:false,finalContext:()=>''});
 assert.equal(first.request.toolChoice,'required');assert.deepEqual(first.request.tools?.map(t=>t.name),['web.scrape_page']);
 pass('time allowance closes with analysis while an ordinary first turn still collects original evidence');

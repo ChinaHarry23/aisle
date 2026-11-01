@@ -136,7 +136,7 @@ export function ComplianceCheckerPanel({ campaign }: { campaign: Campaign }) {
                 </p>
                 {run ? (
                   <p className="mt-2 text-xs text-mute">
-                    Attempt {run.attemptNumber}/{MAX_REVISION_ATTEMPTS} · {run.ruleSelection?.rules.length ?? 0} binding local/global rule(s) · {run.ruleSelection?.referenceRules?.length ?? 0} non-binding foreign reference(s) · {run.submission.brandAssets.guidelines.length} uploaded document(s) · {run.submission.content.filter((ad) => ad.imageUrl).length} image attachment(s)
+                    Review {run.attemptNumber} · automatic rewrites used {Math.max(0, run.attemptNumber - 1)} of {MAX_REVISION_ATTEMPTS} · {run.ruleSelection?.rules.length ?? 0} binding local/global rule(s) · {run.ruleSelection?.referenceRules?.length ?? 0} non-binding foreign reference(s) · {run.submission.brandAssets.guidelines.length} uploaded document(s) · {run.submission.content.filter((ad) => ad.imageUrl).length} image attachment(s)
                   </p>
                 ) : null}
               </div>

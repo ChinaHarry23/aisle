@@ -3,7 +3,7 @@
 import { runSeatAgent } from './agent-runtime';
 import { reserveTrendRequest, trendRequestSize } from '@/lib/trend/request-budget';
 import { runComplete } from '@/lib/llm/metered-complete';
-import { getLlmModel } from '@/lib/llm/catalog';
+import { getLlmModel, sameLlm } from '@/lib/llm/catalog';
 import { searchWithModel } from '@/lib/llm/search';
 import { holdCredits,settleHold,type BillingContext } from '@/lib/billing/meter';
 import { toolByName,DEFAULT_EXTERNAL_SOURCES,type ToolOutcome } from '@/lib/runtime/tools';
@@ -17,13 +17,28 @@ import { coverageFor,attachResearchAnalysis } from '@/lib/trend/contracts';
 import { recoverQualityAssessment, mergeQualityRepair, type QualityRecovery } from '@/lib/trend/quality-recovery';
 import { evidenceExcerpt } from '@/lib/trend/retrieval-context';
 import type { MeteredModelConfig } from './metered-chat-model';
+/** A JSON object in the reply, including one wrapped in prose or a fence. */
+function jsonObject(text: string | null | undefined): unknown {
+  if (!text?.trim()) return null;
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const body = (fenced?.[1] ?? text).trim();
+  const start = body.indexOf("{");
+  const end = body.lastIndexOf("}");
+  if (start === -1 || end <= start) return null;
+  try {
+    const parsed = JSON.parse(body.slice(start, end + 1)) as unknown;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
 export function createTrendQuality(billing?:BillingContext,test?:{mode:'mock';complete:MeteredModelConfig['complete']}):QualityRunner {
  return async input=>{
   const c=input.campaign, started=Date.now();let modelCalls=0,toolCalls=0,toolSpend=0;let diagnostic='not_called';let lastValidated:QualityAssessment|null=null;
   let lastRecovery: QualityRecovery = { assessment:null, issues:[], invalidItems:[] };
   let recoveryStatus = '';
   const remaining=()=>c.spend.capUsd-c.spend.inferenceUsd-c.spend.mediaUsd;
-  const permitted=async()=>await input.allowed()&&Date.now()-started<120000;
+  const permitted=async()=>await input.allowed()&&Date.now()-started<8_888_888;
   const complete:MeteredModelConfig['complete']=async(req,ctx)=>{
     if(!await permitted()||++modelCalls>2)throw Error('Quality review paused or model limit reached.');
     const model=getLlmModel(req.modelId),{bytes,inputTokens}=trendRequestSize(req);
@@ -34,13 +49,13 @@ export function createTrendQuality(billing?:BillingContext,test?:{mode:'mock';co
     input.onProgress?.({phase:'quality',detail:modelCalls<=1?'Reviewing whether the sources support the findings':'Correcting the evidence review'});
     const result=await(test?.complete??runComplete)(req,ctx);
     sharedBudget.tokens+=result.usage.totalTokens;sharedBudget.costUsd+=result.usage.costUsd;
-    diagnostic=result.status;
+    diagnostic=result.status==='ok'?result.status:(result.note||result.status);
     let normalizedCalls=result.toolCalls;
-    if(result.status==='ok'&&result.modelId===req.modelId){
+    if(result.status==='ok'&&sameLlm(req.modelId, result.modelId)){
       // Apply only schema-defined conservative defaults before LangChain's JSON
       // Schema validator sees the reply. JSON Schema does not apply Zod defaults.
       const selected=result.toolCalls?.filter(call=>req.tools?.some(t=>t.name===call.name))??[];
-      let candidate:unknown;try{candidate=selected.length===1?selected[0].args:!result.toolCalls?.length?JSON.parse(result.text??'null'):null;}catch{candidate=null;}
+      const candidate=selected.length===1?selected[0].args:jsonObject(result.text);
       lastRecovery=recoverQualityAssessment(candidate);
       if(!lastRecovery.issues.length&&lastRecovery.assessment){
         const accepted=lastRecovery.assessment;
@@ -49,7 +64,7 @@ export function createTrendQuality(billing?:BillingContext,test?:{mode:'mock';co
       }else diagnostic='schema:'+lastRecovery.issues.slice(0,5).join(',');
     }
     input.onFailedUsage(result.usage.costUsd);
-    (c.researchModelTurns??=[]).push({turn:c.researchModelTurns!.length+1,phase:'quality',offeredTools:req.tools?.map(t=>t.name)??[],selectedTools:result.toolCalls?.map(t=>t.name)??[],status:result.status,modelId:result.modelId,tokens:result.usage.totalTokens});
+    (c.researchModelTurns??=[]).push({turn:c.researchModelTurns!.length+1,phase:'quality',offeredTools:req.tools?.map(t=>t.name)??[],selectedTools:result.toolCalls?.map(t=>t.name)??[],status:result.status,modelId:result.modelId,tokens:result.usage.totalTokens,...(result.status!=='ok'&&result.note?{note:result.note.slice(0,240)}:{})});
     return {...result,toolCalls:normalizedCalls};
   };
   const execute=async(name:string,args:Record<string,string>):Promise<ToolOutcome>=>{
@@ -83,11 +98,6 @@ export function createTrendQuality(billing?:BillingContext,test?:{mode:'mock';co
   };
   // Explicitly supplied public sources are read under existing URL/permission
   // guards. Browser-provided text/claims are never accepted as evidence.
-  if(c.trendQuality?.resumeStep===3&&c.internalDataAuthorised&&c.retailUpload){
-    const outcome=await input.execute('retail.internal_signals',{category:c.category,country:c.country});
-    (c.researchAttempts??=[]).push({category:'purchase_preference',tool:'retail.internal_signals',phase:'quality',status:outcome.status,summary:outcome.summary,evidenceIds:outcome.evidence.map(e=>e.id)});
-    const analyses=c.researchCoverage?.flatMap(a=>a.analysis?[a.analysis]:[])??[];c.researchCoverage=coverageFor(c,c.evidence.filter(e=>c.researchAttempts?.some(a=>a.evidenceIds.includes(e.id))));attachResearchAnalysis(c.researchCoverage,analyses);
-  }
   for(const source of c.trendSupplementarySources??[])await execute('web.scrape_page',{url:source.url,category:source.category,...(source.channel?{channel:source.channel}:{})});
   c.trendSupplementarySources=[];
   const assess=async(repair?:QualityRecovery):Promise<QualityAssessment|null>=>{

@@ -6,9 +6,9 @@
 import { balanceMilli } from "@/lib/billing/ledger";
 import { holdCredits, releaseHold, settleHold, type BillingContext, type Hold } from "@/lib/billing/meter";
 import { formatCredits, milliForCost } from "@/lib/billing/plan";
-import { callLlm, isLlmConfigured, localBase, systemFor } from "./adapters";
+import { callLlm, isLlmConfigured, localApiModel, localBase, systemFor } from "./adapters";
 import { fetchLocalModel } from "./local-base";
-import { getLlmOrDefault } from "./catalog";
+import { getLlmOrDefault, PROVIDER_DEFAULT_MODEL } from "./catalog";
 import { estimateLlmUsage, llmCostUsd, usageFromProvider, worstCaseUsd } from "./estimate";
 import { traceModelCall } from "./langsmith";
 import { parseToolArgs } from "@/lib/pr2-shims";
@@ -43,9 +43,9 @@ export async function runComplete(req: CompleteRequest, billing?: BillingContext
     // The account's local URL is not given that key, so a free reroute is the
     // 401 that dropped GPT-6.1 Sol at the compliance step.
     if (req.direct || req.images?.length) return false;
-    const local = getLlmOrDefault("local:custom");
+    const local = getLlmOrDefault(PROVIDER_DEFAULT_MODEL.local);
     if (!isLlmConfigured(local, req.localBaseUrl)) return false;
-    reroute = `${why} This decision ran free on the local model instead of ${assigned.name}.`;
+    reroute = `${why} This decision ran free on Aisle's mtplx endpoint instead of ${assigned.name}.`;
     model = local;
     active = { ...req, modelId: model.id };
     return true;
@@ -79,8 +79,8 @@ export async function runComplete(req: CompleteRequest, billing?: BillingContext
     return stubComplete(
       req,
       model.providerId === "local"
-        ? "No local model is answering. Start MTPLX, LM Studio or Ollama, or pick a cloud model on Settings."
-        : `${assigned.provider} is not available on this server. Start a local model or pick another provider.`,
+        ? "Aisle's mtplx endpoint is not answering. Check the endpoint on Settings, or pick another provider."
+        : `${assigned.provider} is not available on this server. Use Aisle's endpoint or pick another provider.`,
       "unconfigured",
     );
   }
@@ -109,7 +109,10 @@ export async function runComplete(req: CompleteRequest, billing?: BillingContext
       if (!reported) usage.costUsd = Math.round(cost * 100000) / 100000;
       await settle(hold, cost, model, req);
     }
-    const spoken = active.localModel && model.id === "local:custom" ? active.localModel : model.name;
+    const spoken =
+      model.providerId === "local" && active.localModel?.trim() && active.localModel.trim() !== model.apiModel
+        ? active.localModel.trim()
+        : model.name;
     return {
       provider: model.provider,
       providerId: model.providerId,
@@ -362,8 +365,8 @@ async function callProviderTools(
     throw new Error(`${model.provider} tool calling is not wired through Cindy's adapters.`);
   }
   const base = localBase(req);
-  const apiModel = model.id === "local:custom" ? req.localModel || "llama3.3" : model.apiModel;
-  const messages = openAIMessages({ ...req, images: undefined });
+  const apiModel = model.providerId === "local" ? localApiModel(model, req.localModel) : model.apiModel;
+  const messages = localMessages(openAIMessages({ ...req, images: undefined }));
 
   const res = await fetchLocalModel(base, "chat/completions", {
     method: "POST",
@@ -371,11 +374,14 @@ async function callProviderTools(
       model: apiModel,
       temperature: 0.4,
       messages,
-      ...(req.tools?.length ? { tools: openAITools(req) } : {}),
+      // Hidden reasoning otherwise consumes the whole output budget, and a low
+      // max_tokens cuts the structured tool call off before it is returned.
+      chat_template_kwargs: { enable_thinking: false },
+      ...(req.tools?.length ? { tools: openAITools(req), tool_choice: localToolChoice(req) } : {}),
     }),
   });
   if (!res.ok) {
-    throw new Error(`Local LLM ${res.status}: ${res.text.slice(0, 240)}`);
+    throw new Error(`Aisle endpoint ${res.status}: ${res.text.slice(0, 240)}`);
   }
   const json = JSON.parse(res.text) as {
     choices?: {
@@ -386,12 +392,27 @@ async function callProviderTools(
     }[];
     usage?: { prompt_tokens?: number; completion_tokens?: number };
   };
-  const message = json.choices?.[0]?.message;
+  const message = json.choices?.[0]?.message as { content?: string | null; reasoning_content?: string; tool_calls?: { id?: string; function?: { name?: string; arguments?: string } }[] } | undefined;
   const toolCalls = toolCallsFromChat(message);
   return {
-    text: message?.content ?? "",
+    text: message?.content || (!toolCalls.length ? message?.reasoning_content ?? "" : ""),
     inputTokens: json.usage?.prompt_tokens,
     outputTokens: json.usage?.completion_tokens,
     ...(toolCalls.length ? { toolCalls } : {}),
   };
+}
+
+/** One offered tool is the structured answer. mtplx otherwise writes prose and the review stores null. */
+function localToolChoice(req: CompleteRequest): string | { type: "function"; function: { name: string } } {
+  const tools = req.tools ?? [];
+  if (tools.length === 1) return { type: "function", function: { name: tools[0].name } };
+  return req.toolChoice === "required" ? "required" : "auto";
+}
+
+/** mtplx returns HTTP 500 when a tool transcript has no user text left. */
+function localMessages(messages: Record<string, unknown>[]): Record<string, unknown>[] {
+  const hasUser = messages.some((message) => message.role === "user" && String(message.content ?? "").trim());
+  const hasTools = messages.some((message) => message.role === "tool" || message.tool_calls);
+  if (hasUser || !hasTools) return messages;
+  return [...messages, { role: "user", content: "Answer from the conversation above." }];
 }

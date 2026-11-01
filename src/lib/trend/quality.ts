@@ -69,7 +69,7 @@ export function evaluateQuality(c:Campaign, raw:QualityAssessment|null, at:strin
     if(e.origin==='synthetic')exclusions.push('Synthetic demonstration data is not live campaign evidence.');
     const brandRetail=e.sourceKind==='internal_retail'&&e.sourceRef.startsWith('brand://retail-data');
     const trends=trendsMeasurement(e.sourceName);
-    if(!trends&&(e.sourceKind==='internal_retail'?!(c.internalDataAuthorised||brandRetail):e.sourceKind!=='external_public'||!(publicSourceUrl(e.sourceRef)||specialistSource(e))))exclusions.push('Unauthorised or non-public source.');
+    if(!trends&&(e.sourceKind==='internal_retail'?!brandRetail:e.sourceKind!=='external_public'||!(publicSourceUrl(e.sourceRef)||specialistSource(e))))exclusions.push('Unauthorised or non-public source.');
     if(semantic?.sensitive)exclusions.push('Sensitive information excluded.');
     if(e.research?.permission!=='allowed')exclusions.push('No evidence access permission.');
     if(e.status!=='verified'&&e.status!=='conflicting')exclusions.push('Source is not usable.');

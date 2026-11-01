@@ -7,6 +7,7 @@ import type { LedgerEntry } from "@/lib/billing/ledger";
 import type { BillingSummary } from "@/lib/billing/summary";
 import { formatDate, formatUsd } from "@/lib/ids";
 import { cn } from "@/lib/cn";
+import { useDeveloperView } from "@/components/DeveloperView";
 import { creditExamples } from "./examples";
 import { BILLING_CHANGED } from "./events";
 import { BuyCreditsButton } from "./BuyCreditsButton";
@@ -133,9 +134,9 @@ export function BillingView({ checkout }: { checkout: "success" | "cancel" | nul
         <p className="text-[11px] uppercase tracking-[0.2em] text-signal">Account</p>
         <h1 className="font-serif text-4xl">Billing.</h1>
         <p className="mt-3 text-sm leading-relaxed text-ink-soft">
-          Cloud agents, posters and ad videos run on Aisle&apos;s own provider keys and are paid for in
-          credits. You never paste an API key. Local models on this Mac (Qwen3.8 on MTPLX, ComfyUI) are
-          always free.
+          OpenAI and Claude agents, posters and ad videos are paid for in credits. You never paste an API
+          key. mtplx runs on Aisle&apos;s own cloud endpoint, a studio machine published with ngrok, and is
+          always free. It does not run on your computer.
         </p>
       </header>
 
@@ -173,7 +174,7 @@ export function BillingView({ checkout }: { checkout: "success" | "cancel" | nul
             <li>
               1 credit = ${PLAN.usdPerCredit.toFixed(2)}, charged at {PLAN.markup}× what the provider bills
             </li>
-            <li>Local models are free and never use credits</li>
+            <li>mtplx on Aisle&apos;s endpoint is free and never uses credits</li>
           </ul>
         </article>
 
@@ -194,7 +195,7 @@ export function BillingView({ checkout }: { checkout: "success" | "cancel" | nul
               </p>
               <p className="text-xs text-mute">
                 {summary.balanceMilli <= 0
-                  ? "Out of credits — cloud calls fall back to local models."
+                  ? "Out of credits — cloud calls fall back to Aisle's mtplx endpoint."
                   : "Spent as cloud agents, posters and videos run."}
               </p>
             </>
@@ -255,7 +256,7 @@ export function BillingView({ checkout }: { checkout: "success" | "cancel" | nul
               </div>
               {!summary.stripeReady && !live && (
                 <p className="mt-2 text-xs text-mute">
-                  Subscriptions are not switched on for this server yet. Local models still work.
+                  Subscriptions are not switched on for this server yet. Aisle&apos;s mtplx endpoint still works.
                 </p>
               )}
               {actionError && <p className="mt-2 text-xs text-signal">{actionError}</p>}
@@ -295,8 +296,8 @@ export function BillingView({ checkout }: { checkout: "success" | "cancel" | nul
               ))}
               <tr className="border-t border-line">
                 <td className="px-4 py-3">
-                  <p>Anything on the Local backend</p>
-                  <p className="text-xs text-mute">Qwen3.8 on MTPLX, ComfyUI posters and videos</p>
+                  <p>mtplx on Aisle&apos;s endpoint</p>
+                  <p className="text-xs text-mute">Aisle&apos;s own model, served from the studio machine</p>
                 </td>
                 <td className="px-4 py-3 text-right text-ok">Free</td>
                 <td className="px-4 py-3 text-right text-ink-soft">Unlimited</td>
@@ -316,6 +317,7 @@ export function BillingView({ checkout }: { checkout: "success" | "cancel" | nul
 }
 
 function UsageTable({ entries, loading }: { entries: LedgerEntry[]; loading: boolean }) {
+  const { developer } = useDeveloperView();
   if (loading) return <p className="mt-3 text-sm text-mute">Loading…</p>;
   if (!entries.length) {
     return <p className="mt-3 text-sm text-mute">Nothing yet. Cloud calls show up here as they run.</p>;
@@ -332,16 +334,14 @@ function UsageTable({ entries, loading }: { entries: LedgerEntry[]; loading: boo
           </tr>
         </thead>
         <tbody>
-          {entries.map((entry) => (
+          {entries.map((entry) => {
+            const detail = [entry.note, developer ? entry.modelId : null, developer && entry.costUsd != null ? `provider ${formatUsd(entry.costUsd)}` : null].filter(Boolean).join(" · ");
+            return (
             <tr key={entry.id} className="border-t border-line align-top">
               <td className="whitespace-nowrap px-4 py-3 text-ink-soft">{formatDate(entry.createdAt, true)}</td>
               <td className="px-4 py-3">
-                <p>{REASON[entry.reason] ?? entry.reason}</p>
-                <p className="text-xs text-mute">
-                  {[entry.note, entry.modelId, entry.costUsd != null ? `provider ${formatUsd(entry.costUsd)}` : null]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </p>
+                <p>{!developer && entry.reason === "dev_usage" ? "Cloud usage" : (REASON[entry.reason] ?? entry.reason)}</p>
+                {detail ? <p className="text-xs text-mute">{detail}</p> : null}
               </td>
               <td
                 className={cn(
@@ -355,7 +355,8 @@ function UsageTable({ entries, loading }: { entries: LedgerEntry[]; loading: boo
                 {entry.balanceAfterMilli == null ? "—" : formatCredits(entry.balanceAfterMilli)}
               </td>
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
     </div>

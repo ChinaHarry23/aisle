@@ -19,7 +19,7 @@ assert(model, "No local model advertised");
 const settings = defaultSettings();
 settings.localBaseUrl = base;
 settings.localModel = model;
-for (const slot of ["trend", "creative", "compliance", "media"] as const) settings.agents[slot] = { provider: "local", modelId: "local:custom" };
+for (const slot of ["trend", "creative", "compliance", "media"] as const) settings.agents[slot] = { provider: "local", modelId: "local:mtplx" };
 const directory = mkdtempSync(path.join(os.tmpdir(), "aisle-local-evaluation-"));
 const repo = new WorkflowRepository(path.join(directory, "workflow.db"));
 const campaign = blankCampaign({ name: "Local model evaluation", product: "Reusable cotton grocery bag", category: "Household", targetAudience: "Australian grocery shoppers", objective: "Explain the product and invite store visits", budget: 1000, channels: ["web"], startDate: "2026-10-01", endDate: "2026-10-10", country: "AU", notes: "Synthetic coursework test. No sustainability performance claim is approved." }, defaultBrand, null, settings);

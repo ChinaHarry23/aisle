@@ -29,7 +29,9 @@ import {
   getLlmOrDefault,
   LLM_MODELS,
   LLM_PROVIDERS,
+  MTPLX_API_MODEL,
   OFFERED_LLM_PROVIDERS,
+  PROVIDER_DEFAULT_MODEL,
 } from "@/lib/llm/catalog";
 import {
   matchPreset,
@@ -371,7 +373,7 @@ function ConnectionsTab({
   const [localModel, setLocalModel] = useState(settings.localModel);
   const [justSaved, setJustSaved] = useState(false);
   const endpointDirty = baseUrl.trim() !== settings.localBaseUrl || localModel.trim() !== settings.localModel;
-  const customInUse = AGENT_SLOTS.some((s) => settings.agents[s.id].modelId === "local:custom");
+  const mtplxInUse = AGENT_SLOTS.some((s) => settings.agents[s.id].provider === "local");
 
   const textProviders = LLM_PROVIDERS.filter((p) => OFFERED_LLM_PROVIDERS.includes(p.id) && p.id !== "local");
   const planned = [
@@ -494,8 +496,8 @@ function ConnectionsTab({
       </Section>
 
       <Disclosure
-        title="Advanced: local and custom endpoint"
-        description="Ollama, LM Studio, vLLM or a LiteLLM gateway. The way to add a model that isn't listed."
+        title="Advanced: Aisle endpoint"
+        description="Aisle's mtplx server. Inference runs there, not on a signed-in person's computer."
       >
         <form
           id={rowId("llm", "local")}
@@ -522,7 +524,7 @@ function ConnectionsTab({
                 setBaseUrl(e.target.value);
                 setJustSaved(false);
               }}
-              placeholder="http://127.0.0.1:11434/v1"
+              placeholder="https://your-tunnel.ngrok-free.app/v1"
               className="mt-1.5 w-full border px-3 py-2 text-sm outline-none focus:border-signal"
             />
           </div>
@@ -537,13 +539,13 @@ function ConnectionsTab({
                 setLocalModel(e.target.value);
                 setJustSaved(false);
               }}
-              placeholder="llama3.1"
+              placeholder={MTPLX_API_MODEL}
               className="mt-1.5 w-full border px-3 py-2 text-sm outline-none focus:border-signal"
             />
           </div>
           <p className="max-w-xl text-xs text-mute md:col-span-2">
-            Requests are made by the server, so the URL must be reachable from where Aisle runs. The model name is
-            used by the &ldquo;Custom tag&rdquo; model.
+            On the studio Mac this is the MTPLX port. On the public site, use the https ngrok address that
+            forwards to that port. The model name is the mtplx tag that server expects.
           </p>
           <div className="flex flex-wrap items-center justify-between gap-3 md:col-span-2">
             {localTest ? <TestInline test={localTest} /> : <span />}
@@ -558,19 +560,19 @@ function ConnectionsTab({
           {justSaved && !endpointDirty ? (
             <div role="status" className="flex flex-wrap items-center gap-3 text-sm md:col-span-2">
               <span className="text-ok">Saved.</span>
-              {customInUse ? null : (
+              {mtplxInUse ? null : (
                 <>
-                  <span className="text-ink-soft">No agent uses the Custom tag model yet.</span>
+                  <span className="text-ink-soft">No agent is using mtplx yet.</span>
                   <button
                     type="button"
                     onClick={() => {
                       const next = { ...settings.agents };
-                      for (const s of AGENT_SLOTS) next[s.id] = { provider: "local", modelId: "local:custom" };
+                      for (const s of AGENT_SLOTS) next[s.id] = { provider: "local", modelId: PROVIDER_DEFAULT_MODEL.local };
                       updateSettings({ agents: next });
                     }}
                     className="rounded-[var(--r-btn)] border border-line px-3 py-1.5 text-xs font-medium hover:bg-paper-2"
                   >
-                    Use it for all agents
+                    Use mtplx for all agents
                   </button>
                 </>
               )}

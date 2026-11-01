@@ -12,6 +12,7 @@ import {
   type IntakeTurnOutput,
 } from "@/lib/intake/shared";
 import { channelLabel } from "@/lib/status";
+import { useDeveloperView } from "@/components/DeveloperView";
 import type { BrandProfile, CampaignInput, Channel, Country } from "@/lib/types";
 
 type SpeechRecognitionAlternativeLike = {
@@ -70,6 +71,7 @@ export function IntakeChatbot({
   onApplyDraft,
   onSwitchToForm,
 }: Props) {
+  const { developer } = useDeveloperView();
   const [draft, setDraft] = useState<IntakeDraftState>(() => ({
     ...emptyIntakeDraft(),
     name: form.name,
@@ -265,11 +267,14 @@ export function IntakeChatbot({
         <div>
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-3">
             <div>
-              <p className="text-[11px] uppercase tracking-[0.18em] text-signal">
-                AHR-01 · Conversational intake assistant
-              </p>
+              {developer ? (
+                <p className="text-[11px] uppercase tracking-[0.18em] text-signal">
+                  AHR-01 · Conversational intake assistant
+                </p>
+              ) : null}
               <h2 className="font-serif text-2xl">Describe your campaign.</h2>
             </div>
+            {developer ? (
             <div className="text-right text-xs text-mute">
               <p>
                 Turn {turnCount} of {MAX_INTAKE_TURNS} · est. ${sessionCostUsd.toFixed(4)}
@@ -277,6 +282,7 @@ export function IntakeChatbot({
               </p>
               {lastModelLabel ? <p className="text-[11px]">{lastModelLabel}</p> : null}
             </div>
+            ) : null}
           </div>
 
           {priorRecommendation ? (
@@ -298,7 +304,7 @@ export function IntakeChatbot({
                 className={`flex flex-col ${m.role === "user" ? "items-end" : "items-start"}`}
               >
                 <span className="text-[10px] uppercase tracking-wider text-mute">
-                  {m.role === "user" ? "Human Founder" : "Inbound intake agent"}
+                  {m.role === "user" ? (developer ? "Human Founder" : "You") : developer ? "Inbound intake agent" : "Assistant"}
                 </span>
                 <div
                   className={`mt-1 max-w-[90%] px-3.5 py-2.5 text-sm leading-relaxed ${
@@ -307,14 +313,14 @@ export function IntakeChatbot({
                       : "border border-line bg-paper text-ink"
                   }`}
                 >
-                  {m.content}
+                  {m.id === "welcome" && !developer ? m.content.replace(" (AHR-01)", "") : m.content}
                 </div>
               </li>
             ))}
             {sending ? (
               <li className="flex flex-col items-start">
                 <span className="text-[10px] uppercase tracking-wider text-mute">
-                  Inbound intake agent
+                  {developer ? "Inbound intake agent" : "Assistant"}
                 </span>
                 <div className="mt-1 border border-line bg-paper px-3.5 py-2 text-xs text-mute">
                   Checking brief and brand rules…

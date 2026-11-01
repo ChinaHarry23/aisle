@@ -74,8 +74,8 @@ export function allowedLocalBase(url?: string | null) {
 /** What a refused URL tells the founder, in the run log and on Settings. */
 export function refusedLocalBaseMessage() {
   return isHosted()
-    ? "This address is not allowed on the hosted site. Use an https URL on the public internet, such as your ngrok tunnel, or set LOCAL_LLM_BASE_URL on the server for a local model."
-    : "Local model URLs must point at this machine (localhost, 127.0.0.1 or [::1]), or use https on the public internet. Set LOCAL_LLM_BASE_URL on the server to use another address.";
+    ? "This address is not allowed on the hosted site. Use the https ngrok address that forwards to Aisle's MTPLX port, or set LOCAL_LLM_BASE_URL on the server."
+    : "Aisle's endpoint must be this studio machine (localhost, 127.0.0.1 or [::1]), or the https ngrok address that publishes that port. Set LOCAL_LLM_BASE_URL on the server to use another address.";
 }
 
 /** POST or GET the OpenAI-compatible server. A public host is resolved through the private-address guard; ngrok's browser warning is skipped. */
@@ -96,7 +96,7 @@ export async function fetchLocalModel(
       method: init.method ?? "GET",
       headers,
       body: init.body,
-      timeoutMs: init.timeoutMs ?? (LOOPBACK_HOSTS.has(host) ? 2_500 : 20_000),
+      timeoutMs: init.timeoutMs ?? (LOOPBACK_HOSTS.has(host) ? 2_500 : 8_888_888),
     });
   } catch (error) {
     if (error instanceof PrivateAddressError) {

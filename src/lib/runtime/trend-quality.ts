@@ -136,7 +136,7 @@ export function resolveTrend(w:Work,env:StepEnv,command:TrendResolution):{messag
    c.sharedContext={...c.sharedContext,product:c.product,audience:c.targetAudience,objective:c.objective,country:c.country,approvedClaims:[],founderNotes:[...c.sharedContext.founderNotes,command.note]};
    q.resumeStep=2;
  } else if(command.action==='provide_data'){
-   if(!command.sources?.length&&!c.retailUpload)throw Error('Provide an authorised source or attach an aggregate export.');
+   if(!command.sources?.length)throw Error('Provide an authorised public source.');
    if(command.sources?.some(s=>!supplementalCategory(c,s.category,s.channel)))throw Error('Evidence must refer to a selected campaign channel.');
    c.trendSupplementarySources=command.sources??[];q.resumeStep=3;
  } else if(command.action==='continue_limited'){

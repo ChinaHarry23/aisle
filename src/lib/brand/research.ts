@@ -1,5 +1,6 @@
 import type { BrandProfile } from "@/lib/types";
 import type { CompleteRequest, CompleteResult } from "@/lib/llm/types";
+import { brandfetchDomain, lookupBrandfetch, type BrandfetchMiss } from "@/lib/brand/brandfetch";
 import { fetchPublicText } from "@/lib/net/public-fetch";
 
 type BrandResearch = {
@@ -128,16 +129,29 @@ function parseSuggestion(text: string | null): Partial<BrandResearch> | null {
   }
 }
 
-/** Read the public site, then ask the model to suggest tone and visual style. */
+const BRANDFETCH_MISS: Record<BrandfetchMiss, string> = {
+  not_configured: "Brandfetch is not configured, so the website was read instead.",
+  not_found: "Brandfetch has no profile for this website, so the page was read instead.",
+  unavailable: "Brandfetch did not answer, so the website was read instead.",
+};
+
+/** Brandfetch first. A missing profile falls back to the public page and the model. */
 export async function researchBrand(input: {
   name: string;
   website: string;
   complete: (req: CompleteRequest) => Promise<CompleteResult>;
   modelId: string;
+  lookup?: typeof lookupBrandfetch;
 }): Promise<BrandResearch> {
   const name = input.name.trim();
   if (!name) throw new Error("Enter the brand name first.");
   const site = assertPublicSite(input.website);
+  const lookup = input.lookup ?? lookupBrandfetch;
+  const foundOnBrandfetch = await lookup(brandfetchDomain(site.href));
+  if ("profile" in foundOnBrandfetch) {
+    return { ...foundOnBrandfetch.profile, tone: "", visualStyle: "" };
+  }
+  const brandfetchNote = BRANDFETCH_MISS[foundOnBrandfetch.miss];
   const { html, finalUrl } = await readSite(site);
   assertPublicSite(finalUrl.href);
   const found = scraped(name, finalUrl, html);
@@ -148,7 +162,7 @@ export async function researchBrand(input: {
     tone: "",
     visualStyle: "",
     colors: found.colors,
-    sourceNote: `Read ${finalUrl.hostname}. The model did not return a tone or a visual style, so those fields were left as they were.`,
+    sourceNote: `${brandfetchNote} Read ${finalUrl.hostname}. The model did not return a tone or a visual style, so those fields were left as they were.`,
   };
   let result: CompleteResult;
   try {
@@ -173,10 +187,10 @@ export async function researchBrand(input: {
     ].join("\n"),
     });
   } catch (error) {
-    return { ...draft, sourceNote: `Read ${finalUrl.hostname}. ${error instanceof Error ? error.message : "The model did not answer."}` };
+    return { ...draft, sourceNote: `${brandfetchNote} Read ${finalUrl.hostname}. ${error instanceof Error ? error.message : "The model did not answer."}` };
   }
   const suggestion = result.status === "ok" ? parseSuggestion(result.text) : null;
-  if (!suggestion) return { ...draft, sourceNote: `Read ${finalUrl.hostname}. ${result.note || draft.sourceNote}` };
+  if (!suggestion) return { ...draft, sourceNote: `${brandfetchNote} Read ${finalUrl.hostname}. ${result.note || "The model did not return a suggestion."}` };
   const colors = suggestion.colors;
   return {
     about: typeof suggestion.about === "string" && suggestion.about.trim() ? suggestion.about.trim().slice(0, 1200) : draft.about,
@@ -191,6 +205,6 @@ export async function researchBrand(input: {
       ink: EMPTY_COLORS.ink,
       paper: EMPTY_COLORS.paper,
     },
-    sourceNote: `Suggested from ${finalUrl.hostname}. Edit any line you disagree with.`,
+    sourceNote: `${brandfetchNote} Suggested from ${finalUrl.hostname}. Edit any line you disagree with.`,
   };
 }

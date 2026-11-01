@@ -110,7 +110,7 @@ export async function boundedResponse(response: Response, maximum = 1_000_000): 
   return new TextDecoder().decode(Buffer.concat(parts));
 }
 async function json(url: string, init: RequestInit = {}): Promise<unknown> {
-  return JSON.parse(await boundedResponse(await fetch(url, {...init,redirect:'error',cache:'no-store',signal:AbortSignal.timeout(12_000)})));
+  return JSON.parse(await boundedResponse(await fetch(url, {...init,redirect:'error',cache:'no-store',signal:AbortSignal.timeout(8_888_888)})));
 }
 function record(value: unknown): Record<string, unknown> { return value && typeof value==='object' && !Array.isArray(value) ? value as Record<string,unknown> : {}; }
 function date(value: unknown): string | null { return typeof value==='string' && /^\d{4}-\d{2}-\d{2}/.test(value) && Number.isFinite(Date.parse(value)) ? value.slice(0,10):null; }
@@ -182,7 +182,7 @@ const define=definePublicResearchTool;
 const searchTool=define('web.search','Scoped public search: Firecrawl or existing model-provider web search when configured',querySchema,async input=>{
   if(!process.env.FIRECRAWL_API_KEY)return unavailable('Firecrawl key is not configured.');
   const category=input.args.category as ResearchCategory;
-  const response=record(await json('https://api.firecrawl.dev/v2/search',{method:'POST',headers:{Authorization:`Bearer ${process.env.FIRECRAWL_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({query:queryFor(input,category,input.args.channel),limit:5,sources:['web'],country:input.campaign.country==='UK'?'GB':input.campaign.country,timeout:10000})}));
+  const response=record(await json('https://api.firecrawl.dev/v2/search',{method:'POST',headers:{Authorization:`Bearer ${process.env.FIRECRAWL_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({query:queryFor(input,category,input.args.channel),limit:5,sources:['web'],country:input.campaign.country==='UK'?'GB':input.campaign.country,timeout:8_888_888})}));
   const data=record(response.data); const rows=Array.isArray(data.web)?data.web:[];
   const seen = new Set<string>();
   const evidence=rows.slice(0,5).flatMap(row=>{const r=record(row);const url=publicSourceUrl(String(r.url??''));const excerpt=typeof r.description==='string'?r.description:'';if(!url||!excerpt||seen.has(url))return [];seen.add(url);return [item(input,category,'Firecrawl Search',url,excerpt,null,{channel:input.args.channel,quality:'snippet'})];});
@@ -207,7 +207,7 @@ const scrapeTool=define('web.scrape_page','Read relevant passages from an origin
     const evidence=[item(input,input.args.category as ResearchCategory,'Public source text',finalUrl,relevantExcerpt(text,question,6000),published,{channel:input.args.channel,transformation:'Relevant verbatim passages selected from bounded main/article text; […] separates passages. Scripts/navigation removed. Publication date from declared source metadata when present; otherwise unknown.'})];
     return result(evidence,{sources:evidence},'Public text retrieved directly; relevance and publication date require review.');
   }
-  const response=record(await json('https://api.firecrawl.dev/v2/scrape',{method:'POST',headers:{Authorization:`Bearer ${process.env.FIRECRAWL_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({url,formats:['markdown'],onlyMainContent:true,timeout:10000})}));
+  const response=record(await json('https://api.firecrawl.dev/v2/scrape',{method:'POST',headers:{Authorization:`Bearer ${process.env.FIRECRAWL_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({url,formats:['markdown'],onlyMainContent:true,timeout:8_888_888})}));
   const data=record(response.data),metadata=record(data.metadata);const finalUrl=publicSourceUrl(String(metadata.sourceURL??url));
   if(!finalUrl)return unavailable('Redirected source rejected.','skipped');
   const content=typeof data.markdown==='string'?data.markdown:'';if(!content)return unavailable('Source has no readable content.');
@@ -278,7 +278,7 @@ const absTool=define('stats.abs_spending','ABS spending: discover current datafl
  if(input.campaign.country!=='AU')return unavailable('ABS series covers Australia only.');
  const flow=input.args.flow;
  const metadataUrl=`https://data.api.abs.gov.au/rest/dataflow/ABS/${flow||'all'}/latest?references=${flow?'all':'none'}`;
- const metadata=await boundedResponse(await fetch(metadataUrl,{headers:{Accept:'application/vnd.sdmx.structure+xml;version=2.1'},redirect:'error',signal:AbortSignal.timeout(12000)}), 4_000_000);
+ const metadata=await boundedResponse(await fetch(metadataUrl,{headers:{Accept:'application/vnd.sdmx.structure+xml;version=2.1'},redirect:'error',signal:AbortSignal.timeout(8_888_888)}), 4_000_000);
  const flows=absFlows(metadata);
  if(!flow) return {status:'ok',summary:'ABS spending dataflow discovery; no measurement yet.',evidence:[],data:{metadataUrl,flows:flows.filter(f=>/spend|household/i.test(f.name)),instruction:'Select a production spending flow, then request its metadata to discover dimension order and codes.'}};
  const selected=flows.find(f=>f.id===flow);
@@ -289,7 +289,7 @@ const absTool=define('stats.abs_spending','ABS spending: discover current datafl
  const keyParts=input.args.key.split('.');
  if(keyParts.length!==dimensions.length||keyParts.some((code,i)=>!dimensions[i].codes.some(c=>c.id===code)))return unavailable('Series key does not match verified dimension codes.');
  const url=`https://data.api.abs.gov.au/rest/data/ABS,${flow},${selected.version}/${input.args.key}?lastNObservations=12&dimension_at_observation=AllDimensions`;
- const raw=await boundedResponse(await fetch(url,{headers:{Accept:'text/csv'},redirect:'error',signal:AbortSignal.timeout(12000)}));const [header,...rows]=parseCsv(raw);
+ const raw=await boundedResponse(await fetch(url,{headers:{Accept:'text/csv'},redirect:'error',signal:AbortSignal.timeout(8_888_888)}));const [header,...rows]=parseCsv(raw);
  const ti=header?.indexOf('TIME_PERIOD')??-1,vi=header?.indexOf('OBS_VALUE')??-1;
  if(ti<0||vi<0||!rows.length||rows.some(r=>r.length!==header.length)||rows.length>100)return unavailable('Unexpected or too broad ABS series.');
  const data=rows.filter(r=>r[vi]!==''&&Number.isFinite(Number(r[vi]))).map(r=>Object.fromEntries(header.map((h,i)=>[h,r[i]])));if(!data.length)return unavailable('ABS series has no numeric observations.');

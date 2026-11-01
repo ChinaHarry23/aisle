@@ -1,7 +1,6 @@
 process.env.TREND_PUBLIC_CACHE_TTL_MS='0';
 import assert from 'node:assert/strict';
 import { installPublicPageFixture } from './public-page-fixture';
-import { importRetailCsv, internalRetailOutcome } from '../src/lib/trend/internal-retail';
 import { blankCampaign, defaultBrand } from '../src/lib/seed';
 import { defaultSettings } from '../src/lib/settings';
 import { researchTools, publicSourceUrl, parseCsv, boundedResponse, queryFor } from '../src/lib/trend/source-tools';
@@ -93,10 +92,6 @@ try{
  globalThis.fetch=async()=>{throw Error('secret-token');};assert.ok(!JSON.stringify(await tool('web.search').run({...base,args:{category:'current_market'}})).includes('secret-token'));
  delete process.env.FIRECRAWL_API_KEY;assert.match((await tool('web.search').run({...base,args:{category:'current_market'}})).summary,/not configured/);process.env.FIRECRAWL_API_KEY='synthetic-key';
  pass('missing credentials, empty, malformed, rate-limited and failed requests produce explicit gaps');
- const upload=await importRetailCsv('sku,category,week,units\nAPPLE,Grocery,2026-10-12,7\nJUICE,Grocery,2026-10-12,3\nCOAT,Apparel,2026-10-12,2',at);
- assert.equal(internalRetailOutcome({...c,retailUpload:upload,internalDataAuthorised:false},at).status,'skipped');
- const internal=internalRetailOutcome({...c,retailUpload:upload,internalDataAuthorised:true},at);assert.equal(internal.evidence.length,1);assert.match(internal.evidence[0].detail,/"units":10/);assert.ok(!JSON.stringify(internal).includes('APPLE'));
- await assert.rejects(importRetailCsv('sku,category,week,units,email\nx,Grocery,2026-10-12,3,test@example.com',at));
  delete process.env.FIRECRAWL_API_KEY;
  directPage='<html><script>unsafe()</script><p>Public retail survey</p></html>';
  const direct=await tool('web.scrape_page').run({...base,args:{url:'https://www.abs.gov.au/statistics/example',category:'purchase_preference'}});
@@ -104,7 +99,7 @@ try{
  assert.equal((await tool('web.scrape_page').run({...base,args:{url:'https://www.coles.com.au/product/123',category:'competitor'}})).evidence.length,0);
  assert.equal(direct.status,'ok');assert.ok(!direct.evidence[0].detail.includes('unsafe'));assert.equal(direct.evidence[0].observedAt,null);
  process.env.FIRECRAWL_API_KEY='synthetic-key';
- pass('authorised aggregate CSV preserves file hash and weekly totals, excludes SKU/customer data; direct public extraction works without Firecrawl');
+ pass('direct public extraction works without Firecrawl and drops a blocked retailer page');
  process.env.WHICHGROCER_API_KEY='synthetic-key';
  const groceryRow={id:'coles_123',name:'Apple juice 1L',store:'coles',price:3,currency:'AUD',url:'https://www.coles.com.au/product/123',updated_at:'2026-10-19T00:00:00Z',is_stale:false,weight:1,uom:'l',unit_price:3,unit_measure:'l',is_special:true,price_stats:{average_30d:4,lowest_30d:3,highest_30d:5,is_below_average:true,discount_pct:25}};
  let groceryUrl='';globalThis.fetch=async(url)=>{groceryUrl=String(url);return Response.json({data:[groceryRow]});};

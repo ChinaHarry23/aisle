@@ -11,12 +11,10 @@
  *  - `external_public` tools make a real HTTP request, with a timeout, and report
  *    honestly when the network is unavailable (status `empty` + an `unavailable`
  *    evidence row) instead of inventing a result.
- *  - `internal_retail` tools read an authorised campaign CSV when one is attached,
- *    and otherwise the POS file uploaded on Brand for this retailer. A file for
- *    another banner is not used, and no figure is invented when neither exists.
+ *  - `internal_retail` tools read the POS file uploaded on Brand for this retailer.
+ *    A file for another banner is not used, and no figure is invented when none is loaded.
  */
 
-import { internalRetailOutcome } from '@/lib/trend/internal-retail';
 import { researchTools, RESEARCH_TOOL_IDS, definePublicResearchTool } from "@/lib/trend/source-tools";
 import { z } from "zod";
 import { describeShelf } from "@/lib/retail/whichgrocer/query";
@@ -170,11 +168,13 @@ export const internalRetailTool: ToolDefinition = {
   label: "Internal retail signals",
   agent: "trend",
   description:
-    "Reads an authorised aggregate CSV for this campaign, or the POS file uploaded on Brand for this retailer. It does not use another retailer's file.",
+    "Reads the POS file uploaded on Brand for this retailer. It does not use another retailer's file.",
   args: ["category", "country"],
   async run({ campaign, brand, at }) {
     const dataset = brand.retailData;
-    if (!dataset || dataset.schemaVersion !== "1.0" || !dataset.products?.length) return internalRetailOutcome(campaign, at);
+    if (!dataset || dataset.schemaVersion !== "1.0" || !dataset.products?.length) {
+      return { summary: "No retailer file is loaded on Brand.", status: "skipped", evidence: [], data: null };
+    }
     const matched = matchRetailData(brand, campaign);
     const observedAt = brand.retailData?.extractedAt || at.slice(0, 10);
     if (matched.kind !== "product" && matched.kind !== "category") {

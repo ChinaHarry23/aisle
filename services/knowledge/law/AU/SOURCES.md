@@ -21,3 +21,13 @@ The two ACCC guides are also the published PDFs. www.accc.gov.au returned Access
 These guides are general guidance. They are not legal advice and they are not a substitute for the text of the Act.
 
 The text layer of the food-labelling PDF prints “derived rom” in section 8. That letter is missing in the authorised PDF. The text file keeps the PDF’s wording.
+
+Copyright, commercial email, and advertising ethics were added on 1 November 2026 so an Australian review can retrieve them. The PDFs are the official compilations. The AANA file is the code page as published that day, not a separate PDF: the page offered “Code of Ethics PDF” without a file URL.
+
+| File | What it is |
+|---|---|
+| `sources/copyright-act-1968-compilation-65.pdf` | Copyright Act 1968 (Cth), Compilation No. 65, 2 April 2026, authorised version C2026C00138. 701 pages. Creative Commons Attribution 4.0 International, except the Commonwealth Coat of Arms. https://www.legislation.gov.au/C1968A00063/2026-04-02/2026-04-02/text/original/pdf |
+| `sources/spam-act-2003-compilation-10.pdf` | Spam Act 2003 (Cth), Compilation No. 10, 10 March 2016, authorised version C2016C00614. 64 pages. Same Creative Commons licence. https://www.legislation.gov.au/C2004A01214/2016-03-10/2016-03-10/text/original/pdf |
+| `text/aana-code-of-ethics-2021.txt` | AANA Code of Ethics, effective 1 February 2021, including the practice note published on the same page. The Code says it applies to online and social media the advertiser controls, and that Medium includes the internet. https://aana.com.au/code-of-ethics/ — page text saved 1 November 2026. © The Marketing Association of Australia. This is not a Creative Commons copy. |
+
+Meta's Advertising Standards page returned only its title, not the policy text, so those standards are not stored. An Instagram or website advertisement is checked against the AANA Code's internet and social-media scope. A commercial email is checked against the Spam Act. The retailer's own tone and banned terms are read from the saved brand profile at review time; they are not a downloaded statute.

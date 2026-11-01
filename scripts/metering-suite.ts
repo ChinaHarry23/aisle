@@ -202,10 +202,10 @@ try {
   const rerouted = await runComplete(ask("anthropic:claude-opus-5.5"), beta("broke-1"));
   delete process.env.LOCAL_LLM_BASE_URL;
   assert.equal(rerouted.status, "ok", rerouted.note);
-  assert.deepEqual([rerouted.providerId, rerouted.modelId, rerouted.modelName, rerouted.usage.costUsd], ["local", "local:custom", "Custom tag", 0]);
+  assert.deepEqual([rerouted.providerId, rerouted.modelId, rerouted.modelName, rerouted.usage.costUsd], ["local", "local:mtplx", "mtplx", 0]);
   assert.match(rerouted.note, /Out of credits/);
   assert.equal(cloudCalls(), sent);
-  assert.equal(local.seen.filter((row) => row.path === "/v1/chat/completions").at(-1)?.body.model, "llama3.1");
+  assert.equal(local.seen.filter((row) => row.path === "/v1/chat/completions").at(-1)?.body.model, "mtplx-flash-next-optimized-speed");
   assert.equal(await balanceMilli("broke-1"), 0);
   assert.equal((await usageRows("broke-1")).length, 0);
   pass("insufficient credits return no_credits without calling out, or run free on a local model that answers");
@@ -225,7 +225,7 @@ try {
 
   process.env.LOCAL_LLM_BASE_URL = `${local.base}/v1`;
   const localOk = await runComplete(
-    { agent: "trend", modelId: "local:llama3.3", prompt: "Decide the brief.", localBaseUrl: `${local.base}/v1` },
+    { agent: "trend", modelId: "local:mtplx", prompt: "Decide the brief.", localBaseUrl: `${local.base}/v1` },
     beta("careful-1"),
   );
   delete process.env.LOCAL_LLM_BASE_URL;
@@ -281,7 +281,7 @@ try {
     // A private install may use its own loopback server; an error is reported.
     const echoed = await runComplete(custom(`${internal.base}/v1`), beta("ssrf-1"));
     assert.equal(echoed.status, "error");
-    assert.match(echoed.note ?? "", /Local LLM 500/);
+    assert.match(echoed.note ?? "", /Aisle endpoint 500/);
 
     // A loopback server cannot bounce the call to another address.
     const localHits = local.seen.length;

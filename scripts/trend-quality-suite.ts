@@ -15,7 +15,6 @@ import {runEngine} from '../src/lib/runtime/engine';
 import {WorkflowRepository} from '../services/workflow/repository';
 import {createTrendQuality} from '../src/lib/agents/trend-quality';
 import {protectResearchSnapshots,withWorkspaceLock} from '../src/lib/trend/inline-state';
-import {importRetailCsv} from '../src/lib/trend/internal-retail';
 import {toolByName} from '../src/lib/runtime/tools';
 import {stubComplete} from '../src/lib/llm/stub';
 import type {Campaign} from '../src/lib/types';
@@ -132,7 +131,6 @@ pass('pause and changed context prevent handoff even after a previously successf
 }
 pass('typed shared LangChain assessment consumes real fixture excerpts; sufficient evidence avoids extra searches; pause prevents calls');
 {
- const upload=await importRetailCsv('sku,category,week,units\nSKU1,Grocery,2026-10-19,0',at);assert.equal(upload.rows[0].units,0);
  const test=reviewed();recordStoredTrend(test);
  const forged={...test,trendRequests:[],trendQuality:{...test.trendQuality!,status:'COMPLETE' as const,version:999}};
  assert.equal(protectResearchSnapshots([forged],[test])[0].trendQuality!.version,test.trendQuality!.version);

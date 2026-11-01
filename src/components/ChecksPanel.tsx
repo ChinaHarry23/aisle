@@ -1,5 +1,6 @@
 "use client";
 
+import { useDeveloperView } from "@/components/DeveloperView";
 import { ComplianceReviewHistory } from "./ComplianceReviewHistory";
 import { excerptExplainer } from "./advertisementLabels";
 import { useMemo, useState } from "react";
@@ -161,6 +162,7 @@ export function ChecksPanel({
   inline?: boolean;
 }) {
   const [noteOpen, setNoteOpen] = useState(false);
+  const { developer } = useDeveloperView();
 
   const rounds = useMemo(() => {
     const m = new Map<number, ComplianceReport[]>();
@@ -340,7 +342,7 @@ export function ChecksPanel({
                 ) : null}
               </li>
             ) : null}
-            {attempt ? (
+            {developer && attempt ? (
               <li className="text-xs text-mute">
                 Policies: {attempt.policyRefs.join(" · ")} · model {attempt.modelId}
               </li>

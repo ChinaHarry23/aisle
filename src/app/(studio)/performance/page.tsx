@@ -8,9 +8,11 @@ import type { ChannelResultStatus } from "@/lib/runtime/types";
 import { useActiveCampaigns, useAisle } from "@/lib/store";
 import { SaveInsightsPanel } from "@/components/insights/FeedbackInsights";
 import { Empty, PageHeader, ResultStatusChip, SectionTitle, Stat } from "@/components/ui";
+import { useDeveloperView } from "@/components/DeveloperView";
 import Link from "next/link";
 
 export default function PerformancePage() {
+  const { developer } = useDeveloperView();
   const campaigns = useActiveCampaigns();
   const collectFeedback = useAisle((s) => s.collectFeedback);
   const setCollectorOverrides = useAisle((s) => s.setCollectorOverrides);
@@ -112,6 +114,7 @@ export default function PerformancePage() {
               <h3 className="text-[11px] uppercase tracking-wider text-mute">
                 Collection status per channel
               </h3>
+              {developer ? (
               <details className="text-xs">
                 <summary className="cursor-pointer text-mute hover:text-ink">
                   Declare a channel outcome
@@ -140,6 +143,7 @@ export default function PerformancePage() {
                   ))}
                 </div>
               </details>
+              ) : null}
             </div>
 
             <ul className="mt-3 flex flex-col gap-2">
@@ -281,7 +285,7 @@ export default function PerformancePage() {
         />
       ) : null}
 
-      {legacy.length > 0 ? (
+      {developer && legacy.length > 0 ? (
         <section>
           <SectionTitle kicker="Archived demo history" title="Seeded campaigns" />
           <p className="mt-2 max-w-2xl text-sm text-ink-soft">

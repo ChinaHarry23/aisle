@@ -5,7 +5,6 @@
 
 import { withRuntimeDefaults } from "@/lib/runtime/defaults";
 import type { Command } from "@/lib/runtime/types";
-import { retailUploadSchema } from "@/lib/trend/internal-retail";
 import type { Campaign } from "@/lib/types";
 import { WorkflowError } from "./commands";
 import { founderCollectorOverrides } from "./founder-input";
@@ -18,7 +17,6 @@ export function campaignForCommand(existing: Campaign | undefined, incoming: Cam
   if (!existing && incoming.trendQuality) {
     throw new WorkflowError("No stored research version exists for this campaign.", 409);
   }
-  const protectedResearch = Boolean(existing?.trendQuality || existing?.researchMode === "agent");
   const fromStore = Boolean(existing && existing.status !== "draft");
   const target = withRuntimeDefaults(fromStore ? structuredClone(existing!) : incoming);
   if (fromStore) {
@@ -27,16 +25,6 @@ export function campaignForCommand(existing: Campaign | undefined, incoming: Cam
     // durable snapshot replaces it. So they come from the request, filtered.
     target.collectorOverrides = founderCollectorOverrides(target, incoming.collectorOverrides);
     if (Number.isFinite(incoming.spendCapUsd) && incoming.spendCapUsd! > 0) target.spendCapUsd = incoming.spendCapUsd;
-  }
-  if (
-    protectedResearch &&
-    command.type === "RESOLVE_TREND" &&
-    command.action === "provide_data" &&
-    incoming.internalDataAuthorised &&
-    incoming.retailUpload
-  ) {
-    target.retailUpload = retailUploadSchema.parse(incoming.retailUpload);
-    target.internalDataAuthorised = true;
   }
   return target;
 }

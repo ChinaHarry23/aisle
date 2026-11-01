@@ -14,6 +14,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { AgentPipeline, PageHeader, StatusBadge } from "@/components/ui";
+import { useDeveloperView } from "@/components/DeveloperView";
 import { cn } from "@/lib/cn";
 import { getLlmOrDefault } from "@/lib/llm/catalog";
 import type { AgentSlot } from "@/lib/llm/types";
@@ -93,6 +94,7 @@ const greeting = () => {
 };
 
 export function Overview() {
+  const { developer } = useDeveloperView();
   const campaigns = useActiveCampaigns();
   const brand = useAisle((s) => s.brand);
   const settings = useAisle((s) => s.settings);
@@ -337,9 +339,11 @@ export function Overview() {
           <aside aria-label="Your agents" className="hairline p-4">
             <div className="flex items-center justify-between gap-2">
               <h2 className="font-serif text-lg">Your agents</h2>
-              <Link href="/settings" className="text-xs text-mute hover:text-signal">
-                Change models
-              </Link>
+              {developer ? (
+                <Link href="/settings" className="text-xs text-mute hover:text-signal">
+                  Change models
+                </Link>
+              ) : null}
             </div>
             <ul className="mt-3 flex flex-col">
               {stages.map((stage) => {
@@ -353,9 +357,11 @@ export function Overview() {
                       <StageIcon icon={stage.icon} size="sm" />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-medium">{stage.name}</span>
-                        <span className="block truncate text-xs text-mute">
-                          {model ? model.name : "You"}
-                        </span>
+                        {developer ? (
+                          <span className="block truncate text-xs text-mute">
+                            {model ? model.name : "You"}
+                          </span>
+                        ) : null}
                       </span>
                       <span
                         className={cn(

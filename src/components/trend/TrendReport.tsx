@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useDeveloperView } from "@/components/DeveloperView";
 import { ResearchDecisions } from "./ResearchDecisions";
 import { StructuredBrief } from "./StructuredBrief";
 import { StrategySummary } from "./StrategySummary";
@@ -32,7 +33,18 @@ function areaTitle(area: Area) {
   return `${labels[area.category]}${area.channel ? ` · ${area.channel}` : ""}`;
 }
 
+function plainStatus(status: string) {
+  if (status.startsWith("Complete") || status.startsWith("Evidence passed")) return "Research complete";
+  if (status.startsWith("Draft")) return "Research in progress";
+  if (status.startsWith("Analysis ended")) return "Research stopped early";
+  if (status.startsWith("Research saved")) return "Some questions still open";
+  if (status === "No verified research run") return "Not started";
+  if (status === "Developing your campaign") return "Working on your campaign";
+  return status;
+}
+
 export function TrendReport({ campaign }: { campaign: Campaign }) {
+  const { developer } = useDeveloperView();
   const areas = campaign.researchCoverage ?? coverageFor(campaign, []);
   const retrieved = areas.filter((area) => area.evidenceIds.length).length;
   const quality = campaign.trendQuality;
@@ -99,7 +111,7 @@ export function TrendReport({ campaign }: { campaign: Campaign }) {
               {campaign.product} · {campaign.country} · {campaign.startDate} – {campaign.endDate}
             </p>
           </div>
-          <span className="status-chip status-wait">{draft}</span>
+          <span className="status-chip status-wait">{developer ? draft : plainStatus(draft)}</span>
         </div>
         <dl className="mt-4 grid grid-cols-3 gap-3 border-t border-line pt-3 text-sm">
           <div>
@@ -115,7 +127,7 @@ export function TrendReport({ campaign }: { campaign: Campaign }) {
             <dd className="mt-1 text-lg">{strategy?.channels.length ?? campaign.channels.length}</dd>
           </div>
         </dl>
-        {campaign.researchModelTurns?.length ? (
+        {developer && campaign.researchModelTurns?.length ? (
           <details className="mt-4 border-t border-line pt-3">
             <summary className="cursor-pointer text-sm text-signal">
               Research activity
@@ -126,6 +138,7 @@ export function TrendReport({ campaign }: { campaign: Campaign }) {
                 <li key={turn.turn}>
                   Turn {turn.turn} · {turn.modelId} · {turn.phase} · {turn.status} · {turn.tokens} tokens
                   <p>{turn.selectedTools.length ? `Selected: ${turn.selectedTools.join(", ")}` : "No tool selected"}</p>
+                  {turn.note ? <p>{turn.note}</p> : null}
                 </li>
               ))}
               {quality?.modelStatus && quality.modelStatus !== "assessed" ? <li>Review detail: {quality.modelStatus}</li> : null}
@@ -208,8 +221,9 @@ export function TrendReport({ campaign }: { campaign: Campaign }) {
             </p>
             <details className="mt-4 border-t border-line pt-3">
               <summary className="cursor-pointer text-sm text-signal">
-                Evidence and execution · {selected.evidenceIds.length} sources
+                {developer ? "Evidence and execution" : "Sources"} · {selected.evidenceIds.length} sources
               </summary>
+              {developer ? (
               <ul className="mt-3 space-y-2 text-xs text-mute">
                 {(selected.attempts ?? []).map((attempt, index) => (
                   <li key={index}>
@@ -220,6 +234,7 @@ export function TrendReport({ campaign }: { campaign: Campaign }) {
                 ))}
                 {!selected.attempts?.length ? <li>No execution recorded.</li> : null}
               </ul>
+              ) : null}
               {selected.evidenceIds.map((id) => {
                 const evidence = campaign.evidence.find((source) => source.id === id);
                 const review = quality?.evidence.find((item) => item.id === id);
@@ -288,7 +303,6 @@ export function TrendReport({ campaign }: { campaign: Campaign }) {
           )}
           <div className="mt-4 flex flex-wrap gap-4 text-sm text-signal">
             <Link href="/settings">Check source connections →</Link>
-            <a href="#retail-data">Provide authorised retail data →</a>
           </div>
         </section>
       ) : null}

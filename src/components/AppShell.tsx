@@ -15,8 +15,10 @@ import {
   Images,
   SlidersHorizontal,
   TrendingUp,
+  CreditCard,
 } from "lucide-react";
 import { CreditsBadge } from "@/components/billing/CreditsBadge";
+import { DeveloperViewProvider, DeveloperViewToggle } from "@/components/DeveloperView";
 import { UserMenu } from "@/components/UserMenu";
 import { BrandLogo } from "@/components/BrandLogo";
 import { WorkspaceSync } from "@/components/WorkspaceSync";
@@ -53,6 +55,7 @@ const navGroups: { label?: string; end?: boolean; items: NavItem[] }[] = [
     items: [
       { href: "/brand", label: "Brand", icon: Store },
       { href: "/settings", label: "Settings", icon: SlidersHorizontal },
+      { href: "/billing", label: "Billing", icon: CreditCard },
     ],
   },
 ];
@@ -82,6 +85,7 @@ export function AppShell({ children, user }: { children: ReactNode; user: Public
   const awaiting = campaigns.filter((c) => !isArchived(c) && c.status === "awaiting_approval").length;
 
   return (
+    <DeveloperViewProvider>
     <WorkspaceSync user={user}>
       <div className="shell">
           <div className="shell-frame">
@@ -136,6 +140,7 @@ export function AppShell({ children, user }: { children: ReactNode; user: Public
             </aside>
             <div className="min-w-0">
               <div className="flex items-center justify-end gap-4 px-[var(--page-pad)] pt-4">
+                <DeveloperViewToggle />
                 <CreditsBadge pathname={pathname} />
                 <UserMenu user={user} onSignOut={signOutAndReload} />
               </div>
@@ -150,5 +155,6 @@ export function AppShell({ children, user }: { children: ReactNode; user: Public
           </div>
         </div>
     </WorkspaceSync>
+    </DeveloperViewProvider>
   );
 }

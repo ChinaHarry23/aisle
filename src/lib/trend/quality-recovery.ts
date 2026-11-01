@@ -1,4 +1,4 @@
-import { qualityAssessmentSchema, type QualityAssessment } from './quality-contracts';
+import { FINDING_CATEGORIES, qualityAssessmentSchema, type FindingCategory, type QualityAssessment } from './quality-contracts';
 
 type Section = keyof QualityAssessment;
 export type InvalidQualityItem = { section: Section; index: number; value: unknown; errors: string[] };
@@ -17,6 +17,64 @@ const schemas = {
 };
 const limits = { evidence: 100, areas: 32, findings: 30 };
 const sections: Section[] = ['evidence', 'areas', 'findings'];
+const CATEGORY_ALIASES: Record<string, FindingCategory> = {
+  TRENDS: 'TREND', HISTORICAL: 'TREND', HISTORICAL_MARKET: 'TREND', HISTORICAL_TRENDS: 'TREND',
+  CUSTOMER_INTEREST: 'CUSTOMER', PURCHASE: 'CUSTOMER', PURCHASE_PREFERENCE: 'CUSTOMER', PURCHASING_PREFERENCES: 'CUSTOMER', AUDIENCE: 'CUSTOMER',
+  SEASONAL: 'SEASONAL_CULTURAL', CULTURAL: 'SEASONAL_CULTURAL', SEASONALITY: 'SEASONAL_CULTURAL', SEASONAL_AND_CULTURAL: 'SEASONAL_CULTURAL',
+  COMPETITORS: 'COMPETITOR', COMPETITOR_ACTIVITY: 'COMPETITOR',
+  OPPORTUNITIES: 'OPPORTUNITY', RECOMMENDATION: 'OPPORTUNITY', CREATIVE: 'OPPORTUNITY',
+  CHANNEL: 'OPPORTUNITY', CHANNELS: 'OPPORTUNITY', CHANNEL_BEHAVIOUR: 'OPPORTUNITY',
+  RISKS: 'RISK',
+};
+
+/** File a model category under the seven report categories. Unknown labels stay blank. */
+function findingCategory(value: unknown, claim: string): FindingCategory | null {
+  const token = String(value ?? '').trim().toUpperCase().replace(/[\s/-]+/g, '_');
+  if ((FINDING_CATEGORIES as readonly string[]).includes(token)) return token as FindingCategory;
+  if (CATEGORY_ALIASES[token]) return CATEGORY_ALIASES[token];
+  if (/SEASON|CULTUR|HOLIDAY/.test(token)) return 'SEASONAL_CULTURAL';
+  if (/COMPET/.test(token)) return 'COMPETITOR';
+  if (/CUSTOM|AUDIENCE|PURCHASE|PREFERENCE/.test(token)) return 'CUSTOMER';
+  if (/TREND|HISTOR/.test(token)) return 'TREND';
+  if (/MARKET/.test(token)) return 'MARKET';
+  if (/RISK|LIMIT|WEAK/.test(token)) return 'RISK';
+  if (/CHANNEL|CREATIVE|MESSAGE|RECOMMEND|OPPORTUN/.test(token)) return /GAP|NO USABLE|MISSING|UNPROVEN|NOT /.test(claim.toUpperCase()) ? 'RISK' : 'OPPORTUNITY';
+  return null;
+}
+
+function citationList(value: unknown): unknown[] | null {
+  if (Array.isArray(value)) return value;
+  const row = object(value);
+  return row ? [row] : null;
+}
+
+/** Correct the two reply mistakes that otherwise delete a whole finding. */
+function normalizeFinding(value: unknown): unknown {
+  const item = object(value);
+  if (!item) return value;
+  const support = citationList(item.support);
+  const supports = citationList(item.supports);
+  if ((!supports || supports.length === 0) && support?.length) item.supports = support;
+  delete item.support;
+  const claim = typeof item.claim === 'string' ? item.claim : '';
+  const category = findingCategory(item.category, claim);
+  if (category && category !== item.category) {
+    const original = String(item.category ?? '').trim();
+    item.category = category;
+    if (original) {
+      const prior = typeof item.limitation === 'string' ? item.limitation : '';
+      item.limitation = `Filed from category "${original}". ${prior}`.trim().slice(0, 800);
+    }
+  }
+  return item;
+}
+
+function normalizeQualityReply(raw: unknown): unknown {
+  const root = object(raw);
+  if (!root || !Array.isArray(root.findings)) return raw;
+  return { ...root, findings: root.findings.map(normalizeFinding) };
+}
+
 const itemKey = (section: Section, value: unknown): string | null => {
   const item = object(value);
   if (!item) return null;
@@ -28,10 +86,11 @@ const itemKey = (section: Section, value: unknown): string | null => {
  * Invalid support is removed, never padded or manufactured. Its original finding
  * can remain as an explicitly unsupported proposal until a repair succeeds. */
 export function recoverQualityAssessment(raw: unknown): QualityRecovery {
-  const parsed = qualityAssessmentSchema.safeParse(raw);
+  const normalized = normalizeQualityReply(raw);
+  const parsed = qualityAssessmentSchema.safeParse(normalized);
   if (parsed.success) return { assessment: parsed.data, issues: [], invalidItems: [] };
   const issues = parsed.error.issues.map(issue => `${issue.path.join('.') || 'response'}: ${issue.message}`);
-  const candidate = object(raw);
+  const candidate = object(normalized);
   if (!candidate) return { assessment: null, issues, invalidItems: [] };
   const retained: Record<Section, unknown[]> = { evidence: [], areas: [], findings: [] };
   const invalidItems: InvalidQualityItem[] = [];
