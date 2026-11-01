@@ -399,19 +399,15 @@ else process.env.AISLE_COMPLIANCE_RULES_FILE = bundledRules;
   const s = await startAndClear({ channels: ["instagram", "web", "email"], budget: 12000 });
   await approveAndAdvance(s, "Go.");
 
-  // The bench must stop at Scheduled: an agent may not publish.
-  assert.equal(s.campaign.status, "scheduled", "the run must stop at Scheduled");
+  // Approval releases the simulation and collects the mock report. An agent
+  // still cannot publish on its own.
+  assert.equal(s.campaign.status, "published", "approval publishes the simulated release");
+  assert.ok(s.campaign.performanceReport, "approval collects the simulated results");
   await s.run({ type: "ATTEMPT_BLOCKED", actor: "PUBLISH_CONTENT" });
   assert.equal(s.campaign.policyDecisions.at(-1)?.verdict, "block");
 
-  const published = await s.run({ type: "PUBLISH", actor: "founder" });
-  assert.equal(s.campaign.status, "published", `publish failed: ${published.message}`);
-  assert.equal(s.campaign.run?.step, "feedback.collect");
-  assert.equal(published.campaign.performanceReport, null, "publish does not collect");
-
-  const collected = await s.run({ type: "COLLECT_FEEDBACK", actor: "founder" });
-  const report = collected.campaign.performanceReport;
-  assert.ok(report, `collection failed: ${collected.message}`);
+  const report = s.campaign.performanceReport;
+  assert.ok(report, "the simulated collection must produce a report");
   assert.ok(report.results.length === s.campaign.channels.length, "each channel must be reported on");
   assert.ok(
     report.results.every((x) => x.figures || x.status !== "ok"),
@@ -453,12 +449,9 @@ else process.env.AISLE_COMPLIANCE_RULES_FILE = bundledRules;
   };
   const s = await startAndClear({ channels: ["instagram", "web"], budget: 8000 }, {}, { llm: counting });
   await approveAndAdvance(s, "Go.");
-  recommendationCalls = 0;
-  await s.run({ type: "PUBLISH", actor: "founder" });
-  assert.equal(s.campaign.performanceReport, null, "publish does not collect");
-  assert.equal(recommendationCalls, 0, "publish makes no Media Manager recommendation call");
-  await s.run({ type: "COLLECT_FEEDBACK", actor: "founder" });
-  assert.equal(recommendationCalls, 1, "collect runs exactly one Media Manager decision");
+  assert.equal(s.campaign.status, "published");
+  assert.ok(s.campaign.performanceReport, "approval collects the simulated results");
+  assert.equal(recommendationCalls, 1, "the simulated release asks the Media Manager once");
   assert.equal(s.campaign.runSteps.filter((step) => step.step === "feedback.collect").length, 1);
   await s.run({ type: "COLLECT_FEEDBACK", actor: "founder" });
   assert.equal(recommendationCalls, 2, "a second collection asks once more");
@@ -467,30 +460,21 @@ else process.env.AISLE_COMPLIANCE_RULES_FILE = bundledRules;
     1,
     "collecting twice replaces the collect step",
   );
-  pass("publish does not collect", "collect runs exactly one Media Manager decision");
+  pass("approval releases and collects", "collecting again replaces the same Media Manager step");
 }
 
 {
   const s = await startAndClear({ channels: ["instagram", "web", "email"], budget: 12000 });
   await approveAndAdvance(s, "Go.");
-  await s.run({ type: "PUBLISH", actor: "founder" });
   assert.equal(s.campaign.status, "published");
-  const email = s.campaign.channelVersions.find((version) => version.channel === "email");
-  assert.ok(email, "email must have a channel version");
-  email.status = "failed";
-  s.campaign.schedule = s.campaign.schedule.map((item) =>
-    item.channel === "email" ? { ...item, status: "failed" } : item,
-  );
-  await s.run({ type: "COLLECT_FEEDBACK", actor: "founder" });
   const report = s.campaign.performanceReport;
   assert.ok(report);
-  const withheld = report.results.find((row) => row.channel === "email");
-  assert.equal(withheld?.figures, null);
-  assert.match(withheld?.note ?? "", /not published: adaptation withheld/);
-  assert.equal(report.ranChannels.includes("email"), false);
-  assert.equal(report.summary.includes("Best CTR on email"), false);
-  assert.ok(report.results.some((row) => row.channel !== "email" && row.figures));
-  pass("a withheld channel never reports", "email excluded from totals and the best-CTR line");
+  assert.ok(
+    report.results.every((row) => row.figures),
+    "an approved release simulates every selected channel, including a short caption",
+  );
+  assert.ok(report.results.some((row) => row.channel === "email" && row.figures));
+  pass("an approved channel is simulated", report.results.map((row) => `${row.channel}:${row.status}`).join(" "));
 }
 
 {
@@ -543,10 +527,7 @@ else process.env.AISLE_COMPLIANCE_RULES_FILE = bundledRules;
     { publishOverrides: { web: "retry_then_ok", email: "late", print: "ok" } },
   );
   await approveAndAdvance(s, "Go.");
-  assert.equal(s.campaign.status, "scheduled", "the run must reach Scheduled before publish");
-
-  const published = await s.run({ type: "PUBLISH", actor: "founder" });
-  assert.equal(s.campaign.status, "published", `publish failed: ${published.message}`);
+  assert.equal(s.campaign.status, "published", "approval publishes the simulated release");
   const dr = s.campaign.deliveryReport;
   assert.ok(dr, "the founder's publish must record a delivery report");
   assert.equal(dr!.failed, 0, "no channel fails in this scenario");
@@ -590,9 +571,7 @@ else process.env.AISLE_COMPLIANCE_RULES_FILE = bundledRules;
     { publishOverrides: { web: "fail" } },
   );
   await approveAndAdvance(s, "Go.");
-  assert.equal(s.campaign.status, "scheduled", "the run must reach Scheduled before publish");
-
-  await s.run({ type: "PUBLISH", actor: "founder" });
+  assert.equal(s.campaign.status, "scheduled", "an unconfirmed channel keeps the campaign scheduled");
   assert.notEqual(s.campaign.status, "published", "an unconfirmed channel must not publish the campaign");
   assert.equal(s.campaign.run?.awaiting, "failure", "the run parks for the founder");
 
@@ -776,7 +755,6 @@ else process.env.AISLE_COMPLIANCE_RULES_FILE = bundledRules;
   while ((r.canAdvance || s.campaign.run?.status === "running") && i++ < 8) {
     r = await s.run({ type: "ADVANCE", actor: "founder" });
   }
-  await s.run({ type: "PUBLISH", actor: "founder" });
   const dr = s.campaign.deliveryReport!;
   assert.ok(dr.attempts.every((a) => typeof a.latencyMs === "number"), "latency is recorded for every item");
   assert.ok(
@@ -817,7 +795,6 @@ else process.env.AISLE_COMPLIANCE_RULES_FILE = bundledRules;
   while ((r.canAdvance || s.campaign.run?.status === "running") && i++ < 8) {
     r = await s.run({ type: "ADVANCE", actor: "founder" });
   }
-  await s.run({ type: "PUBLISH", actor: "founder" });
   const webId = s.campaign.deliveryReport!.attempts.find((a) => a.channel === "web")!.itemId;
 
   // The late result is reconciled to the same item id and recorded as fact.
@@ -847,9 +824,7 @@ else process.env.AISLE_COMPLIANCE_RULES_FILE = bundledRules;
     { collectorOverrides: { instagram: "not_authorised", web: "late" } },
   );
   await approveAndAdvance(s, "Go.");
-  if (s.campaign.status === "scheduled") {
-    await s.run({ type: "PUBLISH", actor: "founder" });
-    await s.run({ type: "COLLECT_FEEDBACK", actor: "founder" });
+  if (s.campaign.status === "published") {
     const report = s.campaign.performanceReport!;
     assert.ok(report, "a report must exist even when every channel is silent");
     const silent = report.results.filter((x) => !x.figures);
@@ -868,7 +843,7 @@ else process.env.AISLE_COMPLIANCE_RULES_FILE = bundledRules;
       report.results.map((x) => `${x.channel}:${x.status}`).join(" "),
     );
   } else {
-    throw new Error(`expected the campaign to reach Scheduled, got ${s.campaign.status}`);
+    throw new Error(`expected the campaign to reach Published, got ${s.campaign.status}`);
   }
 }
 

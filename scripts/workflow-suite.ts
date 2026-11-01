@@ -169,13 +169,9 @@ if (process.argv.includes("--fixture-worker") || process.argv.includes("--fixtur
       return result;
     };
     const scheduled = await command({ type: "APPROVE", actor: "founder", note: "Human reviewed the content." }, "approve-1");
-    assert.equal(scheduled.result?.campaign.status, "scheduled");
-    pass("explicit founder approval resumes worker into AHR-05 scheduling");
-    const published = await command({ type: "PUBLISH", actor: "founder" }, "publish-1");
-    assert.equal(published.result?.campaign.status, "published");
-    assert.equal(published.result?.campaign.performanceReport, null, "publish records the release and does not collect");
-    const collected = await command({ type: "COLLECT_FEEDBACK", actor: "founder" }, "collect-1");
-    assert(collected.result?.campaign.performanceReport);
+    assert.equal(scheduled.result?.campaign.status, "published");
+    assert.ok(scheduled.result?.campaign.performanceReport, "approval publishes the simulation and collects results");
+    pass("explicit founder approval resumes the worker through simulated publish and collection");
     await command({ type: "DECIDE_RECOMMENDATION", actor: "founder", action: "accepted", note: "Reviewed synthetic demonstration only." }, "feedback-1");
     assert.equal(repo.campaign("alice", campaign.id)?.recommendationDecision?.action, "accepted");
     pass("AHR-05 simulated release and AHR-06 results/decision persist across worker exits");
@@ -258,11 +254,10 @@ if (process.argv.includes("--fixture-worker") || process.argv.includes("--fixtur
     await worker();
     const storedWithheld = repo.campaign("alice", "withheld-channel");
     const withheldReport = storedWithheld?.performanceReport;
-    assert.equal(withheldReport?.results.find((row) => row.channel === "email")?.figures, null);
-    assert.match(withheldReport?.results.find((row) => row.channel === "email")?.note ?? "", /not published: adaptation withheld/);
+    assert.ok(withheldReport?.results.find((row) => row.channel === "email")?.figures, "an approved published campaign simulates every selected channel");
     assert.ok(withheldReport?.results.find((row) => row.channel === "web")?.figures);
-    assert.equal(withheldReport?.ranChannels.includes("email"), false);
-    pass("a withheld channel never reports on the durable snapshot");
+    assert.equal(withheldReport?.ranChannels.includes("email"), true);
+    pass("an approved published campaign simulates every selected channel");
     console.log(`\n${checks} workflow checks passed. Test-only database: ${file}`);
   } finally { server.close(); await once(server, "close"); repo.close(); }
 }

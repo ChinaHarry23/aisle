@@ -233,7 +233,13 @@ async function executeStep(w: Work, env: StepEnv): Promise<{ blocked: boolean; m
       if (result.blocked) return result;
       if (c.channelVersions.some((v) => v.status === "failed")) return result;
       runSchedule(w, env.allCampaigns);
-      return { blocked: false, message: "Scheduled." };
+      // Founder approval is the release. Publishing and collection are simulated,
+      // so they continue in this same step instead of waiting for another click.
+      if (c.founderDecision?.action !== "approve") return { blocked: false, message: "Scheduled." };
+      const published = await runFeedbackCollection(w, env, { publish: true, actor: "founder" });
+      if (published.blocked) return { blocked: true, message: published.message };
+      const collected = await runFeedbackCollection(w, env, { publish: false });
+      return { blocked: collected.blocked, message: collected.message };
     }
     case "founder.gate":
       return { blocked: true, message: "Waiting for the founder." };

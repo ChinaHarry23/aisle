@@ -772,16 +772,13 @@ function complianceFromAgent(
 /* ----------------------------------------------------------- channel captions -- */
 
 /**
- * AHR-05 — the Media Manager rewrites the approved ad into one platform-native
- * caption per channel.
+ * AHR-05 — the Media Manager reads the research and writes one caption per channel.
  *
- * This is where UC-05 genuinely uses the AI agent. The model is asked to adapt
- * tone and format per channel, under one hard rule: it may not change or drop any
- * cleared claim, and it may not add a new one. The caller still enforces that with
- * the claims guard, so a model that ignores the rule is simply rejected in favour
- * of the deterministic template — the LLM can only ever improve a caption within
- * the frozen-claims boundary, never widen it. Offline, this returns no captions and
- * the deterministic adaptation stands, so the prototype runs with no model at all.
+ * A long finding is source material, not text that has to be pasted. The model
+ * compresses it into the length named on that channel, keeps the approved
+ * headline's meaning, and adds no new product claim. The caller still rejects a
+ * caption that breaks the limit, drops the headline, or introduces a claim, and
+ * the deterministic template then stands. Offline, no captions come back.
  */
 export async function decideChannelCaptions(input: {
   campaign: Campaign;
@@ -794,14 +791,17 @@ export async function decideChannelCaptions(input: {
 }): Promise<{ captions: Record<string, string>; trace: DecisionTrace }> {
   const assignment = input.settings.agents.media;
   const strategy = currentStrategy(input.campaign);
+  const poster = input.campaign.creatives.find((creative) => creative.variant === "A") ?? input.campaign.creatives[0];
+  const research = [...new Set([...(input.approvedClaims ?? []), ...(input.campaign.brief?.claimsAllowed ?? [])])].filter(Boolean);
   const prompt = [
     `You are the Media Manager for ${input.brand.retailerName}, ${input.campaign.country}.`,
-    `Rewrite one approved advertisement into a platform-native caption for each channel.`,
+    `Read the research, then write a new platform-native caption for each channel.`,
     `Product: ${input.campaign.product}. Audience: ${input.campaign.targetAudience}. Brand tone: ${input.brand.tone}.`,
     `Approved headline: "${input.hero.headline}". Approved subhead: "${input.hero.subhead}".`,
-    `Cleared claims that MUST all still appear and MUST NOT be reworded: ${input.approvedClaims.join("; ") || "(none)"}.`,
-    `Do NOT add any new product claim, price, superlative, or guarantee.`,
-    `Adapt only tone and format to each channel; keep every cleared claim intact.`,
+    poster?.caption ? `Approved poster caption: "${poster.caption}".` : "",
+    `Research to read and compress, not to paste when it is longer than the channel limit: ${research.join(" ") || "(none)"}.`,
+    `Each caption must fit the limit stated for that channel. Summarise a long finding in that length.`,
+    `Keep the approved headline's meaning. Do NOT add any new product claim, price, superlative, or guarantee.`,
     strategy ? `Campaign direction: ${strategy.recommendedAngle}. Audience motivation: ${strategy.audienceMotivation}.` : "",
     strategy ? `Channel applications (format and tone guidance only; these do not add approved claims): ${JSON.stringify(strategy.channels.filter((channel) => input.channels.some((selected) => selected.channel === channel.channel)))}` : "",
     "Channels and their format:",

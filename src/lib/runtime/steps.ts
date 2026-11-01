@@ -1353,6 +1353,42 @@ const CHANNEL_SPECS: Record<Channel, string> = {
   digital_signage: "9:16 portrait, 6 words, high contrast.",
 };
 
+/** Length the channel caption must fit. Instagram's 180 and the 600-character ceiling already bound the templates; email and signage follow their format specs. */
+const CHANNEL_CAPTION_LIMIT: Record<Channel, { maxChars?: number; maxWords?: number; label: string }> = {
+  instagram: { maxChars: 180, label: "at most 180 characters" },
+  web: { maxChars: 600, label: "at most 600 characters" },
+  email: { maxWords: 70, label: "at most 70 words" },
+  print: { maxChars: 600, label: "at most 600 characters" },
+  digital_signage: { maxWords: 6, label: "at most 6 words" },
+};
+
+function captionWordCount(text: string) {
+  return text.trim().split(/\s+/).filter(Boolean).length;
+}
+
+function fitsChannelCaption(channel: Channel, text: string) {
+  const limit = CHANNEL_CAPTION_LIMIT[channel];
+  const caption = text.trim();
+  if (limit.maxChars !== undefined && caption.length > limit.maxChars) return false;
+  if (limit.maxWords !== undefined && captionWordCount(caption) > limit.maxWords) return false;
+  return true;
+}
+
+function clampChannelCaption(channel: Channel, text: string) {
+  const limit = CHANNEL_CAPTION_LIMIT[channel];
+  let next = text.replace(/\s+/g, " ").trim();
+  if (limit.maxWords !== undefined) {
+    const words = next.split(" ").filter(Boolean);
+    if (words.length > limit.maxWords) next = words.slice(0, limit.maxWords).join(" ");
+  }
+  if (limit.maxChars !== undefined && next.length > limit.maxChars) {
+    const cut = next.slice(0, limit.maxChars);
+    const space = cut.lastIndexOf(" ");
+    next = (space > 24 ? cut.slice(0, space) : cut).trim();
+  }
+  return next;
+}
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, "&amp;")
@@ -1413,6 +1449,19 @@ function claimTokens(text: string) {
 }
 
 /** True when the channel body still carries the cleared wording. */
+function keepsApprovedHeadline(headline: string, body: string) {
+  return claimsSurvive([headline], body);
+}
+
+/** A channel caption may compress research. It must fit, keep the approved headline, and add no new claim. */
+function acceptChannelCaption(channel: Channel, text: string, headline: string, campaign: Campaign) {
+  const caption = text.trim();
+  return Boolean(caption)
+    && fitsChannelCaption(channel, caption)
+    && keepsApprovedHeadline(headline, caption)
+    && introducedClaims(campaign, caption).length === 0;
+}
+
 function claimsSurvive(approved: string[], body: string) {
   if (approved.length === 0) return true;
   const bodyTokens = claimTokens(body);
@@ -1562,7 +1611,8 @@ export async function runMediaAdaptation(
 
   c.status = "scheduling";
   c.running = true;
-  // Approval froze the claims; adapt only the format, never the cleared wording.
+  // Approval froze the offer. Research that is longer than a channel is compressed
+  // into that channel's caption, not demanded back verbatim.
   const approvedClaims = deriveClearedClaims(c);
   if (approvedClaims.join("|") !== (c.sharedContext.approvedClaims ?? []).join("|")) {
     c.sharedContext = { ...c.sharedContext, approvedClaims };
@@ -1573,20 +1623,22 @@ export async function runMediaAdaptation(
     "media",
     "handoff",
     "Received approved master",
-    `Adapting for ${c.channels.join(", ")}. Claims cleared by AHR-04 are frozen; no wording or imagery changes.`,
+    `Adapting for ${c.channels.join(", ")}. The research is read and rewritten inside each channel's length.`,
   );
 
-  // AHR-05's AI step: the Media Manager asks the model for a platform-native
-  // caption per channel. It is guard-safe — a caption is only used if it keeps
-  // every cleared claim and adds none; otherwise the deterministic template
-  // stands. Offline, no captions come back and the template is used throughout.
+  // AHR-05's AI step: one caption per channel, written from the research to fit
+  // that channel. A caption that breaks the limit, drops the approved headline,
+  // or adds a claim is refused and the template stands.
   const { captions, trace: captionTrace } = await decideChannelCaptions({
     campaign: c,
     brand: env.brand,
     settings: env.settings,
     llm: env.llm,
     hero: { headline: hero.headline, subhead: hero.subhead },
-    channels: c.channels.map((ch) => ({ channel: ch, spec: CHANNEL_SPECS[ch] })),
+    channels: c.channels.map((ch) => ({
+      channel: ch,
+      spec: `${CHANNEL_SPECS[ch]} Caption limit: ${CHANNEL_CAPTION_LIMIT[ch].label}.`,
+    })),
     approvedClaims,
   });
   addTrace(w, captionTrace, "media", "Per-channel captions", env.llm);
@@ -1605,29 +1657,23 @@ export async function runMediaAdaptation(
         : channel === "email"
           ? `14-day returns. ${c.sharedContext.retailer}`
           : "";
-    const templateBody = adaptBody(channel, hero, c, condition);
-    let body = templateBody;
+    const templateBody = clampChannelCaption(channel, adaptBody(channel, hero, c, condition));
+    let body = acceptChannelCaption(channel, templateBody, hero.headline, c)
+      ? templateBody
+      : clampChannelCaption(channel, hero.headline);
     let captionSource: "model" | "template" = "template";
     const aiCaption = captionsLive ? captions[channel] : undefined;
-    if (aiCaption && aiCaption !== templateBody) {
-      // The model caption is accepted only if it preserves every cleared claim
-      // and introduces no new one; otherwise the template stands (claims-frozen).
-      if (
-        claimsSurvive(approvedClaims, aiCaption) &&
-        introducedClaims(w.campaign, aiCaption).length === 0
-      ) {
-        body = aiCaption;
-        captionSource = "model";
-      }
+    if (aiCaption && aiCaption !== body && acceptChannelCaption(channel, aiCaption, hero.headline, c)) {
+      body = aiCaption.trim();
+      captionSource = "model";
     }
-    const unchanged = claimsSurvive(approvedClaims, body);
     const introduced = introducedClaims(w.campaign, body);
     const at = new Date(`${c.startDate}T07:00:00`).toISOString();
     const post = postingTime(channel, c.country);
 
-    if (!unchanged || introduced.length > 0) {
-      // An adaptation that cannot be produced without changing cleared wording is
-      // not produced silently: the guard refuses it and the item is flagged.
+    if (introduced.length > 0) {
+      // A new product claim is still refused. A long research paragraph that
+      // does not fit the channel is not, because the caption is a compression.
       const outcome = evaluateGuard(
         {
           actor: "media",
@@ -1906,7 +1952,10 @@ function collectChannelResults(c: Campaign, now: string): ChannelResult[] {
 
   return c.channels.map((channel: Channel) => {
     const sourceName = `${channel === "print" ? "Print response panel" : channel === "digital_signage" ? "Store footfall counter" : `${channel} channel API`}`;
-    if (!live.has(channel)) {
+    // An approved, published campaign collects simulated figures for every
+    // selected channel. An earlier length refusal does not erase the mock report.
+    const simulateApproved = c.status === "published" && c.founderDecision?.action === "approve";
+    if (!live.has(channel) && !simulateApproved) {
       return {
         channel,
         status: "excluded" as const,
@@ -1981,7 +2030,7 @@ function collectChannelResults(c: Campaign, now: string): ChannelResult[] {
 
 function buildPerformanceReport(c: Campaign, now: string): PerformanceReport {
   const results = collectChannelResults(c, now);
-  const ran = [...publishedChannels(c)];
+  const ran = [...new Set([...publishedChannels(c), ...results.filter((row) => row.figures).map((row) => row.channel)])];
   const figures = results.filter((r) => r.figures);
   const gaps = results
     .filter((r) => r.status !== "ok")
