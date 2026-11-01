@@ -676,6 +676,41 @@ export async function reverseTopup(
   return true;
 }
 
+/**
+ * Add credits once per `ref`. A second run with the same ref does nothing,
+ * so a bonus for accounts that already exist cannot be applied twice.
+ */
+export async function grantAdjustmentOnce(userId: string, credits: number, ref: string, note: string): Promise<boolean> {
+  if (!ref || !Number.isFinite(credits) || credits === 0) return false;
+  await ensureCreditAccount(userId);
+  const milli = Math.round(credits) * MILLI;
+  const db = await getDatabase();
+  const ledgerId = randomUUID();
+  const inserted = await db.query(
+    `insert into credit_ledger
+       (id, user_id, delta_milli, reason, ref, model_id, cost_usd, balance_after_milli, note, created_at)
+     values ($1, $2, $3, 'adjust', $4, null, null, null, $5, $6)
+     on conflict do nothing
+     returning id`,
+    [ledgerId, userId, milli, ref, note, now()],
+  );
+  if (!inserted.length) return false;
+  try {
+    const rows = await db.query<{ balance_milli: number | string }>(
+      `update credit_accounts set balance_milli = balance_milli + $1, updated_at = $2
+       where user_id = $3
+       returning balance_milli`,
+      [milli, now(), userId],
+    );
+    if (!rows.length) throw new Error(`No credit account for ${userId}.`);
+    await db.execute("update credit_ledger set balance_after_milli = $1 where id = $2", [num(rows[0].balance_milli), ledgerId]);
+  } catch (error) {
+    await db.execute("delete from credit_ledger where id = $1", [ledgerId]).catch(() => {});
+    throw error;
+  }
+  return true;
+}
+
 /** Owner-side correction, e.g. a goodwill top-up from the CLI. */
 export async function adjustCredits(userId: string, deltaMilli: number, note: string): Promise<number> {
   await ensureCreditAccount(userId);
