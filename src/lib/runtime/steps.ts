@@ -16,6 +16,7 @@
  * call into this module directly.
  */
 
+import { isArchived } from "@/lib/campaign-lifecycle";
 import { contextVersion } from '@/lib/trend/quality-contracts';
 import { currentStrategy, fallbackStrategy } from '@/lib/trend/strategy';
 import { assembleStrategyReport } from '@/lib/trend/strategy-report';
@@ -1785,7 +1786,67 @@ export async function runMediaAdaptation(
   return { message: "Channel versions prepared.", blocked: false };
 }
 
-/** AHR-05: flag conflicts for the founder rather than resolving them silently. */
+/** A later campaign waits this long when another campaign already has that exact time. */
+const SLOT_GAP_MS = 10 * 60 * 1000;
+
+function holdsASlot(campaign: Campaign) {
+  return !isArchived(campaign) && (campaign.status === "scheduled" || campaign.status === "published");
+}
+
+function nextOpenSlot(taken: Set<number>, atMs: number) {
+  let delayMin = 0;
+  while (taken.has(atMs) && delayMin < 24 * 60) {
+    atMs += SLOT_GAP_MS;
+    delayMin += 10;
+  }
+  taken.add(atMs);
+  return { atMs, delayMin };
+}
+
+/**
+ * Several campaigns may post on the same day. An identical time on the same
+ * channel is not a conflict: the later campaign moves 10 minutes, then another
+ * 10 minutes if that time is taken too.
+ */
+export function separateSharedSlots(campaigns: Campaign[]): boolean {
+  const holders = campaigns
+    .filter(holdsASlot)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+  const occupied = new Map<string, Set<number>>();
+  let changed = false;
+  for (const campaign of holders) {
+    for (const item of campaign.schedule) {
+      const original = new Date(item.at).getTime();
+      if (Number.isNaN(original)) continue;
+      const taken = occupied.get(item.channel) ?? new Set<number>();
+      occupied.set(item.channel, taken);
+      const { atMs, delayMin } = nextOpenSlot(taken, original);
+      if (delayMin === 0) continue;
+      const at = new Date(atMs).toISOString();
+      item.at = at;
+      const moved = `${item.note ? `${item.note} · ` : ""}placed ${delayMin} minutes later`;
+      item.note = item.note?.includes("placed ") && item.note.includes("minutes later") ? item.note : moved;
+      const runItem = campaign.runSchedule.find((entry) => entry.id === item.id);
+      if (runItem) {
+        runItem.at = at;
+        runItem.note = item.note;
+      }
+      changed = true;
+    }
+  }
+  for (const campaign of campaigns) {
+    const removed = new Set(campaign.scheduleConflicts.filter((conflict) => conflict.kind === "same_slot").map((conflict) => conflict.id));
+    if (removed.size === 0) continue;
+    campaign.scheduleConflicts = campaign.scheduleConflicts.filter((conflict) => conflict.kind !== "same_slot");
+    for (const item of campaign.runSchedule) {
+      item.conflictIds = item.conflictIds.filter((id) => !removed.has(id));
+    }
+    changed = true;
+  }
+  return changed;
+}
+
+/** AHR-05: a time outside the campaign window is flagged. A shared clock time is moved. */
 function detectScheduleConflicts(
   c: Campaign,
   all: Campaign[],
@@ -1794,15 +1855,23 @@ function detectScheduleConflicts(
   const items: RunScheduleItem[] = [];
   const start = new Date(`${c.startDate}T00:00:00Z`).getTime();
   const end = new Date(`${c.endDate}T23:59:59Z`).getTime();
-  const WINDOW_MS = 24 * 60 * 60 * 1000;
 
   c.channels.forEach((channel, i) => {
     const version = c.channelVersions.find((v) => v.channel === channel);
-    const at = new Date(start + i * 90 * 60 * 1000).toISOString();
-    const atMs = new Date(at).getTime();
+    const taken = new Set<number>();
+    for (const other of all) {
+      if (other.id === c.id || !holdsASlot(other)) continue;
+      for (const item of other.schedule) {
+        if (item.channel !== channel) continue;
+        const otherMs = new Date(item.at).getTime();
+        if (!Number.isNaN(otherMs)) taken.add(otherMs);
+      }
+    }
+    const opened = nextOpenSlot(taken, start + i * 90 * 60 * 1000);
+    const at = new Date(opened.atMs).toISOString();
     const conflictIds: string[] = [];
 
-    if (atMs < start || atMs > end) {
+    if (opened.atMs < start || opened.atMs > end) {
       const id = uid("cf");
       conflicts.push({
         id,
@@ -1815,37 +1884,15 @@ function detectScheduleConflicts(
       conflictIds.push(id);
     }
 
-    for (const other of all) {
-      if (other.id === c.id) continue;
-      if (!["scheduled", "published"].includes(other.status)) continue;
-      if (!other.channels.includes(channel)) continue;
-      for (const item of other.schedule) {
-        if (item.channel !== channel) continue;
-        const otherMs = new Date(item.at).getTime();
-        if (Number.isNaN(otherMs)) continue;
-        if (Math.abs(otherMs - atMs) <= WINDOW_MS) {
-          const id = uid("cf");
-          conflicts.push({
-            id,
-            channel,
-            at,
-            kind: "same_slot",
-            detail: `${other.name} already occupies ${channel} within 24 hours of the proposed time.`,
-            withCampaignId: other.id,
-            withCampaignName: other.name,
-            resolved: false,
-          });
-          conflictIds.push(id);
-        }
-      }
-    }
-
+    const timing = postingTime(channel, c.country).time;
+    const claims = version ? ` · ${version.claimsUnchanged ? "claims intact" : "blocked"}` : "";
+    const moved = opened.delayMin > 0 ? ` · placed ${opened.delayMin} minutes later` : "";
     items.push({
       id: uid("si"),
       channel,
       at,
       status: version?.status === "failed" ? "failed" : "proposed",
-      note: `${postingTime(channel, c.country).time}${version ? ` · ${version.claimsUnchanged ? "claims intact" : "blocked"}` : ""}`,
+      note: `${timing}${claims}${moved}`,
       channelVersionId: version?.id ?? "",
       conflictIds,
     });

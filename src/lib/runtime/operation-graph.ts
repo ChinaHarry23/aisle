@@ -233,6 +233,11 @@ async function executeStep(w: Work, env: StepEnv): Promise<{ blocked: boolean; m
       if (result.blocked) return result;
       if (c.channelVersions.some((v) => v.status === "failed")) return result;
       runSchedule(w, env.allCampaigns);
+      // A real schedule conflict still waits for the founder. A shared clock time
+      // has already been moved and is not one of these.
+      if (c.scheduleConflicts.some((conflict) => !conflict.resolved)) {
+        return { blocked: false, message: "Schedule proposed with conflicts flagged." };
+      }
       // Founder approval is the release. Publishing and collection are simulated,
       // so they continue in this same step instead of waiting for another click.
       if (c.founderDecision?.action !== "approve") return { blocked: false, message: "Scheduled." };

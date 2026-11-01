@@ -14,6 +14,7 @@ import { applySelectedFeedback, type SavedInsight } from "@/lib/insights";
 import type { ChannelResultStatus } from "@/lib/runtime/types";
 import { blankCampaign } from "@/lib/seed";
 import type { WorkspaceSettings } from "@/lib/settings";
+import { acceptTrendNoticeAck } from "@/lib/trend/notice";
 import type { BrandProfile, Campaign, CampaignInput, Channel } from "@/lib/types";
 
 type StoredWorkspace = {
@@ -95,8 +96,8 @@ function draftFromFounder(raw: Campaign, stored: StoredWorkspace): Campaign {
  * The campaigns a browser workspace save may write.
  *
  * A campaign the server already holds keeps its stored copy; only the trash,
- * the declared report outcomes and the spend cap
- * are taken from the browser. A campaign the server has never seen is stored as a blank draft. Leaving a
+ * the declared report outcomes, the spend cap, and a Noted mark on the current
+ * trend reminder are taken from the browser. A campaign the server has never seen is stored as a blank draft. Leaving a
  * campaign out of the list still deletes it, as before.
  */
 export function acceptWorkspaceCampaigns(stored: StoredWorkspace, submitted: unknown[]): Campaign[] {
@@ -125,6 +126,9 @@ export function acceptWorkspaceCampaigns(stored: StoredWorkspace, submitted: unk
     }
     next.collectorOverrides = founderCollectorOverrides(next, raw.collectorOverrides);
     if (Number.isFinite(raw.spendCapUsd) && raw.spendCapUsd! > 0) next.spendCapUsd = raw.spendCapUsd;
+    const trendNoticeAck = acceptTrendNoticeAck(prior, raw);
+    if (trendNoticeAck) next.trendNoticeAck = trendNoticeAck;
+    else delete next.trendNoticeAck;
     // The browser's clock, but never later than the server's.
     const updatedAt = isoOrNull(raw.updatedAt);
     if (updatedAt && updatedAt > next.updatedAt) next.updatedAt = updatedAt < now ? updatedAt : now;

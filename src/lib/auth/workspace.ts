@@ -1,4 +1,5 @@
 import { retainCampaignLifecycle } from "@/lib/campaign-lifecycle";
+import { withNotedTrendNotice } from "@/lib/trend/notice";
 import { normaliseSavedInsights, type SavedInsight } from "@/lib/insights";
 import { defaultBrand, migrateLegacyBrand, seedCampaigns } from "@/lib/seed";
 import { defaultSettings, withSettingsDefaults, type WorkspaceSettings } from "@/lib/settings";
@@ -132,12 +133,12 @@ function mergeForSave(previous: WorkspaceSnapshot | null, snapshot: WorkspaceSna
     .filter((campaign) => !retired.includes(campaign.id))
     .map((campaign) => {
       const prior = previousById.get(campaign.id);
-      if (campaign.archivedAt === null) return clearArchive(campaign);
-      if (typeof campaign.archivedAt === "string" && campaign.archivedAt) return campaign;
-      if (typeof prior?.archivedAt === "string" && prior.archivedAt) {
-        return { ...campaign, archivedAt: prior.archivedAt, running: false };
+      let next = campaign;
+      if (campaign.archivedAt === null) next = clearArchive(campaign);
+      else if (!(typeof campaign.archivedAt === "string" && campaign.archivedAt) && typeof prior?.archivedAt === "string" && prior.archivedAt) {
+        next = { ...campaign, archivedAt: prior.archivedAt, running: false };
       }
-      return campaign;
+      return withNotedTrendNotice(prior, next);
     });
   const kept = retainCampaignLifecycle(campaigns, retired, campaigns);
   return normalizeWorkspace({ ...snapshot, campaigns: kept, retiredCampaignIds: retired });

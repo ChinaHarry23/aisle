@@ -80,3 +80,59 @@ export function researchNotice(campaign: Campaign): ResearchNotice | null {
   if (!failed.length) return null;
   return { succeeded, failed };
 }
+
+/**
+ * Identity of the reminder on screen. A new assessment or a different gap list
+ * is a different reminder, so a previous "Noted" does not hide it.
+ */
+export function trendNoticeKey(campaign: Campaign): string | null {
+  const notice = researchNotice(campaign);
+  if (!notice) return null;
+  const quality = campaign.trendQuality;
+  const brief = campaign.structuredTrendBrief;
+  return JSON.stringify([
+    notice.failed,
+    notice.succeeded,
+    quality ? [quality.runId, quality.version, quality.assessedAt, quality.status] : null,
+    brief ? [brief.version, brief.generatedAt, brief.validation, brief.status] : null,
+  ]);
+}
+
+function ackValue(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 && value.length <= 4000 ? value : undefined;
+}
+
+/**
+ * The reminder the founder is allowed to mark seen: the one currently stored.
+ * Anything else is ignored, and an omitted value does not wipe a saved one.
+ */
+export function acceptTrendNoticeAck(stored: Campaign, submitted: { trendNoticeAck?: unknown }): string | undefined {
+  const key = trendNoticeKey(stored);
+  const submittedAck = ackValue(submitted.trendNoticeAck);
+  if (key && submittedAck === key) return submittedAck;
+  return ackValue(stored.trendNoticeAck);
+}
+
+/**
+ * Keep a "Noted" mark when another copy of the campaign arrives.
+ * The mark sticks only while it still names the incoming reminder.
+ * A newer mark that names that reminder wins over a stale local one.
+ */
+export function withNotedTrendNotice(authority: Campaign | undefined, incoming: Campaign): Campaign {
+  const key = trendNoticeKey(incoming);
+  const local = ackValue(authority?.trendNoticeAck);
+  const remote = ackValue(incoming.trendNoticeAck);
+  const ack =
+    (key && local === key ? local : undefined) ??
+    (key && remote === key ? remote : undefined) ??
+    remote ??
+    local;
+  if (ack === remote) return incoming;
+  if (!ack) return incoming;
+  return { ...incoming, trendNoticeAck: ack };
+}
+
+export function retainTrendNoticeAck(authority: Campaign[], incoming: Campaign[]): Campaign[] {
+  const byId = new Map(authority.map((campaign) => [campaign.id, campaign]));
+  return incoming.map((campaign) => withNotedTrendNotice(byId.get(campaign.id), campaign));
+}

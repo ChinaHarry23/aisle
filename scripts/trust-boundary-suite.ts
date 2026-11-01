@@ -21,6 +21,7 @@ const { closeDatabase } = await import("../src/lib/db");
 import { blankCampaign, defaultBrand } from "../src/lib/seed";
 import { defaultSettings } from "../src/lib/settings";
 import { acceptWorkspaceCampaigns, founderInput } from "../src/lib/workflow/founder-input";
+import { trendNoticeKey } from "../src/lib/trend/notice";
 import { campaignForCommand } from "../src/lib/workflow/command-campaign";
 import type { Command } from "../src/lib/runtime/types";
 import type { Campaign, CampaignInput } from "../src/lib/types";
@@ -99,6 +100,35 @@ const forge = (campaign: Campaign): Campaign => ({
 
   assert.equal(acceptWorkspaceCampaigns(doc, [stored, stored, null, { id: "" }]).length, 1, "duplicates and junk are dropped");
   assert.equal(acceptWorkspaceCampaigns(doc, []).length, 0, "leaving a campaign out still deletes it");
+
+  const reminder = {
+    ...stored,
+    researchCoverage: [
+      {
+        category: "current_market" as const,
+        evidenceIds: [],
+        status: "missing" as const,
+        attempts: [{ category: "current_market" as const, tool: "web.search", status: "empty" as const, summary: "Nothing returned.", evidenceIds: [] }],
+        limitation: "No source returned.",
+      },
+    ],
+  };
+  const reminderKey = trendNoticeKey(reminder);
+  assert.ok(reminderKey);
+  const [noted] = acceptWorkspaceCampaigns(
+    { ...doc, campaigns: [reminder] },
+    [{ ...reminder, status: "scheduled", trendNoticeAck: reminderKey, founderDecision: { action: "approve", note: "forged", at: "2026-10-01T00:00:00.000Z" } }],
+  );
+  assert.equal(noted.trendNoticeAck, reminderKey, "the founder can mark the current trend reminder as seen");
+  assert.equal(noted.status, reminder.status, "noting it does not change the campaign status");
+  assert.equal(noted.founderDecision, null, "noting it does not approve the campaign");
+  const [forgedAck] = acceptWorkspaceCampaigns({ ...doc, campaigns: [reminder] }, [{ ...reminder, trendNoticeAck: "forged-reminder" }]);
+  assert.equal(forgedAck.trendNoticeAck, undefined, "a mark for a different reminder is dropped");
+  const [keptAck] = acceptWorkspaceCampaigns(
+    { ...doc, campaigns: [{ ...reminder, trendNoticeAck: reminderKey }] },
+    [{ ...reminder }],
+  );
+  assert.equal(keptAck.trendNoticeAck, reminderKey, "a save that omits the mark keeps the stored one");
   pass("workspace save keeps agent results from the stored copy and takes only founder controls");
 }
 

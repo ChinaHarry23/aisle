@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ReviewQueue } from "@/components/approvals/ReviewQueue";
@@ -39,19 +38,6 @@ function ApprovalsInbox() {
         title="Decisions waiting on you"
         description="Compliance, trend research, distribution channel conflicts, and any other decision the agents cannot settle are listed here. Nothing is published until you decide."
       />
-
-      <section className="flex flex-col gap-3">
-        <SectionTitle title="Brand profile" />
-        <p className="text-base text-ink-soft">Your brand name, tone and the details every agent writes from.</p>
-        <div className="hairline flex justify-center p-4">
-          <Link
-            href="/brand"
-            className="inline-flex items-center rounded-full border border-line px-4 py-2 text-sm font-medium hover:bg-paper-2"
-          >
-            View brand profile
-          </Link>
-        </div>
-      </section>
 
       <div className="flex flex-col gap-6">
         <SectionTitle kicker="Manual review" title={heading} />

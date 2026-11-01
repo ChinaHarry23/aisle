@@ -3,6 +3,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import type { PublicUser } from "@/lib/auth/types";
 import { retainCampaignLifecycle } from "@/lib/campaign-lifecycle";
+import { retainTrendNoticeAck } from "@/lib/trend/notice";
 import { useAisle } from "@/lib/store";
 
 export function WorkspaceSync({
@@ -73,10 +74,10 @@ export function WorkspaceSync({
         skipSave.current = true;
         useAisle.setState(s => {
           const incoming = data.campaigns.filter(c => managedIds.has(c.id));
-          const campaigns = retainCampaignLifecycle(s.campaigns, s.retiredCampaignIds, [
+          const campaigns = retainTrendNoticeAck(s.campaigns, retainCampaignLifecycle(s.campaigns, s.retiredCampaignIds, [
             ...s.campaigns.map(c => incoming.find(item => item.id === c.id) ?? c),
             ...incoming.filter(item => !s.campaigns.some(c => c.id === item.id)),
-          ]);
+          ]));
           return { campaigns };
         });
       } catch { /* Keep the last confirmed snapshot until the service is reachable. */ }

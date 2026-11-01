@@ -2,6 +2,7 @@ import type { Campaign } from "../types";
 import type { UserRole } from "../auth/types";
 import { loadWorkspace } from "../auth/workspace";
 import { retainCampaignLifecycle } from "../campaign-lifecycle";
+import { retainTrendNoticeAck } from "../trend/notice";
 import type { WorkflowJob, WorkflowSubmission } from "./types";
 import { WorkflowError } from "./commands";
 import type { StudioMediaUpdate } from "../media/persistence";
@@ -46,5 +47,8 @@ export async function accountCampaigns(userId: string, role: UserRole): Promise<
   const workspace = await loadWorkspace(userId, role);
   if (!workflowEnabled()) return workspace.campaigns;
   const merged = await mergeWorkflowCampaigns(userId, workspace.campaigns);
-  return retainCampaignLifecycle(workspace.campaigns, workspace.retiredCampaignIds ?? [], merged.campaigns);
+  return retainTrendNoticeAck(
+    workspace.campaigns,
+    retainCampaignLifecycle(workspace.campaigns, workspace.retiredCampaignIds ?? [], merged.campaigns),
+  );
 }

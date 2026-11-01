@@ -33,7 +33,7 @@ export default function SchedulePage() {
     .flatMap((c) => c.schedule.map((s) => ({ ...s, campaign: c.name, campaignId: c.id, cStatus: c.status })))
     .sort((a, b) => a.at.localeCompare(b.at));
 
-  /* A conflict is a founder decision, not an automatic repair (AHR-05). */
+  /* A time outside the campaign window still needs a founder decision. */
   const conflicts = campaigns.flatMap((c) =>
     c.scheduleConflicts.map((x) => ({ campaign: c, conflict: x })),
   );
@@ -44,7 +44,7 @@ export default function SchedulePage() {
       <PageHeader
         eyebrow="Schedule"
         title="Your week, channel by channel"
-        description="Approved campaigns are placed on the days and channels that suit your audience best. If two campaigns land on the same channel at once, we flag it for you rather than moving anything on our own."
+        description="Approved campaigns are placed on the days and channels that suit your audience best. Several campaigns can post on the same day. When two would use the exact same time on a channel, the later campaign is placed 10 minutes after."
       />
 
       {/* Mock only: none of these buttons are wired up yet. */}

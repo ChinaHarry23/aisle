@@ -15,6 +15,7 @@ import { sendCommand, type EngineResponse } from "./runtime/client";
 import { applySelectedFeedback, extractableInsights, normaliseInsightText, normaliseSavedInsights, type SavedInsight } from "./insights";
 import { withRuntimeDefaults } from "./runtime/defaults";
 import { isArchived } from "./campaign-lifecycle";
+import { retainTrendNoticeAck, trendNoticeKey, withNotedTrendNotice } from "./trend/notice";
 import { activityKind, type AgentActivityLine } from "./runtime/activity";
 import { campaignCanAdvance, mergeCampaignLists } from "./runtime/resume";
 import type {
@@ -87,6 +88,8 @@ type Store = {
     note?: string,
   ) => Promise<void>;
   resolveConflict: (id: string, conflictId: string, note: string) => Promise<void>;
+  /** Hide the current trend reminder. Research, requests and the run are left as they are. */
+  noteTrendNotice: (id: string) => Promise<void>;
   /**
    * Declare which channels report, so the AHR-06 gap handling can be demonstrated
    * on demand instead of waiting for a channel to go quiet.
@@ -130,10 +133,11 @@ function applyResult(s: Store, result: EngineResponse): Partial<Store> {
     return { engineError: result.error ?? null };
   }
   const previous = s.campaigns.find((c) => c.id === next.id);
-  const campaign =
+  const kept =
     previous && isArchived(previous) && !isArchived(next) && next.archivedAt !== null
       ? { ...next, archivedAt: previous.archivedAt, running: false }
       : next;
+  const campaign = withNotedTrendNotice(previous, kept);
   const exists = Boolean(previous);
   return {
     campaigns: exists ? s.campaigns.map((c) => (c.id === campaign.id ? campaign : c)) : [campaign, ...s.campaigns],
@@ -274,7 +278,7 @@ export const useAisle = create<Store>()(
           const local = state.hydrated ? state.campaigns : state.campaigns.filter((c) => state.busy[c.id]);
           set({
             brand: data.brand,
-            campaigns: mergeCampaignLists(local, remote, state.busy)
+            campaigns: retainTrendNoticeAck(local, mergeCampaignLists(local, remote, state.busy))
               .filter((campaign) => !retired.includes(campaign.id))
               .map(withRuntimeDefaults),
             retiredCampaignIds: retired,
@@ -439,6 +443,18 @@ export const useAisle = create<Store>()(
             { type: "RESOLVE_CONFLICT", actor: "founder", conflictId, note },
             { pumpAfter: false },
           );
+        },
+        noteTrendNotice: async (id) => {
+          const campaign = get().campaigns.find((item) => item.id === id);
+          const key = campaign ? trendNoticeKey(campaign) : null;
+          if (!campaign || !key || campaign.trendNoticeAck === key) return;
+          const updatedAt = new Date().toISOString();
+          set((s) => ({
+            campaigns: s.campaigns.map((item) =>
+              item.id === id ? { ...item, trendNoticeAck: key, updatedAt } : item,
+            ),
+          }));
+          await putWorkspace(get());
         },
         setCollectorOverrides: (id, overrides) =>
           set((s) => ({

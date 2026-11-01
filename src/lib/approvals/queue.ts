@@ -9,7 +9,7 @@
 import { isArchived } from "@/lib/campaign-lifecycle";
 import type { Campaign } from "@/lib/types";
 import type { ScheduleConflict } from "@/lib/runtime/types";
-import { researchNotice, type ResearchNotice } from "@/lib/trend/notice";
+import { researchNotice, trendNoticeKey, type ResearchNotice } from "@/lib/trend/notice";
 
 export const reviewTypes = [
   { id: "compliance", label: "Compliance", noun: "compliance review" },
@@ -92,7 +92,8 @@ function entriesFor(campaign: Campaign): ReviewEntry[] {
   }
 
   const pending = campaign.trendRequests?.filter((request) => request.status === "pending").length ?? 0;
-  const notice = researchNotice(campaign);
+  const found = researchNotice(campaign);
+  const notice = found && campaign.trendNoticeAck === trendNoticeKey(campaign) ? null : found;
   const trendPaused = campaign.status === "paused" && Boolean(campaign.run?.step.startsWith("trend."));
   if (pending > 0 || notice || trendPaused) {
     items.push({

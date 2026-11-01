@@ -6,6 +6,7 @@
 
 import assert from "node:assert/strict";
 import { approvalsHref, parseReviewType, reviewQueue } from "../src/lib/approvals/queue";
+import { trendNoticeKey, withNotedTrendNotice } from "../src/lib/trend/notice";
 import { blankCampaign, defaultBrand } from "../src/lib/seed";
 import { defaultSettings } from "../src/lib/settings";
 import type { AgentRun, ScheduleConflict } from "../src/lib/runtime/types";
@@ -139,6 +140,60 @@ park(paused, "trend_clarification", "trend.receive", "Add a source, then continu
 const pausedItem = reviewQueue([paused]).find((item) => item.type === "trends");
 assert.equal(pausedItem?.type === "trends" && pausedItem.pausedDetail, "Add a source, then continue.");
 pass("paused research is a trend review even before a gap is recorded");
+
+const look = campaign("Needs a look");
+look.researchCoverage = [
+  {
+    category: "current_market",
+    evidenceIds: [],
+    status: "missing",
+    attempts: [{ category: "current_market", tool: "web.search", status: "empty", summary: "Nothing returned.", evidenceIds: [] }],
+    limitation: "No source returned.",
+  },
+];
+const lookKey = trendNoticeKey(look);
+assert.equal(reviewQueue([look]).some((item) => item.type === "trends"), true);
+assert.ok(lookKey);
+look.trendNoticeAck = lookKey!;
+assert.equal(reviewQueue([look]).some((item) => item.type === "trends"), false, "noting the current reminder clears it");
+look.trendNoticeAck = "some other reminder";
+assert.equal(reviewQueue([look]).some((item) => item.type === "trends"), true, "a different mark does not clear this reminder");
+look.trendNoticeAck = lookKey!;
+look.researchCoverage = [
+  ...(look.researchCoverage ?? []),
+  {
+    category: "customer_interest",
+    evidenceIds: [],
+    status: "missing",
+    attempts: [{ category: "customer_interest", tool: "web.search", status: "empty", summary: "Nothing returned.", evidenceIds: [] }],
+    limitation: "No source returned.",
+  },
+];
+assert.equal(reviewQueue([look]).some((item) => item.type === "trends"), true, "a new gap is a new reminder");
+const originalCoverage = look.researchCoverage.slice(0, 1);
+const kept = withNotedTrendNotice(
+  { ...look, researchCoverage: originalCoverage, trendNoticeAck: lookKey! },
+  { ...look, researchCoverage: originalCoverage },
+);
+assert.equal(kept.trendNoticeAck, lookKey);
+assert.equal(reviewQueue([kept]).some((item) => item.type === "trends"), false, "the same reminder stays cleared when another copy arrives");
+const replaced = withNotedTrendNotice(
+  { ...look, researchCoverage: originalCoverage, trendNoticeAck: lookKey! },
+  { ...look, trendNoticeAck: undefined },
+);
+assert.equal(reviewQueue([replaced]).some((item) => item.type === "trends"), true, "a newer gap list is shown again");
+pass("noting a trend reminder clears that reminder only");
+
+const notedDecision = campaign("Noted decision");
+notedDecision.researchCoverage = look.researchCoverage.slice(0, 1);
+notedDecision.trendRequests = [request];
+notedDecision.status = "paused";
+park(notedDecision, "trend_clarification", "trend.quality", "Country is missing.");
+notedDecision.trendNoticeAck = trendNoticeKey(notedDecision)!;
+const notedItem = reviewQueue([notedDecision]).find((item) => item.type === "trends");
+assert.equal(notedItem?.type === "trends" && notedItem.pending, 1);
+assert.equal(notedItem?.type === "trends" && notedItem.notice, null);
+pass("noting a reminder leaves a real research decision in the queue");
 
 const slots = campaign("Slots");
 const openConflict: ScheduleConflict = {

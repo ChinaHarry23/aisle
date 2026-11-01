@@ -331,6 +331,12 @@ export type Campaign = CampaignInput & {
   trendRequests?: import('@/lib/trend/quality-contracts').ReviewRequest[];
   trendSupplementarySources?: {url:string;category:import('@/lib/trend/contracts').ResearchCategory;channel?:string}[];
   researchCoverage?: import('@/lib/trend/contracts').ResearchCoverage[];
+  /**
+   * Fingerprint of a trend reminder the founder has marked as seen.
+   * It only hides that reminder in Approvals. Research, requests and the run stay as they are.
+   * A later research result produces a different fingerprint, so the reminder returns.
+   */
+  trendNoticeAck?: string;
   researchMode?: 'agent' | 'legacy';
   /** Whether this product needs seasonal trend research. A false judgement skips that search. */
   seasonalityJudgement?: { seasonal: boolean; reason: string };

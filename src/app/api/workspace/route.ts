@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/current";
 import { loadWorkspace, updateWorkspace, type WorkspaceSnapshot } from "@/lib/auth/workspace";
 import { isArchived, retainCampaignLifecycle } from "@/lib/campaign-lifecycle";
+import { retainTrendNoticeAck } from "@/lib/trend/notice";
 import type { Campaign } from "@/lib/types";
 import { WorkflowError } from "@/lib/workflow/commands";
 import { acceptSavedInsights } from "@/lib/insights";
@@ -18,7 +19,10 @@ export async function GET() {
   if (workflowEnabled()) {
     try {
       const merged = await mergeWorkflowCampaigns(user.id, workspace.campaigns);
-      const campaigns = retainCampaignLifecycle(workspace.campaigns, workspace.retiredCampaignIds ?? [], merged.campaigns);
+      const campaigns = retainTrendNoticeAck(
+        workspace.campaigns,
+        retainCampaignLifecycle(workspace.campaigns, workspace.retiredCampaignIds ?? [], merged.campaigns),
+      );
       return NextResponse.json({ ...workspace, campaigns, workflowCampaignIds: merged.workflowCampaignIds, workflow: true });
     }
     catch { return NextResponse.json({ error: "Workflow unavailable. Saved campaigns were not overwritten." }, { status: 503 }); }
@@ -63,7 +67,7 @@ async function handlePut(request: Request) {
         campaigns = [...campaigns, ...protectResearchSnapshots([], stored.campaigns).filter((c) => !listed.has(c.id))];
       }
       // The founder's trash and restores win over the durable worker's copy.
-      campaigns = retainCampaignLifecycle(accepted, body.retiredCampaignIds ?? [], campaigns);
+      campaigns = retainTrendNoticeAck(accepted, retainCampaignLifecycle(accepted, body.retiredCampaignIds ?? [], campaigns));
       const wasTrashed = new Set(stored.campaigns.filter(isArchived).map((c) => c.id));
       trashed = accepted.filter((c) => isArchived(c) && !wasTrashed.has(c.id));
       storedCampaigns = stored.campaigns;

@@ -102,9 +102,11 @@ function SettledCompliance({ campaign }: { campaign: Campaign }) {
 
 function TrendCard({ entry }: { entry: Extract<ReviewEntry, { type: "trends" }> }) {
   const launch = useAisle((s) => s.launch);
+  const noteTrendNotice = useAisle((s) => s.noteTrendNotice);
   const busy = useAisle((s) => s.busy[entry.campaign.id]);
   const { campaign, notice, pending, pausedDetail } = entry;
   const canResume = pending === 0 && pausedDetail && pausedCampaignCanResume(campaign);
+  const canNote = Boolean(notice) && pending === 0;
 
   return (
     <li className="hairline flex flex-col gap-3 p-5">
@@ -144,10 +146,22 @@ function TrendCard({ entry }: { entry: Extract<ReviewEntry, { type: "trends" }> 
             Run research again
           </button>
         ) : null}
+        {canNote ? (
+          <button
+            type="button"
+            onClick={() => void noteTrendNotice(campaign.id)}
+            className="rounded-full border border-line px-4 py-2 text-sm font-medium hover:bg-paper-2"
+          >
+            Noted
+          </button>
+        ) : null}
         <Link href={`/campaigns/${campaign.id}?tab=research`} className="text-sm text-signal">
           Open research
         </Link>
       </div>
+      {canNote ? (
+        <p className="text-xs text-mute">Clears this reminder. The research stays as it is.</p>
+      ) : null}
     </li>
   );
 }
