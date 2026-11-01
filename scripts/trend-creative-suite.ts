@@ -61,6 +61,13 @@ assert.deepEqual(copy.variants[0].insightUses?.map(use => use.insightId), ["lunc
 assert.deepEqual(copy.variants[0].unusedInsightIds, ["pack-detail"]);
 assert.equal(copy.variants[1].insightUses?.[0].insightId, "pack-detail");
 assert.equal(copy.variants[0].strategyVersion, c.strategy.version);
+assert.match(copy.variants[0].headline, /^Australia's best\./);
+assert.equal(copy.variants[1].headline, "Meet the pack");
+const revised = await decideCopy({ campaign: c, brand: defaultBrand, settings: defaultSettings(), version: 2, complianceNotes: [], fallback, llm: { request: async req => ({ ...stubComplete(req, "Offline fixture"), status: "ok", text: JSON.stringify({ variants: response }) }) } });
+assert.match(revised.variants[0].headline, /^guaranteed\./);
+assert.doesNotMatch(revised.variants[0].headline, /Australia's best/);
+const cleared = await decideCopy({ campaign: c, brand: defaultBrand, settings: defaultSettings(), version: 3, complianceNotes: [], fallback, llm: { request: async req => ({ ...stubComplete(req, "Offline fixture"), status: "ok", text: JSON.stringify({ variants: response }) }) } });
+assert.equal(cleared.variants[0].headline, "A place at your lunch table");
 console.log("PASS actual creative request retains selected findings, evidence, applications and limitations; distinct concepts and valid adoption survive");
 
 const storedCreatives = buildCreatives(c, copy.variants, 1);

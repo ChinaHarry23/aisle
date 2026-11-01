@@ -48,6 +48,34 @@ assert.equal(profile.colors.accent, "#ff6b00");
 assert.equal(profile.colors.deep, "#111111");
 assert.equal(profile.colors.paper, "#ffffff");
 assert.equal(profile.tagline, "Shop your way at Coles.");
+
+const colesListed = profileFromBrandfetch("coles.com.au", {
+  name: "Coles",
+  domain: "coles.com.au",
+  description: "Discover quick and easy recipes.",
+  logos: [
+    { type: "icon", theme: "dark", formats: [{ src: "https://cdn.brandfetch.io/coles/icon.jpeg", format: "jpeg" }] },
+    {
+      type: "logo",
+      theme: "dark",
+      formats: [
+        { src: "https://cdn.brandfetch.io/coles/logo.png", format: "png", background: "transparent" },
+        { src: "https://cdn.brandfetch.io/coles/logo.svg", format: "svg", background: "transparent" },
+      ],
+    },
+  ],
+  colors: [
+    { hex: "#707070", type: "dark" },
+    { hex: "#e4606d", type: "light" },
+    { hex: "#be161d", type: "accent" },
+  ],
+});
+assert.ok(colesListed);
+assert.equal(colesListed.logoUrl, "https://cdn.brandfetch.io/coles/logo.png");
+assert.equal(colesListed.colors.signal, "#be161d");
+assert.equal(colesListed.colors.accent, "#e4606d");
+assert.equal(colesListed.colors.deep, "#707070");
+assert.equal(colesListed.colors.paper, "#ffffff");
 assert.match(profile.about, /groceries/);
 assert.equal(profileFromBrandfetch("unknown.example", {}), null);
 

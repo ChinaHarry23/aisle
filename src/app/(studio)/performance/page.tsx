@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { formatNumber } from "@/lib/ids";
 import { channelLabel } from "@/lib/status";
@@ -11,6 +12,12 @@ import { Empty, PageHeader, ResultStatusChip, SectionTitle, Stat } from "@/compo
 import { useDeveloperView } from "@/components/DeveloperView";
 import Link from "next/link";
 
+function matchesCampaign(query: string, ...parts: Array<string | undefined>) {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return true;
+  return parts.join(" ").toLowerCase().includes(needle);
+}
+
 export default function PerformancePage() {
   const { developer } = useDeveloperView();
   const campaigns = useActiveCampaigns();
@@ -19,6 +26,8 @@ export default function PerformancePage() {
   const decideRecommendation = useAisle((s) => s.decideRecommendation);
   const busy = useAisle((s) => s.busy);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [query, setQuery] = useState("");
+  const [openIds, setOpenIds] = useState<Record<string, boolean>>({});
 
   /* Campaigns with a collected report, plus published campaigns that still have
      results to collect — the queue is what the founder actually works. */
@@ -39,6 +48,29 @@ export default function PerformancePage() {
     { impressions: 0, conversions: 0 },
   );
   const gaps = analysed.reduce((n, { report }) => n + report.gaps.length, 0);
+  const filteredAnalysed = analysed.filter(({ c, report }) =>
+    matchesCampaign(query, c.name, c.product, report.summary, report.recommendationText),
+  );
+  const filteredAwaiting = awaitingCollection.filter((c) => matchesCampaign(query, c.name, c.product));
+  const filteredLegacy = legacy.filter((c) => matchesCampaign(query, c.name, c.product, c.performance?.summary, c.performance?.recommendation));
+  const searching = query.trim().length > 0;
+  const soleMatch = searching && filteredAnalysed.length === 1 ? filteredAnalysed[0].c.id : null;
+  const expanded = (id: string) => openIds[id] ?? id === soleMatch;
+  const allOpen = filteredAnalysed.length > 0 && filteredAnalysed.every(({ c }) => expanded(c.id));
+  const listed = filteredAnalysed.length + filteredAwaiting.length + (developer ? filteredLegacy.length : 0);
+
+  function toggle(id: string) {
+    setOpenIds((current) => ({ ...current, [id]: !expanded(id) }));
+  }
+
+  function toggleAll() {
+    const next = !allOpen;
+    setOpenIds((current) => {
+      const copy = { ...current };
+      for (const { c } of filteredAnalysed) copy[c.id] = next;
+      return copy;
+    });
+  }
 
   return (
     <div className="flex flex-col gap-8">
@@ -58,11 +90,36 @@ export default function PerformancePage() {
         />
       </section>
 
-      {awaitingCollection.length > 0 ? (
+      {analysed.length + awaitingCollection.length + (developer ? legacy.length : 0) > 0 ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search campaigns"
+            aria-label="Search campaigns"
+            className="w-full max-w-md border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-signal"
+          />
+          {filteredAnalysed.length > 1 ? (
+            <button
+              type="button"
+              onClick={toggleAll}
+              className="rounded-full border border-line px-4 py-2 text-sm font-medium hover:bg-paper-2"
+            >
+              {allOpen ? "Collapse all" : "Expand all"}
+            </button>
+          ) : null}
+          {searching ? (
+            <p className="text-sm text-mute">{`${listed} ${listed === 1 ? "campaign" : "campaigns"}`}</p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {filteredAwaiting.length > 0 ? (
         <section className="hairline p-4">
           <SectionTitle kicker="Results" title="Published, waiting on results" />
           <ul className="mt-3 flex flex-col gap-2">
-            {awaitingCollection.map((c) => (
+            {filteredAwaiting.map((c) => (
               <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
                 <Link href={`/campaigns/${c.id}`} className="font-medium hover:text-signal">
                   {c.name}
@@ -84,19 +141,35 @@ export default function PerformancePage() {
         </section>
       ) : null}
 
-      {analysed.map(({ c, report }) => {
+      {filteredAnalysed.map(({ c, report }) => {
+        const open = expanded(c.id);
         const maxImp = Math.max(...report.results.map((r) => r.figures?.impressions ?? 0), 1);
         const decision = c.recommendationDecision;
         const draft = drafts[c.id] ?? report.recommendationText ?? report.summary;
         const firstChannel = report.results[0]?.channel ?? c.channels[0];
         return (
           <article key={c.id} className="hairline p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <Link href={`/campaigns/${c.id}`} className="font-serif text-2xl hover:text-signal">
-                  {c.name}
-                </Link>
-                <p className="mt-2 max-w-2xl text-sm leading-relaxed text-ink-soft">
+            <div className="flex items-start gap-3">
+              <button
+                type="button"
+                aria-expanded={open}
+                aria-controls={`performance-${c.id}`}
+                aria-label={`${open ? "Collapse" : "Expand"} ${c.name}`}
+                onClick={() => toggle(c.id)}
+                className="mt-1 grid h-9 w-9 shrink-0 place-items-center rounded-full border border-line text-mute hover:bg-paper-2 hover:text-ink"
+              >
+                <ChevronDown size={16} className={cn("transition-transform", open && "rotate-180")} />
+              </button>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <Link href={`/campaigns/${c.id}`} className="font-serif text-2xl hover:text-signal">
+                    {c.name}
+                  </Link>
+                  <p className="text-sm tabular-nums text-mute">
+                    {report.totals ? `${formatNumber(report.totals.impressions)} imp · ${report.totals.ctr}% CTR` : "no totals"}
+                  </p>
+                </div>
+                <p className={cn("mt-2 max-w-2xl text-sm leading-relaxed text-ink-soft", !open && "line-clamp-2")}>
                   {report.summary}
                 </p>
                 <p className="mt-2 text-xs text-mute">
@@ -105,10 +178,9 @@ export default function PerformancePage() {
                   {report.results.length} channel(s) reported
                 </p>
               </div>
-              <p className="text-sm tabular-nums text-mute">
-                {report.totals ? `${formatNumber(report.totals.impressions)} imp · ${report.totals.ctr}% CTR` : "no totals"}
-              </p>
             </div>
+            {open ? (
+            <div id={`performance-${c.id}`}>
 
             <div className="mt-5 flex flex-wrap items-end justify-between gap-2">
               <h3 className="text-[11px] uppercase tracking-wider text-mute">
@@ -274,18 +346,24 @@ export default function PerformancePage() {
                 </div>
               )}
             </div>
+            </div>
+            ) : null}
           </article>
         );
       })}
 
-      {analysed.length === 0 ? (
+      {searching && listed === 0 ? (
+        <Empty title="No campaigns match" body={`Nothing on this page matches “${query.trim()}”.`} />
+      ) : null}
+
+      {analysed.length === 0 && !searching ? (
         <Empty
           title="No results collected yet"
           body="Publish a campaign and connect your channels to see results here. If data is missing, we say so instead of guessing."
         />
       ) : null}
 
-      {developer && legacy.length > 0 ? (
+      {developer && filteredLegacy.length > 0 ? (
         <section>
           <SectionTitle kicker="Archived demo history" title="Seeded campaigns" />
           <p className="mt-2 max-w-2xl text-sm text-ink-soft">
@@ -293,7 +371,7 @@ export default function PerformancePage() {
             collected report, so they are shown for context only.
           </p>
           <ul className="mt-3 flex flex-col gap-2 text-sm">
-            {legacy.map((c) => (
+            {filteredLegacy.map((c) => (
               <li key={c.id} className="hairline p-3">
                 <Link href={`/campaigns/${c.id}`} className="font-medium hover:text-signal">
                   {c.name}

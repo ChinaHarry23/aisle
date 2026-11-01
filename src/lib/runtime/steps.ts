@@ -1053,17 +1053,18 @@ export async function runCreativeGeneration(
 
   const pictures = withGen.filter((cr) => cr.generation?.url).length;
   const photo = c.productImageUrl ? " The uploaded product photo was the reference." : "";
-  const opening = version === 1
-    ? env.brand.bannedTerms.some((term) => withGen[0]?.headline.toLowerCase().includes(term.trim().toLowerCase()))
-      ? " The first headline includes one brand-forbidden claim so the compliance model can send it back."
-      : ""
-    : "";
+  const planted = env.brand.bannedTerms.some((term) => withGen[0]?.headline.toLowerCase().includes(term.trim().toLowerCase()));
+  const demoNote = planted && version === 1
+    ? " Variant A opens with a banned claim so compliance sends this first draft back."
+    : planted && version === 2
+      ? " Variant A opens with a different banned claim so compliance sends this second draft back. The next version keeps the agent's line."
+      : "";
   addEvent(
     w,
     "creative",
     "output",
     `v${version} generated — variants A and B`,
-    `${withGen.map((cr) => `${cr.variant}: “${cr.headline}”`).join(" · ")} · ${modelId} · ${pictures} picture(s) · est. $${mediaCost.toFixed(3)}.${photo}${opening} Logged with inputs and creation date; not published.`,
+    `${withGen.map((cr) => `${cr.variant}: “${cr.headline}”`).join(" · ")} · ${modelId} · ${pictures} picture(s) · est. $${mediaCost.toFixed(3)}.${photo}${demoNote} Logged with inputs and creation date; not published.`,
   );
   addStep(
     w,

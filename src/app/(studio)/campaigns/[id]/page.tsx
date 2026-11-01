@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { Suspense, useRef, useState, type ReactNode } from "react";
 import { AgentLog } from "@/components/AgentLog";
+import { AgentWork } from "@/components/AgentWork";
 import { OperationGraph } from "@/components/OperationGraph";
 import { ChecksPanel } from "@/components/ChecksPanel";
 import { ComplianceCheckerPanel } from "@/components/ComplianceCheckerPanel";
@@ -22,7 +23,8 @@ import { cn } from "@/lib/cn";
 import { formatDate, formatNumber } from "@/lib/ids";
 import { channelLabel } from "@/lib/status";
 import { isArchived } from "@/lib/campaign-lifecycle";
-import { campaignCanAdvance } from "@/lib/runtime/resume";
+import type { AgentActivityLine } from "@/lib/runtime/activity";
+import { campaignCanAdvance, pausedCampaignCanResume } from "@/lib/runtime/resume";
 import { useDeveloperView } from "@/components/DeveloperView";
 import { TrendReport } from '@/components/trend/TrendReport';
 import { SaveInsightsPanel } from "@/components/insights/FeedbackInsights";
@@ -41,6 +43,8 @@ const tabs = [
 ] as const;
 
 type Tab = (typeof tabs)[number];
+
+const EMPTY_ACTIVITY: AgentActivityLine[] = [];
 
 function feedbackSource(campaigns: { id: string; name: string }[], from: string | null): string {
   if (!from) return "";
@@ -113,7 +117,7 @@ function CampaignWorkspace() {
   const restoreCampaign = useAisle((s) => s.restoreCampaign);
   const deleteCampaign = useAisle((s) => s.deleteCampaign);
   const busy = useAisle((s) => s.busy[id] ?? false);
-  const activity = useAisle((s) => s.activity[id] ?? "");
+  const activityLog = useAisle((s) => s.activityLog?.[id] ?? EMPTY_ACTIVITY);
   const launchLock = useRef(false);
   const router = useRouter();
   const setTab = (next: Tab) => router.replace(`/campaigns/${id}?tab=${next}`, { scroll: false });
@@ -145,7 +149,7 @@ function CampaignWorkspace() {
   }
 
   const archived = isArchived(campaign);
-  const canLaunch = !archived && ["draft", "paused", "rejected"].includes(campaign.status);
+  const canLaunch = !archived && (campaign.status === "draft" || campaign.status === "rejected" || pausedCampaignCanResume(campaign));
   const requestedTab = searchParams.get("tab");
   const researchPending = campaign.trendRequests?.some((request) => request.status === "pending") ?? false;
   const fallbackTab: Tab = researchPending ? "research" : campaign.status === "awaiting_approval" ? "compliance" : "brief";
@@ -170,7 +174,6 @@ function CampaignWorkspace() {
               {campaign.product} · {campaign.targetAudience} ·{" "}
               {campaign.country}
             </p>
-            {busy && activity ? <p className="mt-2 text-sm text-signal">{activity}</p> : null}
             {campaign.imageRevisionNote && campaign.complianceReports.length > 0 ? (
               <p className="mt-2 max-w-xl text-sm text-ink-soft">
                 The pictures were revised after the compliance report. Check the new images before approving.
@@ -191,16 +194,17 @@ function CampaignWorkspace() {
                 }}
                 className="rounded-full btn-primary px-4 py-2 text-sm font-medium disabled:opacity-50"
               >
-                {busy ? "Launching…" : "Launch agents"}
+                {busy ? "Launching…" : campaign.status === "paused" ? "Resume pipeline" : "Launch agents"}
               </button>
             ) : null}
             {!archived && campaign.running ? (
               <button
                 type="button"
+                disabled={busy}
                 onClick={() => void pause(campaign.id)}
-                className="rounded-full border border-line px-4 py-2 text-sm font-medium hover:bg-paper-2"
+                className="rounded-full border border-line px-4 py-2 text-sm font-medium hover:bg-paper-2 disabled:opacity-50"
               >
-                Pause
+                {busy ? "Pausing…" : "Pause"}
               </button>
             ) : null}
             {engineError && campaignCanAdvance(campaign) ? (
@@ -274,13 +278,9 @@ function CampaignWorkspace() {
         ) : null}
         <div className="mt-5">
           <AgentPipeline status={campaign.status} />
+          <AgentWork lines={activityLog} busy={busy || campaign.running} />
         </div>
-        {engineError && campaignCanAdvance(campaign) ? (
-          <p className="mt-3 text-sm text-signal">{engineError}</p>
-        ) : null}
-        {run?.status === "running" ? (
-          <p className="mt-3 text-xs text-mute">Agents are working on this now.</p>
-        ) : null}
+        {engineError ? <p className="mt-3 text-sm text-signal">{engineError}</p> : null}
         {developer && campaign.spend.blockedAttempts > 0 ? (
           <p className="mt-3 text-xs text-mute">
             <button
@@ -419,7 +419,9 @@ function CampaignWorkspace() {
               </p>
             )}
             {campaign.running ? (
-              <p className="mt-6 text-sm text-signal">{busy && activity ? activity : "Agents are working this campaign now."}</p>
+              <p className="mt-6 text-sm text-signal">
+                {activityLog[activityLog.length - 1]?.text ?? "Agents are working this campaign now."}
+              </p>
             ) : null}
           </div>
         </section>

@@ -432,6 +432,7 @@ export async function decideCopy(input: {
       ? `A product photo will be attached. Keep that product recognisable. ${visualDirection ? "Place it in the chosen campaign scene." : productScene(input.campaign.product, input.campaign.category, input.campaign.notes ?? "")}`
       : `No product photo was supplied. ${visualDirection ? "Illustrate the exact product in the campaign scene." : productScene(input.campaign.product, input.campaign.category, input.campaign.notes ?? "")}`,
     "The prompt field is the image-to-image instruction. Keep the real product recognisable and describe the scene from the selected campaign concept.",
+    "The prompt must keep the top-left corner empty. A logo plate covering about 28% of the width and 16% of the height is added after the render. The headline, supporting line and button start to the right of that plate, and no letter may sit under it. Do not draw a logo.",
     "headline, subhead and cta are the only words printed on the image. Write a different headline for A and B from this product's trend key message and findings.",
     "Do not write 'without the theatre', 'no theatre', or any slogan that could fit a different product.",
     "Every claim must be one of the allowed claims. No superlatives, no health claims, no guarantees.",
@@ -451,7 +452,7 @@ export async function decideCopy(input: {
     task: prompt,
   });
   if (seatedCopy?.answer.variants && seatedCopy.answer.variants.length >= 2) {
-    const cleaned = openWithForbiddenClaim(cleanVariants(seatedCopy.answer.variants, input.fallback, input.campaign), input.brand, input.version);
+    const cleaned = openWithDemoClaim(cleanVariants(seatedCopy.answer.variants, input.fallback, input.campaign), input.brand, input.version);
     return { variants: cleaned, trace: traceFromSeat("creative", seatedCopy) };
   }
 
@@ -466,22 +467,34 @@ export async function decideCopy(input: {
   const parsed = extractJson<{ variants?: CopyVariant[] }>(result.text);
   const variants = parsed?.variants?.filter((v) => v && typeof v.headline === "string");
   if (result.status === "ok" && variants && variants.length >= 2) {
-    const cleaned = openWithForbiddenClaim(cleanVariants(variants, input.fallback, input.campaign), input.brand, input.version);
+    const cleaned = openWithDemoClaim(cleanVariants(variants, input.fallback, input.campaign), input.brand, input.version);
     return { variants: cleaned, trace: traceFor("creative", assignment, result, true) };
   }
-  return { variants: openWithForbiddenClaim(input.fallback, input.brand, input.version), trace: traceFor("creative", assignment, result, false) };
+  return { variants: openWithDemoClaim(input.fallback, input.brand, input.version), trace: traceFor("creative", assignment, result, false) };
 }
 
-/** The first draft keeps one founder-forbidden claim so the compliance model has a rewrite to make. Later drafts do not. */
-function openWithForbiddenClaim(variants: CopyVariant[], brand: BrandProfile, version: number): CopyVariant[] {
-  if (version !== 1) return variants;
-  const term = [...brand.bannedTerms].map((item) => item.trim()).filter((item) => item.length > 1)
-    .sort((a, b) => Number(/best/i.test(b)) - Number(/best/i.test(a)))[0];
+/**
+ * The agent writes the poster lines. For the revision demo, variant A of v1 and
+ * v2 then opens with a different brand-banned term, so compliance sends each
+ * draft back. v3 is left as the agent wrote it.
+ */
+function openWithDemoClaim(variants: CopyVariant[], brand: BrandProfile, version: number): CopyVariant[] {
+  const term = demoOpener(brand.bannedTerms, version);
   if (!term) return variants;
   return variants.map((variant, index) => {
     if (index !== 0 || variant.headline.toLowerCase().includes(term.toLowerCase())) return variant;
     return { ...variant, headline: `${term}. ${variant.headline}`.replace(/\s+/g, " ").trim() };
   });
+}
+
+function demoOpener(banned: string[], version: number): string | null {
+  if (version !== 1 && version !== 2) return null;
+  const terms = [...banned].map((item) => item.trim()).filter((item) => item.length > 1);
+  const preferred = version === 1 ? "australia's best" : "guaranteed";
+  const named = terms.find((item) => item.toLowerCase() === preferred);
+  if (named) return named;
+  const ranked = [...terms].sort((a, b) => Number(/best/i.test(b)) - Number(/best/i.test(a)));
+  return ranked[version - 1] ?? null;
 }
 
 /**

@@ -167,8 +167,16 @@ pass('outdated evidence triggers bounded same-category search and original extra
  const paused=reviewed();paused.run!.status='paused';paused.status='paused';paused.trendQuality!.storedVersion=null;paused.run!.step='trend.handoff';
  const resume=await runEngine({campaigns:[paused],now:at},paused,{type:'START',actor:'founder'},settings,defaultBrand,{llm:{request:async()=>{throw Error('Storage retry must not research');}}});
  assert.equal(resume.campaign.run!.step,'trend.handoff');assert.equal(resume.canAdvance,true);recordStoredTrend(resume.campaign);assert.equal(trendReadyForHandoff(resume.campaign),true);
+ const gaps=reviewed();gaps.status='paused';gaps.run!.status='paused';gaps.run!.step='trend.quality';
+ const gapRequest={id:`${gaps.run!.id}:area:current_market:`,runId:gaps.run!.id,contextVersion:gaps.trendQuality!.contextVersion,reviewVersion:gaps.trendQuality!.version,category:'current_market' as const,findingIds:[],reason:'No sufficient evidence-backed assessment for current_market.',question:'Can you correct the brief or provide relevant authorised evidence?',neededData:'A public source for this category.',options:['correct_context','provide_data','decline'] as const,status:'pending' as const,requestedAt:at};
+ gaps.trendRequests=[gapRequest];gaps.trendQuality!.requests=[gapRequest];
+ assert.doesNotThrow(()=>assertTransition(gaps,{type:'START',actor:'founder'}));
+ const continued=await runEngine({campaigns:[gaps],now:at},gaps,{type:'START',actor:'founder'},settings,defaultBrand,{llm:{request:async()=>{throw Error('Resume must not research');}}});
+ assert.equal(continued.campaign.run!.step,'trend.handoff');assert.equal(continued.canAdvance,true);assert.equal(continued.campaign.status,'analysing');
+ assert.equal(continued.campaign.trendRequests!.some(r=>r.status==='pending'),false);assert.ok(continued.campaign.trendQuality!.continuedAt);
 }
 pass('new authorised sources resume step3; storage-restored resume retries persistence before dispatching the same version');
+pass('a founder pause on evidence gaps resumes the pipeline');
 {
  const file=path.join(mkdtempSync(path.join(tmpdir(),'ta04-recovery-')),'workflow.db');
  let repo=new WorkflowRepository(file);const original=base();original.status='draft';original.run=null;

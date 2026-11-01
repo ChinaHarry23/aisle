@@ -1,6 +1,7 @@
 import {z} from 'zod';
 import {RESEARCH_CATEGORIES} from '@/lib/trend/contracts';
 import {publicSourceUrl} from '@/lib/trend/source-tools';
+import { pausedCampaignCanResume } from "../runtime/resume";
 import type { Command } from "../runtime/types";
 import type { Campaign } from "../types";
 
@@ -48,7 +49,7 @@ export function assertTransition(c: Campaign, command: Command) {
   const allowed: Partial<Record<Command["type"], boolean>> = {
     RESOLVE_TREND:c.status==='paused'&&Boolean(c.trendQuality)&&c.trendRequests?.some(r=>r.status==='pending'&&r.id===(command as Extract<Command,{type:'RESOLVE_TREND'}>).requestId),
     CANCEL_TREND:['analysing','paused'].includes(c.status)&&Boolean(c.run?.step.startsWith('trend.')),
-    START: c.status === "draft" || c.status === "paused" && !c.trendRequests?.some(r=>r.status==='pending'),
+    START: c.status === "draft" || pausedCampaignCanResume(c),
     ADVANCE: c.run?.status === "running",
     PAUSE: c.run?.status === "running" || c.status === "paused",
     APPROVE: c.status === "awaiting_approval" && c.creatives.length > 0 && c.complianceAttempts.length > 0,

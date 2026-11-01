@@ -47,6 +47,23 @@ function swatch(colors: Swatch[], type: string): string | null {
   return null;
 }
 
+/**
+ * Brandfetch calls its palest swatch "light". For Coles that swatch is the
+ * pink `#e4606d`, which is a brand colour, not a page background. Only a
+ * near-white neutral is safe to put behind a transparent logo.
+ */
+function isClearBackground(value: string): boolean {
+  const n = Number.parseInt(value.slice(1), 16);
+  const r = (n >> 16) & 255;
+  const g = (n >> 8) & 255;
+  const b = n & 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const lightness = (max + min) / 2 / 255;
+  const saturation = max === min ? 0 : (max - min) / (255 - Math.abs(max + min - 255));
+  return lightness >= 0.9 && saturation <= 0.4;
+}
+
 /** The hostname Brandfetch indexes. `www` is dropped; anything else is refused. */
 export function brandfetchDomain(website: string): string {
   const host = new URL(website).hostname.toLowerCase().replace(/^www\./, "");
@@ -92,9 +109,11 @@ export function profileFromBrandfetch(domain: string, body: unknown): Brandfetch
   const brand = body as BrandPayload;
   const colors = brand.colors ?? [];
   const signal = swatch(colors, "brand") ?? swatch(colors, "accent");
-  const accent = swatch(colors, "accent") ?? signal;
+  const namedAccent = swatch(colors, "accent");
+  const light = swatch(colors, "light");
+  const paper = light && isClearBackground(light) ? light : "#ffffff";
+  const accent = [namedAccent, light].find((value) => value && value !== signal && value !== paper) ?? signal;
   const deep = swatch(colors, "dark") ?? signal;
-  const paper = swatch(colors, "light") ?? "#ffffff";
   const logo = logoUrl(brand.logos ?? []);
   const about = (brand.longDescription || brand.description || "").replace(/\s+/g, " ").trim();
   const tagline = (brand.description || "").replace(/\s+/g, " ").trim();

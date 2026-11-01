@@ -214,7 +214,7 @@ export default function BrandPage() {
   const [researching, setResearching] = useState(false);
   const [researchNote, setResearchNote] = useState<string | null>(null);
   const [researchError, setResearchError] = useState<string | null>(null);
-  const { paper, signal } = brand.colors;
+  const { signal } = brand.colors;
 
   async function research() {
     setResearching(true);
@@ -295,22 +295,21 @@ export default function BrandPage() {
         </div>
       </div>
 
-      <section
-        className="flex items-center gap-5 rounded-[16px] p-8 text-ink"
-        style={{ background: paper, boxShadow: "inset 0 0 0 1px var(--line)" }}
-      >
-        {brand.logoUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={brand.logoUrl} alt={`${brand.retailerName} logo`} className="h-16 w-auto max-w-[60%] object-contain" />
-        ) : (
-          <span
-            className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[14px] text-3xl font-semibold"
-            style={{ background: signal, color: "#ffffff" }}
-          >
-            {brand.retailerName.trim().charAt(0).toUpperCase() || "?"}
-          </span>
-        )}
-        {brand.tagline && <p className="text-sm opacity-70">{brand.tagline}</p>}
+      <section className="max-w-xl">
+        <div className="flex h-44 items-center justify-center rounded-[16px] bg-paper-2 px-10">
+          {brand.logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={brand.logoUrl} alt={`${brand.retailerName} logo`} className="max-h-20 w-auto max-w-full object-contain" />
+          ) : (
+            <span
+              className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[14px] text-3xl font-semibold"
+              style={{ background: signal, color: "#ffffff" }}
+            >
+              {brand.retailerName.trim().charAt(0).toUpperCase() || "?"}
+            </span>
+          )}
+        </div>
+        {brand.tagline ? <p className="mt-3 text-sm leading-relaxed text-ink-soft">{brand.tagline}</p> : null}
       </section>
 
       <ColourScheme colors={brand.colors} />

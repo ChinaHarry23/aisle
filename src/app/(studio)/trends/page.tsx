@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Trash2, Upload } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { formatDate } from "@/lib/ids";
@@ -9,6 +9,8 @@ import type { TrendSource, TrendSourceKind } from "@/lib/settings";
 import { isArchived } from "@/lib/campaign-lifecycle";
 import { useAisle } from "@/lib/store";
 import { PageHeader, SectionTitle } from "@/components/ui";
+import { StructuredBrief } from "@/components/trend/StructuredBrief";
+import { researchNotice } from "@/lib/trend/notice";
 
 /** Formats the browser can read as text today. PDF and Office files are accepted but flagged. */
 const TEXT_FILE = /\.(txt|md|markdown|csv|tsv|json|html?|xml|rtf)$/i;
@@ -197,6 +199,11 @@ export default function TrendsPage() {
     topic: null,
   });
   const [dragging, setDragging] = useState(false);
+  const [openReport, setOpenReport] = useState<string | null>(null);
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (hash.startsWith("#report-")) setOpenReport(decodeURIComponent(hash.slice("#report-".length)));
+  }, []);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const listed = useMemo(() => campaigns.filter((c) => !isArchived(c)), [campaigns]);
@@ -273,31 +280,46 @@ export default function TrendsPage() {
 
       <dl className="grid grid-cols-3 gap-3" aria-label="Research overview">
         <div className="hairline p-4"><dt className="text-xs text-mute">Complete reports</dt><dd className="mt-2 text-2xl">{listed.filter(c=>c.structuredTrendBrief?.status==='COMPLETE'&&c.structuredTrendBrief.validation==='passed'&&c.trendQuality?.status==='COMPLETE').length}</dd></div>
-        <div className="hairline p-4"><dt className="text-xs text-mute">Research requests</dt><dd className="mt-2 text-2xl">{listed.reduce((total,c)=>total+(c.trendRequests?.filter(r=>r.status==='pending').length??0),0)}</dd></div>
+        <div className="hairline p-4"><dt className="text-xs text-mute">Campaigns to review</dt><dd className="mt-2 text-2xl">{listed.filter((c) => researchNotice(c)).length}</dd></div>
         <div className="hairline p-4"><dt className="text-xs text-mute">Draft / partial</dt><dd className="mt-2 text-2xl">{listed.filter(c=>c.researchAttempts?.length&&c.structuredTrendBrief?.status!=='COMPLETE').length}</dd></div>
       </dl>
       <section aria-label="Campaign research reports">
         <SectionTitle title="Campaign reports" />
-        <p className="mt-2 text-sm text-mute">Open a report for all research categories, evidence, conclusions and limitations.</p>
+        <p className="mt-2 text-sm text-mute">The full research report opens here. Campaign direction stays on the campaign.</p>
         <div className="mt-4 grid gap-4 lg:grid-cols-2">
-          {listed.map(c => { const areas=c.researchCoverage ?? [];const count=c.trendQuality?.assessment?.areas.length??areas.filter(a=>a.analysis).length;const requests=c.trendQuality ? c.trendRequests?.filter(r=>r.status==='pending').length??0 : c.trendGaps.filter(g=>g.needsFounder).length;return <article key={c.id} className="hairline p-5">
-            <div className="flex flex-wrap items-center justify-between gap-2"><span className="status-chip status-wait">{c.structuredTrendBrief ? c.structuredTrendBrief.validation!=='passed'?'Report needs recovery':c.structuredTrendBrief.status==='COMPLETE'&&c.trendQuality?.status==='COMPLETE'?'Complete report':'Partial report · evidence gaps' : c.trendQuality ? c.trendQuality.status==='COMPLETE' ? 'Evidence review passed' : c.status==='rejected'?'Analysis ended · partial report':'Incomplete · needs evidence' : c.researchAttempts?.length ? 'Draft · validation pending' : 'No verified research run'}</span>{requests>0&&<span className="text-xs text-signal">{requests} need your input</span>}</div>
+          {listed.map(c => { const areas=c.researchCoverage ?? [];const count=c.trendQuality?.assessment?.areas.length??areas.filter(a=>a.analysis).length;const open=openReport===c.id;return <article key={c.id} id={`report-${c.id}`} className={cn("hairline p-5", open && "lg:col-span-2")}>
+            <div className="flex flex-wrap items-center justify-between gap-2"><span className="status-chip status-wait">{c.structuredTrendBrief ? c.structuredTrendBrief.validation!=='passed'?'Report needs recovery':c.structuredTrendBrief.status==='COMPLETE'&&c.trendQuality?.status==='COMPLETE'?'Complete report':'Partial report · evidence gaps' : c.trendQuality ? c.trendQuality.status==='COMPLETE' ? 'Evidence review passed' : c.status==='rejected'?'Analysis ended · partial report':'Incomplete · needs evidence' : c.researchAttempts?.length ? 'Draft · validation pending' : 'No verified research run'}</span></div>
             <h3 className="mt-3 font-serif text-xl">{c.name}</h3><p className="mt-2 text-sm text-mute">{c.country} · {c.startDate} – {c.endDate}</p>
             <p className="mt-3 text-sm">{count} / {areas.length || 7+c.channels.length} research areas assessed</p>{c.structuredTrendBrief&&<p className="mt-2 text-xs text-mute">Version {c.structuredTrendBrief.version} · {c.structuredTrendBrief.sources.length} cited records · Facts, inferences, themes & visual directions</p>}
-            <div className="mt-4 flex flex-wrap gap-4 text-sm text-signal"><Link href={`/campaigns/${c.id}?tab=research`}>Open full report →</Link>{requests>0&&<Link href={`/campaigns/${c.id}?tab=research#research-decisions`}>Review requests →</Link>}</div>
+            <div className="mt-4 flex flex-wrap gap-4 text-sm text-signal">{c.structuredTrendBrief ? <button type="button" className="text-signal" onClick={() => setOpenReport(open ? null : c.id)}>{open ? "Hide full report" : "Read full report"}</button> : <Link href={`/campaigns/${c.id}?tab=research`}>Open campaign research →</Link>}</div>
+            {open && c.structuredTrendBrief ? <div className="mt-5"><StructuredBrief campaign={c} /></div> : null}
           </article>;})}
           {!listed.length&&<p className="text-sm text-mute">Create a campaign to start a research report.</p>}
         </div>
       </section>
-      <section aria-label="Research requests across campaigns">
-        <SectionTitle title="Needs your attention" />
-        <p className="mt-2 text-sm text-mute">Research clarification and evidence review are separate from advertising approval. Approving a decision cannot replace missing evidence.</p>
-        <ul className="mt-4 space-y-3">{listed.flatMap(c=>c.trendGaps.filter(g=>g.needsFounder&&(!c.trendQuality||c.trendRequests?.some(r=>r.id===g.id&&r.status==='pending'))).map(g=><li key={`${c.id}:${g.id}`} className="hairline p-4">
-          <p className="text-xs text-signal">{c.name} · {g.kind.replaceAll('_',' ')}</p><h3 className="mt-2 font-medium">{g.detail}</h3><p className="mt-2 text-sm text-mute">Impact: {g.effect}</p><Link className="mt-3 inline-block text-sm text-signal" href={`/campaigns/${c.id}?tab=research#research-decisions`}>See evidence and next action →</Link>
-        </li>))}</ul>
-        {!listed.some(c=>c.trendGaps.some(g=>g.needsFounder&&(!c.trendQuality||c.trendRequests?.some(r=>r.id===g.id&&r.status==='pending'))))&&<p className="mt-4 rounded-xl border border-line p-4 text-sm text-mute">No research decisions are waiting for you. Reports without a verified run still need research; this is not a completion signal.</p>}
+      <section aria-label="Research notices">
+        <SectionTitle title="What the research could not finish" />
+        <p className="mt-2 text-sm text-mute">One note per campaign. It lists what was established and what was not. A campaign still running its research is not listed yet.</p>
+        <ul className="mt-4 space-y-3">
+          {listed.flatMap((c) => {
+            const notice = researchNotice(c);
+            if (!notice) return [];
+            return [
+              <li key={c.id} className="hairline p-4">
+                <p className="text-xs text-signal">{c.name}</p>
+                <h3 className="mt-2 font-medium">{`${notice.failed.length} ${notice.failed.length === 1 ? "area needs" : "areas need"} another look · ${notice.succeeded.length} in order`}</h3>
+                <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-ink-soft">
+                  {notice.failed.map((item) => <li key={item}>{item}</li>)}
+                </ul>
+                {notice.succeeded.length > 0 ? <p className="mt-3 text-sm text-mute">In order: {notice.succeeded.join(", ")}.</p> : null}
+                <Link className="mt-3 inline-block text-sm text-signal" href={`/campaigns/${c.id}?tab=research`}>Open research details →</Link>
+              </li>,
+            ];
+          })}
+        </ul>
+        {!listed.some((c) => researchNotice(c)) ? <p className="mt-4 rounded-xl border border-line p-4 text-sm text-mute">No campaign has a finished research gap. A run that is still in progress is not counted.</p> : null}
       </section>
-      {listed.some(c=>c.structuredTrendBrief?.validation!==undefined&&c.structuredTrendBrief.validation!=='passed')&&<section aria-label="Reports needing recovery" className="hairline p-5"><h2 className="font-serif text-xl">Reports needing recovery</h2><p className="mt-2 text-sm text-mute">Research is saved. Resolve the reported model, format or support-check failure before continuing.</p><ul className="mt-4 space-y-3">{listed.filter(c=>c.structuredTrendBrief&&c.structuredTrendBrief.validation!=='passed').map(c=><li key={c.id}><Link className="text-sm text-signal underline" href={`/campaigns/${c.id}?tab=research#structured-brief`}>{c.name} — see report recovery details</Link></li>)}</ul></section>}
+      {listed.some(c=>c.structuredTrendBrief?.validation!==undefined&&c.structuredTrendBrief.validation!=='passed')&&<section aria-label="Reports needing recovery" className="hairline p-5"><h2 className="font-serif text-xl">Reports needing recovery</h2><p className="mt-2 text-sm text-mute">Research is saved. Resolve the reported model, format or support-check failure before continuing.</p><ul className="mt-4 space-y-3">{listed.filter(c=>c.structuredTrendBrief&&c.structuredTrendBrief.validation!=='passed').map(c=><li key={c.id}><button type="button" className="text-sm text-signal underline" onClick={() => { setOpenReport(c.id); document.getElementById(`report-${c.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" }); }}>{c.name} — see report recovery details</button></li>)}</ul></section>}
       <details className="hairline p-5">
         <summary className="cursor-pointer font-medium">Research source workspace · optional configuration</summary>
         <p className="my-4 text-sm text-mute">Saved sources are candidate inputs, not verified findings. Adding or enabling a source does not prove that a research run used it. Check each report’s execution records. Authorise retail exports within the relevant campaign.</p>

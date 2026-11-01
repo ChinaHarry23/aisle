@@ -135,7 +135,9 @@ export function posterPrompt(
       ].join(" ")
     : "No product photo was supplied. Illustrate this exact product from the brief, not a generic category scene.";
   const brandText = options?.brand ? brandSection(options.brand) : "";
+  const clearance = options?.brand?.logo ? logoClearanceText() : "";
   const base = [
+    clearance,
     "Retail advertisement, 4:5, print quality.",
     reference,
     `Brand: ${campaign.sharedContext.retailer}.`,
@@ -143,6 +145,7 @@ export function posterPrompt(
     scene,
     scene.includes("Cultural occasion for this product:") ? "" : culturalDirection(campaign.culturalMatch),
     brandText,
+    clearance ? "Place every line of type to the right of the reserved top-left logo plate." : "",
     `Set only these words in type. Headline: “${creative.headline}”.`,
     creative.subhead ? `Supporting line: “${creative.subhead}”.` : "",
     `Call to action: “${creative.cta}”.`,
@@ -179,8 +182,23 @@ export function posterRequest(
 
 /* -- Brand section of the prompt ---------------------------------------- */
 
-/** Where the real brand logo is placed after the render. The prompt keeps this corner clear. */
-export const LOGO_ZONE = { placement: "top-left", widthPct: 14 } as const;
+/**
+ * Where the real brand logo is placed after the render.
+ * The reserve is larger than the plate so the headline cannot start underneath it.
+ */
+export const LOGO_ZONE = { placement: "top-left", widthPct: 14, reserveWidthPct: 28, reserveHeightPct: 16 } as const;
+
+/** Hard layout rule for the image model. Image APIs take one prompt, so this is placed first. */
+export function logoClearanceText(): string {
+  return [
+    "Layout rule, obey this before the scene.",
+    `A plain logo plate is composited afterwards over the ${LOGO_ZONE.placement} corner.`,
+    `That plate covers about ${LOGO_ZONE.reserveWidthPct}% of the width and ${LOGO_ZONE.reserveHeightPct}% of the height, including its margin.`,
+    "The rectangle must contain no letters, no button, no product and no busy detail, and must be the same plain colour as the surface behind the headline.",
+    "Start the headline, the supporting line and the call to action to the right of that rectangle, with a clear gap, so the plate cannot cover a single letter.",
+    "Do not draw any logo, wordmark or brand mark yourself.",
+  ].join(" ");
+}
 
 const PALETTE_SHARE: Record<PaletteRole, string> = {
   background: "about 60% of the frame",
@@ -198,8 +216,6 @@ function brandSection(brand: BrandInputs): string {
   }
   if (brand.style.visualStyle) lines.push(`Brand look: ${brand.style.visualStyle}`);
   if (brand.style.tone) lines.push(`Brand tone: ${brand.style.tone}`);
-  if (brand.logo) {
-    lines.push(`Keep the ${LOGO_ZONE.placement} corner, about ${LOGO_ZONE.widthPct}% of the width, plain and free of type and busy detail: the real brand logo is added there afterwards. Do not draw any logo, wordmark or brand mark yourself.`);
-  }
+  if (brand.logo) lines.push(logoClearanceText());
   return lines.join(" ");
 }

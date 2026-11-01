@@ -15,6 +15,7 @@ import { sendCommand, type EngineResponse } from "./runtime/client";
 import { applySelectedFeedback, extractableInsights, normaliseInsightText, normaliseSavedInsights, type SavedInsight } from "./insights";
 import { withRuntimeDefaults } from "./runtime/defaults";
 import { isArchived } from "./campaign-lifecycle";
+import { activityKind, type AgentActivityLine } from "./runtime/activity";
 import { campaignCanAdvance, mergeCampaignLists } from "./runtime/resume";
 import type {
   ChannelResultStatus,
@@ -37,6 +38,8 @@ type Store = {
   busy: Record<string, boolean>;
   /** What the open engine request is doing, so the desk is not a blank spinner. */
   activity: Record<string, string>;
+  /** Live agent lines for the campaign page. Kept for the open tab, not saved. */
+  activityLog: Record<string, AgentActivityLine[]>;
   setHydrated: () => void;
   hydrateFromServer: (data: {
     brand: BrandProfile;
@@ -151,8 +154,24 @@ export const useAisle = create<Store>()(
        */
       const pumping = new Set<string>();
 
-      function note(id: string, detail: string) {
-        set((s) => ({ activity: { ...s.activity, [id]: detail } }));
+      function note(id: string, event: { phase: string; detail: string }) {
+        set((s) => {
+          const previous = s.activityLog[id] ?? [];
+          const last = previous[previous.length - 1];
+          if (last && last.phase === event.phase && last.text === event.detail) {
+            return { activity: { ...s.activity, [id]: event.detail } };
+          }
+          const line: AgentActivityLine = {
+            id: uid("act"),
+            phase: event.phase,
+            kind: activityKind(event.phase),
+            text: event.detail,
+          };
+          return {
+            activity: { ...s.activity, [id]: event.detail },
+            activityLog: { ...s.activityLog, [id]: [...previous, line].slice(-60) },
+          };
+        });
       }
 
       async function pump(id: string) {
@@ -169,9 +188,10 @@ export const useAisle = create<Store>()(
               { campaigns: state.campaigns, brand: state.brand, settings: state.settings },
               campaign,
               { type: "ADVANCE", actor: "founder" } satisfies Command,
-              (detail) => note(id, detail),
+              (event) => note(id, event),
             );
-            set((s) => ({ ...applyResult(s, result), busy: { ...s.busy, [id]: false }, activity: { ...s.activity, [id]: "" } }));
+            if (result.message) note(id, { phase: result.error ? "error" : "done", detail: result.error ?? result.message });
+            set((s) => ({ ...applyResult(s, result), busy: { ...s.busy, [id]: false } }));
             if (!result.error) {
               failures = 0;
               if (!result.canAdvance) return;
@@ -226,9 +246,10 @@ export const useAisle = create<Store>()(
           { campaigns: state.campaigns, brand: state.brand, settings: state.settings },
           campaign,
           cmd,
-          (detail) => note(id, detail),
+          (event) => note(id, event),
         );
-        set((s) => ({ ...applyResult(s, result), busy: { ...s.busy, [id]: false }, activity: { ...s.activity, [id]: "" } }));
+        if (result.message) note(id, { phase: result.error ? "error" : "done", detail: result.error ?? result.message });
+        set((s) => ({ ...applyResult(s, result), busy: { ...s.busy, [id]: false } }));
         if (options.pumpAfter !== false && result.canAdvance) await pump(id);
       }
 
@@ -242,6 +263,7 @@ export const useAisle = create<Store>()(
         engineError: null,
         busy: {},
         activity: {},
+        activityLog: {},
         setHydrated: () => set({ hydrated: true }),
         hydrateFromServer: (data) => {
           const state = get();
@@ -381,6 +403,7 @@ export const useAisle = create<Store>()(
         },
 
         launch: async (id) => {
+          set((s) => ({ activityLog: { ...s.activityLog, [id]: [] }, activity: { ...s.activity, [id]: "" } }));
           await command(id, { type: "START", actor: "founder" });
         },
         resolveTrend:async(id,resolution)=>{await command(id,resolution);},
@@ -424,16 +447,19 @@ export const useAisle = create<Store>()(
             ),
           })),
 
-        attemptBlocked: async (id, action, note) => {
+        attemptBlocked: async (id, action, boundaryNote) => {
           const state = get();
           const campaign = state.campaigns.find((c) => c.id === id);
           if (!campaign) return "Campaign not found.";
+          set((s) => ({ busy: { ...s.busy, [id]: true } }));
           const result = await sendCommand(
             { campaigns: state.campaigns, brand: state.brand, settings: state.settings },
             campaign,
-            { type: "ATTEMPT_BLOCKED", actor: action, note },
+            { type: "ATTEMPT_BLOCKED", actor: action, note: boundaryNote },
+            (event) => note(id, event),
           );
-          set((s) => applyResult(s, result));
+          if (result.message) note(id, { phase: result.error ? "error" : "done", detail: result.error ?? result.message });
+          set((s) => ({ ...applyResult(s, result), busy: { ...s.busy, [id]: false } }));
           return result.message;
         },
 

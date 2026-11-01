@@ -1,10 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useDeveloperView } from "@/components/DeveloperView";
-import { ResearchDecisions } from "./ResearchDecisions";
-import { StructuredBrief } from "./StructuredBrief";
 import { StrategySummary } from "./StrategySummary";
 import type { Campaign } from "@/lib/types";
 import { coverageFor, type ResearchCategory } from "@/lib/trend/contracts";
@@ -23,7 +20,7 @@ const labels: Record<ResearchCategory, string> = {
 };
 
 type Area = NonNullable<Campaign["researchCoverage"]>[number];
-type View = "strategy" | "areas" | "decisions" | "brief";
+type View = "strategy" | "areas";
 
 function areaKey(area: Area) {
   return `${area.category}:${area.channel ?? ""}`;
@@ -51,9 +48,6 @@ export function TrendReport({ campaign }: { campaign: Campaign }) {
   const strategy = currentStrategy(campaign);
   const strategyInsightIds = new Set(strategy?.insights.map((insight) => insight.id));
   const appliedInsightIds = new Set(campaign.creatives.filter((creative) => creative.strategyVersion === strategy?.version).flatMap((creative) => creative.insightUses?.map((use) => use.insightId).filter((id) => strategyInsightIds.has(id)) ?? []));
-  const attention = quality
-    ? (campaign.trendRequests?.filter((request) => request.status === "pending") ?? [])
-    : campaign.trendGaps.filter((gap) => gap.needsFounder);
   const recorded = Boolean(campaign.researchAttempts?.length);
   const draft = strategy
     ? strategy.status === "product_led" ? "Product-led direction" : "Campaign strategy ready"
@@ -97,8 +91,6 @@ export function TrendReport({ campaign }: { campaign: Campaign }) {
   const views: { id: View; label: string }[] = [
     { id: "strategy", label: "Campaign direction" },
     { id: "areas", label: "Research details" },
-    ...(attention.length ? [{ id: "decisions" as const, label: `Your inputs · ${attention.length}` }] : []),
-    { id: "brief", label: "Full report" },
   ];
 
   return (
@@ -279,58 +271,6 @@ export function TrendReport({ campaign }: { campaign: Campaign }) {
         <p className="text-sm text-mute">This campaign has no research areas yet.</p>
       ) : null}
 
-      {view === "decisions" ? (
-        <section className="hairline p-4 md:p-5" aria-label="Research decisions">
-          <h3 className="font-serif text-xl">Needs your attention</h3>
-          <p className="mt-2 text-sm text-mute">
-            Open one request at a time. A decision can add a source or correct the brief. It does not approve an unsupported finding.
-          </p>
-          {quality ? (
-            <ResearchDecisions campaign={campaign} />
-          ) : attention.length ? (
-            <ul className="mt-4 space-y-3">
-              {campaign.trendGaps.filter((gap) => gap.needsFounder).map((gap) => (
-                <li key={gap.id} className="border border-line p-3 text-sm">
-                  <p className="font-medium">{gap.detail}</p>
-                  <p className="mt-1 text-ink-soft">{gap.effect}</p>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="mt-4 text-sm text-mute">
-              {recorded ? "No research decision is open." : "Run the research workflow before decisions appear."}
-            </p>
-          )}
-          <div className="mt-4 flex flex-wrap gap-4 text-sm text-signal">
-            <Link href="/settings">Check source connections →</Link>
-          </div>
-        </section>
-      ) : null}
-
-      {view === "brief" ? (
-        <div className="flex flex-col gap-6">
-          <StructuredBrief campaign={campaign} />
-          {!campaign.structuredTrendBrief ? (
-            <section className="hairline p-4 md:p-5" aria-label="Research conclusions">
-              <h3 className="font-serif text-xl">Conclusions</h3>
-              <p className="mt-2 text-sm text-ink-soft">{campaign.brief?.angle || "Awaiting a supported theme."}</p>
-              <p className="mt-2 text-sm text-ink-soft">{campaign.brief?.visualDirection || "Awaiting a visual direction."}</p>
-              {campaign.trendFindings.length ? (
-                <ol className="mt-4 space-y-3">
-                  {campaign.trendFindings.map((finding) => (
-                    <li key={finding.id} className="text-sm">
-                      <strong>{finding.topic}</strong>
-                      <p className="mt-1 text-ink-soft">{finding.finding}</p>
-                    </li>
-                  ))}
-                </ol>
-              ) : (
-                <p className="mt-3 text-sm text-mute">Awaiting analysis.</p>
-              )}
-            </section>
-          ) : null}
-        </div>
-      ) : null}
     </div>
   );
 }

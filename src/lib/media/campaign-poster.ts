@@ -11,7 +11,7 @@ import { ingestBrandCached, loadStoredBrand } from "./brand-resolve";
 import { getModel } from "./catalog";
 import { failMediaCredits, holdMediaCredits, settleMediaCredits, type MediaHold } from "./credits";
 import { runGeneration } from "./generate";
-import { posterPrompt, posterRequest } from "./prompts";
+import { logoClearanceText, posterPrompt, posterRequest } from "./prompts";
 import { MEDIA_ADAPTERS, providerKeysSet } from "./providers";
 import { referenceImage } from "./providers/frame";
 import { rememberAsset } from "./library";
@@ -53,12 +53,14 @@ export async function renderCampaignPoster(input: {
     brand: input.editFrom || input.promptOverride?.trim() ? null : brand,
   });
   if (input.promptOverride?.trim()) {
-    req.prompt = input.promptOverride.trim();
+    const written = input.promptOverride.trim();
+    req.prompt = brand?.logo ? `${logoClearanceText()} ${written}` : written;
   } else if (input.correction?.trim() && input.editFrom) {
-    req.prompt = posterPrompt(input.campaign, input.creative, {
+    const edit = posterPrompt(input.campaign, input.creative, {
       correction: input.correction,
       editing: true,
     });
+    req.prompt = brand?.logo ? `${logoClearanceText()} ${edit}` : edit;
   }
   let model;
   try {

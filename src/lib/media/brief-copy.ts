@@ -1,6 +1,6 @@
 import type { Campaign, CreativeInsightUse } from "@/lib/types";
 import { currentStrategy } from "@/lib/trend/strategy";
-import { creativeDirectionText } from "./prompts";
+import { creativeDirectionText, logoClearanceText } from "./prompts";
 import { culturalDirection } from "@/lib/trend/cultural-calendar";
 
 /** The two poster variants the creative step can write without a live model. */
@@ -96,6 +96,7 @@ export function copyFromBrief(
       culturalDirection(campaign.culturalMatch),
       facts,
       "Depict that angle for this product. Do not replace it with a generic category scene.",
+      logoClearanceText(),
       `The only headline to set in type is: ${headline}.`,
     ]
       .filter(Boolean)

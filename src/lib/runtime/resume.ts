@@ -19,6 +19,21 @@ export function campaignCanAdvance(campaign: Campaign): boolean {
   return !FOUNDER_WAIT_STEPS.has(run.step);
 }
 
+/**
+ * A paused campaign can be launched again unless a research decision is still
+ * waiting. Evidence gaps are not that decision: quality review records them and
+ * the pipeline continues. A context correction, or a qualified finding that
+ * offers "continue limited", still has to be answered first.
+ */
+export function pausedCampaignCanResume(campaign: Campaign): boolean {
+  if (campaign.status !== "paused") return false;
+  return !(campaign.trendRequests ?? []).some(
+    (request) =>
+      request.status === "pending" &&
+      (request.category === "context" || request.options.includes("continue_limited")),
+  );
+}
+
 function timestamp(value: string | undefined): number {
   const parsed = value ? Date.parse(value) : 0;
   return Number.isFinite(parsed) ? parsed : 0;
