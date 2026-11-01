@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, type ReactNode } from "react";
 import type { PublicUser } from "@/lib/auth/types";
+import { cachedWorkspaceHasCampaigns } from "@/lib/browser-workspace";
 import { retainCampaignLifecycle } from "@/lib/campaign-lifecycle";
 import { retainTrendNoticeAck } from "@/lib/trend/notice";
 import { useAisle } from "@/lib/store";
@@ -25,18 +26,21 @@ export function WorkspaceSync({
 
     async function load() {
       const cacheKey = `aisle-ws-${user.id}`;
-      let hadCache = false;
+      let cached: string | null = null;
       try {
-        hadCache = localStorage.getItem(cacheKey) !== null;
+        cached = localStorage.getItem(cacheKey);
       } catch {
-        hadCache = false;
+        cached = null;
       }
-      if (hadCache) {
+      // An older mirror still holds campaigns, so it can paint the desk while the
+      // server record loads. A current mirror does not, and must not flash the samples.
+      const showCacheFirst = cachedWorkspaceHasCampaigns(cached);
+      if (showCacheFirst) {
         try {
           await useAisle.persist.rehydrate();
           if (!cancelled) useAisle.getState().setHydrated();
         } catch {
-          hadCache = false;
+          // The server read below still fills the desk.
         }
       }
       try {
@@ -51,7 +55,7 @@ export function WorkspaceSync({
         hydrateFromServer(data);
       } catch {
         if (cancelled) return;
-        if (!hadCache) {
+        if (!showCacheFirst) {
           await useAisle.persist.rehydrate();
           useAisle.getState().setHydrated();
         }

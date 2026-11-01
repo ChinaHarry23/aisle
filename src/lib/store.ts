@@ -1,7 +1,7 @@
 "use client";
 
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { createJSONStorage, persist } from "zustand/middleware";
 import { uid } from "./ids";
 import { jsonHeadersWithKey } from "./media/byo-key";
 import { blankCampaign, defaultBrand, migrateLegacyBrand, seedCampaigns } from "./seed";
@@ -14,6 +14,7 @@ import {
 import { sendCommand, type EngineResponse } from "./runtime/client";
 import { applySelectedFeedback, extractableInsights, normaliseInsightText, normaliseSavedInsights, type SavedInsight } from "./insights";
 import { withRuntimeDefaults } from "./runtime/defaults";
+import { browserWorkspaceStorage, workspaceForBrowser } from "./browser-workspace";
 import { normaliseActiveBrandId, normaliseSavedBrands, rememberBrand, startSavedBrand, switchSavedBrand, type SavedBrand } from "./brand/library";
 import { isArchived } from "./campaign-lifecycle";
 import { retainTrendNoticeAck, trendNoticeKey, withNotedTrendNotice } from "./trend/notice";
@@ -569,15 +570,16 @@ export const useAisle = create<Store>()(
     {
       name: "aisle-ws-pending",
       skipHydration: true,
-      partialize: (s) => ({
-        brand: s.brand,
-        savedBrands: s.savedBrands,
-        activeBrandId: s.activeBrandId,
-        campaigns: s.campaigns,
-        retiredCampaignIds: s.retiredCampaignIds,
-        savedInsights: s.savedInsights,
-        settings: s.settings,
-      }),
+      storage: createJSONStorage(browserWorkspaceStorage),
+      partialize: (s) =>
+        workspaceForBrowser({
+          brand: s.brand,
+          savedBrands: s.savedBrands,
+          activeBrandId: s.activeBrandId,
+          retiredCampaignIds: s.retiredCampaignIds,
+          savedInsights: s.savedInsights,
+          settings: s.settings,
+        }),
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<Store> & {
           brand?: BrandProfile & { imageModelId?: string; videoModelId?: string };
@@ -594,7 +596,7 @@ export const useAisle = create<Store>()(
           })(),
           savedBrands: normaliseSavedBrands(p.savedBrands),
           activeBrandId: normaliseActiveBrandId(p.activeBrandId, normaliseSavedBrands(p.savedBrands)),
-          campaigns: (p.campaigns ?? current.campaigns).map(withRuntimeDefaults),
+          campaigns: Array.isArray(p.campaigns) ? p.campaigns.map(withRuntimeDefaults) : p.brand ? [] : current.campaigns,
           retiredCampaignIds: p.retiredCampaignIds ?? current.retiredCampaignIds,
           savedInsights: normaliseSavedInsights(p.savedInsights),
           settings: withSettingsDefaults(
