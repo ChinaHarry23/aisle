@@ -17,7 +17,7 @@ import { RESEARCH_TOOL_IDS, redact, queryFor, publicSourceUrl } from '@/lib/tren
 import { campaignResearchQuestions, evidenceExcerpt, researchEvidenceContext, unreadResearchSources } from '@/lib/trend/retrieval-context';
 import type { TrendDecision } from '@/lib/runtime/decide';
 import type { MeteredModelConfig } from './metered-chat-model';
-const MAX_TOOLS = 32, MAX_MS = 8_888_888, RESEARCH_CONCURRENCY = 3;
+const MAX_TOOLS = 32, MAX_MS = 180_000, RESEARCH_CONCURRENCY = 3;
 const {tokens:MAX_TOTAL_TOKENS,outputTokens:MAX_OUTPUT_TOKENS}=RESEARCH_MODEL_LIMITS;
 const names = [...RESEARCH_TOOL_IDS, 'web.season_weather', 'web.shelf_prices', 'retail.internal_signals'];
 
