@@ -6,6 +6,7 @@ import { isArchived, retainCampaignLifecycle } from "@/lib/campaign-lifecycle";
 import { retainTrendNoticeAck } from "@/lib/trend/notice";
 import type { Campaign } from "@/lib/types";
 import { WorkflowError } from "@/lib/workflow/commands";
+import { normaliseActiveBrandId, normaliseSavedBrands } from "@/lib/brand/library";
 import { acceptSavedInsights } from "@/lib/insights";
 import { acceptWorkspaceCampaigns } from "@/lib/workflow/founder-input";
 import { workflowEnabled, mergeWorkflowCampaigns, submitWorkflow } from "@/lib/workflow/gateway";
@@ -71,7 +72,11 @@ async function handlePut(request: Request) {
       const wasTrashed = new Set(stored.campaigns.filter(isArchived).map((c) => c.id));
       trashed = accepted.filter((c) => isArchived(c) && !wasTrashed.has(c.id));
       storedCampaigns = stored.campaigns;
-      return { brand, campaigns, settings, retiredCampaignIds: body.retiredCampaignIds, savedInsights };
+      const savedBrands = body.savedBrands === undefined ? normaliseSavedBrands(stored.savedBrands) : normaliseSavedBrands(body.savedBrands);
+      const activeBrandId = body.activeBrandId === undefined
+        ? normaliseActiveBrandId(stored.activeBrandId, savedBrands)
+        : normaliseActiveBrandId(body.activeBrandId, savedBrands);
+      return { brand, campaigns, settings, retiredCampaignIds: body.retiredCampaignIds, savedInsights, savedBrands, activeBrandId };
     });
   } catch (error) {
     const message = workflowEnabled() && error instanceof WorkflowError

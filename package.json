@@ -40,6 +40,7 @@
     "test:agents": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/agents-suite.ts",
     "test:approvals": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/approvals-queue-suite.ts",
     "test:schedule": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/schedule-slot-suite.ts",
+    "test:brands": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/brand-library-suite.ts",
     "test:studio": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/studio-graph-suite.ts",
     "studio": "langgraphjs dev --host 127.0.0.1",
     "test:whichgrocer": "node --import ./scripts/service-loader.mjs --experimental-strip-types scripts/whichgrocer-suite.ts",

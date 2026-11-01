@@ -14,6 +14,7 @@ import {
 import { sendCommand, type EngineResponse } from "./runtime/client";
 import { applySelectedFeedback, extractableInsights, normaliseInsightText, normaliseSavedInsights, type SavedInsight } from "./insights";
 import { withRuntimeDefaults } from "./runtime/defaults";
+import { normaliseActiveBrandId, normaliseSavedBrands, rememberBrand, startSavedBrand, switchSavedBrand, type SavedBrand } from "./brand/library";
 import { isArchived } from "./campaign-lifecycle";
 import { retainTrendNoticeAck, trendNoticeKey, withNotedTrendNotice } from "./trend/notice";
 import { activityKind, type AgentActivityLine } from "./runtime/activity";
@@ -29,6 +30,10 @@ import type { BrandProfile, Campaign, CampaignInput } from "./types";
 type Store = {
   hydrated: boolean;
   brand: BrandProfile;
+  /** Brands the founder can switch back to. */
+  savedBrands: SavedBrand[];
+  /** Library id of `brand` once it has been saved. */
+  activeBrandId: string | null;
   campaigns: Campaign[];
   /** Permanently deleted campaign ids. They are not re-seeded. */
   retiredCampaignIds: string[];
@@ -48,8 +53,18 @@ type Store = {
     settings: WorkspaceSettings;
     retiredCampaignIds?: string[];
     savedInsights?: SavedInsight[];
+    savedBrands?: SavedBrand[];
+    activeBrandId?: string | null;
   }) => void;
   updateBrand: (partial: Partial<BrandProfile>) => void;
+  /** Keep the brand on screen in the library so another brand can replace it. */
+  saveBrand: () => void;
+  /** Load a saved brand. The one on screen is written back first. */
+  switchBrand: (id: string) => void;
+  /** Keep the brand on screen, then open a blank saved brand. */
+  startBrand: () => void;
+  /** Drop a saved brand. The one on screen stays until they switch. */
+  removeBrand: (id: string) => void;
   updateSettings: (partial: Partial<WorkspaceSettings>) => void;
   /** Adds sources, skipping any whose value is already in the list. Returns how many were new. */
   addTrendSources: (
@@ -104,7 +119,7 @@ type Store = {
   revisePosters: (id: string, note: string) => Promise<{ ok: true; message: string } | { ok: false; error: string }>;
 };
 
-async function putWorkspace(snap: Pick<Store, "brand" | "campaigns" | "retiredCampaignIds" | "settings">) {
+async function putWorkspace(snap: Pick<Store, "brand" | "campaigns" | "retiredCampaignIds" | "settings" | "savedBrands" | "activeBrandId">) {
   try {
     await fetch("/api/workspace", {
       method: "PUT",
@@ -114,6 +129,8 @@ async function putWorkspace(snap: Pick<Store, "brand" | "campaigns" | "retiredCa
         campaigns: snap.campaigns,
         retiredCampaignIds: snap.retiredCampaignIds,
         settings: snap.settings,
+        savedBrands: snap.savedBrands,
+        activeBrandId: snap.activeBrandId,
       }),
     });
   } catch {
@@ -260,6 +277,8 @@ export const useAisle = create<Store>()(
       return {
         hydrated: false,
         brand: defaultBrand,
+        savedBrands: [],
+        activeBrandId: null,
         campaigns: seedCampaigns(defaultBrand),
         retiredCampaignIds: [],
         savedInsights: [],
@@ -278,6 +297,8 @@ export const useAisle = create<Store>()(
           const local = state.hydrated ? state.campaigns : state.campaigns.filter((c) => state.busy[c.id]);
           set({
             brand: data.brand,
+            savedBrands: normaliseSavedBrands(data.savedBrands),
+            activeBrandId: normaliseActiveBrandId(data.activeBrandId, normaliseSavedBrands(data.savedBrands)),
             campaigns: retainTrendNoticeAck(local, mergeCampaignLists(local, remote, state.busy))
               .filter((campaign) => !retired.includes(campaign.id))
               .map(withRuntimeDefaults),
@@ -293,7 +314,35 @@ export const useAisle = create<Store>()(
           resumed.delete(id);
           await pump(id);
         },
-        updateBrand: (partial) => set((s) => ({ brand: { ...s.brand, ...partial } })),
+        updateBrand: (partial) =>
+          set((s) => {
+            const brand = { ...s.brand, ...partial };
+            const savedBrands = s.activeBrandId
+              ? s.savedBrands.map((item) =>
+                  item.id === s.activeBrandId ? { ...item, profile: brand, savedAt: new Date().toISOString() } : item,
+                )
+              : s.savedBrands;
+            return { brand, savedBrands };
+          }),
+        saveBrand: () => {
+          const state = get();
+          const at = new Date().toISOString();
+          set(rememberBrand(state.savedBrands, state.activeBrandId, state.brand, at));
+        },
+        switchBrand: (id) => {
+          const state = get();
+          const next = switchSavedBrand(state.savedBrands, state.activeBrandId, state.brand, id, new Date().toISOString());
+          if (next) set(next);
+        },
+        startBrand: () => {
+          const state = get();
+          set(startSavedBrand(state.savedBrands, state.activeBrandId, state.brand, new Date().toISOString()));
+        },
+        removeBrand: (id) =>
+          set((s) => ({
+            savedBrands: s.savedBrands.filter((item) => item.id !== id),
+            activeBrandId: s.activeBrandId === id ? null : s.activeBrandId,
+          })),
         updateSettings: (partial) =>
           set((s) => ({
             settings: {
@@ -522,6 +571,8 @@ export const useAisle = create<Store>()(
       skipHydration: true,
       partialize: (s) => ({
         brand: s.brand,
+        savedBrands: s.savedBrands,
+        activeBrandId: s.activeBrandId,
         campaigns: s.campaigns,
         retiredCampaignIds: s.retiredCampaignIds,
         savedInsights: s.savedInsights,
@@ -541,6 +592,8 @@ export const useAisle = create<Store>()(
               colors: { ...current.brand.colors, ...saved?.colors },
             };
           })(),
+          savedBrands: normaliseSavedBrands(p.savedBrands),
+          activeBrandId: normaliseActiveBrandId(p.activeBrandId, normaliseSavedBrands(p.savedBrands)),
           campaigns: (p.campaigns ?? current.campaigns).map(withRuntimeDefaults),
           retiredCampaignIds: p.retiredCampaignIds ?? current.retiredCampaignIds,
           savedInsights: normaliseSavedInsights(p.savedInsights),

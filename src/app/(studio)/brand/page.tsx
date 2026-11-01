@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { RetailDataPanel } from "@/components/RetailDataPanel";
 import { PageHeader } from "@/components/ui";
+import { cn } from "@/lib/cn";
 import { useAisle } from "@/lib/store";
 import type { BrandProfile } from "@/lib/types";
 
@@ -207,6 +208,80 @@ function EditableBrandName({ value, onChange }: { value: string; onChange: (v: s
   );
 }
 
+function SavedBrands() {
+  const savedBrands = useAisle((s) => s.savedBrands);
+  const activeBrandId = useAisle((s) => s.activeBrandId);
+  const saveBrand = useAisle((s) => s.saveBrand);
+  const switchBrand = useAisle((s) => s.switchBrand);
+  const startBrand = useAisle((s) => s.startBrand);
+  const removeBrand = useAisle((s) => s.removeBrand);
+  const saved = Boolean(activeBrandId && savedBrands.some((item) => item.id === activeBrandId));
+
+  return (
+    <section className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className={labelCls}>Saved brands</p>
+          <p className="mt-1 text-sm text-ink-soft">Save a brand, then switch back to it. The one in use is what every agent writes from.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={saveBrand}
+            disabled={saved}
+            className="rounded-full border border-line px-4 py-2 text-sm font-medium text-ink hover:bg-paper-2 disabled:opacity-50"
+          >
+            {saved ? "Saved" : "Save brand"}
+          </button>
+          <button
+            type="button"
+            onClick={startBrand}
+            className="rounded-full btn-primary px-4 py-2 text-sm font-medium"
+          >
+            New brand
+          </button>
+        </div>
+      </div>
+      {savedBrands.length > 0 ? (
+        <ul className="flex flex-wrap gap-2">
+          {savedBrands.map((item) => {
+            const active = item.id === activeBrandId;
+            return (
+              <li key={item.id} className="flex items-center">
+                <button
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => switchBrand(item.id)}
+                  className={cn(
+                    "rounded-l-full border px-3 py-1.5 text-sm",
+                    active ? "border-signal bg-signal text-white" : "border-line bg-surface text-ink hover:bg-paper-2",
+                  )}
+                >
+                  {item.profile.retailerName}
+                  {active ? <span className="ml-2 text-xs text-white/80">In use</span> : null}
+                </button>
+                <button
+                  type="button"
+                  aria-label={`Remove ${item.profile.retailerName}`}
+                  onClick={() => removeBrand(item.id)}
+                  className={cn(
+                    "rounded-r-full border border-l-0 px-2.5 py-1.5 text-sm",
+                    active ? "border-signal bg-signal text-white/80 hover:text-white" : "border-line bg-surface text-mute hover:text-ink",
+                  )}
+                >
+                  ×
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <p className="text-sm text-mute">No brands saved yet. Save this one before you look up another.</p>
+      )}
+    </section>
+  );
+}
+
 export default function BrandPage() {
   const brand = useAisle((s) => s.brand);
   const updateBrand = useAisle((s) => s.updateBrand);
@@ -259,6 +334,9 @@ export default function BrandPage() {
           eyebrow="Brand"
           title={<EditableBrandName value={brand.retailerName} onChange={(v) => updateBrand({ retailerName: v })} />}
         />
+        <div className="mt-6">
+          <SavedBrands />
+        </div>
         {brand.about && (
           <p className="mt-2 max-w-4xl text-[15px] leading-relaxed text-ink-soft">{brand.about}</p>
         )}

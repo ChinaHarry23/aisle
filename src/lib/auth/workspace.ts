@@ -1,6 +1,7 @@
 import { retainCampaignLifecycle } from "@/lib/campaign-lifecycle";
 import { withNotedTrendNotice } from "@/lib/trend/notice";
 import { normaliseSavedInsights, type SavedInsight } from "@/lib/insights";
+import { normaliseActiveBrandId, normaliseSavedBrands, type SavedBrand } from "@/lib/brand/library";
 import { defaultBrand, migrateLegacyBrand, seedCampaigns } from "@/lib/seed";
 import { defaultSettings, withSettingsDefaults, type WorkspaceSettings } from "@/lib/settings";
 import type { BrandProfile, Campaign } from "@/lib/types";
@@ -15,6 +16,10 @@ export type WorkspaceSnapshot = {
   retiredCampaignIds?: string[];
   /** Advice the founder saved from finished campaigns and may tick on a later brief. */
   savedInsights?: SavedInsight[];
+  /** Brands the founder can switch back to. The active one is `brand`. */
+  savedBrands?: SavedBrand[];
+  /** Library id of the brand currently in use. Null until they save one. */
+  activeBrandId?: string | null;
 };
 
 function workspaceKey(userId: string) {
@@ -75,12 +80,15 @@ function withSampleCampaigns(all: Campaign[], retired: readonly string[]): Campa
 function normalizeWorkspace(raw: Partial<WorkspaceSnapshot> | null): WorkspaceSnapshot {
   const fallback = emptyWorkspace();
   const retired = [...new Set(raw?.retiredCampaignIds ?? [])];
+  const savedBrands = normaliseSavedBrands(raw?.savedBrands);
   return {
     brand: { ...fallback.brand, ...(raw?.brand ? migrateLegacyBrand(raw.brand) : {}) },
     campaigns: withSampleCampaigns(raw?.campaigns ?? fallback.campaigns, retired),
     settings: withSettingsDefaults(raw?.settings),
     retiredCampaignIds: retired,
     savedInsights: normaliseSavedInsights(raw?.savedInsights),
+    savedBrands,
+    activeBrandId: normaliseActiveBrandId(raw?.activeBrandId, savedBrands),
   };
 }
 
@@ -141,5 +149,7 @@ function mergeForSave(previous: WorkspaceSnapshot | null, snapshot: WorkspaceSna
       return withNotedTrendNotice(prior, next);
     });
   const kept = retainCampaignLifecycle(campaigns, retired, campaigns);
-  return normalizeWorkspace({ ...snapshot, campaigns: kept, retiredCampaignIds: retired });
+  const savedBrands = snapshot.savedBrands === undefined ? previous?.savedBrands : snapshot.savedBrands;
+  const activeBrandId = snapshot.activeBrandId === undefined ? previous?.activeBrandId : snapshot.activeBrandId;
+  return normalizeWorkspace({ ...snapshot, campaigns: kept, retiredCampaignIds: retired, savedBrands, activeBrandId });
 }
