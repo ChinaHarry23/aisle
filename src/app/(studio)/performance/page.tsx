@@ -12,7 +12,7 @@ import { Empty, PageHeader, ResultStatusChip, SectionTitle, Stat } from "@/compo
 import { useDeveloperView } from "@/components/DeveloperView";
 import Link from "next/link";
 
-function matchesCampaign(query: string, ...parts: Array<string | undefined>) {
+function matchesCampaign(query: string, ...parts: Array<string | null | undefined>) {
   const needle = query.trim().toLowerCase();
   if (!needle) return true;
   return parts.join(" ").toLowerCase().includes(needle);
