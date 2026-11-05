@@ -191,11 +191,13 @@ See `docs/STAGE2-IMPLEMENTATION.md` for the Stage 1 → code → test traceabili
 
 ## Docker
 
+The Week 13 on-site procedure is [SETUP.md](SETUP.md). From this folder:
+
 ```bash
-docker compose up --build    # http://localhost:3000, data in the aisle-data volume
+sh scripts/onsite-up.sh    # builds from this source, then http://localhost:3000
 ```
 
-The image needs `AUTH_SECRET` (the entrypoint exits without it); `docker-compose.yml` reads `.env.local` if present. SQLite lives in `/app/data`.
+SQLite lives in the `aisle-data` volume. No API key is required. If Docker cannot start inside the demo VM, SETUP.md Path B runs the same app with Node.
 
 ## Sharing on the LAN or ngrok
 

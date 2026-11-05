@@ -40,6 +40,9 @@ yarn-error.log*
 # local auth db fallback
 /data
 
+# Canvas upload built by scripts/package-for-canvas.sh (the default path is outside the repo)
+/aisle-canvas-submission.zip
+
 # local render experiments (keep the workflow doc linked from README.md)
 /codex/*
 !/codex/ltx-2.5/
