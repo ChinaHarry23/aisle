@@ -1,0 +1,28 @@
+# Week 13 on-site stack. The procedure is SETUP.md.
+# One container serves the website, the agent backend, and SQLite.
+# Optional provider keys in .env.local are passed through when that file exists.
+# AISLE_DB=sqlite wins over a DATABASE_URL left in .env.local, so the demo
+# does not try to reach a hosted Postgres.
+
+services:
+  aisle:
+    build: .
+    image: aisle:onsite
+    ports:
+      - "${AISLE_PORT:-3000}:3000"
+    env_file:
+      - path: .env.local
+        required: false
+    environment:
+      PORT: "3000"
+      AISLE_DB: sqlite
+      AISLE_DB_FILE: /app/data/aisle.db
+      AISLE_MEDIA_DIR: /app/data/generated-media
+      AISLE_HOSTED: "0"
+      AISLE_SEED_PASSWORD: aisle-demo-2026
+    volumes:
+      - aisle-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  aisle-data:
